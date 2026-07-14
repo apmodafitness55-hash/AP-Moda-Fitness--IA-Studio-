@@ -1,0 +1,431 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@405;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Beautiful custom subtle scrollbar details */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+/* ==========================================================================
+   CUSTOM SYSTEM-WIDE DARK MODE OVERRIDES
+   ========================================================================== */
+.dark {
+  color-scheme: dark;
+}
+
+/* Background overrides */
+.dark body,
+.dark #main-app-container,
+.dark .min-h-screen:not(.bg-pink-650):not(.bg-pink-600) {
+  background-color: #0b0f19 !important;
+  color: #f1f5f9 !important;
+}
+
+.dark main {
+  background-color: #0b0f19 !important;
+}
+
+/* Header style override */
+.dark header {
+  background-color: #111827 !important;
+  border-bottom-color: #1f2937 !important;
+}
+
+/* Card and component backgrounds */
+.dark .bg-white,
+.dark .bg-slate-55,
+.dark .bg-slate-50/80,
+.dark .bg-slate-50/50,
+.dark .bg-slate-50 {
+  background-color: #111827 !important;
+}
+
+.dark .bg-slate-100,
+.dark .bg-slate-150,
+.dark .bg-slate-200/50,
+.dark .bg-gray-100 {
+  background-color: #1f2937 !important;
+}
+
+/* Border overrides */
+.dark .border-slate-100,
+.dark .border-slate-150,
+.dark .border-slate-200,
+.dark .border-slate-200\/50,
+.dark .border-slate-300,
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .divide-slate-50 > *,
+.dark .divide-slate-100 > *,
+.dark .divide-slate-200 > * {
+  border-color: #1f2937 !important;
+}
+
+/* Overriding typography slate colors to look stunningly clear in dark mode */
+.dark .text-slate-950,
+.dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-slate-700,
+.dark .text-gray-900,
+.dark .text-gray-800 {
+  color: #f3f4f6 !important; /* soft white-gray */
+}
+
+.dark .text-slate-650,
+.dark .text-slate-600,
+.dark .text-gray-700,
+.dark .text-gray-600 {
+  color: #e5e7eb !important; /* text-slate-200 */
+}
+
+.dark .text-slate-500,
+.dark .text-gray-500,
+.dark .text-slate-550 {
+  color: #9ca3af !important; /* text-slate-400 */
+}
+
+.dark .text-slate-400,
+.dark .text-gray-400 {
+  color: #6b7280 !important; /* text-slate-500 */
+}
+
+/* Custom interactive UI controls - Inputs, textareas, selectors */
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #1f2937 !important;
+  border-color: #374151 !important;
+  color: #f3f4f6 !important;
+}
+
+.dark input::placeholder {
+  color: #4b5563 !important;
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: #db2777 !important; /* pink focus ring */
+  outline: none;
+}
+
+/* Shadow details */
+.dark .shadow-xs,
+.dark .shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.5) !important;
+}
+
+.dark .shadow-md,
+.dark .shadow-lg,
+.dark .shadow-xl {
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Dropdowns and floating menus, receipt dialog */
+.dark #notifications-menu,
+.dark .absolute.bg-white,
+.dark [role="dialog"],
+.dark .modal-content {
+  background-color: #111827 !important;
+  border-color: #1f2937 !important;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.7) !important;
+}
+
+/* Client Public Catalog specific override fixes for complete coverage */
+.dark .min-h-screen {
+  background-color: #0b0f19 !important;
+}
+
+.dark div.bg-pink-50 {
+  background-color: rgba(219, 39, 119, 0.1) !important;
+  border-color: rgba(219, 39, 119, 0.3) !important;
+}
+
+/* Pill, badge adjustments */
+.dark .bg-pink-50 {
+  background-color: rgba(219, 39, 119, 0.1) !important;
+  color: #f472b6 !important;
+}
+
+.dark .bg-slate-900 {
+  background-color: #111827 !important;
+}
+
+.dark .bg-slate-900.border-b {
+  background-color: #0b0f19 !important;
+}
+
+.dark .bg-emerald-50,
+.dark .bg-emerald-100\/50,
+.dark .bg-emerald-100\/70,
+.dark .bg-emerald-500\/10 {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+  color: #34d399 !important;
+}
+
+.dark .bg-rose-50,
+.dark .bg-rose-500\/10 {
+  background-color: rgba(244, 63, 94, 0.12) !important;
+  color: #fb7185 !important;
+}
+
+.dark .bg-amber-50 {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+  color: #fbbf24 !important;
+}
+
+.dark .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.12) !important;
+  color: #60a5fa !important;
+}
+
+.dark .bg-purple-50 {
+  background-color: rgba(168, 85, 247, 0.12) !important;
+  color: #c084fc !important;
+}
+
+.dark .text-emerald-750,
+.dark .text-emerald-700, 
+.dark .text-emerald-800, 
+.dark .text-emerald-600 { 
+  color: #34d399 !important; 
+}
+
+.dark .text-rose-700, 
+.dark .text-rose-600 { 
+  color: #fb7185 !important; 
+}
+
+.dark .text-amber-700, 
+.dark .text-amber-800,
+.dark .text-amber-600 { 
+  color: #fbbf24 !important; 
+}
+
+.dark .text-blue-700, 
+.dark .text-blue-600 { 
+  color: #60a5fa !important; 
+}
+
+/* Table hover row detail colors */
+.dark .hover\:bg-slate-50\/45:hover,
+.dark .hover\:bg-slate-50\/40:hover,
+.dark .hover\:bg-slate-50\/50:hover,
+.dark .hover\:bg-slate-50\/80:hover,
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-slate-100:hover,
+.dark tr:hover {
+  background-color: #1a2333 !important;
+}
+
+/* Sidebar item highlight and override behavior values so sidebar text stays bright */
+.dark aside.bg-slate-900 nav span.text-slate-500 {
+  color: #4b5563 !important;
+}
+
+/* Public Catalog custom ticker bar */
+.dark .bg-slate-900.text-white {
+  background-color: #0b0f19 !important;
+}
+.dark .bg-slate-900.text-slate-100 {
+  background-color: #111827 !important;
+}
+
+/* ==========================================================================
+   DYNAMIC COLOR PRESENTS OVERRIDES (Neon, Verde, Roxo, Rosa)
+   ========================================================================== */
+:root {
+  --accent: #db2777; /* Default pink */
+  --accent-rgb: 219, 39, 119;
+  --accent-hover: #be185d;
+  --accent-light: rgba(219, 39, 119, 0.1);
+}
+
+body.theme-neon {
+  --accent: #06b6d4; /* cyan */
+  --accent-rgb: 6, 182, 212;
+  --accent-hover: #0891b2;
+  --accent-light: rgba(6, 182, 212, 0.15);
+}
+
+body.theme-verde {
+  --accent: #10b981; /* emerald */
+  --accent-rgb: 16, 185, 129;
+  --accent-hover: #059669;
+  --accent-light: rgba(16, 185, 129, 0.15);
+}
+
+body.theme-roxo {
+  --accent: #8b5cf6; /* purple */
+  --accent-rgb: 139, 92, 246;
+  --accent-hover: #7c3aed;
+  --accent-light: rgba(139, 92, 246, 0.15);
+}
+
+body.theme-rosa {
+  --accent: #db2777;
+  --accent-rgb: 219, 39, 119;
+  --accent-hover: #be185d;
+  --accent-light: rgba(219, 39, 119, 0.15);
+}
+
+/* Redefine main pink classes to use CSS variable */
+.bg-pink-600 {
+  background-color: var(--accent) !important;
+}
+.hover\:bg-pink-700:hover, .hover\:bg-pink-700 {
+  background-color: var(--accent-hover) !important;
+}
+.bg-pink-700 {
+  background-color: var(--accent-hover) !important;
+}
+.hover\:bg-pink-800:hover {
+  background-color: var(--accent-hover) !important;
+}
+.text-pink-600 {
+  color: var(--accent) !important;
+}
+.text-pink-500 {
+  color: var(--accent) !important;
+}
+.text-pink-400 {
+  color: var(--accent) !important;
+}
+.hover\:text-pink-600:hover {
+  color: var(--accent-hover) !important;
+}
+.bg-pink-50 {
+  background-color: var(--accent-light) !important;
+}
+.bg-pink-100 {
+  background-color: var(--accent-light) !important;
+}
+.text-pink-700 {
+  color: var(--accent) !important;
+}
+.border-pink-500 {
+  border-color: var(--accent) !important;
+}
+.focus\:border-pink-500:focus {
+  border-color: var(--accent) !important;
+}
+.focus\:border-pink-500\/50:focus {
+  border-color: var(--accent) !important;
+}
+.shadow-pink-500\/10 {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
+}
+.dark .focus\:border-pink-500:focus {
+  border-color: var(--accent) !important;
+}
+.dark input:focus, .dark select:focus, .dark textarea:focus {
+  border-color: var(--accent) !important;
+}
+.bg-pink-900\/40 {
+  background-color: rgba(219, 39, 119, 0.2) !important;
+}
+.shadow-pink-900\/40 {
+  box-shadow: 0 4px 14px 0 rgba(0, 0, 0, 0.4) !important;
+}
+.text-pink-400 {
+  color: var(--accent) !important;
+}
+.group-hover\:text-pink-400:hover, .group-hover\:text-pink-400 {
+  color: var(--accent) !important;
+}
+
+/* ==========================================================================
+   SEASONAL MICRO-INTERACTIONS & SEAMLESS EFFECTS LIBRARY
+   ========================================================================== */
+@keyframes pulse-soft {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.4);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 0 8px rgba(var(--accent-rgb), 0);
+  }
+}
+
+@keyframes shimmer-luxury {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes float-minimal {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes border-glow {
+  0%, 100% {
+    border-color: rgba(var(--accent-rgb), 0.3);
+    box-shadow: 0 0 4px rgba(var(--accent-rgb), 0.1);
+  }
+  50% {
+    border-color: rgba(var(--accent-rgb), 0.8);
+    box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.4);
+  }
+}
+
+.anim-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+.anim-shimmer-luxury {
+  position: relative;
+  overflow: hidden;
+}
+
+.anim-shimmer-luxury::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: skewX(-20deg);
+  animation: shimmer-luxury 2s ease-in-out infinite;
+}
+
+.anim-float-minimal {
+  animation: float-minimal 3s ease-in-out infinite;
+}
+
+.anim-border-glow {
+  animation: border-glow 2s ease-in-out infinite;
+}
+

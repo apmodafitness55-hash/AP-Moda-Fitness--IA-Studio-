@@ -1,0 +1,6 @@
+{
+  "name": "AP Moda Fitness",
+  "description": "Sistema de gestão completo para loja de moda fitness feminina com PDV, controle de vendas, estoque, fluxo de caixa e dashboards analíticos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
