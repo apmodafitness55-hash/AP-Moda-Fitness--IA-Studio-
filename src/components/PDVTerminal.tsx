@@ -410,6 +410,64 @@ export default function PDVTerminal({
         ];
       }
 
+      // Pre-fill customer/buyer and address data if a customer is selected in PDV to prevent double data entry
+      let customerPayload: any = null;
+      let shippingAddressPayload: any = null;
+      let metadataPayload: any = null;
+
+      if (selectedClientObject) {
+        const cleanPhone = (selectedClientObject.phone || '').replace(/\D/g, '');
+        const cleanCpf = (selectedClientObject.cpf || '').replace(/\D/g, '');
+        const cleanCep = (selectedClientObject.addressCep || '').replace(/\D/g, '');
+
+        const nameParts = (selectedClientObject.name || '').trim().split(/\s+/);
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || firstName;
+
+        const buyerData = {
+          first_name: firstName,
+          last_name: lastName,
+          name: selectedClientObject.name,
+          email: selectedClientObject.email ? selectedClientObject.email.trim() : `${firstName.toLowerCase()}@exemplo.com`,
+          phone: cleanPhone || selectedClientObject.phone,
+          document: cleanCpf || selectedClientObject.cpf,
+          cpf: cleanCpf || selectedClientObject.cpf
+        };
+
+        const addressData = {
+          street: selectedClientObject.addressStreet || '',
+          number: selectedClientObject.addressNum || '',
+          complement: selectedClientObject.addressComp || '',
+          neighborhood: selectedClientObject.addressBairro || '',
+          bairro: selectedClientObject.addressBairro || '',
+          city: selectedClientObject.addressCidade || '',
+          state: selectedClientObject.addressEstado || '',
+          zip: cleanCep || selectedClientObject.addressCep || '',
+          cep: cleanCep || selectedClientObject.addressCep || ''
+        };
+
+        customerPayload = {
+          ...buyerData,
+          address: addressData
+        };
+
+        shippingAddressPayload = addressData;
+
+        metadataPayload = {
+          customer_name: selectedClientObject.name,
+          customer_email: selectedClientObject.email || `${firstName.toLowerCase()}@exemplo.com`,
+          customer_phone: cleanPhone || selectedClientObject.phone,
+          customer_cpf: cleanCpf || selectedClientObject.cpf,
+          shipping_street: selectedClientObject.addressStreet || '',
+          shipping_number: selectedClientObject.addressNum || '',
+          shipping_complement: selectedClientObject.addressComp || '',
+          shipping_neighborhood: selectedClientObject.addressBairro || '',
+          shipping_city: selectedClientObject.addressCidade || '',
+          shipping_state: selectedClientObject.addressEstado || '',
+          shipping_zip: cleanCep || selectedClientObject.addressCep || ''
+        };
+      }
+
       let data: any = null;
       try {
         console.log('[InfinitePay PDV] Enviando requisição POST direta para https://api.checkout.infinitepay.io/links');
@@ -423,7 +481,12 @@ export default function PDVTerminal({
             order_nsu: orderId,
             redirect_url: window.location.origin,
             items: itensPayload,
-            itens: itensPayload
+            itens: itensPayload,
+            buyer: customerPayload || undefined,
+            customer: customerPayload || undefined,
+            shipping_address: shippingAddressPayload || undefined,
+            billing_address: shippingAddressPayload || undefined,
+            metadata: metadataPayload || undefined
           })
         });
 
@@ -448,7 +511,12 @@ export default function PDVTerminal({
             order_nsu: orderId,
             redirect_url: window.location.origin,
             itens: itensPayload,
-            isCents: true
+            isCents: true,
+            buyer: customerPayload || undefined,
+            customer: customerPayload || undefined,
+            shipping_address: shippingAddressPayload || undefined,
+            billing_address: shippingAddressPayload || undefined,
+            metadata: metadataPayload || undefined
           })
         });
 

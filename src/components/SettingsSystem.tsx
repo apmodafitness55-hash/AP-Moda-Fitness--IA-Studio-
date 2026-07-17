@@ -335,6 +335,7 @@ export default function SettingsSystem({
       setWhatsappRecipient(localStorage.getItem('ap_whatsapp_recipient') || '');
       setWhatsappEnabled(localStorage.getItem('ap_whatsapp_enabled') !== 'false');
       setMelhorEnvioToken(localStorage.getItem('ap_melhor_envio_token') || '');
+      setMelhorEnvioSandbox(localStorage.getItem('ap_melhor_envio_sandbox') === 'true');
       
       const savedImgbb = localStorage.getItem('ap_imgbb_key');
       if (savedImgbb && savedImgbb !== 'imgbb_live_tok_9821379128') {
@@ -437,6 +438,7 @@ export default function SettingsSystem({
   
   // Melhor Envio Integration Token State
   const [melhorEnvioToken, setMelhorEnvioToken] = useState(() => localStorage.getItem('ap_melhor_envio_token') || '');
+  const [melhorEnvioSandbox, setMelhorEnvioSandbox] = useState(() => localStorage.getItem('ap_melhor_envio_sandbox') === 'true');
   
   // WhatsApp Business API integration states
   const [whatsappToken, setWhatsappToken] = useState(() => localStorage.getItem('ap_whatsapp_token') || '');
@@ -2186,6 +2188,33 @@ export default function SettingsSystem({
                 >
                   Salvar Token
                 </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-50">
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1 text-[10px]">Ambiente de Operação (Melhor Envio)</label>
+                  <select
+                    value={melhorEnvioSandbox ? 'true' : 'false'}
+                    onChange={async (e) => {
+                      const isSandbox = e.target.value === 'true';
+                      setMelhorEnvioSandbox(isSandbox);
+                      localStorage.setItem('ap_melhor_envio_sandbox', String(isSandbox));
+                      const success = await pushSystemConfigToFirebase('ap_melhor_envio_sandbox', String(isSandbox));
+                      if (success) {
+                        alert(`✅ Ambiente alterado para ${isSandbox ? 'Sandbox / Simulador' : 'Produção'} com sucesso!`);
+                      }
+                    }}
+                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 text-slate-700 text-[10.5px] focus:outline-hidden cursor-pointer"
+                  >
+                    <option value="false">Produção (Real / Oficial)</option>
+                    <option value="true">Sandbox (Simulado / Demonstração / Sem Custo)</option>
+                  </select>
+                </div>
+                <div className="flex items-center">
+                  <span className="text-[10px] text-slate-400 leading-normal">
+                    💡 <strong>Dica:</strong> No modo <strong>Sandbox/Simulado</strong>, você pode simular fretes e geração de etiquetas de teste completas de graça para conferir o fluxo de ponta a ponta sem gastar do seu saldo real!
+                  </span>
+                </div>
               </div>
             </div>
           </div>

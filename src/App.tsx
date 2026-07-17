@@ -72,6 +72,8 @@ import {
   fetchCheckoutsFromFirebase,
   syncBulkCheckoutsToFirebase,
   syncSystemConfigsWithFirebase,
+  fetchSystemConfigsFromFirebase,
+  pushSystemConfigToFirebase,
   getTolerantValue,
   clearAllFirebaseData
 } from './firebase';
@@ -402,9 +404,9 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem('ap_moda_products');
     try {
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
     return INITIAL_PRODUCTS;
@@ -425,9 +427,9 @@ export default function App() {
   const [clients, setClients] = useState<Client[]>(() => {
     const saved = localStorage.getItem('ap_moda_clients');
     try {
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
     return INITIAL_CLIENTS;
@@ -436,9 +438,9 @@ export default function App() {
   const [sales, setSales] = useState<Sale[]>(() => {
     const saved = localStorage.getItem('ap_moda_sales');
     try {
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
     return INITIAL_SALES;
@@ -447,9 +449,9 @@ export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('ap_moda_transactions');
     try {
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
     return INITIAL_TRANSACTIONS;
@@ -736,6 +738,21 @@ export default function App() {
         stepsCompleted: [...prev.stepsCompleted, 'Conectando...']
       }));
 
+      // Check if database has been seeded with standard demo data before
+      let isSeeded = localStorage.getItem('ap_system_seeded') === 'true';
+      try {
+        const dbConfigs = await fetchSystemConfigsFromFirebase();
+        if (dbConfigs && Array.isArray(dbConfigs)) {
+          const hasSeededKey = dbConfigs.some((config: any) => config.key === 'ap_system_seeded' && config.value === 'true');
+          if (hasSeededKey) {
+            isSeeded = true;
+            localStorage.setItem('ap_system_seeded', 'true');
+          }
+        }
+      } catch (e) {
+        console.warn('[Sync] Failed to verify ap_system_seeded config:', e);
+      }
+
       // 2. Sincroniza logins da Equipe
       const dbMembers = await fetchTeamMembersFromFirebase();
       if (dbMembers && dbMembers.length > 0) {
@@ -762,17 +779,27 @@ export default function App() {
       if (dbProducts && dbProducts.length > 0) {
         setProducts(dbProducts);
         localStorage.setItem('ap_moda_products', JSON.stringify(dbProducts));
+        if (!isSeeded) {
+          isSeeded = true;
+          localStorage.setItem('ap_system_seeded', 'true');
+          await pushSystemConfigToFirebase('ap_system_seeded', 'true');
+        }
       } else {
-        // Firebase está vazio de produtos! Vamos proteger os dados locais e semear
-        const localProducts = lastProductsRef.current && lastProductsRef.current.length > 0 ? lastProductsRef.current : products;
-        if (localProducts && localProducts.length > 0) {
-          console.log('[Firebase Sync] Enviando seus produtos locais da tela para o Firebase vazio:', localProducts.length);
-          await syncBulkProductsToFirebase(localProducts);
+        if (isSeeded) {
+          setProducts([]);
+          localStorage.setItem('ap_moda_products', JSON.stringify([]));
         } else {
-          console.log('[Firebase Sync] Semeando catálogo de Moda Fitness padrão (INITIAL_PRODUCTS) no Firebase vazio:', INITIAL_PRODUCTS.length);
-          await syncBulkProductsToFirebase(INITIAL_PRODUCTS);
-          setProducts(INITIAL_PRODUCTS);
-          localStorage.setItem('ap_moda_products', JSON.stringify(INITIAL_PRODUCTS));
+          // Firebase está vazio de produtos! Vamos proteger os dados locais e semear
+          const localProducts = lastProductsRef.current && lastProductsRef.current.length > 0 ? lastProductsRef.current : products;
+          if (localProducts && localProducts.length > 0) {
+            console.log('[Firebase Sync] Enviando seus produtos locais da tela para o Firebase vazio:', localProducts.length);
+            await syncBulkProductsToFirebase(localProducts);
+          } else {
+            console.log('[Firebase Sync] Semeando catálogo de Moda Fitness padrão (INITIAL_PRODUCTS) no Firebase vazio:', INITIAL_PRODUCTS.length);
+            await syncBulkProductsToFirebase(INITIAL_PRODUCTS);
+            setProducts(INITIAL_PRODUCTS);
+            localStorage.setItem('ap_moda_products', JSON.stringify(INITIAL_PRODUCTS));
+          }
         }
       }
 
@@ -788,16 +815,26 @@ export default function App() {
       if (dbClients && dbClients.length > 0) {
         setClients(dbClients);
         localStorage.setItem('ap_moda_clients', JSON.stringify(dbClients));
+        if (!isSeeded) {
+          isSeeded = true;
+          localStorage.setItem('ap_system_seeded', 'true');
+          await pushSystemConfigToFirebase('ap_system_seeded', 'true');
+        }
       } else {
-        const localClients = lastClientsRef.current && lastClientsRef.current.length > 0 ? lastClientsRef.current : clients;
-        if (localClients && localClients.length > 0) {
-          console.log('[Firebase Sync] Enviando seus clientes locais da tela para o Firebase vazio:', localClients.length);
-          await syncBulkClientsToFirebase(localClients);
+        if (isSeeded) {
+          setClients([]);
+          localStorage.setItem('ap_moda_clients', JSON.stringify([]));
         } else {
-          console.log('[Firebase Sync] Semeando lista de clientes (INITIAL_CLIENTS) no Firebase vazio:', INITIAL_CLIENTS.length);
-          await syncBulkClientsToFirebase(INITIAL_CLIENTS);
-          setClients(INITIAL_CLIENTS);
-          localStorage.setItem('ap_moda_clients', JSON.stringify(INITIAL_CLIENTS));
+          const localClients = lastClientsRef.current && lastClientsRef.current.length > 0 ? lastClientsRef.current : clients;
+          if (localClients && localClients.length > 0) {
+            console.log('[Firebase Sync] Enviando seus clientes locais da tela para o Firebase vazio:', localClients.length);
+            await syncBulkClientsToFirebase(localClients);
+          } else {
+            console.log('[Firebase Sync] Semeando lista de clientes (INITIAL_CLIENTS) no Firebase vazio:', INITIAL_CLIENTS.length);
+            await syncBulkClientsToFirebase(INITIAL_CLIENTS);
+            setClients(INITIAL_CLIENTS);
+            localStorage.setItem('ap_moda_clients', JSON.stringify(INITIAL_CLIENTS));
+          }
         }
       }
 
@@ -813,16 +850,26 @@ export default function App() {
       if (dbSales && dbSales.length > 0) {
         setSales(dbSales);
         localStorage.setItem('ap_moda_sales', JSON.stringify(dbSales));
+        if (!isSeeded) {
+          isSeeded = true;
+          localStorage.setItem('ap_system_seeded', 'true');
+          await pushSystemConfigToFirebase('ap_system_seeded', 'true');
+        }
       } else {
-        const localSales = lastSalesRef.current && lastSalesRef.current.length > 0 ? lastSalesRef.current : sales;
-        if (localSales && localSales.length > 0) {
-          console.log('[Firebase Sync] Enviando suas vendas locais da tela para o Firebase vazio:', localSales.length);
-          await syncBulkSalesToFirebase(localSales);
+        if (isSeeded) {
+          setSales([]);
+          localStorage.setItem('ap_moda_sales', JSON.stringify([]));
         } else {
-          console.log('[Firebase Sync] Semeando histórico de vendas (INITIAL_SALES) no Firebase vazio:', INITIAL_SALES.length);
-          await syncBulkSalesToFirebase(INITIAL_SALES);
-          setSales(INITIAL_SALES);
-          localStorage.setItem('ap_moda_sales', JSON.stringify(INITIAL_SALES));
+          const localSales = lastSalesRef.current && lastSalesRef.current.length > 0 ? lastSalesRef.current : sales;
+          if (localSales && localSales.length > 0) {
+            console.log('[Firebase Sync] Enviando suas vendas locais da tela para o Firebase vazio:', localSales.length);
+            await syncBulkSalesToFirebase(localSales);
+          } else {
+            console.log('[Firebase Sync] Semeando histórico de vendas (INITIAL_SALES) no Firebase vazio:', INITIAL_SALES.length);
+            await syncBulkSalesToFirebase(INITIAL_SALES);
+            setSales(INITIAL_SALES);
+            localStorage.setItem('ap_moda_sales', JSON.stringify(INITIAL_SALES));
+          }
         }
       }
 
@@ -838,17 +885,32 @@ export default function App() {
       if (dbTransactions && dbTransactions.length > 0) {
         setTransactions(dbTransactions);
         localStorage.setItem('ap_moda_transactions', JSON.stringify(dbTransactions));
-      } else {
-        const localTxs = lastTransactionsRef.current && lastTransactionsRef.current.length > 0 ? lastTransactionsRef.current : transactions;
-        if (localTxs && localTxs.length > 0) {
-          console.log('[Firebase Sync] Enviando fluxo de caixa local para o Firebase vazio:', localTxs.length);
-          await syncBulkTransactionsToFirebase(localTxs);
-        } else {
-          console.log('[Firebase Sync] Semeando fluxo de caixa padrão (INITIAL_TRANSACTIONS) no Firebase vazio:', INITIAL_TRANSACTIONS.length);
-          await syncBulkTransactionsToFirebase(INITIAL_TRANSACTIONS);
-          setTransactions(INITIAL_TRANSACTIONS);
-          localStorage.setItem('ap_moda_transactions', JSON.stringify(INITIAL_TRANSACTIONS));
+        if (!isSeeded) {
+          isSeeded = true;
+          localStorage.setItem('ap_system_seeded', 'true');
+          await pushSystemConfigToFirebase('ap_system_seeded', 'true');
         }
+      } else {
+        if (isSeeded) {
+          setTransactions([]);
+          localStorage.setItem('ap_moda_transactions', JSON.stringify([]));
+        } else {
+          const localTxs = lastTransactionsRef.current && lastTransactionsRef.current.length > 0 ? lastTransactionsRef.current : transactions;
+          if (localTxs && localTxs.length > 0) {
+            console.log('[Firebase Sync] Enviando fluxo de caixa local para o Firebase vazio:', localTxs.length);
+            await syncBulkTransactionsToFirebase(localTxs);
+          } else {
+            console.log('[Firebase Sync] Semeando fluxo de caixa padrão (INITIAL_TRANSACTIONS) no Firebase vazio:', INITIAL_TRANSACTIONS.length);
+            await syncBulkTransactionsToFirebase(INITIAL_TRANSACTIONS);
+            setTransactions(INITIAL_TRANSACTIONS);
+            localStorage.setItem('ap_moda_transactions', JSON.stringify(INITIAL_TRANSACTIONS));
+          }
+        }
+      }
+
+      if (!isSeeded) {
+        localStorage.setItem('ap_system_seeded', 'true');
+        await pushSystemConfigToFirebase('ap_system_seeded', 'true');
       }
 
       setSyncProgress(prev => ({
@@ -2251,15 +2313,55 @@ export default function App() {
     };
     setTransactions(prev => [newTx, ...prev]);
 
+    // Load VIP rules configuration from localStorage
+    let vipRules: any = null;
+    try {
+      const saved = localStorage.getItem('ap_vip_rules_config');
+      if (saved) vipRules = JSON.parse(saved);
+    } catch (e) {}
+
+    if (!vipRules) {
+      vipRules = {
+        autoVipEnabled: true,
+        minSpentEnabled: true,
+        minSpent: 500,
+        minOrdersEnabled: true,
+        minOrders: 3,
+        matchType: 'or'
+      };
+    }
+
     // Update Client spent bounds if they already exist
     let updatedClients: Client[] = [];
     setClients(prevClients => {
       const newList = prevClients.map(cli => {
         if (cli.name.toLowerCase() === newSale.clientName.toLowerCase()) {
+          const newSpent = cli.totalSpent + newSale.total;
+          const newOrders = cli.ordersCount + 1;
+          
+          let isVip = cli.vip || false;
+          if (vipRules.autoVipEnabled) {
+            const spentQualified = vipRules.minSpentEnabled ? (newSpent >= vipRules.minSpent) : false;
+            const ordersQualified = vipRules.minOrdersEnabled ? (newOrders >= vipRules.minOrders) : false;
+            
+            if (vipRules.minSpentEnabled && vipRules.minOrdersEnabled) {
+              if (vipRules.matchType === 'and') {
+                isVip = isVip || (spentQualified && ordersQualified);
+              } else {
+                isVip = isVip || (spentQualified || ordersQualified);
+              }
+            } else if (vipRules.minSpentEnabled) {
+              isVip = isVip || spentQualified;
+            } else if (vipRules.minOrdersEnabled) {
+              isVip = isVip || ordersQualified;
+            }
+          }
+
           const updatedCli = {
             ...cli,
-            totalSpent: cli.totalSpent + newSale.total,
-            ordersCount: cli.ordersCount + 1
+            totalSpent: newSpent,
+            ordersCount: newOrders,
+            vip: isVip
           };
           updatedClients.push(updatedCli);
           return updatedCli;
@@ -2453,12 +2555,53 @@ export default function App() {
   };
 
   const handleAddClient = async (newClient: Client) => {
-    setClients(prev => [newClient, ...prev]);
+    // Load VIP rules configuration from localStorage
+    let vipRules: any = null;
+    try {
+      const saved = localStorage.getItem('ap_vip_rules_config');
+      if (saved) vipRules = JSON.parse(saved);
+    } catch (e) {}
+
+    if (!vipRules) {
+      vipRules = {
+        autoVipEnabled: true,
+        minSpentEnabled: true,
+        minSpent: 500,
+        minOrdersEnabled: true,
+        minOrders: 3,
+        matchType: 'or'
+      };
+    }
+
+    let isVip = newClient.vip || false;
+    if (vipRules.autoVipEnabled) {
+      const spentQualified = vipRules.minSpentEnabled ? (newClient.totalSpent >= vipRules.minSpent) : false;
+      const ordersQualified = vipRules.minOrdersEnabled ? (newClient.ordersCount >= vipRules.minOrders) : false;
+      
+      if (vipRules.minSpentEnabled && vipRules.minOrdersEnabled) {
+        if (vipRules.matchType === 'and') {
+          isVip = spentQualified && ordersQualified;
+        } else {
+          isVip = spentQualified || ordersQualified;
+        }
+      } else if (vipRules.minSpentEnabled) {
+        isVip = spentQualified;
+      } else if (vipRules.minOrdersEnabled) {
+        isVip = ordersQualified;
+      }
+    }
+
+    const evaluatedClient = {
+      ...newClient,
+      vip: isVip
+    };
+
+    setClients(prev => [evaluatedClient, ...prev]);
     const config = getFirebaseConfig();
     if (config && !systemOffline) {
       try {
-        await syncBulkClientsToFirebase([newClient]);
-        const remaining = getDirtyIds('ap_dirty_clients').filter(id => id !== newClient.id);
+        await syncBulkClientsToFirebase([evaluatedClient]);
+        const remaining = getDirtyIds('ap_dirty_clients').filter(id => id !== evaluatedClient.id);
         saveDirtyIds('ap_dirty_clients', remaining);
       } catch (e) {
         console.warn('Immediate client upload failed:', e);

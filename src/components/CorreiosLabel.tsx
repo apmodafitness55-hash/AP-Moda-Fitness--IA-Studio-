@@ -233,13 +233,13 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
     if (isLandscapePrint) {
       style.innerHTML = `
         @media print {
-          body * {
-            visibility: hidden !important;
-          }
-          #printable-shipping-label, #printable-shipping-label * {
-            visibility: visible !important;
+          html, body {
+            background: white !important;
+            color: black !important;
           }
           #printable-shipping-label {
+            display: block !important;
+            visibility: visible !important;
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
@@ -253,6 +253,12 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
             color: #000000 !important;
             font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
             box-sizing: border-box !important;
+            z-index: 999999 !important;
+          }
+          #printable-shipping-label * {
+            visibility: visible !important;
+            color: #000000 !important;
+            background: transparent !important;
           }
           @page {
             size: 150mm 100mm landscape;
@@ -266,13 +272,13 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
     } else {
       style.innerHTML = `
         @media print {
-          body * {
-            visibility: hidden !important;
-          }
-          #printable-shipping-label, #printable-shipping-label * {
-            visibility: visible !important;
+          html, body {
+            background: white !important;
+            color: black !important;
           }
           #printable-shipping-label {
+            display: block !important;
+            visibility: visible !important;
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
@@ -286,6 +292,12 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
             color: #000000 !important;
             font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
             box-sizing: border-box !important;
+            z-index: 999999 !important;
+          }
+          #printable-shipping-label * {
+            visibility: visible !important;
+            color: #000000 !important;
+            background: transparent !important;
           }
           @page {
             size: 100mm 150mm;

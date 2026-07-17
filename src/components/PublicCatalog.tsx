@@ -744,11 +744,18 @@ export default function PublicCatalog({
     });
 
     alert(`Look Completo adicionado à sacola com 5% de desconto!\n- ${top.name} (${topSize} / ${topColor})\n- ${bottom.name} (${bottomSize} / ${bottomColor})`);
-    setIsCartOpen(true);
+    handleOpenCart(1);
   };
 
   // Cart drawer open state
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [cartInitialStep, setCartInitialStep] = useState<number>(1);
+
+  const handleOpenCart = (step: number = 1) => {
+    setCartInitialStep(step);
+    setIsCartOpen(true);
+  };
+
   const [checkoutStep, setCheckoutStep] = useState<number>(1);
   const [completedOrder, setCompletedOrder] = useState<any | null>(null);
 
@@ -837,7 +844,7 @@ export default function PublicCatalog({
               }
 
               localStorage.setItem('ap_current_checkout_id', data.id);
-              setIsCartOpen(true);
+              handleOpenCart(1);
               setCheckoutStep(1);
             }
           }
@@ -950,6 +957,7 @@ export default function PublicCatalog({
 
   // UX Optimization States
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [isAddingToCartBuyNow, setIsAddingToCartBuyNow] = useState(false);
   const [isAddingCombo, setIsAddingCombo] = useState<string | null>(null);
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [couponError, setCouponError] = useState<string | null>(null);
@@ -1853,7 +1861,61 @@ export default function PublicCatalog({
 
       setIsAddingToCart(false);
       setSelectedProduct(null);
-      setIsCartOpen(true);
+      handleOpenCart(1);
+    }, 400);
+  };
+
+  // Add item and go straight to checkout screen
+  const handleBuyNow = () => {
+    if (!selectedProduct) return;
+
+    // Determine max available stock for selected combination
+    let maxStockAvailable = selectedProduct.stock;
+    if (selectedProduct.sizeColorStocks && selectedProduct.sizeColorStocks[selectedSize] && selectedProduct.sizeColorStocks[selectedSize][selectedColor] !== undefined) {
+      maxStockAvailable = selectedProduct.sizeColorStocks[selectedSize][selectedColor];
+    } else if (selectedProduct.colorStocks && selectedProduct.colorStocks[selectedColor] !== undefined) {
+      maxStockAvailable = selectedProduct.colorStocks[selectedColor];
+    }
+
+    if (maxStockAvailable <= 0) {
+      alert(`Desculpe, o tamanho ${selectedSize} na cor ${selectedColor} está fora de estoque.`);
+      return;
+    }
+
+    setIsAddingToCartBuyNow(true);
+
+    setTimeout(() => {
+      setCart(prev => {
+        const existingIdx = prev.findIndex(item => 
+          item.product.id === selectedProduct.id && 
+          item.color === selectedColor && 
+          item.size === selectedSize
+        );
+
+        if (existingIdx > -1) {
+          const updated = [...prev];
+          const newQty = updated[existingIdx].quantity + productQty;
+          if (newQty > maxStockAvailable) {
+            updated[existingIdx].quantity = maxStockAvailable;
+          } else {
+            updated[existingIdx].quantity = newQty;
+          }
+          return updated;
+        }
+
+        const finalQty = Math.min(productQty, maxStockAvailable);
+        return [...prev, {
+          product: selectedProduct,
+          color: selectedColor,
+          size: selectedSize,
+          quantity: finalQty,
+          priceAtTime: selectedProduct.price
+        }];
+      });
+
+      setIsAddingToCartBuyNow(false);
+      setSelectedProduct(null);
+      handleOpenCart(2); // Goes directly to Checkout Form Step 2 (Identificação & Entrega)
     }, 400);
   };
 
@@ -1938,7 +2000,7 @@ export default function PublicCatalog({
       }];
     });
 
-    setIsCartOpen(true);
+    handleOpenCart(1);
   };
 
   const handleUpdateItemQty = (idx: number, amount: number) => {
@@ -2706,6 +2768,56 @@ export default function PublicCatalog({
         });
       }
 
+      // Pre-fill customer/buyer and address data for InfinitePay Checkout to prevent double data entry
+      const cleanPhone = (clientPhone || '').replace(/\D/g, '');
+      const cleanCpf = (clientCpf || '').replace(/\D/g, '');
+      const cleanCep = (addressCep || '').replace(/\D/g, '');
+
+      const nameParts = (clientName || '').trim().split(/\s+/);
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || firstName;
+
+      const buyerData = {
+        first_name: firstName,
+        last_name: lastName,
+        name: clientName,
+        email: clientEmail.trim() || `${firstName.toLowerCase()}@exemplo.com`,
+        phone: cleanPhone || clientPhone,
+        document: cleanCpf || clientCpf,
+        cpf: cleanCpf || clientCpf
+      };
+
+      const addressData = {
+        street: addressStreet || '',
+        number: addressNum || '',
+        complement: addressComp || '',
+        neighborhood: addressBairro || '',
+        bairro: addressBairro || '',
+        city: addressCidade || '',
+        state: addressEstado || '',
+        zip: cleanCep || addressCep || '',
+        cep: cleanCep || addressCep || ''
+      };
+
+      const customerPayload = {
+        ...buyerData,
+        address: addressData
+      };
+
+      const metadataPayload = {
+        customer_name: clientName,
+        customer_email: clientEmail,
+        customer_phone: cleanPhone || clientPhone,
+        customer_cpf: cleanCpf || clientCpf,
+        shipping_street: addressStreet,
+        shipping_number: addressNum,
+        shipping_complement: addressComp,
+        shipping_neighborhood: addressBairro,
+        shipping_city: addressCidade,
+        shipping_state: addressEstado,
+        shipping_zip: cleanCep || addressCep
+      };
+
       let linkData: any = null;
       try {
         console.log('[InfinitePay Checkout] Enviando requisição POST direta para https://api.checkout.infinitepay.io/links');
@@ -2719,13 +2831,18 @@ export default function PublicCatalog({
             order_nsu: orderId,
             redirect_url: window.location.href,
             items: itensPayload,
-            itens: itensPayload
+            itens: itensPayload,
+            buyer: customerPayload,
+            customer: customerPayload,
+            shipping_address: addressData,
+            billing_address: addressData,
+            metadata: metadataPayload
           })
         });
 
         if (directResponse.ok) {
           linkData = await directResponse.json();
-          console.log('[InfinitePay Checkout] Link criado diretamente:', linkData);
+          console.log('[InfinitePay Checkout] Link criado diretamente com dados de cliente preenchidos:', linkData);
         } else {
           const errText = await directResponse.text();
           console.warn('[InfinitePay Checkout] Falha na requisição direta, tentando via servidor proxy:', errText);
@@ -2744,7 +2861,12 @@ export default function PublicCatalog({
             order_nsu: orderId,
             redirect_url: window.location.href,
             itens: itensPayload,
-            isCents: true
+            isCents: true,
+            buyer: customerPayload,
+            customer: customerPayload,
+            shipping_address: addressData,
+            billing_address: addressData,
+            metadata: metadataPayload
           })
         });
 
@@ -2909,7 +3031,7 @@ export default function PublicCatalog({
           </button>
           
           <button 
-            onClick={() => setIsCartOpen(true)}
+            onClick={() => handleOpenCart(1)}
             className="relative p-2.5 bg-pink-50/50 hover:bg-pink-100 text-pink-600 hover:text-pink-700 rounded-full transition duration-300 cursor-pointer border border-pink-100/40"
             title="Minha Sacola"
           >
@@ -3910,6 +4032,49 @@ export default function PublicCatalog({
                     </div>
                   </div>
 
+                  {/* BOTÕES DE COMPRA DIRETOS */}
+                  <div className="pt-4 border-t border-[#1E3A42]/10 flex flex-col sm:flex-row gap-3">
+                    <button
+                      type="button"
+                      disabled={isEsgotado || isAddingToCart || isAddingToCartBuyNow}
+                      id="add-to-bag-btn"
+                      onClick={handleAddToCart}
+                      className="flex-grow sm:flex-1 py-3 px-4 bg-white hover:bg-slate-50 text-[#1E3A42] font-sans font-extrabold rounded-2xl text-[11px] tracking-wider uppercase transition-all flex items-center justify-center gap-1.5 border border-[#1E3A42]/35 disabled:opacity-50 cursor-pointer shadow-xs active:scale-97"
+                    >
+                      {isAddingToCart ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-[#1E3A42] border-t-transparent rounded-full animate-spin inline-block" />
+                          <span>Adicionando...</span>
+                        </>
+                      ) : (
+                        <>
+                          {!isEsgotado && <ShoppingBag size={14} />}
+                          <span>{isEsgotado ? 'Esgotado' : 'Adicionar à Sacola'}</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isEsgotado || isAddingToCart || isAddingToCartBuyNow}
+                      id="buy-now-btn"
+                      onClick={handleBuyNow}
+                      className="flex-grow sm:flex-1 py-3 px-4 bg-[#1E3A42] hover:bg-[#1E3A42]/90 text-white font-sans font-extrabold rounded-2xl text-[11px] tracking-wider uppercase transition-all flex items-center justify-center gap-1.5 border-none disabled:opacity-50 cursor-pointer shadow-md active:scale-97"
+                    >
+                      {isAddingToCartBuyNow ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+                          <span>Processando...</span>
+                        </>
+                      ) : (
+                        <>
+                          {!isEsgotado && <Sparkles size={14} className="text-white animate-pulse" />}
+                          <span>Comprar Agora</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
                   {/* FREIGHT SHIPPING CALCULATOR SYSTEM */}
                   <div className="border-t border-[#1E3A42]/10 pt-4 space-y-2 text-left">
                     <span className="text-[10px] text-slate-405 font-extrabold uppercase tracking-widest block">Simular Frete & Prazo</span>
@@ -4166,28 +4331,9 @@ export default function PublicCatalog({
                   <button
                     type="button"
                     onClick={() => setSelectedProduct(null)}
-                    className="px-4 py-3 bg-white hover:bg-slate-100 font-sans font-bold text-slate-600 border border-[#1E3A42]/15 rounded-2xl transition cursor-pointer text-center text-[10.5px]"
+                    className="w-full py-3 bg-white hover:bg-slate-100 font-sans font-extrabold text-slate-700 border border-[#1E3A42]/15 rounded-2xl transition cursor-pointer text-center text-[11px] tracking-wider uppercase shadow-xs active:scale-97"
                   >
-                    Voltar
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isEsgotado || isAddingToCart}
-                    id="add-to-bag-btn"
-                    onClick={handleAddToCart}
-                    className="flex-grow py-3 bg-[#1E3A42] hover:bg-[#1E3A42]/90 text-white font-sans font-extrabold rounded-2xl text-[11px] tracking-wider uppercase transition-all flex items-center justify-center gap-1.5 border-none disabled:opacity-50 cursor-pointer shadow-md active:scale-97"
-                  >
-                    {isAddingToCart ? (
-                      <>
-                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
-                        <span>Adicionando à Sacola...</span>
-                      </>
-                    ) : (
-                      <>
-                        {!isEsgotado && <ShoppingBag size={14} />}
-                        <span>{isEsgotado ? 'Esgotado' : 'Adicionar à Sacola'}</span>
-                      </>
-                    )}
+                    Voltar para o Catálogo
                   </button>
                 </div>
 
@@ -4580,6 +4726,7 @@ export default function PublicCatalog({
           <div className="bg-white w-full h-full md:max-w-md md:h-[calc(100%-2rem)] md:my-4 md:mr-4 md:rounded-3xl shadow-2xl p-5 flex flex-col justify-between overflow-hidden animate-in slide-in-from-right duration-250 font-sans text-slate-800" onClick={(e) => e.stopPropagation()}>
             <CheckoutWizard
               cart={cart}
+              initialStep={cartInitialStep}
               handleUpdateItemQty={handleUpdateItemQty}
               products={products}
               onAddProductToCart={handleAddProductToCartWithPrice}
@@ -4940,7 +5087,7 @@ export default function PublicCatalog({
                       type="button"
                       onClick={() => {
                         setIsProfileModalOpen(false);
-                        setIsCartOpen(true);
+                        handleOpenCart(1);
                       }}
                       className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-950 text-white rounded-xl text-xs font-bold transition text-center cursor-pointer border-none shadow-sm"
                     >

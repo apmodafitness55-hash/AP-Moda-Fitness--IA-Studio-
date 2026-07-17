@@ -32,8 +32,26 @@ export function getSupabaseConfig() {
 }
 export const getFirebaseConfig = getSupabaseConfig;
 
-export function initializeSupabaseConfig(...args: any[]) {
-  return Promise.resolve();
+export async function initializeSupabaseConfig() {
+  try {
+    const res = await fetch('/api/get-db-config');
+    if (res.ok) {
+      const data = await res.json();
+      const localUrl = localStorage.getItem('ap_firebase_url');
+      const localKey = localStorage.getItem('ap_firebase_key');
+
+      // If the server has a valid config, use it to sync localStorage
+      if (data.url && data.url.startsWith('http') && data.key) {
+        localStorage.setItem('ap_firebase_url', data.url);
+        localStorage.setItem('ap_firebase_key', data.key);
+      } else if (localUrl && localUrl.startsWith('http') && localKey) {
+        // If the server does not have a config, but client has one, push it to server!
+        await saveSupabaseConfigToServer(localUrl, localKey);
+      }
+    }
+  } catch (e) {
+    console.warn('[DB Config] Failed to sync config on init:', e);
+  }
 }
 export const initializeFirebaseConfig = initializeSupabaseConfig;
 
@@ -55,8 +73,21 @@ export function pingSupabaseOnLogin(...args: any[]) {
 }
 export const pingFirebaseOnLogin = pingSupabaseOnLogin;
 
-export function saveSupabaseConfigToServer(url: string, key: string) {
-  return Promise.resolve();
+export async function saveSupabaseConfigToServer(url: string, key: string) {
+  try {
+    const res = await fetch('/api/set-db-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, key })
+    });
+    if (res.ok) {
+      localStorage.setItem('ap_firebase_url', url);
+      localStorage.setItem('ap_firebase_key', key);
+      console.log('[DB Config] Configuração do banco salva no servidor com sucesso!');
+    }
+  } catch (e) {
+    console.error('[DB Config] Falha ao enviar configuração para o servidor:', e);
+  }
 }
 export const saveFirebaseConfigToServer = saveSupabaseConfigToServer;
 
@@ -433,6 +464,18 @@ export async function deleteCardTerminalFromFirebase(id: string, ...args: any[])
 
 export async function pushSystemConfigToFirebase(key: string, value: any, ...args: any[]) {
   return restPost('/api/proxy/system-configs', { key, value });
+}
+
+export async function fetchSystemConfigsFromFirebase() {
+  try {
+    const res = await fetch('/api/proxy/system-configs');
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    console.warn('[DB Config] Failed to fetch system configs:', e);
+  }
+  return [];
 }
 
 export async function syncSystemConfigsWithFirebase(...args: any[]) {

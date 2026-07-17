@@ -429,3 +429,72 @@ body.theme-rosa {
   animation: border-glow 2s ease-in-out infinite;
 }
 
+/* ==========================================================================
+   MASTER SYSTEM-WIDE PRINT FIX (Anti-Blank Page Printing)
+   ========================================================================== */
+@media print {
+  /* Force page to use light colors for printing regardless of application theme */
+  html, body, #root, #main-app-container, [role="dialog"], .bg-white, .dark body, .dark #main-app-container {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    color-scheme: light !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Hide the rest of the application interface elements */
+  aside, header, footer, nav, #sidebar-menu, .no-print, .print-hidden, .print\:hidden, button:not(.print-visible-btn) {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* CRITICAL: Overcome Webkit/Chromium compositor layer printing bug.
+     When a parent has "position: fixed", "backdrop-filter", or "opacity" styles and is invisible (visibility: hidden),
+     the browser drops the entire draw tree rendering child elements with "visibility: visible" completely BLANK.
+     We force all fixed layouts and modals to become static and normally rendered. */
+  .fixed, .absolute, [role="dialog"], .modal-overlay, .modal-overlay-thermal, div.fixed.inset-0, .backdrop-blur-xs, .backdrop-blur-sm {
+    position: static !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    transform: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Make sure our print targets are absolutely positioned at the top left of the sheet */
+  #printable-thermal-receipt, 
+  #printable-invoice-sheet, 
+  #printable-shipping-label {
+    display: block !important;
+    visibility: visible !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    z-index: 999999 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Ensure descendants of printable containers are fully visible and black */
+  #printable-thermal-receipt *, 
+  #printable-invoice-sheet *, 
+  #printable-shipping-label * {
+    visibility: visible !important;
+    color: #000000 !important;
+    background: transparent !important;
+  }
+}
+

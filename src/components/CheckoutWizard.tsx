@@ -112,6 +112,7 @@ interface CheckoutWizardProps {
   isGeneratingPaymentLink: boolean;
   setIsCartOpen: (val: boolean) => void;
   setIsProfileModalOpen: (val: boolean) => void;
+  initialStep?: number;
 }
 
 export function CheckoutWizard({
@@ -193,9 +194,16 @@ export function CheckoutWizard({
   handleCheckoutWhatsApp,
   isGeneratingPaymentLink,
   setIsCartOpen,
-  setIsProfileModalOpen
+  setIsProfileModalOpen,
+  initialStep
 }: CheckoutWizardProps) {
-  const [checkoutStep, setCheckoutStep] = useState<number>(1);
+  const [checkoutStep, setCheckoutStep] = useState<number>(initialStep || 1);
+
+  useEffect(() => {
+    if (initialStep !== undefined) {
+      setCheckoutStep(initialStep);
+    }
+  }, [initialStep]);
   const [activeAnimation, setActiveAnimation] = useState(() => {
     return localStorage.getItem('ap_vitrine_active_animation') || 'shimmer-luxury';
   });

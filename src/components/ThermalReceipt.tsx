@@ -392,23 +392,16 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
         body { 
           margin: 0; 
           padding: 0; 
+          background: white !important;
+          color: black !important;
         }
         .no-print { 
           display: none !important; 
         }
 
-        /* Hide everything */
-        body * {
-          visibility: hidden !important;
-        }
-        /* Except our container and its descendants, forcing text to black */
-        #printable-thermal-receipt, #printable-thermal-receipt * {
-          visibility: visible !important;
-          color: #000 !important;
-          text-shadow: none !important;
-          box-shadow: none !important;
-        }
         #printable-thermal-receipt {
+          display: block !important;
+          visibility: visible !important;
           position: absolute !important;
           left: 0 !important;
           top: 0 !important;
@@ -424,6 +417,12 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
           background: white !important;
           font-family: ${selectedPrinter === 'A4' ? "'Inter', system-ui, sans-serif" : "'JetBrains Mono', Courier, monospace"} !important;
           font-size: ${fontSelector[fontSize]} !important;
+        }
+        /* Ensure descendants of printable container are visible and styled properly */
+        #printable-thermal-receipt * {
+          visibility: visible !important;
+          color: #000000 !important;
+          background: transparent !important;
         }
         /* Ensure no layout distortion */
         html, body {

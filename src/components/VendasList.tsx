@@ -719,21 +719,13 @@ export default function VendasList({
             <div className="p-8 overflow-y-auto flex-1 bg-white print:p-0 print:overflow-visible" id="printable-invoice-sheet">
               <style>{`
                 @media print {
-                  body * {
-                    visibility: hidden;
+                  @page {
+                    size: A4;
+                    margin: 15mm 10mm 15mm 10mm;
                   }
-                  #printable-invoice-sheet, #printable-invoice-sheet * {
-                    visibility: visible;
-                  }
-                  #printable-invoice-sheet {
-                    position: absolute;
-                    left: 0;
-                    top: 0;
-                    width: 100%;
-                    padding: 0 !important;
-                    margin: 0 !important;
-                    box-shadow: none !important;
-                    border: none !important;
+                  html, body {
+                    background: #ffffff !important;
+                    color: #000000 !important;
                   }
                 }
               `}</style>

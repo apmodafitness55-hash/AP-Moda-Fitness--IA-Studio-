@@ -97,6 +97,36 @@ interface Partner {
   totalGenerated: number;
 }
 
+export interface VipRulesConfig {
+  autoVipEnabled: boolean;
+  minSpentEnabled: boolean;
+  minSpent: number;
+  minOrdersEnabled: boolean;
+  minOrders: number;
+  matchType: 'or' | 'and';
+}
+
+export function checkVipQualification(totalSpent: number, ordersCount: number, config: VipRulesConfig): boolean {
+  if (!config.autoVipEnabled) return false;
+  
+  const spentQualified = config.minSpentEnabled ? (totalSpent >= config.minSpent) : false;
+  const ordersQualified = config.minOrdersEnabled ? (ordersCount >= config.minOrders) : false;
+  
+  if (config.minSpentEnabled && config.minOrdersEnabled) {
+    if (config.matchType === 'and') {
+      return spentQualified && ordersQualified;
+    } else {
+      return spentQualified || ordersQualified;
+    }
+  } else if (config.minSpentEnabled) {
+    return spentQualified;
+  } else if (config.minOrdersEnabled) {
+    return ordersQualified;
+  }
+  
+  return false;
+}
+
 export default function CustomersCRM({ 
   clients: rawClients, 
   sales: rawSales, 
@@ -195,6 +225,58 @@ export default function CustomersCRM({
     }
     setAdjustingClient(null);
     setAdjustValue('');
+  };
+
+  // VIP Rules states & handlers
+  const [vipRules, setVipRules] = useState<VipRulesConfig>(() => {
+    try {
+      const saved = localStorage.getItem('ap_vip_rules_config');
+      return saved ? JSON.parse(saved) : {
+        autoVipEnabled: true,
+        minSpentEnabled: true,
+        minSpent: 500,
+        minOrdersEnabled: true,
+        minOrders: 3,
+        matchType: 'or'
+      };
+    } catch (e) {
+      return {
+        autoVipEnabled: true,
+        minSpentEnabled: true,
+        minSpent: 500,
+        minOrdersEnabled: true,
+        minOrders: 3,
+        matchType: 'or'
+      };
+    }
+  });
+
+  const handleSaveVipRules = (updatedRules: VipRulesConfig) => {
+    setVipRules(updatedRules);
+    try {
+      localStorage.setItem('ap_vip_rules_config', JSON.stringify(updatedRules));
+    } catch (e) {}
+  };
+
+  const handleApplyVipRulesToAllClients = () => {
+    const updated = clients.map(client => {
+      const clientHistory = sales.filter(s => s.clientName.toLowerCase() === client.name.toLowerCase());
+      const totalPurchases = clientHistory.length || client.ordersCount || 0;
+      const totalSpentSum = clientHistory.reduce((sum, s) => sum + s.total, 0) || client.totalSpent || 0;
+
+      const isQualified = checkVipQualification(totalSpentSum, totalPurchases, vipRules);
+      return {
+        ...client,
+        vip: isQualified
+      };
+    });
+
+    if (onUpdateClients) {
+      onUpdateClients(updated);
+      alert('Regras de elegibilidade VIP aplicadas com sucesso a toda a base de clientes!');
+    } else {
+      alert('Não foi possível atualizar a base de clientes (função de atualização indisponível).');
+    }
   };
 
   // Birthday Automation States
@@ -1599,6 +1681,163 @@ export default function CustomersCRM({
                     </div>
                   </div>
 
+                </div>
+
+                {/* VIP Eligibility Automation Card */}
+                <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-xs space-y-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-pink-100 text-pink-600 rounded-xl">
+                        <Award size={18} className="animate-pulse text-pink-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800">Regras de Automação do Clube VIP 👑</h4>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Defina os critérios automáticos para inclusão de clientes no grupo VIP exclusivo.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10.5px] font-bold text-slate-500">Status da Automação:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = { ...vipRules, autoVipEnabled: !vipRules.autoVipEnabled };
+                          handleSaveVipRules(updated);
+                        }}
+                        className={`px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase cursor-pointer border transition-all ${
+                          vipRules.autoVipEnabled 
+                            ? 'bg-emerald-50 text-emerald-600 border-emerald-200' 
+                            : 'bg-slate-50 text-slate-400 border-slate-200'
+                        }`}
+                      >
+                        {vipRules.autoVipEnabled ? 'Ativo (Auto-Inclusão)' : 'Inativo (Apenas Manual)'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
+                    {/* Rule 1: Min Spent */}
+                    <div className="md:col-span-4 space-y-2 border border-slate-100 p-3 rounded-xl bg-slate-50/50">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input 
+                          type="checkbox"
+                          checked={vipRules.minSpentEnabled}
+                          onChange={(e) => {
+                            const updated = { ...vipRules, minSpentEnabled: e.target.checked };
+                            handleSaveVipRules(updated);
+                          }}
+                          className="rounded border-slate-300 text-pink-600 focus:ring-pink-500 w-3.5 h-3.5"
+                        />
+                        <span className="text-xs font-bold text-slate-700">Por Valor Gasto Acumulado</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">R$</span>
+                        <input 
+                          type="number"
+                          disabled={!vipRules.minSpentEnabled}
+                          value={vipRules.minSpent}
+                          onChange={(e) => {
+                            const updated = { ...vipRules, minSpent: Math.max(0, parseFloat(e.target.value) || 0) };
+                            handleSaveVipRules(updated);
+                          }}
+                          placeholder="500.00"
+                          className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-250 rounded-lg text-xs font-mono font-bold text-slate-700 focus:outline-hidden focus:border-pink-500 disabled:opacity-50 transition"
+                        />
+                      </div>
+                      <p className="text-[9px] text-slate-450 leading-relaxed">
+                        Adiciona ao grupo VIP se o total gasto em compras atingir ou superar este valor.
+                      </p>
+                    </div>
+
+                    {/* Rule 2: Min Orders */}
+                    <div className="md:col-span-4 space-y-2 border border-slate-100 p-3 rounded-xl bg-slate-50/50">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input 
+                          type="checkbox"
+                          checked={vipRules.minOrdersEnabled}
+                          onChange={(e) => {
+                            const updated = { ...vipRules, minOrdersEnabled: e.target.checked };
+                            handleSaveVipRules(updated);
+                          }}
+                          className="rounded border-slate-300 text-pink-600 focus:ring-pink-500 w-3.5 h-3.5"
+                        />
+                        <span className="text-xs font-bold text-slate-700">Por Compras Recorrentes</span>
+                      </label>
+                      <div className="relative">
+                        <input 
+                          type="number"
+                          disabled={!vipRules.minOrdersEnabled}
+                          value={vipRules.minOrders}
+                          onChange={(e) => {
+                            const updated = { ...vipRules, minOrders: Math.max(1, parseInt(e.target.value) || 1) };
+                            handleSaveVipRules(updated);
+                          }}
+                          placeholder="3"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-250 rounded-lg text-xs font-mono font-bold text-slate-700 focus:outline-hidden focus:border-pink-500 disabled:opacity-50 transition"
+                        />
+                      </div>
+                      <p className="text-[9px] text-slate-450 leading-relaxed">
+                        Adiciona ao grupo VIP se a cliente possuir esse número ou mais compras recorrentes.
+                      </p>
+                    </div>
+
+                    {/* Match Operator Selection */}
+                    <div className="md:col-span-4 space-y-2 border border-slate-100 p-3 rounded-xl bg-slate-50/50">
+                      <span className="block text-xs font-bold text-slate-700">Relação entre Critérios</span>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={!vipRules.minSpentEnabled || !vipRules.minOrdersEnabled}
+                          onClick={() => {
+                            const updated = { ...vipRules, matchType: 'or' as const };
+                            handleSaveVipRules(updated);
+                          }}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                            vipRules.matchType === 'or'
+                              ? 'bg-pink-50 text-pink-600 border-pink-200 font-black'
+                              : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                          } disabled:opacity-40`}
+                        >
+                          OU (Qualquer um)
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!vipRules.minSpentEnabled || !vipRules.minOrdersEnabled}
+                          onClick={() => {
+                            const updated = { ...vipRules, matchType: 'and' as const };
+                            handleSaveVipRules(updated);
+                          }}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                            vipRules.matchType === 'and'
+                              ? 'bg-pink-50 text-pink-600 border-pink-200 font-black'
+                              : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                          } disabled:opacity-40`}
+                        >
+                          E (Ambos)
+                        </button>
+                      </div>
+                      <p className="text-[9px] text-slate-450 leading-relaxed">
+                        Determina se o cliente precisa cumprir ambos os requisitos ou apenas um deles.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Apply retroactively block */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-pink-50/40 p-3 rounded-xl border border-pink-100/60 mt-2">
+                    <div className="text-left">
+                      <span className="block text-xs font-bold text-pink-850">Aplicar Regras Retroativamente</span>
+                      <p className="text-[9.5px] text-pink-700/80 mt-0.5 leading-relaxed">
+                        O sistema analisa automaticamente os novos pedidos realizados. Caso deseje recalcular o status VIP de toda a base de clientes cadastrada no momento com base nas regras acima, clique no botão ao lado.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleApplyVipRulesToAllClients}
+                      className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white font-extrabold text-xs rounded-xl tracking-wide uppercase shadow-xs hover:shadow-sm transition-all flex items-center gap-1.5 self-start sm:self-center shrink-0 cursor-pointer border-none"
+                    >
+                      <Zap size={14} />
+                      <span>Processar Clientes Existentes</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Core Table Section of Loyalty Members */}
