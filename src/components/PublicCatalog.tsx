@@ -48,7 +48,7 @@ import {
   Package
 } from 'lucide-react';
 import { Product, Client } from '../types';
-import { pushSystemConfigToFirebase } from '../firebase';
+import { pushSystemConfigToSupabase } from '../supabase';
 import { CheckoutWizard } from './CheckoutWizard';
 
 export function validateCPF(cpf: string): boolean {
@@ -1175,7 +1175,7 @@ export default function PublicCatalog({
     }
   };
 
-  // Toggle wishlist heart icon with counting (Intercepted for Lead Capture and Firebase sync)
+  // Toggle wishlist heart icon with counting (Intercepted for Lead Capture and Supabase sync)
   const handleToggleWishlist = (pId: string) => {
     if (!loggedClient) {
       setPendingFavoriteProductId(pId);
@@ -1194,7 +1194,7 @@ export default function PublicCatalog({
         }
       };
 
-      // Sync updated wishlist to loggedClient & Firebase immediately
+      // Sync updated wishlist to loggedClient & Supabase immediately
       const activeIds = Object.keys(nextLikes).filter(id => nextLikes[id].active);
       const updatedClient = {
         ...loggedClient,

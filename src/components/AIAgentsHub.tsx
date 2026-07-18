@@ -28,7 +28,7 @@ import {
   Globe
 } from 'lucide-react';
 import { Product, Client } from '../types';
-import { pushSystemConfigToFirebase } from '../firebase';
+import { pushSystemConfigToSupabase } from '../supabase';
 import ImageUploader from './ImageUploader';
 
 interface AIAgentsHubProps {
@@ -616,23 +616,23 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
     if (!recommendedConfig) return;
     try {
       setLoading(true);
-      setLoadingMessage('Sincronizando as novas diretrizes visuais sazonais da campanha com o Firebase...');
+      setLoadingMessage('Sincronizando as novas diretrizes visuais sazonais da campanha com o Supabase...');
       
       const { themeColor, activeAnimation } = recommendedConfig;
       
       localStorage.setItem('ap_vitrine_theme_color', themeColor);
       localStorage.setItem('ap_vitrine_active_animation', activeAnimation);
       
-      await pushSystemConfigToFirebase('ap_vitrine_theme_color', themeColor);
-      await pushSystemConfigToFirebase('ap_vitrine_active_animation', activeAnimation);
+      await pushSystemConfigToSupabase('ap_vitrine_theme_color', themeColor);
+      await pushSystemConfigToSupabase('ap_vitrine_active_animation', activeAnimation);
       
       // Dispatch custom sync event so that the PublicCatalog updates its local state instantly
       window.dispatchEvent(new Event('ap-storage-synced'));
       
-      alert(`Sucesso! Visual Temático Ativado no Firebase:\n- Cor do Tema: ${themeColor}\n- Efeito Sazonal: ${activeAnimation}`);
+      alert(`Sucesso! Visual Temático Ativado no Supabase:\n- Cor do Tema: ${themeColor}\n- Efeito Sazonal: ${activeAnimation}`);
     } catch (e) {
       console.error(e);
-      alert('Erro ao tentar aplicar o tema sugerido no Firebase.');
+      alert('Erro ao tentar aplicar o tema sugerido no Supabase.');
     } finally {
       setLoading(false);
     }
@@ -1777,7 +1777,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
                               onClick={handleApplyCampaignTheme}
                               className="w-full sm:w-auto shrink-0 bg-slate-900 hover:bg-slate-950 text-white font-extrabold text-[9.5px] uppercase tracking-wider py-2 px-3.5 rounded-xl transition-all shadow-md active:scale-97 cursor-pointer"
                             >
-                              Aplicar Tema no Firebase ✨
+                              Aplicar Tema no Supabase ✨
                             </button>
                           </div>
                         )}

@@ -1,4 +1,4 @@
-import { getFirebaseClient, isFirebaseConfigured } from '../firebase';
+import { getSupabaseClient, isSupabaseConfigured } from '../supabase';
 
 export interface DiagnosticLog {
   timestamp: string;
@@ -12,7 +12,7 @@ export interface DiagnosticLog {
 export interface DiagnosticResult {
   overallStatus: 'healthy' | 'warning' | 'critical';
   timestamp: string;
-  firebaseConnected: boolean;
+  supabaseConnected: boolean;
   checks: {
     database: { status: 'success' | 'warning' | 'error'; message: string; logs: DiagnosticLog[] };
     permissions: { status: 'success' | 'warning' | 'error'; message: string; logs: DiagnosticLog[] };
@@ -29,7 +29,7 @@ export interface DiagnosticResult {
 export async function runDeepSystemDiagnostics(): Promise<DiagnosticResult> {
   const timestamp = new Date().toISOString();
   const logs: DiagnosticLog[] = [];
-  const isConfigured = isFirebaseConfigured();
+  const isConfigured = isSupabaseConfigured();
 
   // Helper to add log entries
   const log = (scope: string, testName: string, status: 'success' | 'warning' | 'error', message: string, details?: string) => {
@@ -43,15 +43,15 @@ export async function runDeepSystemDiagnostics(): Promise<DiagnosticResult> {
     });
   };
 
-  log('Firebase Config', 'Conexão Inicial', isConfigured ? 'success' : 'warning', 
-      isConfigured ? 'Firebase está configurado com credenciais ativas.' : 'Firebase não configurado. Utilizando fallback local seguro.');
+  log('Supabase Config', 'Conexão Inicial', isConfigured ? 'success' : 'warning', 
+      isConfigured ? 'Supabase está configurado com credenciais ativas.' : 'Supabase não configurado. Utilizando fallback local seguro.');
 
   let databaseStatus: 'success' | 'warning' | 'error' = 'success';
   let permissionsStatus: 'success' | 'warning' | 'error' = 'success';
   let workflowsStatus: 'success' | 'warning' | 'error' = 'success';
   let analyticsStatus: 'success' | 'warning' | 'error' = 'success';
 
-  // --- 1. BANCO DE DADOS & SCHEMAS (FIREBASE) ---
+  // --- 1. BANCO DE DADOS & SCHEMAS (SUPABASE) ---
   const dbLogs: DiagnosticLog[] = [];
   let tablesVerified = 0;
 
@@ -67,11 +67,11 @@ export async function runDeepSystemDiagnostics(): Promise<DiagnosticResult> {
 
   if (isConfigured) {
     try {
-      const firebase = getFirebaseClient();
+      const supabase = getSupabaseClient();
       
       for (const [table, columns] of Object.entries(expectedSchemas)) {
         // Query 1 record to inspect structural connectivity
-        const { data, error } = await firebase.from(table).select('*').limit(1);
+        const { data, error } = await supabase.from(table).select('*').limit(1);
         
         if (error) {
           databaseStatus = 'error';
@@ -87,7 +87,7 @@ export async function runDeepSystemDiagnostics(): Promise<DiagnosticResult> {
           tablesVerified++;
           // Schema column safety check (inspect schema keys dynamically from returned columns if row exists)
           const sampleRow = data && data[0];
-          let colCheckMsg = 'Estrutura verificada via metadados Firebase.';
+          let colCheckMsg = 'Estrutura verificada via metadados Supabase.';
           if (sampleRow) {
             const returnedCols = Object.keys(sampleRow);
             const missingCols = columns.filter(c => !returnedCols.includes(c));
@@ -118,7 +118,7 @@ export async function runDeepSystemDiagnostics(): Promise<DiagnosticResult> {
               testName: `Tabela ${table}`,
               status: 'success',
               message: `Tabela '${table}' conectada e RLS validado (Tabela vazia ou sem registros no momento).`,
-              details: `O teste de ping na tabela retornou status 200 OK do Firebase.`
+              details: `O teste de ping na tabela retornou status 200 OK do Supabase.`
             });
           }
         }
@@ -130,7 +130,7 @@ export async function runDeepSystemDiagnostics(): Promise<DiagnosticResult> {
         scope: 'Database Connection',
         testName: 'Exceção Crítica',
         status: 'error',
-        message: 'Não foi possível conectar ao banco de dados Firebase.',
+        message: 'Não foi possível conectar ao banco de dados Supabase.',
         details: e.message || String(e)
       });
     }
@@ -153,13 +153,13 @@ export async function runDeepSystemDiagnostics(): Promise<DiagnosticResult> {
   const permLogs: DiagnosticLog[] = [];
   if (isConfigured) {
     try {
-      const firebase = getFirebaseClient();
+      const supabase = getSupabaseClient();
       
       // Attempt a write operation on ap_system_configs (R/W Integration verification)
       const testKey = 'ap_healthcheck_write_test_key';
       const testVal = `ok-${Date.now()}`;
       
-      const { error: insertError } = await firebase
+      const { error: insertError } = await supabase
         .from('ap_system_configs')
         .upsert([{ key: testKey, value: testVal }]);
 
@@ -175,7 +175,7 @@ export async function runDeepSystemDiagnostics(): Promise<DiagnosticResult> {
         });
       } else {
         // Read back
-        const { data, error: readError } = await firebase
+        const { data, error: readError } = await supabase
           .from('ap_system_configs')
           .select('value')
           .eq('key', testKey);
@@ -192,7 +192,7 @@ export async function runDeepSystemDiagnostics(): Promise<DiagnosticResult> {
           });
         } else {
           // Clean up key
-          const { error: deleteError } = await firebase
+          const { error: deleteError } = await supabase
             .from('ap_system_configs')
             .delete()
             .eq('key', testKey);
@@ -213,7 +213,7 @@ export async function runDeepSystemDiagnostics(): Promise<DiagnosticResult> {
               scope: 'Security RLS',
               testName: 'Teste R/W/D Completo',
               status: 'success',
-              message: 'Segurança RLS e permissões de escrita/leitura/exclusão estão 100% ativas e funcionais no Firebase.'
+              message: 'Segurança RLS e permissões de escrita/leitura/exclusão estão 100% ativas e funcionais no Supabase.'
             });
           }
         }
@@ -225,7 +225,7 @@ export async function runDeepSystemDiagnostics(): Promise<DiagnosticResult> {
         scope: 'Security RLS',
         testName: 'Exceção RLS',
         status: 'error',
-        message: 'Erro crítico de rede ao validar RLS e permissões de gravação do Firebase.',
+        message: 'Erro crítico de rede ao validar RLS e permissões de gravação do Supabase.',
         details: e.message || String(e)
       });
     }
@@ -433,7 +433,7 @@ export async function runDeepSystemDiagnostics(): Promise<DiagnosticResult> {
       });
     }
 
-    // Dynamic state check: Ensure dashboard components fetch directly from localStorage/Firebase arrays (no static fallbacks)
+    // Dynamic state check: Ensure dashboard components fetch directly from localStorage/Supabase arrays (no static fallbacks)
     const hasProducts = !!localStorage.getItem('ap_products') || true;
     analyticLogs.push({
       timestamp: new Date().toISOString(),
@@ -441,7 +441,7 @@ export async function runDeepSystemDiagnostics(): Promise<DiagnosticResult> {
       testName: 'Varredura de Dados Estáticos',
       status: 'success',
       message: 'Varredura de dados estáticos concluída. Todos os módulos analíticos vinculados de forma dinâmica.',
-      details: 'Não foram encontrados blocos de mockup fixos. Os relatórios executivos usam o array dinâmico fornecido pelo Firebase.'
+      details: 'Não foram encontrados blocos de mockup fixos. Os relatórios executivos usam o array dinâmico fornecido pelo Supabase.'
     });
 
   } catch (e: any) {
@@ -471,9 +471,9 @@ export async function runDeepSystemDiagnostics(): Promise<DiagnosticResult> {
   return {
     overallStatus,
     timestamp,
-    firebaseConnected: isConfigured && databaseStatus !== 'error',
+    supabaseConnected: isConfigured && databaseStatus !== 'error',
     checks: {
-      database: { status: databaseStatus, message: databaseStatus === 'success' ? 'Banco de dados Firebase verificado.' : 'Problema detectado nos schemas.', logs: dbLogs },
+      database: { status: databaseStatus, message: databaseStatus === 'success' ? 'Banco de dados Supabase verificado.' : 'Problema detectado nos schemas.', logs: dbLogs },
       permissions: { status: permissionsStatus, message: permissionsStatus === 'success' ? 'Políticas RLS e permissões verificadas.' : 'Falha ao testar gravação.', logs: permLogs },
       workflows: { status: workflowsStatus, message: workflowsStatus === 'success' ? 'Fluxos críticos simulados e aprovados.' : 'Fluxos de simulação com inconformidades.', logs: workflowLogs },
       analytics: { status: analyticsStatus, message: analyticsStatus === 'success' ? 'Fórmulas analíticas e dados dinâmicos validados.' : 'Aviso nas métricas do painel.', logs: analyticLogs }

@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 
 export const metadata = { robots: { index: false, follow: false } };
-import { getFirebaseClient, createClient } from '../firebase';
+import { getSupabaseClient, createClient } from '../supabase';
 import { 
   Sliders, 
   MapPin, 
@@ -54,20 +54,20 @@ import {
 } from 'lucide-react';
 import ImageUploader from './ImageUploader';
 import { 
-  FIREBASE_SETUP_INFO, 
-  pushSystemConfigToFirebase, 
-  saveFirebaseConfigToServer,
-  syncBulkTeamMembersToFirebase,
-  syncBulkProductsToFirebase,
-  syncBulkClientsToFirebase,
-  syncBulkSalesToFirebase,
-  syncBulkTransactionsToFirebase,
-  syncBulkOnlineOrdersToFirebase,
-  fetchCardTerminalsFromFirebase,
-  syncBulkCardTerminalsToFirebase,
-  deleteCardTerminalFromFirebase,
+  SUPABASE_SETUP_INFO, 
+  pushSystemConfigToSupabase, 
+  saveSupabaseConfigToServer,
+  syncBulkTeamMembersToSupabase,
+  syncBulkProductsToSupabase,
+  syncBulkClientsToSupabase,
+  syncBulkSalesToSupabase,
+  syncBulkTransactionsToSupabase,
+  syncBulkOnlineOrdersToSupabase,
+  fetchCardTerminalsFromSupabase,
+  syncBulkCardTerminalsToSupabase,
+  deleteCardTerminalFromSupabase,
   CardTerminal
-} from '../firebase';
+} from '../supabase';
 import { Product, Sale, Client, Transaction } from '../types';
 import { getCardMachinesConfig, saveCardMachinesConfig, CardMachineConfig, DEFAULT_CARD_MACHINES } from '../lib/cardMachines';
 import { runDeepSystemDiagnostics, DiagnosticResult, DiagnosticLog } from '../lib/diagnostics';
@@ -342,8 +342,12 @@ export default function SettingsSystem({
         setImgbbKey(savedImgbb);
       }
       setDiscordWebhook(localStorage.getItem('ap_discord_webhook') || '');
-      setFirebaseUrl(localStorage.getItem('ap_firebase_url') || 'https://ckrwmdaocoyigpmzpdyz.firebase.co');
-      setFirebaseKey(localStorage.getItem('ap_firebase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrcndtZGFvY295aWdwbXpwZHl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NDk2NzMsImV4cCI6MjA5NzEyNTY3M30.20vJ4pjavzl06v1dOIbx9rkxf7kc_72ApGgD6jCRiss');
+      let savedUrl = localStorage.getItem('ap_supabase_url') || localStorage.getItem('ap_supabase_url') || 'https://ckrwmdaocoyigpmzpdyz.supabase.co';
+      if (savedUrl.includes('.supabase.co')) {
+        savedUrl = savedUrl.replace('.supabase.co', '.supabase.co');
+      }
+      setSupabaseUrl(savedUrl);
+      setSupabaseKey(localStorage.getItem('ap_supabase_key') || localStorage.getItem('ap_supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrcndtZGFvY295aWdwbXpwZHl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NDk2NzMsImV4cCI6MjA5NzEyNTY3M30.20vJ4pjavzl06v1dOIbx9rkxf7kc_72ApGgD6jCRiss');
       
       // Reload Vitrine settings on cloud sync
       try {
@@ -383,7 +387,7 @@ export default function SettingsSystem({
   }, []);
 
   // Integrations states
-  const [firebaseStatus, setFirebaseStatus] = useState<'connected' | 'offline_sync'>('connected');
+  const [supabaseStatus, setSupabaseStatus] = useState<'connected' | 'offline_sync'>('connected');
   const [offlineQueueCount, setOfflineQueueCount] = useState(0);
 
   // Hook to calculate real pending sync queue count from local dirty registers
@@ -421,12 +425,18 @@ export default function SettingsSystem({
       window.removeEventListener('ap-storage-synced', calcQueue);
     };
   }, []);
-  const [firebaseUrl, setFirebaseUrl] = useState(() => localStorage.getItem('ap_firebase_url') || 'https://ckrwmdaocoyigpmzpdyz.firebase.co');
-  const [firebaseKey, setFirebaseKey] = useState(() => localStorage.getItem('ap_firebase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrcndtZGFvY295aWdwbXpwZHl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NDk2NzMsImV4cCI6MjA5NzEyNTY3M30.20vJ4pjavzl06v1dOIbx9rkxf7kc_72ApGgD6jCRiss');
-  const [isTestingFirebase, setIsTestingFirebase] = useState(false);
+  const [supabaseUrl, setSupabaseUrl] = useState(() => {
+    let saved = localStorage.getItem('ap_supabase_url') || localStorage.getItem('ap_supabase_url') || 'https://ckrwmdaocoyigpmzpdyz.supabase.co';
+    if (saved.includes('.supabase.co')) {
+      saved = saved.replace('.supabase.co', '.supabase.co');
+    }
+    return saved;
+  });
+  const [supabaseKey, setSupabaseKey] = useState(() => localStorage.getItem('ap_supabase_key') || localStorage.getItem('ap_supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrcndtZGFvY295aWdwbXpwZHl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NDk2NzMsImV4cCI6MjA5NzEyNTY3M30.20vJ4pjavzl06v1dOIbx9rkxf7kc_72ApGgD6jCRiss');
+  const [isTestingSupabase, setIsTestingSupabase] = useState(false);
   const [isSyncingTeam, setIsSyncingTeam] = useState(false);
   const [isForceSyncingAll, setIsForceSyncingAll] = useState(false);
-  const [showFirebaseKey, setShowFirebaseKey] = useState(false);
+  const [showSupabaseKey, setShowSupabaseKey] = useState(false);
   const [imgbbKey, setImgbbKey] = useState(() => {
     const saved = localStorage.getItem('ap_imgbb_key');
     if (!saved || saved === 'imgbb_live_tok_9821379128') {
@@ -453,7 +463,7 @@ export default function SettingsSystem({
   const [cardMachines, setCardMachines] = useState<CardMachineConfig[]>(() => getCardMachinesConfig());
   const [editingMachineId, setEditingMachineId] = useState<string>('infinitepay');
 
-  // Estados para CardTerminals (operadoras de cartão do Firebase)
+  // Estados para CardTerminals (operadoras de cartão do Supabase)
   const [terminalsList, setTerminalsList] = useState<CardTerminal[]>(() => {
     try {
       const saved = localStorage.getItem('ap_moda_card_terminals');
@@ -485,10 +495,10 @@ export default function SettingsSystem({
   const loadTerminals = async () => {
     setIsLoadingTerminals(true);
     try {
-      const fetched = await fetchCardTerminalsFromFirebase();
+      const fetched = await fetchCardTerminalsFromSupabase();
       setTerminalsList(fetched || []);
     } catch (e) {
-      console.warn('Failed to load terminals from firebase:', e);
+      console.warn('Failed to load terminals from supabase:', e);
     } finally {
       setIsLoadingTerminals(false);
     }
@@ -532,10 +542,10 @@ export default function SettingsSystem({
     setTerminalFormStatus('ativo');
     setEditingTerminalId(null);
 
-    // Sync to Firebase
+    // Sync to Supabase
     setIsLoadingTerminals(true);
     try {
-      const ok = await syncBulkCardTerminalsToFirebase(updatedList);
+      const ok = await syncBulkCardTerminalsToSupabase(updatedList);
       if (ok) {
         alert('Maquininha gravada e sincronizada na nuvem com sucesso!');
       } else {
@@ -543,7 +553,7 @@ export default function SettingsSystem({
       }
     } catch (err) {
       console.warn(err);
-      alert('Maquininha gravada localmente. Ocorreu um erro de rede ao enviar para o Firebase.');
+      alert('Maquininha gravada localmente. Ocorreu um erro de rede ao enviar para o Supabase.');
     } finally {
       setIsLoadingTerminals(false);
     }
@@ -568,13 +578,13 @@ export default function SettingsSystem({
 
     setIsLoadingTerminals(true);
     try {
-      await deleteCardTerminalFromFirebase(id);
+      await deleteCardTerminalFromSupabase(id);
       // Fallback sync to keep bulk up to date
-      await syncBulkCardTerminalsToFirebase(updatedList);
+      await syncBulkCardTerminalsToSupabase(updatedList);
       alert('Maquininha excluída da nuvem e do cache local!');
     } catch (err) {
       console.warn(err);
-      alert('Excluída localmente. Falha ao sincronizar deleção com o Firebase.');
+      alert('Excluída localmente. Falha ao sincronizar deleção com o Supabase.');
     } finally {
       setIsLoadingTerminals(false);
     }
@@ -593,7 +603,7 @@ export default function SettingsSystem({
 
     setIsLoadingTerminals(true);
     try {
-      await syncBulkCardTerminalsToFirebase(updatedList);
+      await syncBulkCardTerminalsToSupabase(updatedList);
     } catch (e) {
       console.warn(e);
     } finally {
@@ -841,7 +851,7 @@ export default function SettingsSystem({
         const parsed = JSON.parse(paymentConfigSaved);
         parsed.pixKey = storePixKey;
         localStorage.setItem('ap_moda_payment_config', JSON.stringify(parsed));
-        await pushSystemConfigToFirebase('ap_moda_payment_config', JSON.stringify(parsed));
+        await pushSystemConfigToSupabase('ap_moda_payment_config', JSON.stringify(parsed));
       }
 
       const companyInfoSaved = localStorage.getItem('ap_moda_company_info');
@@ -854,24 +864,24 @@ export default function SettingsSystem({
       parsedCompany.addressLine1 = storeAddress;
       parsedCompany.addressLine2 = `${storeCity} - ${storeState}`;
       localStorage.setItem('ap_moda_company_info', JSON.stringify(parsedCompany));
-      await pushSystemConfigToFirebase('ap_moda_company_info', JSON.stringify(parsedCompany));
+      await pushSystemConfigToSupabase('ap_moda_company_info', JSON.stringify(parsedCompany));
     } catch (err) {}
 
     // Register log
     registerAuditLog('Configuração Alterada', 'Dados da empresa editados e salvos');
     
     // Immediate push to cloud
-    await pushSystemConfigToFirebase('ap_store_name', storeName);
-    await pushSystemConfigToFirebase('ap_commission_rate', sellerCommissionRate);
-    await pushSystemConfigToFirebase('ap_store_slogan', storeSlogan);
-    await pushSystemConfigToFirebase('ap_store_cnpj', storeCnpj);
-    await pushSystemConfigToFirebase('ap_store_address', storeAddress);
-    await pushSystemConfigToFirebase('ap_store_city', storeCity);
-    await pushSystemConfigToFirebase('ap_store_state', storeState);
-    await pushSystemConfigToFirebase('ap_store_phone', storePhone);
-    await pushSystemConfigToFirebase('ap_pix_key', storePixKey);
-    await pushSystemConfigToFirebase('ap_store_footer', storeFooter);
-    await pushSystemConfigToFirebase('ap_store_logo', storeLogoUrl);
+    await pushSystemConfigToSupabase('ap_store_name', storeName);
+    await pushSystemConfigToSupabase('ap_commission_rate', sellerCommissionRate);
+    await pushSystemConfigToSupabase('ap_store_slogan', storeSlogan);
+    await pushSystemConfigToSupabase('ap_store_cnpj', storeCnpj);
+    await pushSystemConfigToSupabase('ap_store_address', storeAddress);
+    await pushSystemConfigToSupabase('ap_store_city', storeCity);
+    await pushSystemConfigToSupabase('ap_store_state', storeState);
+    await pushSystemConfigToSupabase('ap_store_phone', storePhone);
+    await pushSystemConfigToSupabase('ap_pix_key', storePixKey);
+    await pushSystemConfigToSupabase('ap_store_footer', storeFooter);
+    await pushSystemConfigToSupabase('ap_store_logo', storeLogoUrl);
 
     alert('Dados da empresa atualizados com sucesso no sistema e sincronizados em nuvem!');
   };
@@ -885,10 +895,10 @@ export default function SettingsSystem({
     registerAuditLog('Configuração WhatsApp', 'Credenciais do WhatsApp Cloud API atualizadas');
 
     // Immediate push to cloud
-    await pushSystemConfigToFirebase('ap_whatsapp_token', whatsappToken);
-    await pushSystemConfigToFirebase('ap_whatsapp_phone_id', whatsappPhoneId);
-    await pushSystemConfigToFirebase('ap_whatsapp_recipient', whatsappRecipient);
-    await pushSystemConfigToFirebase('ap_whatsapp_enabled', String(whatsappEnabled));
+    await pushSystemConfigToSupabase('ap_whatsapp_token', whatsappToken);
+    await pushSystemConfigToSupabase('ap_whatsapp_phone_id', whatsappPhoneId);
+    await pushSystemConfigToSupabase('ap_whatsapp_recipient', whatsappRecipient);
+    await pushSystemConfigToSupabase('ap_whatsapp_enabled', String(whatsappEnabled));
 
     alert('Configurações do WhatsApp salvas com sucesso e sincronizadas em nuvem!');
   };
@@ -1108,76 +1118,82 @@ export default function SettingsSystem({
   };
 
   const handleToggleOffline = () => {
-    if (firebaseStatus === 'connected') {
-      setFirebaseStatus('offline_sync');
+    if (supabaseStatus === 'connected') {
+      setSupabaseStatus('offline_sync');
       setOfflineQueueCount(prev => prev + 1); // Mock 1 item of pending synchronization in queue
-      registerAuditLog('Sincronização Firebase', 'Modo Offline Forçado');
-      alert('MODO OFFLINE ATIVADO!\n\nO sistema continuará operando normalmente em cache local (localStorage). Qualquer venda ou alteração de cadastro ficará salva na Fila de Sincronização offline e transmitida automaticamente para a nuvem Firebase assim que a rede restabelecer!');
+      registerAuditLog('Sincronização Supabase', 'Modo Offline Forçado');
+      alert('MODO OFFLINE ATIVADO!\n\nO sistema continuará operando normalmente em cache local (localStorage). Qualquer venda ou alteração de cadastro ficará salva na Fila de Sincronização offline e transmitida automaticamente para a nuvem Supabase assim que a rede restabelecer!');
     } else {
-      setFirebaseStatus('connected');
+      setSupabaseStatus('connected');
       setOfflineQueueCount(0);
-      registerAuditLog('Sincronização Firebase', 'Restaurado modo online & Fila descarregada');
-      alert('CONEXÃO RESTAURADA COM FIREBASE!\n\nDados sincronizados em tempo real com sucesso! Polling de 5 segundos re-estabelecido.');
+      registerAuditLog('Sincronização Supabase', 'Restaurado modo online & Fila descarregada');
+      alert('CONEXÃO RESTAURADA COM SUPABASE!\n\nDados sincronizados em tempo real com sucesso! Polling de 5 segundos re-estabelecido.');
     }
   };
 
-  const handleSaveFirebaseSettings = async (e: React.FormEvent) => {
+  const handleSaveSupabaseSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem('ap_firebase_url', firebaseUrl);
-    localStorage.setItem('ap_firebase_key', firebaseKey);
+    localStorage.setItem('ap_supabase_url', supabaseUrl);
+    localStorage.setItem('ap_supabase_key', supabaseKey);
+    localStorage.setItem('ap_supabase_url', supabaseUrl);
+    localStorage.setItem('ap_supabase_key', supabaseKey);
     
     // Save to the central server so all other devices automatically sync to the same DB!
-    await saveFirebaseConfigToServer(firebaseUrl, firebaseKey);
+    await saveSupabaseConfigToServer(supabaseUrl, supabaseKey);
     
-    registerAuditLog('Configuração Firebase', 'Credenciais salvas no sistema e compartilhadas');
-    alert('Credenciais do Firebase registradas com sucesso localmente e ativadas globalmente para TODOS os aparelhos!');
+    registerAuditLog('Configuração Supabase', 'Credenciais salvas no sistema e compartilhadas');
+    alert('Credenciais do Supabase registradas com sucesso localmente e ativadas globalmente para TODOS os aparelhos!');
   };
 
-  const handleTestFirebaseConnection = async () => {
-    if (!firebaseUrl.trim() || !firebaseKey.trim()) {
-      alert('Por favor, preencha a URL e a Chave de API do Firebase.');
+  const handleTestSupabaseConnection = async () => {
+    if (!supabaseUrl.trim() || !supabaseKey.trim()) {
+      alert('Por favor, preencha a URL e a Chave de API do Supabase.');
       return;
     }
     
-    setIsTestingFirebase(true);
+    setIsTestingSupabase(true);
     try {
-      const client = createClient(firebaseUrl, firebaseKey);
+      const client = createClient(supabaseUrl, supabaseKey);
       const { error } = await client.auth.getSession();
       
       if (error) {
         throw error;
       }
       
-      localStorage.setItem('ap_firebase_url', firebaseUrl);
-      localStorage.setItem('ap_firebase_key', firebaseKey);
+      localStorage.setItem('ap_supabase_url', supabaseUrl);
+      localStorage.setItem('ap_supabase_key', supabaseKey);
+      localStorage.setItem('ap_supabase_url', supabaseUrl);
+      localStorage.setItem('ap_supabase_key', supabaseKey);
       
       // Save globally
-      await saveFirebaseConfigToServer(firebaseUrl, firebaseKey);
+      await saveSupabaseConfigToServer(supabaseUrl, supabaseKey);
       
-      setFirebaseStatus('connected');
+      setSupabaseStatus('connected');
       
-      registerAuditLog('Conexão Firebase', 'Chave API registrada, testada e sincronizada globalmente');
-      alert(`✅ SUCESSO DE CONEXÃO MULTI-DISPOSITIVO!\n\nSeu sistema AP Moda Fitness conectou-se ao Firebase com sucesso.\n\nEstas credenciais foram salvas e ativadas AUTOMATICAMENTE para todos os aparelhos conectados (celulares, tablets e notebooks).\n\nInstância: ${firebaseUrl}`);
+      registerAuditLog('Conexão Supabase', 'Chave API registrada, testada e sincronizada globalmente');
+      alert(`✅ SUCESSO DE CONEXÃO MULTI-DISPOSITIVO!\n\nSeu sistema AP Moda Fitness conectou-se ao Supabase com sucesso.\n\nEstas credenciais foram salvas e ativadas AUTOMATICAMENTE para todos os aparelhos conectados (celulares, tablets e notebooks).\n\nInstância: ${supabaseUrl}`);
     } catch (err: any) {
-      console.error('Erro de conexão Firebase:', err);
+      console.error('Erro de conexão Supabase:', err);
       // Still write it locally and try to sync to server just in case
-      localStorage.setItem('ap_firebase_url', firebaseUrl);
-      localStorage.setItem('ap_firebase_key', firebaseKey);
-      await saveFirebaseConfigToServer(firebaseUrl, firebaseKey);
+      localStorage.setItem('ap_supabase_url', supabaseUrl);
+      localStorage.setItem('ap_supabase_key', supabaseKey);
+      localStorage.setItem('ap_supabase_url', supabaseUrl);
+      localStorage.setItem('ap_supabase_key', supabaseKey);
+      await saveSupabaseConfigToServer(supabaseUrl, supabaseKey);
       alert(`⚠️ Erro de Validação de Credenciais: ${err.message || 'Sem resposta.'}\n\nNo entanto, suas chaves foram gravadas tanto localmente quanto salvas no servidor central.`);
     } finally {
-      setIsTestingFirebase(false);
+      setIsTestingSupabase(false);
     }
   };
 
   const handleManualSyncTeam = async () => {
-    if (!firebaseUrl.trim() || !firebaseKey.trim()) {
-      alert('⚠️ Por favor, valide e salve a configuração do Firebase antes de sincronizar.');
+    if (!supabaseUrl.trim() || !supabaseKey.trim()) {
+      alert('⚠️ Por favor, valide e salve a configuração do Supabase antes de sincronizar.');
       return;
     }
     setIsSyncingTeam(true);
     try {
-      const client = createClient(firebaseUrl, firebaseKey);
+      const client = createClient(supabaseUrl, supabaseKey);
       const payloads = teamMembers.map(m => ({
         id: m.id,
         name: m.name,
@@ -1197,26 +1213,26 @@ export default function SettingsSystem({
         throw error;
       }
 
-      registerAuditLog('Sincronização Firebase', 'Logins sincronizados com sucesso');
-      alert('✅ SINCRONIZAÇÃO BEM-SUCEDIDA!\n\nTodas as credenciais e logins foram persistidos com sucesso na tabela "ap_team_members" em sua nuvem Firebase!');
+      registerAuditLog('Sincronização Supabase', 'Logins sincronizados com sucesso');
+      alert('✅ SINCRONIZAÇÃO BEM-SUCEDIDA!\n\nTodas as credenciais e logins foram persistidos com sucesso na tabela "ap_team_members" em sua nuvem Supabase!');
     } catch (err: any) {
-      console.error('Erro de Sync Firebase:', err);
-      alert(`⚠️ Erro de Sincronização:\n${err.message || 'Erro desconhecido.'}\n\n👉 Certifique-se de que a tabela "ap_team_members" foi criada em seu Firebase SQL Editor usando o botão de cópia de script abaixo.`);
+      console.error('Erro de Sync Supabase:', err);
+      alert(`⚠️ Erro de Sincronização:\n${err.message || 'Erro desconhecido.'}\n\n👉 Certifique-se de que a tabela "ap_team_members" foi criada em seu Supabase SQL Editor usando o botão de cópia de script abaixo.`);
     } finally {
       setIsSyncingTeam(false);
     }
   };
 
   const handleForceSyncAllData = async () => {
-    if (!firebaseUrl.trim() || !firebaseKey.trim()) {
-      alert('⚠️ Por favor, valide e salve a configuração do Firebase antes de forçar o envio.');
+    if (!supabaseUrl.trim() || !supabaseKey.trim()) {
+      alert('⚠️ Por favor, valide e salve a configuração do Supabase antes de forçar o envio.');
       return;
     }
     
     const confirmPush = confirm(
-      "🔥 ATENÇÃO: Carregar Todo o Banco de Dados para o Firebase!\n\n" +
-      "Isso irá carregar TODOS os seus dados salvos neste aparelho (produtos, clientes, histórico de vendas, fluxo de caixa e logins) para a sua nuvem Firebase.\n\n" +
-      "Isso é essencial se você acabou de configurar um novo Firebase vazio, pois assim os dados locais deste aparelho serão enviados para a nuvem e todos os outros celulares, tablets ou notebooks conectados passarão a enxergar esses mesmos produtos e vendas imediatamente.\n\n" +
+      "🔥 ATENÇÃO: Carregar Todo o Banco de Dados para o Supabase!\n\n" +
+      "Isso irá carregar TODOS os seus dados salvos neste aparelho (produtos, clientes, histórico de vendas, fluxo de caixa e logins) para a sua nuvem Supabase.\n\n" +
+      "Isso é essencial se você acabou de configurar um novo Supabase vazio, pois assim os dados locais deste aparelho serão enviados para a nuvem e todos os outros celulares, tablets ou notebooks conectados passarão a enxergar esses mesmos produtos e vendas imediatamente.\n\n" +
       "Deseja prosseguir com o envio em massa para a nuvem?"
     );
     if (!confirmPush) return;
@@ -1225,34 +1241,34 @@ export default function SettingsSystem({
     try {
       // 1. Sincronizar Equipe/Logins
       if (teamMembers && teamMembers.length > 0) {
-        await syncBulkTeamMembersToFirebase(teamMembers);
+        await syncBulkTeamMembersToSupabase(teamMembers);
       }
       
       // 2. Sincronizar Produtos
       if (products && products.length > 0) {
-        await syncBulkProductsToFirebase(products);
+        await syncBulkProductsToSupabase(products);
       }
       
       // 3. Sincronizar Clientes
       if (clients && clients.length > 0) {
-        await syncBulkClientsToFirebase(clients);
+        await syncBulkClientsToSupabase(clients);
       }
       
       // 4. Sincronizar Vendas
       if (sales && sales.length > 0) {
-        await syncBulkSalesToFirebase(sales);
+        await syncBulkSalesToSupabase(sales);
       }
       
       // 5. Sincronizar Transações Financeiras (Caixa)
       if (transactions && transactions.length > 0) {
-        await syncBulkTransactionsToFirebase(transactions);
+        await syncBulkTransactionsToSupabase(transactions);
       }
 
       // 6. Sincronizar Pedidos Online
       const rawOrders = localStorage.getItem('ap_moda_online_orders');
       const onlineOrdersList = rawOrders ? JSON.parse(rawOrders) : [];
       if (onlineOrdersList && onlineOrdersList.length > 0) {
-        await syncBulkOnlineOrdersToFirebase(onlineOrdersList);
+        await syncBulkOnlineOrdersToSupabase(onlineOrdersList);
       }
 
       // 7. Enviar as configurações gerais
@@ -1266,14 +1282,14 @@ export default function SettingsSystem({
       ];
       for (const conf of configs) {
         if (conf.value) {
-          await pushSystemConfigToFirebase(conf.key, conf.value);
+          await pushSystemConfigToSupabase(conf.key, conf.value);
         }
       }
 
-      registerAuditLog('Carga Total Firebase', 'Todos os dados locais foram exportados para a nuvem.');
+      registerAuditLog('Carga Total Supabase', 'Todos os dados locais foram exportados para a nuvem.');
       alert(
         "✨ SUCESSO NO ACESSO E CARGA EM NUVEM!\n\n" +
-        "Todas as suas informações locais foram enviadas com sucesso para as tabelas do seu Firebase:\n" +
+        "Todas as suas informações locais foram enviadas com sucesso para as tabelas do seu Supabase:\n" +
         `• ${products.length} Produtos do Catálogo\n` +
         `• ${clients.length} Clientes (CRM)\n` +
         `• ${sales.length} Vendas Registradas\n` +
@@ -1283,7 +1299,7 @@ export default function SettingsSystem({
       );
     } catch (err: any) {
       console.error('Erro ao forçar sincronia total:', err);
-      alert(`⚠️ Falha ao forçar sincronização total: ${err.message || 'Erro de rede ou permissão.'}\n\n👉 Certifique-se de que a URL do Firebase e as chaves foram salvas corretamente e que sua conexão está ativa.`);
+      alert(`⚠️ Falha ao forçar sincronização total: ${err.message || 'Erro de rede ou permissão.'}\n\n👉 Certifique-se de que a URL do Supabase e as chaves foram salvas corretamente e que sua conexão está ativa.`);
     } finally {
       setIsForceSyncingAll(false);
     }
@@ -1291,9 +1307,9 @@ export default function SettingsSystem({
 
   const handleCopySQLScript = () => {
     try {
-      navigator.clipboard.writeText(FIREBASE_SETUP_INFO);
-      registerAuditLog('Cópia Script SQL', 'Script de configuração Firebase copiado');
-      alert('📋 Script SQL copiado com sucesso!\n\nCole no "SQL Editor" do seu painel do Firebase e clique em "Run" para automatizar a criação da tabela.');
+      navigator.clipboard.writeText(SUPABASE_SETUP_INFO);
+      registerAuditLog('Cópia Script SQL', 'Script de configuração Supabase copiado');
+      alert('📋 Script SQL copiado com sucesso!\n\nCole no "SQL Editor" do seu painel do Supabase e clique em "Run" para automatizar a criação de todas as tabelas necessárias.');
     } catch(err) {
       alert('Seu navegador bloqueou a cópia direta. Selecione o SQL abaixo ou use outro navegador.');
     }
@@ -1325,7 +1341,7 @@ export default function SettingsSystem({
       <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold font-sans text-slate-800 tracking-tight">Ajustes & Configurações do Sistema</h2>
-          <p className="text-slate-400 text-sm font-sans">Controle de credenciais de emissão de cupons, conexões do banco de dados real Firebase, log de auditoria e webhooks</p>
+          <p className="text-slate-400 text-sm font-sans">Controle de credenciais de emissão de cupons, conexões do banco de dados real Supabase, log de auditoria e webhooks</p>
         </div>
 
         {/* Sync Status Badge */}
@@ -1334,14 +1350,14 @@ export default function SettingsSystem({
             type="button"
             onClick={handleToggleOffline}
             className={`px-4 py-2 rounded-xl text-xs font-bold font-sans flex items-center gap-2 transition-all cursor-pointer shadow-md select-none
-              ${firebaseStatus === 'connected' 
+              ${supabaseStatus === 'connected' 
                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100 shadow-emerald-500/5' 
                 : 'bg-amber-50 text-amber-700 border border-amber-100 shadow-amber-500/5 animate-pulse'}`}
           >
-            {firebaseStatus === 'connected' ? (
+            {supabaseStatus === 'connected' ? (
               <>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Firebase: CONECTADO</span>
+                <span>Supabase: CONECTADO</span>
               </>
             ) : (
               <>
@@ -1375,7 +1391,7 @@ export default function SettingsSystem({
               : 'border-transparent text-slate-450 hover:text-slate-700'}`}
         >
           <Database size={14} />
-          <span>Firebase, ImgBB & Webhook</span>
+          <span>Supabase, ImgBB & Webhook</span>
         </button>
         <button
           type="button"
@@ -1746,28 +1762,28 @@ export default function SettingsSystem({
       {activeSubTab === 'integracoes' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 font-sans text-xs">
           
-          {/* Firebase details and connection testers */}
+          {/* Supabase details and connection testers */}
           <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-4 space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-slate-50">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 animate-fade-in">
                 <Database size={15} className="text-pink-600" />
-                <span>Firebase Database Real-time</span>
+                <span>Banco de Dados Supabase</span>
               </h3>
-              <span className={`w-2.5 h-2.5 rounded-full ${firebaseStatus === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              <span className={`w-2.5 h-2.5 rounded-full ${supabaseStatus === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
             </div>
 
-            <form onSubmit={handleSaveFirebaseSettings} className="space-y-3 font-sans">
+            <form onSubmit={handleSaveSupabaseSettings} className="space-y-3 font-sans">
               <p className="text-[10.5px] text-slate-500 leading-relaxed">
-                Integre a sua boutique de moda fitness a uma instância de nuvem real do Firebase para replicação automática de dados.
+                Integre a sua boutique de moda fitness a uma instância de nuvem real do Supabase para replicação automática de dados.
               </p>
 
               <div>
-                <label className="block text-slate-405 font-semibold mb-1 text-[10px]">URL do Projeto Firebase (API URL)</label>
+                <label className="block text-slate-405 font-semibold mb-1 text-[10px]">URL do Projeto Supabase (API URL)</label>
                 <input
                   type="text"
-                  value={firebaseUrl}
-                  onChange={(e) => setFirebaseUrl(e.target.value)}
-                  placeholder="https://suachave.firebase.co"
+                  value={supabaseUrl}
+                  onChange={(e) => setSupabaseUrl(e.target.value)}
+                  placeholder="https://suachave.supabase.co"
                   className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 font-mono text-[10px] text-slate-700 focus:outline-hidden"
                 />
               </div>
@@ -1777,17 +1793,17 @@ export default function SettingsSystem({
                   <label className="block text-slate-405 font-semibold text-[10px]">Chave de API Pública (Anon/Public Key)</label>
                   <button
                     type="button"
-                    onClick={() => setShowFirebaseKey(!showFirebaseKey)}
+                    onClick={() => setShowSupabaseKey(!showSupabaseKey)}
                     className="text-[10px] text-pink-600 font-bold hover:underline cursor-pointer"
                   >
-                    {showFirebaseKey ? 'Esconder' : 'Mostrar'}
+                    {showSupabaseKey ? 'Esconder' : 'Mostrar'}
                   </button>
                 </div>
                 <input
-                  type={showFirebaseKey ? 'text' : 'password'}
-                  value={firebaseKey}
-                  onChange={(e) => setFirebaseKey(e.target.value)}
-                  placeholder="Chave pública anon do Firebase"
+                  type={showSupabaseKey ? 'text' : 'password'}
+                  value={supabaseKey}
+                  onChange={(e) => setSupabaseKey(e.target.value)}
+                  placeholder="Chave pública anon do Supabase"
                   className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 font-mono text-[10px] text-slate-700 focus:outline-hidden"
                 />
               </div>
@@ -1802,12 +1818,12 @@ export default function SettingsSystem({
                 </button>
                 <button
                   type="button"
-                  disabled={isTestingFirebase}
-                  onClick={handleTestFirebaseConnection}
+                  disabled={isTestingSupabase}
+                  onClick={handleTestSupabaseConnection}
                   className="py-1.5 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-lg text-[10px] transition flex items-center justify-center gap-1 cursor-pointer disabled:opacity-55"
                 >
-                  <RefreshCw size={11} className={isTestingFirebase ? 'animate-spin' : ''} />
-                  <span>{isTestingFirebase ? 'Testando...' : 'Testar Conexão'}</span>
+                  <RefreshCw size={11} className={isTestingSupabase ? 'animate-spin' : ''} />
+                  <span>{isTestingSupabase ? 'Testando...' : 'Testar Conexão'}</span>
                 </button>
               </div>
             </form>
@@ -1816,9 +1832,9 @@ export default function SettingsSystem({
               <div className="p-2.5 bg-slate-900 border border-slate-850 rounded-xl space-y-1 font-mono text-zinc-400">
                 <p className="text-emerald-400 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Sincronismo Firebase Ativo
+                  Sincronismo Supabase Ativo
                 </p>
-                <p className="text-zinc-500 max-w-full truncate text-[9px]">HOST: {firebaseUrl || 'Não configurado'}</p>
+                <p className="text-zinc-500 max-w-full truncate text-[9px]">HOST: {supabaseUrl || 'Não configurado'}</p>
               </div>
 
               {/* Offline Queue Indicator */}
@@ -1836,14 +1852,14 @@ export default function SettingsSystem({
                 className="w-full py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 text-[10px] transition font-bold rounded-lg cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <WifiOff size={11} className="text-slate-500" />
-                <span>{firebaseStatus === 'connected' ? 'Simular Modo Offline (Desconectar)' : 'Restaurar Conexão Firebase'}</span>
+                <span>{supabaseStatus === 'connected' ? 'Simular Modo Offline (Desconectar)' : 'Restaurar Conexão Supabase'}</span>
               </button>
 
               {/* Sincronização de Credenciais / Usuários */}
               <div className="bg-pink-50/35 border border-pink-100/50 p-2.5 rounded-xl space-y-1.5 mt-2">
                 <span className="font-bold text-pink-700 block text-[10px]">🔒 Sincronia de Credenciais (Logins/Senhas)</span>
                 <p className="text-[9px] text-slate-500 leading-normal">
-                  Transmita ou guarde os acessos dos funcionários e as senhas cadastradas para que fiquem replicados dinamicamente na nuvem do seu Firebase.
+                  Transmita ou guarde os acessos dos funcionários e as senhas cadastradas para que fiquem replicados dinamicamente na nuvem do seu Supabase.
                 </p>
                 <div className="flex gap-1.5 mt-1">
                   <button
@@ -1875,7 +1891,7 @@ export default function SettingsSystem({
                   <span>📤 Primeira Conexão? Enviar Dados deste Aparelho para a Nuvem</span>
                 </span>
                 <p className="text-[9px] text-slate-500 leading-normal">
-                  Se você acabou de configurar ou alterar seu Firebase, envie todos os produtos, clientes, histórico de vendas e fluxo de caixa salvos neste aparelho de uma só vez para o seu Firebase vazio.
+                  Se você acabou de configurar ou alterar seu Supabase, envie todos os produtos, clientes, histórico de vendas e fluxo de caixa salvos neste aparelho de uma só vez para o seu Supabase vazio.
                 </p>
                 <button
                   type="button"
@@ -1884,7 +1900,7 @@ export default function SettingsSystem({
                   className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition flex items-center justify-center gap-1.5 cursor-pointer text-[9.5px] disabled:opacity-55 shadow-xs"
                 >
                   <RefreshCw size={10} className={isForceSyncingAll ? 'animate-spin' : ''} />
-                  <span>{isForceSyncingAll ? 'Enviando tudo em lote...' : 'Carregar Todos os Dados Locais para o Firebase'}</span>
+                  <span>{isForceSyncingAll ? 'Enviando tudo em lote...' : 'Carregar Todos os Dados Locais para o Supabase'}</span>
                 </button>
               </div>
             </div>
@@ -1909,7 +1925,7 @@ export default function SettingsSystem({
                     }}
                     onBlur={async () => {
                       localStorage.setItem('ap_imgbb_key', imgbbKey);
-                      await pushSystemConfigToFirebase('ap_imgbb_key', imgbbKey);
+                      await pushSystemConfigToSupabase('ap_imgbb_key', imgbbKey);
                     }}
                     className="flex-grow bg-slate-50 border border-slate-150 rounded-lg p-2 font-mono font-bold text-slate-700 focus:outline-hidden text-xs"
                   />
@@ -1917,7 +1933,7 @@ export default function SettingsSystem({
                     type="button"
                     onClick={async () => {
                       localStorage.setItem('ap_imgbb_key', imgbbKey);
-                      const success = await pushSystemConfigToFirebase('ap_imgbb_key', imgbbKey);
+                      const success = await pushSystemConfigToSupabase('ap_imgbb_key', imgbbKey);
                       if (success) alert('Chave ImgBB salva e sincronizada na nuvem com sucesso!');
                     }}
                     className="px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-[10px] transition cursor-pointer border-none"
@@ -1963,7 +1979,7 @@ export default function SettingsSystem({
                     }}
                     onBlur={async () => {
                       localStorage.setItem('ap_discord_webhook', discordWebhook);
-                      await pushSystemConfigToFirebase('ap_discord_webhook', discordWebhook);
+                      await pushSystemConfigToSupabase('ap_discord_webhook', discordWebhook);
                     }}
                     className="flex-grow bg-slate-50 border border-slate-150 rounded-lg p-2 font-mono text-[10px] text-slate-700 focus:outline-hidden"
                   />
@@ -1971,7 +1987,7 @@ export default function SettingsSystem({
                     type="button"
                     onClick={async () => {
                       localStorage.setItem('ap_discord_webhook', discordWebhook);
-                      const success = await pushSystemConfigToFirebase('ap_discord_webhook', discordWebhook);
+                      const success = await pushSystemConfigToSupabase('ap_discord_webhook', discordWebhook);
                       if (success) alert('Webhook Discord salvo e sincronizado na nuvem com sucesso!');
                     }}
                     className="px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-[10px] transition cursor-pointer border-none"
@@ -2177,11 +2193,11 @@ export default function SettingsSystem({
                   type="button"
                   onClick={async () => {
                     localStorage.setItem('ap_melhor_envio_token', melhorEnvioToken);
-                    const success = await pushSystemConfigToFirebase('ap_melhor_envio_token', melhorEnvioToken);
+                    const success = await pushSystemConfigToSupabase('ap_melhor_envio_token', melhorEnvioToken);
                     if (success) {
                       alert('✅ Token do Melhor Envio salvo e sincronizado na nuvem com sucesso!');
                     } else {
-                      alert('⚠️ Token salvo localmente, mas houve uma falha ao enviar para o Firebase.');
+                      alert('⚠️ Token salvo localmente, mas houve uma falha ao enviar para o Supabase.');
                     }
                   }}
                   className="sm:self-end px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg transition-colors cursor-pointer border-none text-[11px]"
@@ -2199,7 +2215,7 @@ export default function SettingsSystem({
                       const isSandbox = e.target.value === 'true';
                       setMelhorEnvioSandbox(isSandbox);
                       localStorage.setItem('ap_melhor_envio_sandbox', String(isSandbox));
-                      const success = await pushSystemConfigToFirebase('ap_melhor_envio_sandbox', String(isSandbox));
+                      const success = await pushSystemConfigToSupabase('ap_melhor_envio_sandbox', String(isSandbox));
                       if (success) {
                         alert(`✅ Ambiente alterado para ${isSandbox ? 'Sandbox / Simulador' : 'Produção'} com sucesso!`);
                       }
@@ -2240,7 +2256,7 @@ export default function SettingsSystem({
                   if (window.confirm("Deseja restaurar as taxas padrão de fábrica de todas as maquininhas (InfinitePay, Saipay, PagSeguro, Mercado Pago, Ton, Stone)? Isso irá sobrepor suas edições atuais.")) {
                     setCardMachines(DEFAULT_CARD_MACHINES);
                     saveCardMachinesConfig(DEFAULT_CARD_MACHINES);
-                    pushSystemConfigToFirebase('ap_card_machines_rates', JSON.stringify(DEFAULT_CARD_MACHINES));
+                    pushSystemConfigToSupabase('ap_card_machines_rates', JSON.stringify(DEFAULT_CARD_MACHINES));
                     alert("✅ Todas as taxas padrão foram limpas e restauradas com sucesso!");
                   }
                 }}
@@ -2525,8 +2541,8 @@ export default function SettingsSystem({
                           type="button"
                           onClick={() => {
                             saveCardMachinesConfig(cardMachines);
-                            pushSystemConfigToFirebase('ap_card_machines_rates', JSON.stringify(cardMachines));
-                            alert(`✅ Configuração salva!\n\nAs taxas para a maquininha "${activeMachine.name}" foram salvas com sucesso localmente e enviadas ao Firebase para atualizar todos os aparelhos conectados (tablets, celulares)!`);
+                            pushSystemConfigToSupabase('ap_card_machines_rates', JSON.stringify(cardMachines));
+                            alert(`✅ Configuração salva!\n\nAs taxas para a maquininha "${activeMachine.name}" foram salvas com sucesso localmente e enviadas ao Supabase para atualizar todos os aparelhos conectados (tablets, celulares)!`);
                           }}
                           className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-lg transition-colors cursor-pointer text-[10.5px] border-none font-sans"
                         >
@@ -3516,11 +3532,11 @@ export default function SettingsSystem({
                     localStorage.setItem('ap_vitrine_category_banners', JSON.stringify(categoryBanners));
                     localStorage.setItem('ap_vitrine_floating_banner', JSON.stringify(floatingBanner));
                     
-                    // Push all vitrine keys instantly to Firebase
-                    await pushSystemConfigToFirebase('ap_vitrine_slides', JSON.stringify(lookbookSlides));
-                    await pushSystemConfigToFirebase('ap_vitrine_announcement', JSON.stringify(announcement));
-                    await pushSystemConfigToFirebase('ap_vitrine_category_banners', JSON.stringify(categoryBanners));
-                    await pushSystemConfigToFirebase('ap_vitrine_floating_banner', JSON.stringify(floatingBanner));
+                    // Push all vitrine keys instantly to Supabase
+                    await pushSystemConfigToSupabase('ap_vitrine_slides', JSON.stringify(lookbookSlides));
+                    await pushSystemConfigToSupabase('ap_vitrine_announcement', JSON.stringify(announcement));
+                    await pushSystemConfigToSupabase('ap_vitrine_category_banners', JSON.stringify(categoryBanners));
+                    await pushSystemConfigToSupabase('ap_vitrine_floating_banner', JSON.stringify(floatingBanner));
 
                     alert('✨ Vitrine Pública atualizada com sucesso! Suas campanhas, banners do carrossel, faixa de avisos e o banner flutuante já se encontram ativos na visualização de varejo e sincronizados entre todos aparelhos!');
                   } catch (e) {
@@ -3573,9 +3589,9 @@ export default function SettingsSystem({
                 </div>
                 <p className="text-[10px] opacity-80 leading-normal max-w-md">
                   {!diagnosticResult ? 'Inicie a varredura profunda para validar de ponta a ponta a integridade estrutural, permissões de gravação RLS e cálculos estatísticos.' :
-                   diagnosticResult.overallStatus === 'healthy' ? 'Parabéns! Todas as tabelas críticas do Firebase, políticas RLS, cálculos de Markup e fluxos de portal passaram nos testes de estresse de integração.' :
+                   diagnosticResult.overallStatus === 'healthy' ? 'Parabéns! Todas as tabelas críticas do Supabase, políticas RLS, cálculos de Markup e fluxos de portal passaram nos testes de estresse de integração.' :
                    diagnosticResult.overallStatus === 'warning' ? 'O sistema está operacional, porém algumas colunas opcionais ou respostas de teste retornaram avisos.' :
-                   'Erro de sincronização ou schema ausente no banco Firebase. Utilize o botão de Autocorreção para reparar instantaneamente.'}
+                   'Erro de sincronização ou schema ausente no banco Supabase. Utilize o botão de Autocorreção para reparar instantaneamente.'}
                 </p>
               </div>
               <div className="mt-4 flex flex-wrap gap-2 pt-2 border-t border-slate-100">
@@ -3583,7 +3599,7 @@ export default function SettingsSystem({
                   type="button"
                   disabled={isRunningDiagnostics}
                   onClick={triggerDiagnostics}
-                  className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg hover:bg-slate-800 disabled:opacity-50 transition font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg hover:bg-slate-800 disabled:opacity-55 transition font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <RefreshCw size={11} className={isRunningDiagnostics ? 'animate-spin' : ''} />
                   <span>{isRunningDiagnostics ? 'Varrendo...' : 'Disparar Varredura'}</span>
@@ -3594,7 +3610,7 @@ export default function SettingsSystem({
                   onClick={async () => {
                     setIsSelfHealing(true);
                     try {
-                      // Execute self-healing migration via Firebase setup or clean local storage checks
+                      // Execute self-healing migration via Supabase setup or clean local storage checks
                       localStorage.setItem('ap_last_schema_heal', new Date().toISOString());
                       
                       // Also let's run clean mock repairs
@@ -3603,7 +3619,7 @@ export default function SettingsSystem({
                       // Simulate short delay
                       await new Promise(r => setTimeout(r, 1500));
                       
-                      alert('✨ Motor Self-Heal executado com sucesso! Os Schemas, chaves Pix espelhadas e colunas camelCase do Firebase foram recalibrados. Disparando re-verificação...');
+                      alert('✨ Motor Self-Heal executado com sucesso! Os Schemas, chaves Pix espelhadas e colunas camelCase do Supabase foram recalibrados. Disparando re-verificação...');
                       await triggerDiagnostics();
                     } catch (e: any) {
                       alert('Erro ao rodar self-healing: ' + e.message);
@@ -3611,7 +3627,7 @@ export default function SettingsSystem({
                       setIsSelfHealing(false);
                     }
                   }}
-                  className="px-3.5 py-1.5 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50 transition font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  className="px-3.5 py-1.5 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-55 transition font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Wrench size={11} className={isSelfHealing ? 'animate-bounce' : ''} />
                   <span>{isSelfHealing ? 'Ajustando...' : 'Autocorreção (Self-Heal)'}</span>
@@ -3630,7 +3646,7 @@ export default function SettingsSystem({
               </div>
               <div className="text-[9px] text-slate-400 flex items-center gap-1.5 mt-auto pt-2 border-t border-slate-50">
                 <Database size={11} className="text-slate-450" />
-                <span>Firebase: {diagnosticResult?.firebaseConnected ? 'Conectado 🟢' : 'Modo Local 🟡'}</span>
+                <span>Supabase: {diagnosticResult?.supabaseConnected ? 'Conectado 🟢' : 'Modo Local 🟡'}</span>
               </div>
             </div>
 
@@ -3712,7 +3728,7 @@ export default function SettingsSystem({
                 <div className="py-12 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
                   <HeartPulse size={28} className="text-slate-300 animate-pulse" />
                   <p className="font-bold">Nenhum teste executado nesta sessão.</p>
-                  <p className="text-[10px] text-slate-450">Clique em "Disparar Varredura" acima para inspecionar os logs de integridade do Firebase e fluxo analítico.</p>
+                  <p className="text-[10px] text-slate-450">Clique em "Disparar Varredura" acima para inspecionar os logs de integridade do Supabase e fluxo analítico.</p>
                 </div>
               ) : (
                 (() => {
@@ -3902,7 +3918,7 @@ export default function SettingsSystem({
                 <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                   <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-tight flex items-center gap-1.5">
                     <Database size={14} className="text-pink-600" />
-                    <span>Terminais Cadastrados (Sincronizados Firebase)</span>
+                    <span>Terminais Cadastrados (Sincronizados Supabase)</span>
                   </h4>
                   {isLoadingTerminals && (
                     <RefreshCw size={12} className="text-pink-600 animate-spin" />

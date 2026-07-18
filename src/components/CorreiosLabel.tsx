@@ -6,7 +6,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { X, Printer, Check, Tag, FileText } from 'lucide-react';
 import JsBarcode from 'jsbarcode';
-import { getFirebaseClient } from '../firebase';
+import { getSupabaseClient } from '../supabase';
 
 interface FormattedItem {
   name: string;
@@ -135,7 +135,7 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
   const [isLocalLoading, setIsLocalLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // Confirm and delay slightly to ensure Firebase database data is fully loaded and synced
+    // Confirm and delay slightly to ensure Supabase database data is fully loaded and synced
     const timer = setTimeout(() => {
       setIsLocalLoading(false);
     }, 850);
@@ -173,7 +173,7 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
   const handleSaveTrackingCode = async (codeToSave: string) => {
     setSaving(true);
     try {
-      const db = getFirebaseClient();
+      const db = getSupabaseClient();
       if (db) {
         if (order && order.id) {
           await db
@@ -196,7 +196,7 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
         }
       }
     } catch (err) {
-      console.warn('Error saving tracking code to Firebase:', err);
+      console.warn('Error saving tracking code to Supabase:', err);
     } finally {
       setSaving(false);
     }
@@ -322,7 +322,7 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
         <div className="bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col items-center justify-center text-center space-y-4 animate-pulse">
           <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" />
           <div>
-            <h3 className="text-sm font-extrabold text-slate-850">Sincronizando com Firebase</h3>
+            <h3 className="text-sm font-extrabold text-slate-850">Sincronizando com Supabase</h3>
             <p className="text-[10.5px] text-slate-450 mt-1">Carregando dados logísticos em tempo real para evitar etiquetas de PDF em branco...</p>
           </div>
         </div>

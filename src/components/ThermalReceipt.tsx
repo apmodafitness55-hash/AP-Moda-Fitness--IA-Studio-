@@ -32,7 +32,7 @@ import {
   Search
 } from 'lucide-react';
 import { Sale } from '../types';
-import { pushSystemConfigToFirebase } from '../firebase';
+import { pushSystemConfigToSupabase } from '../supabase';
 
 interface CompanyInfo {
   name: string;
@@ -173,7 +173,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
   const [isLocalLoading, setIsLocalLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // Confirm and delay slightly to ensure Firebase database data is fully loaded and synced
+    // Confirm and delay slightly to ensure Supabase database data is fully loaded and synced
     const timer = setTimeout(() => {
       setIsLocalLoading(false);
     }, 850);
@@ -183,11 +183,11 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
   // Sync settings
   useEffect(() => {
     localStorage.setItem('ap_moda_company_info', JSON.stringify(companyInfo));
-    pushSystemConfigToFirebase('ap_moda_company_info', JSON.stringify(companyInfo));
+    pushSystemConfigToSupabase('ap_moda_company_info', JSON.stringify(companyInfo));
 
     if (companyInfo.pixKey) {
       localStorage.setItem('ap_pix_key', companyInfo.pixKey);
-      pushSystemConfigToFirebase('ap_pix_key', companyInfo.pixKey);
+      pushSystemConfigToSupabase('ap_pix_key', companyInfo.pixKey);
 
       // Keep ap_moda_payment_config updated in sync
       try {
@@ -197,7 +197,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
           if (parsed.pixKey !== companyInfo.pixKey) {
             parsed.pixKey = companyInfo.pixKey;
             localStorage.setItem('ap_moda_payment_config', JSON.stringify(parsed));
-            pushSystemConfigToFirebase('ap_moda_payment_config', JSON.stringify(parsed));
+            pushSystemConfigToSupabase('ap_moda_payment_config', JSON.stringify(parsed));
           }
         }
       } catch (err) {}
@@ -465,7 +465,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
         <div className="bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col items-center justify-center text-center space-y-4 animate-pulse">
           <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" />
           <div>
-            <h3 className="text-sm font-extrabold text-slate-850">Sincronizando com Firebase</h3>
+            <h3 className="text-sm font-extrabold text-slate-850">Sincronizando com Supabase</h3>
             <p className="text-[10.5px] text-slate-450 mt-1">Carregando dados da venda em tempo real para evitar páginas de PDF em branco...</p>
           </div>
         </div>

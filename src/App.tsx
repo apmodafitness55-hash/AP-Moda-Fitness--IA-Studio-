@@ -51,32 +51,32 @@ import SuppliersManagement from './components/SuppliersManagement';
 import StorefrontPaymentConfig from './components/StorefrontPaymentConfig';
 import ErrorBoundary from './components/ErrorBoundary';
 import { 
-  getFirebaseConfig, 
-  getFirebaseClient,
-  initializeFirebaseConfig,
-  fetchTeamMembersFromFirebase, 
-  syncBulkTeamMembersToFirebase,
-  pingFirebaseOnLogin,
-  fetchProductsFromFirebase,
-  syncBulkProductsToFirebase,
-  deleteProductFromFirebase,
-  deleteSaleFromFirebase,
-  fetchClientsFromFirebase,
-  syncBulkClientsToFirebase,
-  fetchSalesFromFirebase,
-  syncBulkSalesToFirebase,
-  fetchTransactionsFromFirebase,
-  syncBulkTransactionsToFirebase,
-  fetchOnlineOrdersFromFirebase,
-  syncBulkOnlineOrdersToFirebase,
-  fetchCheckoutsFromFirebase,
-  syncBulkCheckoutsToFirebase,
-  syncSystemConfigsWithFirebase,
-  fetchSystemConfigsFromFirebase,
-  pushSystemConfigToFirebase,
+  getSupabaseConfig, 
+  getSupabaseClient,
+  initializeSupabaseConfig,
+  fetchTeamMembersFromSupabase, 
+  syncBulkTeamMembersToSupabase,
+  pingSupabaseOnLogin,
+  fetchProductsFromSupabase,
+  syncBulkProductsToSupabase,
+  deleteProductFromSupabase,
+  deleteSaleFromSupabase,
+  fetchClientsFromSupabase,
+  syncBulkClientsToSupabase,
+  fetchSalesFromSupabase,
+  syncBulkSalesToSupabase,
+  fetchTransactionsFromSupabase,
+  syncBulkTransactionsToSupabase,
+  fetchOnlineOrdersFromSupabase,
+  syncBulkOnlineOrdersToSupabase,
+  fetchCheckoutsFromSupabase,
+  syncBulkCheckoutsToSupabase,
+  syncSystemConfigsWithSupabase,
+  fetchSystemConfigsFromSupabase,
+  pushSystemConfigToSupabase,
   getTolerantValue,
-  clearAllFirebaseData
-} from './firebase';
+  clearAllSupabaseData
+} from './supabase';
 
 export default function App() {
   // Reference to force instant background custom pushes on changes
@@ -661,18 +661,18 @@ export default function App() {
 
     try {
       // 1. Acorda / testa o banco de dados
-      await pingFirebaseOnLogin(user.name, user.role);
+      await pingSupabaseOnLogin(user.name, user.role);
 
-      // BEFORE DOWNLOADING: Sync any local changes (dirty items) that are pending to Firebase!
+      // BEFORE DOWNLOADING: Sync any local changes (dirty items) that are pending to Supabase!
       // This protects local data from being overwritten on page reload/re-login.
-      const config = getFirebaseConfig();
+      const config = getSupabaseConfig();
       if (config && !systemOffline) {
         // A. Team members
         const dirtyMembers = getDirtyIds('ap_dirty_team_members');
         if (dirtyMembers.length > 0) {
           const toUpload = lastTeamMembersRef.current.filter((m: any) => dirtyMembers.includes(m.id));
           if (toUpload.length > 0) {
-            await syncBulkTeamMembersToFirebase(toUpload);
+            await syncBulkTeamMembersToSupabase(toUpload);
           }
         }
 
@@ -681,7 +681,7 @@ export default function App() {
         if (dirtyProducts.length > 0) {
           const toUpload = lastProductsRef.current.filter((p: any) => dirtyProducts.includes(p.id));
           if (toUpload.length > 0) {
-            await syncBulkProductsToFirebase(toUpload);
+            await syncBulkProductsToSupabase(toUpload);
           }
         }
 
@@ -690,7 +690,7 @@ export default function App() {
         if (dirtyClients.length > 0) {
           const toUpload = lastClientsRef.current.filter((c: any) => dirtyClients.includes(c.id));
           if (toUpload.length > 0) {
-            await syncBulkClientsToFirebase(toUpload);
+            await syncBulkClientsToSupabase(toUpload);
           }
         }
 
@@ -699,7 +699,7 @@ export default function App() {
         if (dirtySales.length > 0) {
           const toUpload = lastSalesRef.current.filter((s: any) => dirtySales.includes(s.id));
           if (toUpload.length > 0) {
-            await syncBulkSalesToFirebase(toUpload);
+            await syncBulkSalesToSupabase(toUpload);
           }
         }
 
@@ -708,7 +708,7 @@ export default function App() {
         if (dirtyTransactions.length > 0) {
           const toUpload = lastTransactionsRef.current.filter((t: any) => dirtyTransactions.includes(t.id));
           if (toUpload.length > 0) {
-            await syncBulkTransactionsToFirebase(toUpload);
+            await syncBulkTransactionsToSupabase(toUpload);
           }
         }
 
@@ -717,7 +717,7 @@ export default function App() {
         if (dirtyOrders.length > 0) {
           const toUpload = lastOnlineOrdersRef.current.filter((o: any) => dirtyOrders.includes(o.id));
           if (toUpload.length > 0) {
-            await syncBulkOnlineOrdersToFirebase(toUpload);
+            await syncBulkOnlineOrdersToSupabase(toUpload);
           }
         }
 
@@ -726,7 +726,7 @@ export default function App() {
         if (dirtyCheckoutsList.length > 0) {
           const toUpload = lastCheckoutsRef.current.filter((c: any) => dirtyCheckoutsList.includes(c.id));
           if (toUpload.length > 0) {
-            await syncBulkCheckoutsToFirebase(toUpload);
+            await syncBulkCheckoutsToSupabase(toUpload);
           }
         }
       }
@@ -741,7 +741,7 @@ export default function App() {
       // Check if database has been seeded with standard demo data before
       let isSeeded = localStorage.getItem('ap_system_seeded') === 'true';
       try {
-        const dbConfigs = await fetchSystemConfigsFromFirebase();
+        const dbConfigs = await fetchSystemConfigsFromSupabase();
         if (dbConfigs && Array.isArray(dbConfigs)) {
           const hasSeededKey = dbConfigs.some((config: any) => config.key === 'ap_system_seeded' && config.value === 'true');
           if (hasSeededKey) {
@@ -754,7 +754,7 @@ export default function App() {
       }
 
       // 2. Sincroniza logins da Equipe
-      const dbMembers = await fetchTeamMembersFromFirebase();
+      const dbMembers = await fetchTeamMembersFromSupabase();
       if (dbMembers && dbMembers.length > 0) {
         setTeamMembers(dbMembers);
         localStorage.setItem('ap_moda_team_users', JSON.stringify(dbMembers));
@@ -762,8 +762,8 @@ export default function App() {
         // Banco vazio? Faz o upload dos logins locais atuais
         const localMembers = lastTeamMembersRef.current && lastTeamMembersRef.current.length > 0 ? lastTeamMembersRef.current : teamMembers;
         if (localMembers && localMembers.length > 0) {
-          console.log('[Firebase Sync] Semeando equipe/logins locais no Firebase vazio:', localMembers.length);
-          await syncBulkTeamMembersToFirebase(localMembers);
+          console.log('[Supabase Sync] Semeando equipe/logins locais no Supabase vazio:', localMembers.length);
+          await syncBulkTeamMembersToSupabase(localMembers);
         }
       }
 
@@ -775,28 +775,28 @@ export default function App() {
       }));
 
       // 3. Sincroniza Catálogo de Produtos
-      const dbProducts = await fetchProductsFromFirebase();
+      const dbProducts = await fetchProductsFromSupabase();
       if (dbProducts && dbProducts.length > 0) {
         setProducts(dbProducts);
         localStorage.setItem('ap_moda_products', JSON.stringify(dbProducts));
         if (!isSeeded) {
           isSeeded = true;
           localStorage.setItem('ap_system_seeded', 'true');
-          await pushSystemConfigToFirebase('ap_system_seeded', 'true');
+          await pushSystemConfigToSupabase('ap_system_seeded', 'true');
         }
       } else {
         if (isSeeded) {
           setProducts([]);
           localStorage.setItem('ap_moda_products', JSON.stringify([]));
         } else {
-          // Firebase está vazio de produtos! Vamos proteger os dados locais e semear
+          // Supabase está vazio de produtos! Vamos proteger os dados locais e semear
           const localProducts = lastProductsRef.current && lastProductsRef.current.length > 0 ? lastProductsRef.current : products;
           if (localProducts && localProducts.length > 0) {
-            console.log('[Firebase Sync] Enviando seus produtos locais da tela para o Firebase vazio:', localProducts.length);
-            await syncBulkProductsToFirebase(localProducts);
+            console.log('[Supabase Sync] Enviando seus produtos locais da tela para o Supabase vazio:', localProducts.length);
+            await syncBulkProductsToSupabase(localProducts);
           } else {
-            console.log('[Firebase Sync] Semeando catálogo de Moda Fitness padrão (INITIAL_PRODUCTS) no Firebase vazio:', INITIAL_PRODUCTS.length);
-            await syncBulkProductsToFirebase(INITIAL_PRODUCTS);
+            console.log('[Supabase Sync] Semeando catálogo de Moda Fitness padrão (INITIAL_PRODUCTS) no Supabase vazio:', INITIAL_PRODUCTS.length);
+            await syncBulkProductsToSupabase(INITIAL_PRODUCTS);
             setProducts(INITIAL_PRODUCTS);
             localStorage.setItem('ap_moda_products', JSON.stringify(INITIAL_PRODUCTS));
           }
@@ -811,14 +811,14 @@ export default function App() {
       }));
 
       // 4. Sincroniza Clientes
-      const dbClients = await fetchClientsFromFirebase();
+      const dbClients = await fetchClientsFromSupabase();
       if (dbClients && dbClients.length > 0) {
         setClients(dbClients);
         localStorage.setItem('ap_moda_clients', JSON.stringify(dbClients));
         if (!isSeeded) {
           isSeeded = true;
           localStorage.setItem('ap_system_seeded', 'true');
-          await pushSystemConfigToFirebase('ap_system_seeded', 'true');
+          await pushSystemConfigToSupabase('ap_system_seeded', 'true');
         }
       } else {
         if (isSeeded) {
@@ -827,11 +827,11 @@ export default function App() {
         } else {
           const localClients = lastClientsRef.current && lastClientsRef.current.length > 0 ? lastClientsRef.current : clients;
           if (localClients && localClients.length > 0) {
-            console.log('[Firebase Sync] Enviando seus clientes locais da tela para o Firebase vazio:', localClients.length);
-            await syncBulkClientsToFirebase(localClients);
+            console.log('[Supabase Sync] Enviando seus clientes locais da tela para o Supabase vazio:', localClients.length);
+            await syncBulkClientsToSupabase(localClients);
           } else {
-            console.log('[Firebase Sync] Semeando lista de clientes (INITIAL_CLIENTS) no Firebase vazio:', INITIAL_CLIENTS.length);
-            await syncBulkClientsToFirebase(INITIAL_CLIENTS);
+            console.log('[Supabase Sync] Semeando lista de clientes (INITIAL_CLIENTS) no Supabase vazio:', INITIAL_CLIENTS.length);
+            await syncBulkClientsToSupabase(INITIAL_CLIENTS);
             setClients(INITIAL_CLIENTS);
             localStorage.setItem('ap_moda_clients', JSON.stringify(INITIAL_CLIENTS));
           }
@@ -846,14 +846,14 @@ export default function App() {
       }));
 
       // 5. Sincroniza Vendas
-      const dbSales = await fetchSalesFromFirebase();
+      const dbSales = await fetchSalesFromSupabase();
       if (dbSales && dbSales.length > 0) {
         setSales(dbSales);
         localStorage.setItem('ap_moda_sales', JSON.stringify(dbSales));
         if (!isSeeded) {
           isSeeded = true;
           localStorage.setItem('ap_system_seeded', 'true');
-          await pushSystemConfigToFirebase('ap_system_seeded', 'true');
+          await pushSystemConfigToSupabase('ap_system_seeded', 'true');
         }
       } else {
         if (isSeeded) {
@@ -862,11 +862,11 @@ export default function App() {
         } else {
           const localSales = lastSalesRef.current && lastSalesRef.current.length > 0 ? lastSalesRef.current : sales;
           if (localSales && localSales.length > 0) {
-            console.log('[Firebase Sync] Enviando suas vendas locais da tela para o Firebase vazio:', localSales.length);
-            await syncBulkSalesToFirebase(localSales);
+            console.log('[Supabase Sync] Enviando suas vendas locais da tela para o Supabase vazio:', localSales.length);
+            await syncBulkSalesToSupabase(localSales);
           } else {
-            console.log('[Firebase Sync] Semeando histórico de vendas (INITIAL_SALES) no Firebase vazio:', INITIAL_SALES.length);
-            await syncBulkSalesToFirebase(INITIAL_SALES);
+            console.log('[Supabase Sync] Semeando histórico de vendas (INITIAL_SALES) no Supabase vazio:', INITIAL_SALES.length);
+            await syncBulkSalesToSupabase(INITIAL_SALES);
             setSales(INITIAL_SALES);
             localStorage.setItem('ap_moda_sales', JSON.stringify(INITIAL_SALES));
           }
@@ -881,14 +881,14 @@ export default function App() {
       }));
 
       // 6. Sincroniza Lançamentos Financeiros
-      const dbTransactions = await fetchTransactionsFromFirebase();
+      const dbTransactions = await fetchTransactionsFromSupabase();
       if (dbTransactions && dbTransactions.length > 0) {
         setTransactions(dbTransactions);
         localStorage.setItem('ap_moda_transactions', JSON.stringify(dbTransactions));
         if (!isSeeded) {
           isSeeded = true;
           localStorage.setItem('ap_system_seeded', 'true');
-          await pushSystemConfigToFirebase('ap_system_seeded', 'true');
+          await pushSystemConfigToSupabase('ap_system_seeded', 'true');
         }
       } else {
         if (isSeeded) {
@@ -897,11 +897,11 @@ export default function App() {
         } else {
           const localTxs = lastTransactionsRef.current && lastTransactionsRef.current.length > 0 ? lastTransactionsRef.current : transactions;
           if (localTxs && localTxs.length > 0) {
-            console.log('[Firebase Sync] Enviando fluxo de caixa local para o Firebase vazio:', localTxs.length);
-            await syncBulkTransactionsToFirebase(localTxs);
+            console.log('[Supabase Sync] Enviando fluxo de caixa local para o Supabase vazio:', localTxs.length);
+            await syncBulkTransactionsToSupabase(localTxs);
           } else {
-            console.log('[Firebase Sync] Semeando fluxo de caixa padrão (INITIAL_TRANSACTIONS) no Firebase vazio:', INITIAL_TRANSACTIONS.length);
-            await syncBulkTransactionsToFirebase(INITIAL_TRANSACTIONS);
+            console.log('[Supabase Sync] Semeando fluxo de caixa padrão (INITIAL_TRANSACTIONS) no Supabase vazio:', INITIAL_TRANSACTIONS.length);
+            await syncBulkTransactionsToSupabase(INITIAL_TRANSACTIONS);
             setTransactions(INITIAL_TRANSACTIONS);
             localStorage.setItem('ap_moda_transactions', JSON.stringify(INITIAL_TRANSACTIONS));
           }
@@ -910,7 +910,7 @@ export default function App() {
 
       if (!isSeeded) {
         localStorage.setItem('ap_system_seeded', 'true');
-        await pushSystemConfigToFirebase('ap_system_seeded', 'true');
+        await pushSystemConfigToSupabase('ap_system_seeded', 'true');
       }
 
       setSyncProgress(prev => ({
@@ -921,15 +921,15 @@ export default function App() {
       }));
 
       // 7. Sincroniza Pedidos Online
-      const dbOrders = await fetchOnlineOrdersFromFirebase();
+      const dbOrders = await fetchOnlineOrdersFromSupabase();
       if (dbOrders && dbOrders.length > 0) {
         setOnlineOrders(dbOrders);
         localStorage.setItem('ap_moda_online_orders', JSON.stringify(dbOrders));
       } else {
         const localOrders = lastOnlineOrdersRef.current && lastOnlineOrdersRef.current.length > 0 ? lastOnlineOrdersRef.current : onlineOrders;
         if (localOrders && localOrders.length > 0) {
-          console.log('[Firebase Sync] Enviando sacolas online locais para o Firebase vazio:', localOrders.length);
-          await syncBulkOnlineOrdersToFirebase(localOrders);
+          console.log('[Supabase Sync] Enviando sacolas online locais para o Supabase vazio:', localOrders.length);
+          await syncBulkOnlineOrdersToSupabase(localOrders);
         }
       }
 
@@ -941,7 +941,7 @@ export default function App() {
       }));
 
       // 7.5 Sincroniza Checkouts
-      const dbCheckouts = await fetchCheckoutsFromFirebase();
+      const dbCheckouts = await fetchCheckoutsFromSupabase();
       if (dbCheckouts) {
         setCheckouts(dbCheckouts);
         localStorage.setItem('ap_moda_checkouts', JSON.stringify(dbCheckouts));
@@ -955,7 +955,7 @@ export default function App() {
       }));
 
       // 8. Sincroniza Configurações Globais
-      await syncSystemConfigsWithFirebase();
+      await syncSystemConfigsWithSupabase();
 
       // Zera chaves de modificação local temporária (sujeira) para evitar re-uploads redundantes
       localStorage.setItem('ap_dirty_team_members', JSON.stringify([]));
@@ -1057,25 +1057,25 @@ export default function App() {
     }
   }, []);
 
-  // Carregar usuários e credenciais do Firebase na inicialização, se houver
+  // Carregar usuários e credenciais do Supabase na inicialização, se houver
   useEffect(() => {
-    async function initFirebaseSync() {
+    async function initSupabaseSync() {
       // Primeiro sincroniza as credenciais do banco com o servidor central, garantindo que TODOS usem o mesmo banco de dados
-      await initializeFirebaseConfig();
+      await initializeSupabaseConfig();
 
-      const config = getFirebaseConfig();
+      const config = getSupabaseConfig();
       if (config) {
-        console.log('Firebase configurado! Baixando logins e senhas em tempo real...');
+        console.log('Supabase configurado! Baixando logins e senhas em tempo real...');
         try {
-          const dbMembers = await fetchTeamMembersFromFirebase();
+          const dbMembers = await fetchTeamMembersFromSupabase();
           if (dbMembers && dbMembers.length > 0) {
-            console.log(`Sucesso! ${dbMembers.length} logins baixados do Firebase.`);
+            console.log(`Sucesso! ${dbMembers.length} logins baixados do Supabase.`);
             setTeamMembers(dbMembers);
           } else if (dbMembers === null) {
-            console.warn('Tabela "ap_team_members" no Firebase não foi encontrada ou está vazia.');
+            console.warn('Tabela "ap_team_members" no Supabase não foi encontrada ou está vazia.');
           }
         } catch (err) {
-          console.warn('Erro de conexão Firebase na inicialização:', err);
+          console.warn('Erro de conexão Supabase na inicialização:', err);
         }
 
         // Se houver um usuário ativo na inicialização, faz o pull profundo imediatamente
@@ -1088,19 +1088,19 @@ export default function App() {
             }
           } catch (e) {}
         } else {
-          // Visão pública do catálogo / visitante: Puxa o catálogo do Firebase para não deixar o site vazio
+          // Visão pública do catálogo / visitante: Puxa o catálogo do Supabase para não deixar o site vazio
           try {
-            const dbProducts = await fetchProductsFromFirebase();
+            const dbProducts = await fetchProductsFromSupabase();
             if (dbProducts && dbProducts.length > 0) {
               setProducts(dbProducts);
               localStorage.setItem('ap_moda_products', JSON.stringify(dbProducts));
-              console.log('[Public Catalog Init] Produtos carregados com sucesso do Firebase para visitantes:', dbProducts.length);
+              console.log('[Public Catalog Init] Produtos carregados com sucesso do Supabase para visitantes:', dbProducts.length);
             } else {
               console.log('[Public Catalog Init] Banco de dados vazio ou sem conexão. Carregando catálogo padrão INITIAL_PRODUCTS.');
               setProducts(INITIAL_PRODUCTS);
               localStorage.setItem('ap_moda_products', JSON.stringify(INITIAL_PRODUCTS));
               try {
-                await syncBulkProductsToFirebase(INITIAL_PRODUCTS);
+                await syncBulkProductsToSupabase(INITIAL_PRODUCTS);
               } catch (errSeed) {}
             }
           } catch (err) {
@@ -1111,10 +1111,10 @@ export default function App() {
         }
       }
     }
-    initFirebaseSync();
+    initSupabaseSync();
   }, [runFullSynchronousSetup]);
 
-  // Listen to table missing warnings from Firebase schemas and display advice
+  // Listen to table missing warnings from Supabase schemas and display advice
   useEffect(() => {
     const handleSchemaWarning = (e: any) => {
       const msgText = e.detail?.message || '';
@@ -1124,7 +1124,7 @@ export default function App() {
         return [
           {
             id: Date.now() + Math.random(),
-            title: 'Configurar Tabelas no Firebase ⚠️',
+            title: 'Configurar Tabelas no Supabase ⚠️',
             detail: msgText,
             read: false,
             type: 'stock'
@@ -1133,8 +1133,8 @@ export default function App() {
         ];
       });
     };
-    window.addEventListener('firebase-schema-warning', handleSchemaWarning);
-    return () => window.removeEventListener('firebase-schema-warning', handleSchemaWarning);
+    window.addEventListener('supabase-schema-warning', handleSchemaWarning);
+    return () => window.removeEventListener('supabase-schema-warning', handleSchemaWarning);
   }, []);
 
   // Calculations for sidebar badge alerts
@@ -1180,9 +1180,9 @@ export default function App() {
       });
 
       if (changedClients.length > 0) {
-        const config = getFirebaseConfig();
+        const config = getSupabaseConfig();
         if (config && !systemOffline) {
-          syncBulkClientsToFirebase(changedClients).then(success => {
+          syncBulkClientsToSupabase(changedClients).then(success => {
             if (success) {
               const remaining = getDirtyIds('ap_dirty_clients').filter(id => !changedClients.some(cc => cc.id === id));
               saveDirtyIds('ap_dirty_clients', remaining);
@@ -1204,9 +1204,9 @@ export default function App() {
       });
 
       if (changedProducts.length > 0) {
-        const config = getFirebaseConfig();
+        const config = getSupabaseConfig();
         if (config && !systemOffline) {
-          syncBulkProductsToFirebase(changedProducts).then(success => {
+          syncBulkProductsToSupabase(changedProducts).then(success => {
             if (success) {
               const remaining = getDirtyIds('ap_dirty_products').filter(id => !changedProducts.some(cp => cp.id === id));
               saveDirtyIds('ap_dirty_products', remaining);
@@ -1228,9 +1228,9 @@ export default function App() {
       });
 
       if (changedSales.length > 0) {
-        const config = getFirebaseConfig();
+        const config = getSupabaseConfig();
         if (config && !systemOffline) {
-          syncBulkSalesToFirebase(changedSales).then(success => {
+          syncBulkSalesToSupabase(changedSales).then(success => {
             if (success) {
               const remaining = getDirtyIds('ap_dirty_sales').filter(id => !changedSales.some(cs => cs.id === id));
               saveDirtyIds('ap_dirty_sales', remaining);
@@ -1252,9 +1252,9 @@ export default function App() {
       });
 
       if (changedTransactions.length > 0) {
-        const config = getFirebaseConfig();
+        const config = getSupabaseConfig();
         if (config && !systemOffline) {
-          syncBulkTransactionsToFirebase(changedTransactions).then(success => {
+          syncBulkTransactionsToSupabase(changedTransactions).then(success => {
             if (success) {
               const remaining = getDirtyIds('ap_dirty_transactions').filter(id => !changedTransactions.some(ct => ct.id === id));
               saveDirtyIds('ap_dirty_transactions', remaining);
@@ -1266,35 +1266,35 @@ export default function App() {
     });
   }, [systemOffline, getDirtyIds, saveDirtyIds]);
 
-  // Sincronização automática bilateral de TODO o ecossistema AP Moda Fitness com o Firebase
+  // Sincronização automática bilateral de TODO o ecossistema AP Moda Fitness com o Supabase
   const performSync = useCallback(async (isManual = false) => {
     if (isSyncingRef.current && !isManual) {
-      console.log('[Firebase Sync] Sincronização concorrente ignorada para evitar colisões.');
+      console.log('[Supabase Sync] Sincronização concorrente ignorada para evitar colisões.');
       return;
     }
 
     if (systemOffline) {
-      console.log('[Firebase Sync] Sistema offline. Sincronização suspensa.');
+      console.log('[Supabase Sync] Sistema offline. Sincronização suspensa.');
       if (isManual) {
         alert("Você está offline no momento. Ative a internet para realizar a sincronização na nuvem.");
       }
       return;
     }
 
-    const prevUrl = localStorage.getItem('ap_firebase_url');
-    const prevKey = localStorage.getItem('ap_firebase_key');
+    const prevUrl = localStorage.getItem('ap_supabase_url');
+    const prevKey = localStorage.getItem('ap_supabase_key');
 
     // Sincroniza as credenciais de banco com o servidor central antes de qualquer sync, garantindo que TODOS usem o mesmo banco de dados se houver alteração em tempo real!
-    await initializeFirebaseConfig();
+    await initializeSupabaseConfig();
 
-    const config = getFirebaseConfig();
+    const config = getSupabaseConfig();
     if (!config) return;
 
     // Se houve alteração de banco no outro aparelho, recarrega os dados imediatamente
-    const newUrl = localStorage.getItem('ap_firebase_url');
-    const newKey = localStorage.getItem('ap_firebase_key');
+    const newUrl = localStorage.getItem('ap_supabase_url');
+    const newKey = localStorage.getItem('ap_supabase_key');
     if (prevUrl !== newUrl || prevKey !== newKey) {
-      console.log('[Firebase Sync] Detectado alteração nas credenciais em nuvem unificadas pelo servidor central!');
+      console.log('[Supabase Sync] Detectado alteração nas credenciais em nuvem unificadas pelo servidor central!');
       // Reseta as flags de fila dirty locais para que não misturem dados de instâncias diferentes
       saveDirtyIds('ap_dirty_products', []);
       saveDirtyIds('ap_dirty_clients', []);
@@ -1309,7 +1309,7 @@ export default function App() {
         return;
       } else if (isCustomerViewRef.current) {
         // Se for visão de cliente externo, puxa e carrega catálogo de produtos em massa do novo banco
-        const dbProducts = await fetchProductsFromFirebase();
+        const dbProducts = await fetchProductsFromSupabase();
         if (dbProducts) {
           setProducts(dbProducts);
           localStorage.setItem('ap_moda_products', JSON.stringify(dbProducts));
@@ -1327,13 +1327,13 @@ export default function App() {
     isUpdatingFromSyncRef.current = true;
 
     try {
-      console.log('[Firebase Sync] Sincronizando dados bilateralmente com a nuvem Firebase...');
+      console.log('[Supabase Sync] Sincronizando dados bilateralmente com a nuvem Supabase...');
 
       let localStateModified = false;
       let remoteStateModified = false;
 
       // 1. Sincronização da Equipe (Logins e Cargos)
-      const dbMembers = await fetchTeamMembersFromFirebase();
+      const dbMembers = await fetchTeamMembersFromSupabase();
       if (dbMembers) {
         const dirtyMembers = getDirtyIds('ap_dirty_team_members');
         const currentMembers = lastTeamMembersRef.current || [];
@@ -1360,7 +1360,7 @@ export default function App() {
 
         const toUpload = currentMembers.filter(lm => dirtyMembers.includes(lm.id));
         if (toUpload.length > 0) {
-          const success = await syncBulkTeamMembersToFirebase(toUpload);
+          const success = await syncBulkTeamMembersToSupabase(toUpload);
           if (success) {
             const remaining = getDirtyIds('ap_dirty_team_members').filter(id => !toUpload.some(u => u.id === id));
             saveDirtyIds('ap_dirty_team_members', remaining);
@@ -1378,7 +1378,7 @@ export default function App() {
       }
 
       // 2. Sincronização do Catálogo de Produtos da Boutique
-      const dbProducts = await fetchProductsFromFirebase();
+      const dbProducts = await fetchProductsFromSupabase();
       if (dbProducts) {
         const dirtyProducts = getDirtyIds('ap_dirty_products');
         const currentProducts = lastProductsRef.current;
@@ -1404,7 +1404,7 @@ export default function App() {
 
         const toUpload = currentProducts.filter(lp => dirtyProducts.includes(lp.id));
         if (toUpload.length > 0) {
-          const success = await syncBulkProductsToFirebase(toUpload);
+          const success = await syncBulkProductsToSupabase(toUpload);
           if (success) {
             const remaining = getDirtyIds('ap_dirty_products').filter(id => !toUpload.some(u => u.id === id));
             saveDirtyIds('ap_dirty_products', remaining);
@@ -1422,7 +1422,7 @@ export default function App() {
       }
 
       // 3. Sincronização do CRM de Clientes
-      const dbClients = await fetchClientsFromFirebase();
+      const dbClients = await fetchClientsFromSupabase();
       if (dbClients) {
         const dirtyClients = getDirtyIds('ap_dirty_clients');
         const currentClients = lastClientsRef.current;
@@ -1448,7 +1448,7 @@ export default function App() {
 
         const toUpload = currentClients.filter(lc => dirtyClients.includes(lc.id));
         if (toUpload.length > 0) {
-          const success = await syncBulkClientsToFirebase(toUpload);
+          const success = await syncBulkClientsToSupabase(toUpload);
           if (success) {
             const remaining = getDirtyIds('ap_dirty_clients').filter(id => !toUpload.some(u => u.id === id));
             saveDirtyIds('ap_dirty_clients', remaining);
@@ -1466,7 +1466,7 @@ export default function App() {
       }
 
       // 4. Sincronização de Vendas Realizadas (PDV e Canais)
-      const dbSales = await fetchSalesFromFirebase();
+      const dbSales = await fetchSalesFromSupabase();
       if (dbSales) {
         const dirtySales = getDirtyIds('ap_dirty_sales');
         const currentSales = lastSalesRef.current;
@@ -1492,7 +1492,7 @@ export default function App() {
 
         const toUpload = currentSales.filter(ls => dirtySales.includes(ls.id));
         if (toUpload.length > 0) {
-          const success = await syncBulkSalesToFirebase(toUpload);
+          const success = await syncBulkSalesToSupabase(toUpload);
           if (success) {
             const remaining = getDirtyIds('ap_dirty_sales').filter(id => !toUpload.some(u => u.id === id));
             saveDirtyIds('ap_dirty_sales', remaining);
@@ -1510,7 +1510,7 @@ export default function App() {
       }
 
       // 5. Sincronização Financeira (Lançamentos de Caixa)
-      const dbTransactions = await fetchTransactionsFromFirebase();
+      const dbTransactions = await fetchTransactionsFromSupabase();
       if (dbTransactions) {
         const dirtyTransactions = getDirtyIds('ap_dirty_transactions');
         const currentTransactions = lastTransactionsRef.current;
@@ -1536,7 +1536,7 @@ export default function App() {
 
         const toUpload = currentTransactions.filter(lt => dirtyTransactions.includes(lt.id));
         if (toUpload.length > 0) {
-          const success = await syncBulkTransactionsToFirebase(toUpload);
+          const success = await syncBulkTransactionsToSupabase(toUpload);
           if (success) {
             const remaining = getDirtyIds('ap_dirty_transactions').filter(id => !toUpload.some(u => u.id === id));
             saveDirtyIds('ap_dirty_transactions', remaining);
@@ -1554,7 +1554,7 @@ export default function App() {
       }
 
       // 6. Sincronização de Pedidos da Loja Online / Vitrine
-      const dbOrders = await fetchOnlineOrdersFromFirebase();
+      const dbOrders = await fetchOnlineOrdersFromSupabase();
       if (dbOrders) {
         const dirtyOrders = getDirtyIds('ap_dirty_online_orders');
         const currentOrders = lastOnlineOrdersRef.current;
@@ -1580,7 +1580,7 @@ export default function App() {
 
         const toUpload = currentOrders.filter(lo => dirtyOrders.includes(lo.id));
         if (toUpload.length > 0) {
-          const success = await syncBulkOnlineOrdersToFirebase(toUpload);
+          const success = await syncBulkOnlineOrdersToSupabase(toUpload);
           if (success) {
             const remaining = getDirtyIds('ap_dirty_online_orders').filter(id => !toUpload.some(u => u.id === id));
             saveDirtyIds('ap_dirty_online_orders', remaining);
@@ -1598,7 +1598,7 @@ export default function App() {
       }
 
       // 6.5. Sincronização de Checkouts (Carrinhos Abandonados)
-      const dbCheckouts = await fetchCheckoutsFromFirebase();
+      const dbCheckouts = await fetchCheckoutsFromSupabase();
       if (dbCheckouts) {
         const dirtyCheckouts = getDirtyIds('ap_dirty_checkouts');
         const currentCheckouts = lastCheckoutsRef.current;
@@ -1623,7 +1623,7 @@ export default function App() {
 
         const toUpload = currentCheckouts.filter(lc => dirtyCheckouts.includes(lc.id));
         if (toUpload.length > 0) {
-          const success = await syncBulkCheckoutsToFirebase(toUpload);
+          const success = await syncBulkCheckoutsToSupabase(toUpload);
           if (success) {
             const remaining = getDirtyIds('ap_dirty_checkouts').filter(id => !toUpload.some(u => u.id === id));
             saveDirtyIds('ap_dirty_checkouts', remaining);
@@ -1641,9 +1641,9 @@ export default function App() {
       }
 
       // 7. Sincronização de Configurações Globais (Microsoft/Google Workspace keys, dados de loja, logo, bandeiras, etc.)
-      const localConfigsChanged = await syncSystemConfigsWithFirebase();
+      const localConfigsChanged = await syncSystemConfigsWithSupabase();
       if (localConfigsChanged) {
-        console.log('[Firebase Sync] Chaves de integração, logs e dados da loja atualizados a partir da nuvem!');
+        console.log('[Supabase Sync] Chaves de integração, logs e dados da loja atualizados a partir da nuvem!');
         
         // Dispara evento para o SettingsSystem e outros para recarregarem os dados do localStorage na tela
         window.dispatchEvent(new Event('ap-storage-synced'));
@@ -1666,7 +1666,7 @@ export default function App() {
         alert("✅ Conectado & Pareado!\n\nDados totalmente sincronizados em tempo real com todos os celulares e computadores conectados na nuvem AP Moda Fitness!");
       }
     } catch (e) {
-      console.warn('[Firebase Sync Exception] Erro severo na sincronização periódica:', e);
+      console.warn('[Supabase Sync Exception] Erro severo na sincronização periódica:', e);
       if (isManual) {
         alert("⚠️ Falha ao sincronizar: " + (e as any).message);
       }
@@ -1688,7 +1688,7 @@ export default function App() {
   }, [performSync]);
 
   useEffect(() => {
-    const config = getFirebaseConfig();
+    const config = getSupabaseConfig();
     if (!config) return;
 
     if (!systemOffline) {
@@ -1702,7 +1702,7 @@ export default function App() {
     }, 7000);
 
     const handleFocus = () => {
-      console.log('[Firebase Sync] Janela focada! Sincronizando alterações em segundo plano...');
+      console.log('[Supabase Sync] Janela focada! Sincronizando alterações em segundo plano...');
       if (!systemOffline) {
         performSync();
       }
@@ -1716,17 +1716,17 @@ export default function App() {
     };
   }, [systemOffline, performSync]);
 
-  // Assinatura em Tempo Real (Realtime) do Firebase para Sincronização Instantânea Multidispositivo
+  // Assinatura em Tempo Real (Realtime) do Supabase para Sincronização Instantânea Multidispositivo
   useEffect(() => {
     if (systemOffline) return;
 
-    const conf = getFirebaseConfig();
+    const conf = getSupabaseConfig();
     if (!conf || !conf.url || !conf.key) return;
 
-    const client = getFirebaseClient();
+    const client = getSupabaseClient();
     if (!client) return;
 
-    console.log('[Firebase Realtime] Inicializando canais de escuta em tempo real...');
+    console.log('[Supabase Realtime] Inicializando canais de escuta em tempo real...');
 
     // Canal para todas as tabelas principais em tempo real
     const realtimeChannel = client.channel('custom-filter-channel');
@@ -1734,12 +1734,12 @@ export default function App() {
     const handlePostgresChange = (tableName: string, payload: any) => {
       // Ignora alterações do próprio aparelho se estivermos no meio de um sync bilateral em lote para prevenir colisões ou loops redundantes
       if (isSyncingRef.current) {
-        console.log(`[Firebase Realtime] Evento recebido, mas ignorado por lock de sincronização em andamento na tabela: ${tableName}`);
+        console.log(`[Supabase Realtime] Evento recebido, mas ignorado por lock de sincronização em andamento na tabela: ${tableName}`);
         return;
       }
 
       const { eventType, new: newRec, old: oldRec } = payload;
-      console.log(`[Firebase Realtime Change Detected] Tabela: ${tableName} | Evento: ${eventType}`, payload);
+      console.log(`[Supabase Realtime Change Detected] Tabela: ${tableName} | Evento: ${eventType}`, payload);
 
       const user = currentUserRef.current;
       const userRole = user?.role; // 'Admin' | 'Gerente' | 'Vendedor' | 'Parceiro' | 'Entregador' | 'Cliente'
@@ -1749,7 +1749,7 @@ export default function App() {
         // 1. Dados Financeiros (ap_transactions) e faturamento restritos a administradores e gerentes
         if (tableName === 'ap_transactions') {
           if (userRole !== 'Admin' && userRole !== 'Gerente') {
-            console.log(`[Firebase Realtime Blocked] Canal de transação bloqueado para perfil: ${userRole}`);
+            console.log(`[Supabase Realtime Blocked] Canal de transação bloqueado para perfil: ${userRole}`);
             return;
           }
         }
@@ -1757,7 +1757,7 @@ export default function App() {
         // 2. Colaboradores da Equipe (ap_team_members) restritos a administradores e gerentes
         if (tableName === 'ap_team_members') {
           if (userRole !== 'Admin' && userRole !== 'Gerente') {
-            console.log(`[Firebase Realtime Blocked] Canal de equipe bloqueado para perfil: ${userRole}`);
+            console.log(`[Supabase Realtime Blocked] Canal de equipe bloqueado para perfil: ${userRole}`);
             return;
           }
         }
@@ -1767,11 +1767,11 @@ export default function App() {
           if (userRole === 'Cliente') {
             const isMe = newRec && newRec.id === user.details?.id;
             if (!isMe) {
-              console.log('[Firebase Realtime Filter] Registro de cliente externo ignorado.');
+              console.log('[Supabase Realtime Filter] Registro de cliente externo ignorado.');
               return;
             }
           } else if (userRole !== 'Admin' && userRole !== 'Gerente' && userRole !== 'Vendedor') {
-            console.log('[Firebase Realtime Filter] Cadastro de CRM indisponível para este perfil.');
+            console.log('[Supabase Realtime Filter] Cadastro de CRM indisponível para este perfil.');
             return;
           }
         }
@@ -1787,7 +1787,7 @@ export default function App() {
               (newRec.clientDoc && user.details?.cpf && newRec.clientDoc.replace(/\D/g, '') === user.details.cpf.replace(/\D/g, ''))
             );
             if (!isMySale) {
-              console.log('[Firebase Realtime Filter] Venda externa omitida.');
+              console.log('[Supabase Realtime Filter] Venda externa omitida.');
               return;
             }
           } else if (userRole === 'Parceiro') {
@@ -1796,11 +1796,11 @@ export default function App() {
               (newRec.items && JSON.stringify(newRec.items).toLowerCase().includes(user.name?.trim().toLowerCase()))
             );
             if (!isMyCoupon) {
-              console.log('[Firebase Realtime Filter] Pedido de cupom de outra parceira ignorado.');
+              console.log('[Supabase Realtime Filter] Pedido de cupom de outra parceira ignorado.');
               return;
             }
           } else if (userRole === 'Entregador') {
-            console.log('[Firebase Realtime Filter] Histórico fiduciário indisponível para entregador.');
+            console.log('[Supabase Realtime Filter] Histórico fiduciário indisponível para entregador.');
             return;
           }
         }
@@ -1816,7 +1816,7 @@ export default function App() {
               (newRec.phone && user.details?.phone && newRec.phone.replace(/\D/g, '') === user.details.phone.replace(/\D/g, ''))
             );
             if (!isMyOrder) {
-              console.log('[Firebase Realtime Filter] Pedido online de terceiros ocultado.');
+              console.log('[Supabase Realtime Filter] Pedido online de terceiros ocultado.');
               return;
             }
           } else if (userRole === 'Entregador') {
@@ -1825,7 +1825,7 @@ export default function App() {
               user.name?.trim().toLowerCase().includes(newRec.motoboy.trim().toLowerCase())
             );
             if (!isMyDelivery) {
-              console.log(`[Firebase Realtime Filter] Pedido omitido (atribuído para outro motoboy).`);
+              console.log(`[Supabase Realtime Filter] Pedido omitido (atribuído para outro motoboy).`);
               return;
             }
           } else if (userRole === 'Parceiro') {
@@ -2158,10 +2158,10 @@ export default function App() {
       }
 
       else if (tableName === 'ap_system_configs') {
-        console.log('[Firebase Realtime] Alteração nas configurações do sistema detectada. Sincronizando parâmetros em tempo real...');
-        syncSystemConfigsWithFirebase().then((localModified) => {
+        console.log('[Supabase Realtime] Alteração nas configurações do sistema detectada. Sincronizando parâmetros em tempo real...');
+        syncSystemConfigsWithSupabase().then((localModified) => {
           if (localModified) {
-            console.log('[Firebase Realtime] Configurações administrativas atualizadas. Disparando evento de renderização...');
+            console.log('[Supabase Realtime] Configurações administrativas atualizadas. Disparando evento de renderização...');
             const configEvent = new CustomEvent('ap-system-configs-refreshed');
             window.dispatchEvent(configEvent);
           }
@@ -2179,11 +2179,11 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ap_team_members' }, (p) => handlePostgresChange('ap_team_members', p))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ap_system_configs' }, (p) => handlePostgresChange('ap_system_configs', p))
       .subscribe((status) => {
-        console.log(`[Firebase Realtime] Canal custom-filter-channel inscrito com status: ${status}`);
+        console.log(`[Supabase Realtime] Canal custom-filter-channel inscrito com status: ${status}`);
       });
 
     return () => {
-      console.log('[Firebase Realtime] Cancelando assinaturas de tempo real (unsubscribing)...');
+      console.log('[Supabase Realtime] Cancelando assinaturas de tempo real (unsubscribing)...');
       realtimeChannel.unsubscribe();
     };
   }, [systemOffline]);
@@ -2381,23 +2381,23 @@ export default function App() {
       saveDirtyIds('ap_dirty_clients', Array.from(new Set([...getDirtyIds('ap_dirty_clients'), ...updatedClients.map(c => c.id)])));
     }
 
-    // Immediate Firebase sync for all affected entities!
-    const config = getFirebaseConfig();
+    // Immediate Supabase sync for all affected entities!
+    const config = getSupabaseConfig();
     if (config && !systemOffline) {
-      syncBulkSalesToFirebase([newSale]).then(success => {
+      syncBulkSalesToSupabase([newSale]).then(success => {
         if (success) {
           saveDirtyIds('ap_dirty_sales', getDirtyIds('ap_dirty_sales').filter(id => id !== newSale.id));
         }
       }).catch(e => console.error(e));
 
-      syncBulkTransactionsToFirebase([newTx]).then(success => {
+      syncBulkTransactionsToSupabase([newTx]).then(success => {
         if (success) {
           saveDirtyIds('ap_dirty_transactions', getDirtyIds('ap_dirty_transactions').filter(id => id !== newTx.id));
         }
       }).catch(e => console.error(e));
 
       if (updatedProducts.length > 0) {
-        syncBulkProductsToFirebase(updatedProducts).then(success => {
+        syncBulkProductsToSupabase(updatedProducts).then(success => {
           if (success) {
             const affectedIds = updatedProducts.map(p => p.id);
             saveDirtyIds('ap_dirty_products', getDirtyIds('ap_dirty_products').filter(id => !affectedIds.includes(id)));
@@ -2406,7 +2406,7 @@ export default function App() {
       }
 
       if (updatedClients.length > 0) {
-        syncBulkClientsToFirebase(updatedClients).then(success => {
+        syncBulkClientsToSupabase(updatedClients).then(success => {
           if (success) {
             const affectedIds = updatedClients.map(c => c.id);
             saveDirtyIds('ap_dirty_clients', getDirtyIds('ap_dirty_clients').filter(id => !affectedIds.includes(id)));
@@ -2541,12 +2541,12 @@ export default function App() {
         return o;
       });
 
-      // Immediate Firebase sync for online order status update
-      const config = getFirebaseConfig();
+      // Immediate Supabase sync for online order status update
+      const config = getSupabaseConfig();
       if (config && !systemOffline) {
         const orderToSync = updated.find(o => o.id === orderId);
         if (orderToSync) {
-          syncBulkOnlineOrdersToFirebase([orderToSync]).catch(e => console.warn('Error syncing order status update:', e));
+          syncBulkOnlineOrdersToSupabase([orderToSync]).catch(e => console.warn('Error syncing order status update:', e));
         }
       }
 
@@ -2597,10 +2597,10 @@ export default function App() {
     };
 
     setClients(prev => [evaluatedClient, ...prev]);
-    const config = getFirebaseConfig();
+    const config = getSupabaseConfig();
     if (config && !systemOffline) {
       try {
-        await syncBulkClientsToFirebase([evaluatedClient]);
+        await syncBulkClientsToSupabase([evaluatedClient]);
         const remaining = getDirtyIds('ap_dirty_clients').filter(id => id !== evaluatedClient.id);
         saveDirtyIds('ap_dirty_clients', remaining);
       } catch (e) {
@@ -2611,10 +2611,10 @@ export default function App() {
 
   const handleAddProduct = async (newProd: Product) => {
     setProducts(prev => [newProd, ...prev]);
-    const config = getFirebaseConfig();
+    const config = getSupabaseConfig();
     if (config && !systemOffline) {
       try {
-        await syncBulkProductsToFirebase([newProd]);
+        await syncBulkProductsToSupabase([newProd]);
         const remaining = getDirtyIds('ap_dirty_products').filter(id => id !== newProd.id);
         saveDirtyIds('ap_dirty_products', remaining);
       } catch (e) {
@@ -2626,10 +2626,10 @@ export default function App() {
 
   const handleUpdateProduct = async (updatedProd: Product) => {
     setProducts(prev => prev.map(p => p.id === updatedProd.id ? updatedProd : p));
-    const config = getFirebaseConfig();
+    const config = getSupabaseConfig();
     if (config && !systemOffline) {
       try {
-        await syncBulkProductsToFirebase([updatedProd]);
+        await syncBulkProductsToSupabase([updatedProd]);
         const remaining = getDirtyIds('ap_dirty_products').filter(id => id !== updatedProd.id);
         saveDirtyIds('ap_dirty_products', remaining);
       } catch (e) {
@@ -2641,10 +2641,10 @@ export default function App() {
 
   const handleDeleteProduct = async (productId: string) => {
     setProducts(prev => prev.filter(p => p.id !== productId));
-    const config = getFirebaseConfig();
+    const config = getSupabaseConfig();
     if (config && !systemOffline) {
       try {
-        await deleteProductFromFirebase(productId);
+        await deleteProductFromSupabase(productId);
         const remaining = getDirtyIds('ap_dirty_products').filter(id => id !== productId);
         saveDirtyIds('ap_dirty_products', remaining);
       } catch (e) {
@@ -2655,10 +2655,10 @@ export default function App() {
 
   const handleDeleteSale = async (saleId: string) => {
     setSales(prev => prev.filter(s => s.id !== saleId));
-    const config = getFirebaseConfig();
+    const config = getSupabaseConfig();
     if (config && !systemOffline) {
       try {
-        await deleteSaleFromFirebase(saleId);
+        await deleteSaleFromSupabase(saleId);
         const remaining = getDirtyIds('ap_dirty_sales').filter(id => id !== saleId);
         saveDirtyIds('ap_dirty_sales', remaining);
       } catch (e) {
@@ -2669,10 +2669,10 @@ export default function App() {
 
   const handleAddTransaction = async (newTx: Transaction) => {
     setTransactions(prev => [newTx, ...prev]);
-    const config = getFirebaseConfig();
+    const config = getSupabaseConfig();
     if (config && !systemOffline) {
       try {
-        await syncBulkTransactionsToFirebase([newTx]);
+        await syncBulkTransactionsToSupabase([newTx]);
         const remaining = getDirtyIds('ap_dirty_transactions').filter(id => id !== newTx.id);
         saveDirtyIds('ap_dirty_transactions', remaining);
       } catch (e) {
@@ -2698,11 +2698,11 @@ export default function App() {
 
     if (confirm('ATENÇÃO: Você confirmou a senha com sucesso! Deseja realmente apagar COMPLETAMENTE todos os produtos, clientes, vendas, despesas, caixa, equipe (mantendo apenas administradores) e pedidos do sistema para iniciar o trabalho do zero (Produção)?')) {
       
-      // Clear all cloud data from Firebase if connected
-      const client = getFirebaseClient();
+      // Clear all cloud data from Supabase if connected
+      const client = getSupabaseClient();
       if (client) {
         try {
-          await clearAllFirebaseData();
+          await clearAllSupabaseData();
         } catch (err) {
           console.warn('Erro ao formatar banco de dados na nuvem:', err);
         }
@@ -2745,7 +2745,7 @@ export default function App() {
       setCheckouts([]);
       setSellers([]);
       setMotoboys([]);
-      alert('Tudo limpo! O sistema está zerado e com todos os dados fantasmas excluídos tanto localmente quanto na nuvem Firebase, pronto para o seu uso oficial.');
+      alert('Tudo limpo! O sistema está zerado e com todos os dados fantasmas excluídos tanto localmente quanto na nuvem Supabase, pronto para o seu uso oficial.');
       window.location.reload();
     }
   };
@@ -3036,13 +3036,13 @@ export default function App() {
             teamMembers={teamMembers}
             onUpdateTeamMembers={async (newList) => {
               setTeamMembers(newList);
-              const config = getFirebaseConfig();
+              const config = getSupabaseConfig();
               if (config) {
                 try {
-                  await syncBulkTeamMembersToFirebase(newList);
-                  console.log('Automated team users synchronization with Firebase complete.');
+                  await syncBulkTeamMembersToSupabase(newList);
+                  console.log('Automated team users synchronization with Supabase complete.');
                 } catch(e) {
-                  console.warn('Failed to sync updated list to Firebase:', e);
+                  console.warn('Failed to sync updated list to Supabase:', e);
                 }
               }
             }}

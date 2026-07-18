@@ -38,7 +38,7 @@ import {
 import { Product } from '../types';
 import { getCatalogUrl } from '../config';
 import AbandonedCarts from './AbandonedCarts';
-import { pushSystemConfigToFirebase } from '../firebase';
+import { pushSystemConfigToSupabase } from '../supabase';
 import ImageUploader from './ImageUploader';
 import { MarketingSalesHub } from './MarketingSalesHub';
 
@@ -159,7 +159,7 @@ export default function LojaOnline({
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [couponInput, setCouponInput] = useState('');
 
-  // Storefront dynamic settings with localStorage & Firebase syncing
+  // Storefront dynamic settings with localStorage & Supabase syncing
   const [storeName, setStoreName] = useState(() => localStorage.getItem('ap_vitrine_store_name') || 'AP Moda Fitness');
   const [storeSub, setStoreSub] = useState(() => localStorage.getItem('ap_vitrine_store_sub') || 'Moda Fitness Premium');
   const [themeColor, setThemeColor] = useState(() => localStorage.getItem('ap_vitrine_theme_color') || '#db2777');
@@ -320,18 +320,18 @@ export default function LojaOnline({
       localStorage.setItem('ap_vitrine_theme_color', themeColor);
       localStorage.setItem('ap_vitrine_active_animation', activeAnimation);
       
-      await pushSystemConfigToFirebase('ap_vitrine_store_name', storeName);
-      await pushSystemConfigToFirebase('ap_vitrine_store_sub', storeSub);
-      await pushSystemConfigToFirebase('ap_vitrine_theme_color', themeColor);
-      await pushSystemConfigToFirebase('ap_vitrine_active_animation', activeAnimation);
+      await pushSystemConfigToSupabase('ap_vitrine_store_name', storeName);
+      await pushSystemConfigToSupabase('ap_vitrine_store_sub', storeSub);
+      await pushSystemConfigToSupabase('ap_vitrine_theme_color', themeColor);
+      await pushSystemConfigToSupabase('ap_vitrine_active_animation', activeAnimation);
       
       // Dispatch custom storage sync event to notify PublicCatalog instantly
       window.dispatchEvent(new Event('ap-storage-synced'));
       
-      alert('Configurações de Identidade e Efeitos Sazonais salvas e sincronizadas com o Firebase com sucesso!');
+      alert('Configurações de Identidade e Efeitos Sazonais salvas e sincronizadas com o Supabase com sucesso!');
     } catch (e) {
       console.error(e);
-      alert('Erro ao sincronizar com o Firebase, mas os dados foram salvos localmente.');
+      alert('Erro ao sincronizar com o Supabase, mas os dados foram salvos localmente.');
     } finally {
       setIsSavingConfigs(false);
     }
@@ -342,8 +342,8 @@ export default function LojaOnline({
     setIsSavingConfigs(true);
     try {
       localStorage.setItem('ap_vitrine_announcement', JSON.stringify(tickerConfig));
-      await pushSystemConfigToFirebase('ap_vitrine_announcement', JSON.stringify(tickerConfig));
-      alert('Anúncio Rotativo (Ticker) salvo e sincronizado com o Firebase com sucesso!');
+      await pushSystemConfigToSupabase('ap_vitrine_announcement', JSON.stringify(tickerConfig));
+      alert('Anúncio Rotativo (Ticker) salvo e sincronizado com o Supabase com sucesso!');
     } catch (e) {
       console.error(e);
       alert('Salvo localmente.');
@@ -357,14 +357,14 @@ export default function LojaOnline({
     setIsSavingConfigs(true);
     try {
       localStorage.setItem('ap_vitrine_benefit_cards', JSON.stringify(benefitCards));
-      await pushSystemConfigToFirebase('ap_vitrine_benefit_cards', JSON.stringify(benefitCards));
-      alert('Cards de Benefícios salvos e sincronizados com o Firebase com sucesso!');
+      await pushSystemConfigToSupabase('ap_vitrine_benefit_cards', JSON.stringify(benefitCards));
+      alert('Cards de Benefícios salvos e sincronizados com o Supabase com sucesso!');
       
       // Dispatch storage synced event to update immediately
       window.dispatchEvent(new Event('ap-storage-synced'));
     } catch (e) {
       console.error(e);
-      alert('Erro ao sincronizar com o Firebase, mas os dados foram salvos localmente.');
+      alert('Erro ao sincronizar com o Supabase, mas os dados foram salvos localmente.');
     } finally {
       setIsSavingConfigs(false);
     }
@@ -375,8 +375,8 @@ export default function LojaOnline({
     setIsSavingConfigs(true);
     try {
       localStorage.setItem('ap_vitrine_floating_banner', JSON.stringify(floatingBanner));
-      await pushSystemConfigToFirebase('ap_vitrine_floating_banner', JSON.stringify(floatingBanner));
-      alert('Banner Flutuante Promocional salvo e sincronizado com o Firebase com sucesso!');
+      await pushSystemConfigToSupabase('ap_vitrine_floating_banner', JSON.stringify(floatingBanner));
+      alert('Banner Flutuante Promocional salvo e sincronizado com o Supabase com sucesso!');
     } catch (e) {
       console.error(e);
     } finally {
@@ -389,8 +389,8 @@ export default function LojaOnline({
     try {
       setLookbookSlides(updatedSlides);
       localStorage.setItem('ap_vitrine_slides', JSON.stringify(updatedSlides));
-      await pushSystemConfigToFirebase('ap_vitrine_slides', JSON.stringify(updatedSlides));
-      alert('Banners de Slide do Lookbook salvos e sincronizados com o Firebase com sucesso!');
+      await pushSystemConfigToSupabase('ap_vitrine_slides', JSON.stringify(updatedSlides));
+      alert('Banners de Slide do Lookbook salvos e sincronizados com o Supabase com sucesso!');
     } catch (e) {
       console.error(e);
     } finally {
@@ -403,8 +403,8 @@ export default function LojaOnline({
     setIsSavingConfigs(true);
     try {
       localStorage.setItem('ap_vitrine_category_banners', JSON.stringify(categoryBanners));
-      await pushSystemConfigToFirebase('ap_vitrine_category_banners', JSON.stringify(categoryBanners));
-      alert('Imagens de Destaque das Categorias salvas e sincronizadas com o Firebase com sucesso!');
+      await pushSystemConfigToSupabase('ap_vitrine_category_banners', JSON.stringify(categoryBanners));
+      alert('Imagens de Destaque das Categorias salvas e sincronizadas com o Supabase com sucesso!');
     } catch (e) {
       console.error(e);
     } finally {
@@ -440,7 +440,7 @@ export default function LojaOnline({
 
     if (onAddProduct) {
       onAddProduct(newProductObj);
-      alert(`Peça "${newProdName}" cadastrada com sucesso e sincronizada em tempo real com o banco de dados Firebase!`);
+      alert(`Peça "${newProdName}" cadastrada com sucesso e sincronizada em tempo real com o banco de dados Supabase!`);
       // Clear form fields
       setNewProdName('');
       setNewProdSku('');
@@ -573,7 +573,7 @@ export default function LojaOnline({
 
   const openLojaHtmlNewTab = () => {
     // Generate a beautiful popup simulating opening loja.html to test e-commerce
-    alert('Boutique Online Integrada!\n\nSeu catálogo de pedidos rápido "loja.html" foi carregado com conexão direta ao banco Firebase e cache offline localStorage. Você pode testá-lo usando a Vitrine Virtual no painel ao lado para ver exatamente como sua cliente visualiza a vitrine de qualquer celular ou tablet!');
+    alert('Boutique Online Integrada!\n\nSeu catálogo de pedidos rápido "loja.html" foi carregado com conexão direta ao banco Supabase e cache offline localStorage. Você pode testá-lo usando a Vitrine Virtual no painel ao lado para ver exatamente como sua cliente visualiza a vitrine de qualquer celular ou tablet!');
   };
 
   return (
@@ -1744,7 +1744,7 @@ export default function LojaOnline({
               </div>
               <div className="text-left">
                 <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Painel Administrativo da Vitrine</h3>
-                <p className="text-[10px] text-slate-500 font-medium">Altere textos, banners rotativos, seções de destaque e cadastre peças com sincronização Firebase instantânea.</p>
+                <p className="text-[10px] text-slate-500 font-medium">Altere textos, banners rotativos, seções de destaque e cadastre peças com sincronização Supabase instantânea.</p>
               </div>
             </div>
 
@@ -2289,7 +2289,7 @@ export default function LojaOnline({
                 <h4 className="text-xs font-bold text-pink-800 uppercase tracking-wide mb-1 flex items-center gap-1.5">
                   <span>🛍️ Cadastro de Nova Peça / Produto centralizado</span>
                 </h4>
-                <p className="text-[10px] text-pink-700 font-medium">Cadastre novas peças diretamente no banco de dados central do Firebase. Aparece imediatamente na vitrine e no PDV.</p>
+                <p className="text-[10px] text-pink-700 font-medium">Cadastre novas peças diretamente no banco de dados central do Supabase. Aparece imediatamente na vitrine e no PDV.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4">

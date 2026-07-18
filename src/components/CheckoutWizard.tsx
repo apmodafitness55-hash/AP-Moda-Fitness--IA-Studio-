@@ -23,7 +23,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { validateCPF } from './PublicCatalog'; // Import CPF validation helper if exported, or define it locally
-import { getFirebaseClient } from '../firebase';
+import { getSupabaseClient } from '../supabase';
 
 interface CheckoutWizardProps {
   cart: {
@@ -383,9 +383,9 @@ export function CheckoutWizard({
 
     setIsCheckingCpf(true);
     try {
-      const db = getFirebaseClient();
+      const db = getSupabaseClient();
       if (!db) {
-        throw new Error('Firebase client is not configured.');
+        throw new Error('Supabase client is not configured.');
       }
       
       const formattedCpf = clientCpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
@@ -538,7 +538,7 @@ export function CheckoutWizard({
         setAddressCep('');
       }
     } catch (err: any) {
-      console.error('Error checking CPF in Firebase:', err);
+      console.error('Error checking CPF in Supabase:', err);
       // Fallback to offline registration so checkout remains unblocked
       setIsExistingClient(false);
       setSelectedAddressIndex('new');

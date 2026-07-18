@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { pushSystemConfigToFirebase } from '../firebase';
+import { pushSystemConfigToSupabase } from '../supabase';
 import { 
   CreditCard, 
   QrCode, 
@@ -126,20 +126,20 @@ export default function StorefrontPaymentConfig() {
     const jsonStr = JSON.stringify(config);
     localStorage.setItem('ap_moda_payment_config', jsonStr);
     
-    // Also push to Firebase
-    await pushSystemConfigToFirebase('ap_moda_payment_config', jsonStr);
+    // Also push to Supabase
+    await pushSystemConfigToSupabase('ap_moda_payment_config', jsonStr);
 
     // Also retroactively mirror / keep in sync company_info pixKey and ap_pix_key for backwards compatibility
     try {
       localStorage.setItem('ap_pix_key', config.pixKey);
-      await pushSystemConfigToFirebase('ap_pix_key', config.pixKey);
+      await pushSystemConfigToSupabase('ap_pix_key', config.pixKey);
 
       const companyInfoSaved = localStorage.getItem('ap_moda_company_info');
       const parsed = companyInfoSaved ? JSON.parse(companyInfoSaved) : {};
       parsed.pixKey = config.pixKey;
       const updatedCompanyStr = JSON.stringify(parsed);
       localStorage.setItem('ap_moda_company_info', updatedCompanyStr);
-      await pushSystemConfigToFirebase('ap_moda_company_info', updatedCompanyStr);
+      await pushSystemConfigToSupabase('ap_moda_company_info', updatedCompanyStr);
     } catch (e) {
       console.error('Failed to sync legacy company info:', e);
     }
@@ -166,7 +166,7 @@ export default function StorefrontPaymentConfig() {
     const updated = [...terminals, newTerm];
     setTerminals(updated);
     localStorage.setItem('ap_moda_card_terminals', JSON.stringify(updated));
-    await pushSystemConfigToFirebase('ap_moda_card_terminals', JSON.stringify(updated));
+    await pushSystemConfigToSupabase('ap_moda_card_terminals', JSON.stringify(updated));
 
     setIsAddTerminalOpen(false);
     setTermName('');
@@ -180,7 +180,7 @@ export default function StorefrontPaymentConfig() {
       const updated = terminals.filter(t => t.id !== id);
       setTerminals(updated);
       localStorage.setItem('ap_moda_card_terminals', JSON.stringify(updated));
-      await pushSystemConfigToFirebase('ap_moda_card_terminals', JSON.stringify(updated));
+      await pushSystemConfigToSupabase('ap_moda_card_terminals', JSON.stringify(updated));
     }
   };
 
@@ -188,7 +188,7 @@ export default function StorefrontPaymentConfig() {
     const updated = terminals.map(t => t.id === id ? { ...t, status: (t.status === 'Ativo' ? 'Inativo' : 'Ativo') as 'Ativo' | 'Inativo' } : t);
     setTerminals(updated);
     localStorage.setItem('ap_moda_card_terminals', JSON.stringify(updated));
-    await pushSystemConfigToFirebase('ap_moda_card_terminals', JSON.stringify(updated));
+    await pushSystemConfigToSupabase('ap_moda_card_terminals', JSON.stringify(updated));
   };
 
   return (
