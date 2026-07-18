@@ -723,9 +723,23 @@ export default function VendasList({
                     size: A4;
                     margin: 15mm 10mm 15mm 10mm;
                   }
-                  html, body {
-                    background: #ffffff !important;
-                    color: #000000 !important;
+                  html, body, #root {
+                    visibility: hidden !important;
+                    height: 0 !important;
+                    overflow: hidden !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                  }
+                  #printable-invoice-sheet, #printable-invoice-sheet * {
+                    visibility: visible !important;
+                  }
+                  #printable-invoice-sheet {
+                    position: absolute !important;
+                    left: 0 !important;
+                    top: 0 !important;
+                    width: 100% !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
                   }
                 }
               `}</style>

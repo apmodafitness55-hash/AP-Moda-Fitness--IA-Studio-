@@ -39,6 +39,7 @@ class SupabaseQueryBuilder {
   private isMaybeSingle = false;
   private limitVal: number | null = null;
   private offsetVal: number | null = null;
+  private filters: any[] = [];
 
   constructor(client: any, path: string) {
     this.client = client;
@@ -53,21 +54,25 @@ class SupabaseQueryBuilder {
 
   eq(col: string, val: any) {
     this.query = this.query.eq(col, val);
+    this.filters.push({ col, val, type: 'eq' });
     return this;
   }
 
   neq(col: string, val: any) {
     this.query = this.query.neq(col, val);
+    this.filters.push({ col, val, type: 'neq' });
     return this;
   }
 
   ilike(col: string, val: any) {
     this.query = this.query.ilike(col, val);
+    this.filters.push({ col, val, type: 'ilike' });
     return this;
   }
 
   or(cond: string) {
     this.query = this.query.or(cond);
+    this.filters.push({ col: 'or', val: cond, type: 'or' });
     return this;
   }
 
@@ -91,6 +96,22 @@ class SupabaseQueryBuilder {
     return this;
   }
 
+  private async runLocalFallbackSelect() {
+    console.warn(`[Supabase Fallback Select] Ativando fallback local para tabela: ${this.path}`);
+    const localQB = new LocalQueryBuilder(this.path);
+    if (this.isSingle) localQB.single();
+    if (this.isMaybeSingle) localQB.maybeSingle();
+    if (this.limitVal !== null) localQB.limit(this.limitVal);
+    if (this.offsetVal !== null) localQB.offset(this.offsetVal);
+    for (const filter of this.filters) {
+      if (filter.type === 'eq') localQB.eq(filter.col, filter.val);
+      else if (filter.type === 'neq') localQB.neq(filter.col, filter.val);
+      else if (filter.type === 'ilike') localQB.ilike(filter.col, filter.val);
+      else if (filter.type === 'or') localQB.or(filter.val);
+    }
+    return localQB.then();
+  }
+
   async then(onfulfilled?: (value: any) => any) {
     try {
       let q = this.query;
@@ -107,35 +128,50 @@ class SupabaseQueryBuilder {
         }
       }
       const { data, error } = await q;
-      const result = { data, error };
+      if (error) {
+        console.warn(`[Supabase Query Error in table ${this.path}]:`, error.message || error);
+        const fallbackResult = await this.runLocalFallbackSelect();
+        if (onfulfilled) return onfulfilled(fallbackResult);
+        return fallbackResult;
+      }
+      const result = { data, error: null };
       if (onfulfilled) {
         return onfulfilled(result);
       }
       return result;
     } catch (err: any) {
-      const result = { data: null, error: err };
-      if (onfulfilled) {
-        return onfulfilled(result);
-      }
-      return result;
+      console.warn(`[Supabase Query Exception in table ${this.path}]:`, err.message || err);
+      const fallbackResult = await this.runLocalFallbackSelect();
+      if (onfulfilled) return onfulfilled(fallbackResult);
+      return fallbackResult;
     }
   }
 
   async upsert(payload: any, options?: { onConflict?: string }) {
     try {
       const { data, error } = await this.client.from(this.path).upsert(payload, options);
-      return { data, error };
+      if (error) {
+        console.warn(`[Supabase Upsert Error in table ${this.path}]:`, error.message || error);
+        return new LocalQueryBuilder(this.path).upsert(payload, options);
+      }
+      return { data, error: null };
     } catch (err: any) {
-      return { data: null, error: err };
+      console.warn(`[Supabase Upsert Exception in table ${this.path}]:`, err.message || err);
+      return new LocalQueryBuilder(this.path).upsert(payload, options);
     }
   }
 
   async insert(payload: any) {
     try {
       const { data, error } = await this.client.from(this.path).insert(payload);
-      return { data, error };
+      if (error) {
+        console.warn(`[Supabase Insert Error in table ${this.path}]:`, error.message || error);
+        return new LocalQueryBuilder(this.path).insert(payload);
+      }
+      return { data, error: null };
     } catch (err: any) {
-      return { data: null, error: err };
+      console.warn(`[Supabase Insert Exception in table ${this.path}]:`, err.message || err);
+      return new LocalQueryBuilder(this.path).insert(payload);
     }
   }
 
@@ -144,9 +180,14 @@ class SupabaseQueryBuilder {
       eq: async (col: string, val: any) => {
         try {
           const { error } = await this.client.from(this.path).update(payload).eq(col, val);
-          return { error };
+          if (error) {
+            console.warn(`[Supabase Update Error in table ${this.path}]:`, error.message || error);
+            return new LocalQueryBuilder(this.path).update(payload).eq(col, val);
+          }
+          return { error: null };
         } catch (err: any) {
-          return { error: err };
+          console.warn(`[Supabase Update Exception in table ${this.path}]:`, err.message || err);
+          return new LocalQueryBuilder(this.path).update(payload).eq(col, val);
         }
       }
     };
@@ -157,25 +198,40 @@ class SupabaseQueryBuilder {
       eq: async (col: string, val: any) => {
         try {
           const { error } = await this.client.from(this.path).delete().eq(col, val);
-          return { error };
+          if (error) {
+            console.warn(`[Supabase Delete Error in table ${this.path}]:`, error.message || error);
+            return new LocalQueryBuilder(this.path).delete().eq(col, val);
+          }
+          return { error: null };
         } catch (err: any) {
-          return { error: err };
+          console.warn(`[Supabase Delete Exception in table ${this.path}]:`, err.message || err);
+          return new LocalQueryBuilder(this.path).delete().eq(col, val);
         }
       },
       neq: async (col: string, val: any) => {
         try {
           const { error } = await this.client.from(this.path).delete().neq(col, val);
-          return { error };
+          if (error) {
+            console.warn(`[Supabase Delete Error in table ${this.path}]:`, error.message || error);
+            return new LocalQueryBuilder(this.path).delete().neq(col, val);
+          }
+          return { error: null };
         } catch (err: any) {
-          return { error: err };
+          console.warn(`[Supabase Delete Exception in table ${this.path}]:`, err.message || err);
+          return new LocalQueryBuilder(this.path).delete().neq(col, val);
         }
       },
       in: async (col: string, vals: any[]) => {
         try {
           const { error } = await this.client.from(this.path).delete().in(col, vals);
-          return { error };
+          if (error) {
+            console.warn(`[Supabase Delete Error in table ${this.path}]:`, error.message || error);
+            return new LocalQueryBuilder(this.path).delete().in(col, vals);
+          }
+          return { error: null };
         } catch (err: any) {
-          return { error: err };
+          console.warn(`[Supabase Delete Exception in table ${this.path}]:`, err.message || err);
+          return new LocalQueryBuilder(this.path).delete().in(col, vals);
         }
       }
     };
@@ -692,28 +748,95 @@ class SupabaseDBAdapter {
 let supabaseClientInstance: any = null;
 let currentConfigUrl: string = '';
 let currentConfigKey: string = '';
+let isSupabaseVerifiedHealthy: boolean | null = null;
 
-function getFirebaseServerDb() {
-  let supabaseUrl = process.env.SUPABASE_URL;
-  let supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
+function resolveSupabaseCredentials() {
+  let url = process.env.SUPABASE_URL;
+  let key = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
+
+  if (url && url.startsWith('eyJ')) {
+    try {
+      const payload = JSON.parse(Buffer.from(url.split('.')[1], 'base64').toString('utf8'));
+      if (payload && payload.ref) {
+        if (process.env.VITE_SUPABASE_URL) {
+          url = process.env.VITE_SUPABASE_URL;
+        } else {
+          url = `https://${payload.ref}.supabase.co`;
+        }
+      }
+    } catch (e: any) {
+      console.error('[Supabase Server Init] Erro ao decodificar JWT em SUPABASE_URL:', e.message);
+    }
+  }
 
   const configPath = path.join(process.cwd(), 'db_config.json');
   if (fs.existsSync(configPath)) {
     try {
       const savedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
       if (savedConfig.url && savedConfig.key) {
-        supabaseUrl = savedConfig.url;
-        supabaseKey = savedConfig.key;
+        const isFirebaseUrl = savedConfig.url.includes('firebaseio.com') || savedConfig.url.includes('firebase');
+        if (!isFirebaseUrl) {
+          url = savedConfig.url;
+          key = savedConfig.key;
+        }
       }
     } catch (e) {
-      console.error('[Supabase Server] Erro ao carregar db_config.json:', e);
+      // Ignored
     }
   }
+
+  return { url, key };
+}
+
+async function checkSupabaseHealth(url: string, key: string): Promise<boolean> {
+  if (!url || !url.startsWith('http') || !key || key.startsWith('MY_')) {
+    return false;
+  }
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
+    const response = await fetch(`${url}/rest/v1/ap_system_configs?select=key&limit=1`, {
+      headers: {
+        'apikey': key,
+        'Authorization': `Bearer ${key}`
+      },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (response.ok) {
+      console.log(`[Supabase Health Check] Conectado com sucesso à instância ${url}`);
+      return true;
+    } else {
+      const txt = await response.text();
+      console.warn(`[Supabase Health Check] Instância ${url} retornou erro (possível quota excedida ou chave inválida). Código: ${response.status}`);
+      return false;
+    }
+  } catch (e: any) {
+    console.warn(`[Supabase Health Check] Falha de conexão para ${url}:`, e.message || e);
+    return false;
+  }
+}
+
+function getFirebaseServerDb() {
+  const { url: supabaseUrl, key: supabaseKey } = resolveSupabaseCredentials();
 
   const isSupabaseConfigured = supabaseUrl && supabaseUrl.startsWith('http') && supabaseKey && !supabaseKey.startsWith('MY_');
 
   if (!isSupabaseConfigured) {
-    console.warn('[Supabase Server Fallback] Credenciais do Supabase não configuradas ou inválidas. Utilizando banco local JSON seguro (local_db.json).');
+    return new LocalDBAdapter();
+  }
+
+  if (isSupabaseVerifiedHealthy === false) {
+    return new LocalDBAdapter();
+  }
+
+  if (isSupabaseVerifiedHealthy === null) {
+    isSupabaseVerifiedHealthy = false; // set temporary false to prevent concurrent check attempts
+    const { url, key } = resolveSupabaseCredentials();
+    checkSupabaseHealth(url || '', key || '').then(healthy => {
+      isSupabaseVerifiedHealthy = healthy;
+      console.log(`[Supabase Server Lazy Check] Resultado da verificação: ${healthy ? 'CONECTADO' : 'USANDO BANCO LOCAL SEGURO'}`);
+    });
     return new LocalDBAdapter();
   }
 
@@ -724,13 +847,12 @@ function getFirebaseServerDb() {
 
   if (!supabaseClientInstance) {
     try {
-      supabaseClientInstance = createClient(supabaseUrl, supabaseKey);
+      supabaseClientInstance = createClient(supabaseUrl || '', supabaseKey || '');
       currentConfigUrl = supabaseUrl || '';
       currentConfigKey = supabaseKey || '';
-      console.log('[Supabase Server] Cliente do Supabase inicializado com sucesso de forma direta.');
+      console.log('[Supabase Server] Cliente do Supabase inicializado com sucesso.');
     } catch (err) {
       console.error('[Supabase Server Init Error]', err);
-      console.warn('[Supabase Server Fallback] Falha ao inicializar cliente Supabase. Utilizando banco local JSON seguro.');
       return new LocalDBAdapter();
     }
   }
@@ -765,7 +887,7 @@ app.get('/api/get-db-config', (req, res) => {
   }
 });
 
-app.post('/api/set-db-config', (req, res) => {
+app.post('/api/set-db-config', async (req, res) => {
   try {
     const { url, key } = req.body;
     if (!url || !key) {
@@ -778,8 +900,11 @@ app.post('/api/set-db-config', (req, res) => {
     // Force re-initialization of Supabase client on next request
     supabaseClientInstance = null;
 
-    console.log('[Supabase Server Config] Nova credencial configurada via API com sucesso!');
-    res.json({ success: true });
+    // Run connection test immediately
+    isSupabaseVerifiedHealthy = await checkSupabaseHealth(url, key);
+
+    console.log(`[Supabase Server Config] Nova credencial configurada via API. Verificação de saúde: ${isSupabaseVerifiedHealthy ? 'SAUDÁVEL' : 'INVÁLIDA/LIMITADA'}`);
+    res.json({ success: true, verifiedHealthy: isSupabaseVerifiedHealthy });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Erro ao salvar configurações de banco.' });
   }
@@ -4198,8 +4323,20 @@ async function startServer() {
     console.log('Production static files mounted from dist with cache-control headers.');
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  app.listen(PORT, '0.0.0.0', async () => {
     console.log(`Express custom server running at http://0.0.0.0:${PORT}`);
+    
+    // Check Supabase health on startup
+    const { url, key } = resolveSupabaseCredentials();
+    if (url && key) {
+      console.log('[Supabase Server Boot] Iniciando verificação de conexão com Supabase...');
+      isSupabaseVerifiedHealthy = await checkSupabaseHealth(url, key);
+      console.log(`[Supabase Server Boot] Status de saúde inicial do Supabase: ${isSupabaseVerifiedHealthy ? 'SAUDÁVEL' : 'MENSAGENS REDIRECIONADAS PARA BANCO LOCAL'}`);
+    } else {
+      isSupabaseVerifiedHealthy = false;
+      console.log('[Supabase Server Boot] Sem credenciais do Supabase configuradas. Utilizando banco local.');
+    }
+
     // Trigger backup migration asynchronously on server boot
     autoMigrateBackup().catch(err => {
       console.error('[Migration Server Exception] Failed to run migration:', err);

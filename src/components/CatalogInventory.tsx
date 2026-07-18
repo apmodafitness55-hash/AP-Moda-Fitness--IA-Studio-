@@ -1558,6 +1558,36 @@ export default function CatalogInventory({
       {isReplenishmentModalOpen && (
         <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-all animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-250" id="replenishment-report-modal">
+            <style>{`
+              @media print {
+                html, body, #root {
+                  visibility: hidden !important;
+                  height: 0 !important;
+                  overflow: hidden !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                }
+                #replenishment-report-modal, #replenishment-report-modal * {
+                  visibility: visible !important;
+                }
+                #replenishment-report-modal {
+                  position: absolute !important;
+                  left: 0 !important;
+                  top: 0 !important;
+                  width: 100% !important;
+                  max-height: none !important;
+                  overflow: visible !important;
+                  border: none !important;
+                  box-shadow: none !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                }
+                #replenishment-report-modal button,
+                #replenishment-report-modal .p-4.bg-slate-50 {
+                  display: none !important;
+                }
+              }
+            `}</style>
             {/* Header */}
             <div className="p-5 bg-slate-900 text-white flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">

@@ -233,13 +233,18 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
     if (isLandscapePrint) {
       style.innerHTML = `
         @media print {
-          html, body {
-            background: white !important;
-            color: black !important;
+          html, body, #root {
+            visibility: hidden !important;
+            height: 0 !important;
+            overflow: hidden !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          #printable-shipping-label, #printable-shipping-label * {
+            visibility: visible !important;
           }
           #printable-shipping-label {
             display: block !important;
-            visibility: visible !important;
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
@@ -256,7 +261,6 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
             z-index: 999999 !important;
           }
           #printable-shipping-label * {
-            visibility: visible !important;
             color: #000000 !important;
             background: transparent !important;
           }
@@ -272,13 +276,18 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
     } else {
       style.innerHTML = `
         @media print {
-          html, body {
-            background: white !important;
-            color: black !important;
+          html, body, #root {
+            visibility: hidden !important;
+            height: 0 !important;
+            overflow: hidden !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          #printable-shipping-label, #printable-shipping-label * {
+            visibility: visible !important;
           }
           #printable-shipping-label {
             display: block !important;
-            visibility: visible !important;
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
@@ -295,7 +304,6 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
             z-index: 999999 !important;
           }
           #printable-shipping-label * {
-            visibility: visible !important;
             color: #000000 !important;
             background: transparent !important;
           }

@@ -389,11 +389,15 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
           size: auto; 
           margin: 0; 
         }
-        body { 
-          margin: 0; 
-          padding: 0; 
-          background: white !important;
-          color: black !important;
+        html, body, #root {
+          visibility: hidden !important;
+          height: 0 !important;
+          overflow: hidden !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+        #printable-thermal-receipt, #printable-thermal-receipt * {
+          visibility: visible !important;
         }
         .no-print { 
           display: none !important; 
@@ -401,7 +405,6 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
 
         #printable-thermal-receipt {
           display: block !important;
-          visibility: visible !important;
           position: absolute !important;
           left: 0 !important;
           top: 0 !important;
@@ -420,18 +423,8 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
         }
         /* Ensure descendants of printable container are visible and styled properly */
         #printable-thermal-receipt * {
-          visibility: visible !important;
           color: #000000 !important;
           background: transparent !important;
-        }
-        /* Ensure no layout distortion */
-        html, body {
-          background: white !important;
-          width: 100% !important;
-          height: auto !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          overflow: visible !important;
         }
         .modal-overlay-thermal {
           display: none !important;
