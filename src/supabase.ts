@@ -119,13 +119,18 @@ CREATE TABLE IF NOT EXISTS ap_checkouts (
 );
 
 -- 8. Tabela de Funcionários e Logins de Segurança
+-- ATENÇÃO: Caso a tabela 'ap_team_members' já tenha sido criada com a estrutura antiga, execute no SQL Editor:
+-- DROP TABLE IF EXISTS ap_team_members CASCADE;
 CREATE TABLE IF NOT EXISTS ap_team_members (
-  role text,
+  id text PRIMARY KEY,
   name text,
-  login text PRIMARY KEY,
+  login text UNIQUE NOT NULL,
   password text,
-  permissions text,
-  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+  role text,
+  details text,
+  "birthDate" text,
+  avatar text,
+  "createdAt" timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- 9. Tabela de Terminais de Maquininhas de Cartão
@@ -505,6 +510,10 @@ export async function fetchTeamMembersFromSupabase(options?: { limit?: number; o
 
 export async function syncBulkTeamMembersToSupabase(data: any, ...args: any[]) {
   return restPost('/api/proxy/team-members', data);
+}
+
+export async function deleteTeamMemberFromSupabase(id: string, ...args: any[]) {
+  return restDelete(`/api/proxy/team-members/${id}`);
 }
 
 export async function fetchProductsFromSupabase(options?: { limit?: number; offset?: number }, ...args: any[]) {

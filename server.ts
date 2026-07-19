@@ -2248,7 +2248,45 @@ app.get('/api/proxy/team-members', async (req, res) => {
 app.post('/api/proxy/team-members', async (req, res) => {
   try {
     const db = getFirebaseServerDb();
-    const payloads = req.body;
+    let payloads = req.body;
+
+    // Dynamic schema discovery to strip invalid columns and avoid PostgREST column-not-found errors
+    try {
+      const { data: oneRow } = await db.from('ap_team_members').select('*').limit(1);
+      const existingCols = oneRow && oneRow.length > 0 ? Object.keys(oneRow[0]) : null;
+      const columns = existingCols || [
+        'id', 'name', 'login', 'password', 'role', 'details', 'birthDate', 'createdAt', 'avatar',
+        'birth_date', 'created_at', 'permissions'
+      ];
+      
+      const sanitizeItem = (p: any) => {
+        const sanitized: any = {};
+        columns.forEach(col => {
+          if (p[col] !== undefined) {
+            sanitized[col] = p[col];
+          } else {
+            const camelCol = col.replace(/_([a-z])/g, g => g[1].toUpperCase());
+            const snakeCol = col.replace(/([A-Z])/g, "_$1").toLowerCase();
+            if (p[camelCol] !== undefined) {
+              sanitized[col] = p[camelCol];
+            } else if (p[snakeCol] !== undefined) {
+              sanitized[col] = p[snakeCol];
+            }
+          }
+        });
+        if (p.id) sanitized.id = p.id;
+        return sanitized;
+      };
+
+      if (Array.isArray(payloads)) {
+        payloads = payloads.map(sanitizeItem);
+      } else if (payloads && typeof payloads === 'object') {
+        payloads = sanitizeItem(payloads);
+      }
+    } catch (schemaErr) {
+      console.warn('[Proxy Team Schema Auto-discovery] Failed, using raw payload:', schemaErr);
+    }
+
     const { error } = await db.from('ap_team_members').upsert(payloads, { onConflict: 'id' });
     if (error) throw error;
     res.json({ success: true });

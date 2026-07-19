@@ -56,6 +56,7 @@ import {
   initializeSupabaseConfig,
   fetchTeamMembersFromSupabase, 
   syncBulkTeamMembersToSupabase,
+  deleteTeamMemberFromSupabase,
   pingSupabaseOnLogin,
   fetchProductsFromSupabase,
   syncBulkProductsToSupabase,
@@ -3035,10 +3036,19 @@ export default function App() {
             motoboys={motoboys}
             teamMembers={teamMembers}
             onUpdateTeamMembers={async (newList) => {
+              // Find deleted members
+              const deletedMembers = teamMembers.filter(m => !newList.some(nl => nl.id === m.id));
               setTeamMembers(newList);
+              
               const config = getSupabaseConfig();
               if (config) {
                 try {
+                  // Propagate deletions first
+                  for (const m of deletedMembers) {
+                    await deleteTeamMemberFromSupabase(m.id);
+                    console.log(`Deleted team member ${m.name} (${m.id}) from Supabase.`);
+                  }
+                  // Then sync the updated list
                   await syncBulkTeamMembersToSupabase(newList);
                   console.log('Automated team users synchronization with Supabase complete.');
                 } catch(e) {
