@@ -795,7 +795,7 @@ async function checkSupabaseHealth(url: string, key: string): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1500);
-    const response = await fetch(`${url}/rest/v1/ap_system_configs?select=key&limit=1`, {
+    const response = await fetch(`${url}/rest/v1/`, {
       headers: {
         'apikey': key,
         'Authorization': `Bearer ${key}`

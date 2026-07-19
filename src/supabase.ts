@@ -14,7 +14,129 @@ export interface CardTerminal {
   status: 'ativo' | 'inativo';
 }
 
-export const SUPABASE_SETUP_INFO = "Conexão direta ao Supabase ativa.";
+export const SUPABASE_SETUP_INFO = `-- SCRIPT DE CONFIGURAÇÃO DE TABELAS - AP MODA FITNESS
+-- Cole no SQL Editor do Supabase e clique em 'Run'
+
+-- 1. Tabela de Configurações do Sistema
+CREATE TABLE IF NOT EXISTS ap_system_configs (
+  key text PRIMARY KEY,
+  value text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 2. Tabela de Produtos do Catálogo
+CREATE TABLE IF NOT EXISTS ap_products (
+  id text PRIMARY KEY,
+  name text,
+  sku text,
+  category text,
+  price numeric,
+  cost numeric,
+  stock integer,
+  min_stock integer,
+  image text,
+  images text,
+  sales_count integer,
+  description text,
+  video_url text,
+  colors text,
+  sizes text,
+  size_colors text,
+  color_stocks text,
+  size_color_stocks text,
+  composition text,
+  routes text,
+  measurement_specs text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 3. Tabela de Clientes (CRM / Cadastros)
+CREATE TABLE IF NOT EXISTS ap_clients (
+  id text PRIMARY KEY,
+  name text,
+  phone text,
+  email text,
+  cpf text,
+  password text,
+  wishlist text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 4. Tabela de Vendas (PDV & Televendas)
+CREATE TABLE IF NOT EXISTS ap_sales (
+  id text PRIMARY KEY,
+  client_id text,
+  client_name text,
+  channel text,
+  items text,
+  total numeric,
+  discount numeric,
+  payment_method text,
+  status text,
+  date text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 5. Tabela de Transações Financeiras (Fluxo de Caixa)
+CREATE TABLE IF NOT EXISTS ap_transactions (
+  id text PRIMARY KEY,
+  description text,
+  amount numeric,
+  type text,
+  category text,
+  payment_method text,
+  date text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 6. Tabela de Pedidos Online (Vitrine Virtual)
+CREATE TABLE IF NOT EXISTS ap_online_orders (
+  id text PRIMARY KEY,
+  client_name text,
+  phone text,
+  email text,
+  cpf text,
+  shipping_address text,
+  items text,
+  subtotal numeric,
+  shipping_cost numeric,
+  total numeric,
+  status text,
+  payment_method text,
+  date text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 7. Tabela de Sessões de Checkout
+CREATE TABLE IF NOT EXISTS ap_checkouts (
+  id text PRIMARY KEY,
+  items text,
+  subtotal numeric,
+  shipping_cost numeric,
+  total numeric,
+  status text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 8. Tabela de Funcionários e Logins de Segurança
+CREATE TABLE IF NOT EXISTS ap_team_members (
+  role text,
+  name text,
+  login text PRIMARY KEY,
+  password text,
+  permissions text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 9. Tabela de Terminais de Maquininhas de Cartão
+CREATE TABLE IF NOT EXISTS card_terminals (
+  id text PRIMARY KEY,
+  name text,
+  brand text,
+  fee_percentage numeric,
+  status text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);`;
 
 export function getSupabaseConfig() {
   return {
