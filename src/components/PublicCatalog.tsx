@@ -2769,7 +2769,12 @@ export default function PublicCatalog({
       }
 
       // Pre-fill customer/buyer and address data for InfinitePay Checkout to prevent double data entry
-      const cleanPhone = (clientPhone || '').replace(/\D/g, '');
+      let cleanPhone = (clientPhone || '').replace(/\D/g, '');
+      if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+        // Automatically prefix with Brazil country code 55 (critical for checkout auto-fill validation on payment gateways)
+        cleanPhone = '55' + cleanPhone;
+      }
+      
       const cleanCpf = (clientCpf || '').replace(/\D/g, '');
       const cleanCep = (addressCep || '').replace(/\D/g, '');
 
@@ -2783,8 +2788,14 @@ export default function PublicCatalog({
         name: clientName,
         email: clientEmail.trim() || `${firstName.toLowerCase()}@exemplo.com`,
         phone: cleanPhone || clientPhone,
+        phone_code: '55',
+        phone_number: cleanPhone || clientPhone,
+        whatsapp: cleanPhone || clientPhone,
+        mobile: cleanPhone || clientPhone,
         document: cleanCpf || clientCpf,
-        cpf: cleanCpf || clientCpf
+        cpf: cleanCpf || clientCpf,
+        cnpj: cleanCpf || clientCpf,
+        tax_id: cleanCpf || clientCpf
       };
 
       const addressData = {
@@ -2796,12 +2807,29 @@ export default function PublicCatalog({
         city: addressCidade || '',
         state: addressEstado || '',
         zip: cleanCep || addressCep || '',
-        cep: cleanCep || addressCep || ''
+        cep: cleanCep || addressCep || '',
+        zip_code: cleanCep || addressCep || '',
+        postal_code: cleanCep || addressCep || '',
+        country: 'BR'
       };
 
+      // Highly redundant payloads to support all historical and current schema variants of InfinitePay Checkout Links
       const customerPayload = {
         ...buyerData,
-        address: addressData
+        address: addressData,
+        billing_address: addressData,
+        shipping_address: addressData
+      };
+
+      const shippingPayload = {
+        name: clientName,
+        phone: cleanPhone || clientPhone,
+        phone_number: cleanPhone || clientPhone,
+        whatsapp: cleanPhone || clientPhone,
+        mobile: cleanPhone || clientPhone,
+        address: addressData,
+        shipping_address: addressData,
+        billing_address: addressData
       };
 
       const metadataPayload = {
@@ -2815,7 +2843,9 @@ export default function PublicCatalog({
         shipping_neighborhood: addressBairro,
         shipping_city: addressCidade,
         shipping_state: addressEstado,
-        shipping_zip: cleanCep || addressCep
+        shipping_zip: cleanCep || addressCep,
+        shipping_cep: cleanCep || addressCep,
+        shipping_zip_code: cleanCep || addressCep
       };
 
       let linkData: any = null;
@@ -2834,8 +2864,10 @@ export default function PublicCatalog({
             itens: itensPayload,
             buyer: customerPayload,
             customer: customerPayload,
+            shipping: shippingPayload,
             shipping_address: addressData,
             billing_address: addressData,
+            address: addressData,
             metadata: metadataPayload
           })
         });
@@ -2864,8 +2896,10 @@ export default function PublicCatalog({
             isCents: true,
             buyer: customerPayload,
             customer: customerPayload,
+            shipping: shippingPayload,
             shipping_address: addressData,
             billing_address: addressData,
+            address: addressData,
             metadata: metadataPayload
           })
         });

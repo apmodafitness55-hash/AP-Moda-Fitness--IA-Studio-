@@ -1267,6 +1267,40 @@ export default function App() {
     });
   }, [systemOffline, getDirtyIds, saveDirtyIds]);
 
+  const handleUpdateTeamMembers = useCallback(async (updatedList: any[] | ((prev: any[]) => any[])) => {
+    setTeamMembers(prev => {
+      const newList = typeof updatedList === 'function' ? updatedList(prev) : updatedList;
+      const deletedMembers = prev.filter(m => !newList.some(nl => nl.id === m.id));
+      
+      if (deletedMembers.length > 0) {
+        const deletedIds = getDirtyIds('ap_deleted_team_members');
+        deletedMembers.forEach(m => {
+          if (!deletedIds.includes(m.id)) {
+            deletedIds.push(m.id);
+          }
+        });
+        saveDirtyIds('ap_deleted_team_members', deletedIds);
+      }
+
+      const config = getSupabaseConfig();
+      if (config && !systemOffline) {
+        (async () => {
+          try {
+            for (const m of deletedMembers) {
+              await deleteTeamMemberFromSupabase(m.id);
+              console.log(`Deleted team member ${m.name} (${m.id}) from Supabase.`);
+            }
+            await syncBulkTeamMembersToSupabase(newList);
+            console.log('Automated team users synchronization with Supabase complete.');
+          } catch (e) {
+            console.warn('Failed to sync updated list to Supabase:', e);
+          }
+        })();
+      }
+      return newList;
+    });
+  }, [systemOffline, getDirtyIds, saveDirtyIds]);
+
   // Sincronização automática bilateral de TODO o ecossistema AP Moda Fitness com o Supabase
   const performSync = useCallback(async (isManual = false) => {
     if (isSyncingRef.current && !isManual) {
@@ -1337,6 +1371,7 @@ export default function App() {
       const dbMembers = await fetchTeamMembersFromSupabase();
       if (dbMembers) {
         const dirtyMembers = getDirtyIds('ap_dirty_team_members');
+        const deletedMembersList = getDirtyIds('ap_deleted_team_members');
         const currentMembers = lastTeamMembersRef.current || [];
         const localMap = new Map(currentMembers.map(m => [m.id, m]));
         const dbMap = new Map(dbMembers.map(m => [m.id, m]));
@@ -1344,7 +1379,20 @@ export default function App() {
         let remoteModified = false;
         const merged = [...currentMembers];
 
+        // Retry deleting remote members if they are in the deleted queue
+        for (const id of deletedMembersList) {
+          if (dbMap.has(id)) {
+            await deleteTeamMemberFromSupabase(id);
+            console.log(`[Sync Team Delete] Retried deletion of team member ${id}`);
+          }
+        }
+
         for (const dbM of dbMembers) {
+          // If deleted locally, skip and do not resurrect
+          if (deletedMembersList.includes(dbM.id)) {
+            continue;
+          }
+
           const localM = localMap.get(dbM.id);
           if (!localM) {
             merged.push(dbM);
@@ -1376,12 +1424,17 @@ export default function App() {
         if (remoteModified || localModified) {
           remoteStateModified = true;
         }
+
+        // Keep local deletion queue in sync with remote deletion success
+        const stillInDb = deletedMembersList.filter(id => dbMap.has(id));
+        saveDirtyIds('ap_deleted_team_members', stillInDb);
       }
 
       // 2. Sincronização do Catálogo de Produtos da Boutique
       const dbProducts = await fetchProductsFromSupabase();
       if (dbProducts) {
         const dirtyProducts = getDirtyIds('ap_dirty_products');
+        const deletedProductsList = getDirtyIds('ap_deleted_products');
         const currentProducts = lastProductsRef.current;
         const localMap = new Map(currentProducts.map(p => [p.id, p]));
         const dbMap = new Map(dbProducts.map(p => [p.id, p]));
@@ -1389,7 +1442,20 @@ export default function App() {
         let remoteModified = false;
         const merged = [...currentProducts];
 
+        // Retry deleting remote products if they are in the deleted queue
+        for (const id of deletedProductsList) {
+          if (dbMap.has(id)) {
+            await deleteProductFromSupabase(id);
+            console.log(`[Sync Product Delete] Retried deletion of product ${id}`);
+          }
+        }
+
         for (const dbP of dbProducts) {
+          // If deleted locally, skip and do not resurrect
+          if (deletedProductsList.includes(dbP.id)) {
+            continue;
+          }
+
           const localP = localMap.get(dbP.id);
           if (!localP) {
             merged.push(dbP);
@@ -1420,6 +1486,10 @@ export default function App() {
         if (remoteModified || localModified) {
           remoteStateModified = true;
         }
+
+        // Keep local deletion queue in sync with remote deletion success
+        const stillInDb = deletedProductsList.filter(id => dbMap.has(id));
+        saveDirtyIds('ap_deleted_products', stillInDb);
       }
 
       // 3. Sincronização do CRM de Clientes
@@ -2642,6 +2712,14 @@ export default function App() {
 
   const handleDeleteProduct = async (productId: string) => {
     setProducts(prev => prev.filter(p => p.id !== productId));
+    
+    // Track deletion queue to prevent resurrection
+    const deletedIds = getDirtyIds('ap_deleted_products');
+    if (!deletedIds.includes(productId)) {
+      deletedIds.push(productId);
+      saveDirtyIds('ap_deleted_products', deletedIds);
+    }
+
     const config = getSupabaseConfig();
     if (config && !systemOffline) {
       try {
@@ -2964,7 +3042,7 @@ export default function App() {
             activeSubTab={customersCRMSubTab}
             setActiveSubTab={setCustomersCRMSubTab}
             teamMembers={teamMembers}
-            onUpdateTeamMembers={setTeamMembers}
+            onUpdateTeamMembers={handleUpdateTeamMembers}
           />
         );
       case ActiveTab.FINANCEIRO:
@@ -3035,27 +3113,7 @@ export default function App() {
             sellers={sellers}
             motoboys={motoboys}
             teamMembers={teamMembers}
-            onUpdateTeamMembers={async (newList) => {
-              // Find deleted members
-              const deletedMembers = teamMembers.filter(m => !newList.some(nl => nl.id === m.id));
-              setTeamMembers(newList);
-              
-              const config = getSupabaseConfig();
-              if (config) {
-                try {
-                  // Propagate deletions first
-                  for (const m of deletedMembers) {
-                    await deleteTeamMemberFromSupabase(m.id);
-                    console.log(`Deleted team member ${m.name} (${m.id}) from Supabase.`);
-                  }
-                  // Then sync the updated list
-                  await syncBulkTeamMembersToSupabase(newList);
-                  console.log('Automated team users synchronization with Supabase complete.');
-                } catch(e) {
-                  console.warn('Failed to sync updated list to Supabase:', e);
-                }
-              }
-            }}
+            onUpdateTeamMembers={handleUpdateTeamMembers}
             onAddSeller={(name) => {
               if (!sellers.includes(name)) {
                 const updated = [...sellers, name];

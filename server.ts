@@ -2251,40 +2251,44 @@ app.post('/api/proxy/team-members', async (req, res) => {
     let payloads = req.body;
 
     // Dynamic schema discovery to strip invalid columns and avoid PostgREST column-not-found errors
-    try {
-      const { data: oneRow } = await db.from('ap_team_members').select('*').limit(1);
-      const existingCols = oneRow && oneRow.length > 0 ? Object.keys(oneRow[0]) : null;
-      const columns = existingCols || [
-        'id', 'name', 'login', 'password', 'role', 'details', 'birthDate', 'createdAt', 'avatar',
-        'birth_date', 'created_at', 'permissions'
-      ];
-      
-      const sanitizeItem = (p: any) => {
-        const sanitized: any = {};
-        columns.forEach(col => {
-          if (p[col] !== undefined) {
-            sanitized[col] = p[col];
-          } else {
-            const camelCol = col.replace(/_([a-z])/g, g => g[1].toUpperCase());
-            const snakeCol = col.replace(/([A-Z])/g, "_$1").toLowerCase();
-            if (p[camelCol] !== undefined) {
-              sanitized[col] = p[camelCol];
-            } else if (p[snakeCol] !== undefined) {
-              sanitized[col] = p[snakeCol];
+    // Skip entirely for LocalDBAdapter as it doesn't enforce strict table schema
+    if (db.constructor.name !== 'LocalDBAdapter') {
+      try {
+        const { data: oneRow } = await db.from('ap_team_members').select('*').limit(1);
+        const existingCols = oneRow && oneRow.length > 0 ? Object.keys(oneRow[0]) : null;
+        const defaultCols = [
+          'id', 'name', 'login', 'password', 'role', 'details', 'birthDate', 'createdAt', 'avatar',
+          'birth_date', 'created_at', 'permissions', 'email', 'phone', 'status'
+        ];
+        const columns = existingCols ? Array.from(new Set([...existingCols, ...defaultCols])) : defaultCols;
+        
+        const sanitizeItem = (p: any) => {
+          const sanitized: any = {};
+          columns.forEach(col => {
+            if (p[col] !== undefined) {
+              sanitized[col] = p[col];
+            } else {
+              const camelCol = col.replace(/_([a-z])/g, g => g[1].toUpperCase());
+              const snakeCol = col.replace(/([A-Z])/g, "_$1").toLowerCase();
+              if (p[camelCol] !== undefined) {
+                sanitized[col] = p[camelCol];
+              } else if (p[snakeCol] !== undefined) {
+                sanitized[col] = p[snakeCol];
+              }
             }
-          }
-        });
-        if (p.id) sanitized.id = p.id;
-        return sanitized;
-      };
+          });
+          if (p.id) sanitized.id = p.id;
+          return sanitized;
+        };
 
-      if (Array.isArray(payloads)) {
-        payloads = payloads.map(sanitizeItem);
-      } else if (payloads && typeof payloads === 'object') {
-        payloads = sanitizeItem(payloads);
+        if (Array.isArray(payloads)) {
+          payloads = payloads.map(sanitizeItem);
+        } else if (payloads && typeof payloads === 'object') {
+          payloads = sanitizeItem(payloads);
+        }
+      } catch (schemaErr) {
+        console.warn('[Proxy Team Schema Auto-discovery] Failed, using raw payload:', schemaErr);
       }
-    } catch (schemaErr) {
-      console.warn('[Proxy Team Schema Auto-discovery] Failed, using raw payload:', schemaErr);
     }
 
     const { error } = await db.from('ap_team_members').upsert(payloads, { onConflict: 'id' });
@@ -2371,40 +2375,44 @@ app.post('/api/proxy/products', async (req, res) => {
     let payloads = req.body;
 
     // Dynamic schema discovery to strip invalid columns and avoid PostgREST column-not-found errors
-    try {
-      const { data: oneRow } = await db.from('ap_products').select('*').limit(1);
-      const existingCols = oneRow && oneRow.length > 0 ? Object.keys(oneRow[0]) : null;
-      const columns = existingCols || [
-        'id', 'name', 'sku', 'category', 'price', 'cost', 'stock', 'minStock', 'image', 'images', 
-        'salesCount', 'description', 'videoUrl', 'colors', 'sizes', 'sizeColors', 'colorStocks', 
-        'sizeColorStocks', 'size_colors', 'color_stocks', 'size_color_stocks', 'min_stock', 
-        'sales_count', 'video_url', 'composition', 'routes', 'measurementSpecs', 'measurement_specs'
-      ];
-      
-      if (Array.isArray(payloads)) {
-        payloads = payloads.map((p: any) => {
-          const sanitized: any = {};
-          columns.forEach(col => {
-            // Find any matching key (direct, camelCase, snake_case, etc)
-            if (p[col] !== undefined) {
-              sanitized[col] = p[col];
-            } else {
-              const camelCol = col.replace(/_([a-z])/g, g => g[1].toUpperCase());
-              const snakeCol = col.replace(/([A-Z])/g, "_$1").toLowerCase();
-              if (p[camelCol] !== undefined) {
-                sanitized[col] = p[camelCol];
-              } else if (p[snakeCol] !== undefined) {
-                sanitized[col] = p[snakeCol];
+    // Skip entirely for LocalDBAdapter as it doesn't enforce strict table schema
+    if (db.constructor.name !== 'LocalDBAdapter') {
+      try {
+        const { data: oneRow } = await db.from('ap_products').select('*').limit(1);
+        const existingCols = oneRow && oneRow.length > 0 ? Object.keys(oneRow[0]) : null;
+        const defaultCols = [
+          'id', 'name', 'sku', 'category', 'price', 'cost', 'stock', 'minStock', 'image', 'images', 
+          'salesCount', 'description', 'videoUrl', 'colors', 'sizes', 'sizeColors', 'colorStocks', 
+          'sizeColorStocks', 'size_colors', 'color_stocks', 'size_color_stocks', 'min_stock', 
+          'sales_count', 'video_url', 'composition', 'routes', 'measurementSpecs', 'measurement_specs'
+        ];
+        const columns = existingCols ? Array.from(new Set([...existingCols, ...defaultCols])) : defaultCols;
+        
+        if (Array.isArray(payloads)) {
+          payloads = payloads.map((p: any) => {
+            const sanitized: any = {};
+            columns.forEach(col => {
+              // Find any matching key (direct, camelCase, snake_case, etc)
+              if (p[col] !== undefined) {
+                sanitized[col] = p[col];
+              } else {
+                const camelCol = col.replace(/_([a-z])/g, g => g[1].toUpperCase());
+                const snakeCol = col.replace(/([A-Z])/g, "_$1").toLowerCase();
+                if (p[camelCol] !== undefined) {
+                  sanitized[col] = p[camelCol];
+                } else if (p[snakeCol] !== undefined) {
+                  sanitized[col] = p[snakeCol];
+                }
               }
-            }
+            });
+            // Ensure id is always included
+            if (p.id) sanitized.id = p.id;
+            return sanitized;
           });
-          // Ensure id is always included
-          if (p.id) sanitized.id = p.id;
-          return sanitized;
-        });
+        }
+      } catch (schemaErr) {
+        console.warn('[Proxy Products Schema Auto-discovery] Failed, using raw payload:', schemaErr);
       }
-    } catch (schemaErr) {
-      console.warn('[Proxy Products Schema Auto-discovery] Failed, using raw payload:', schemaErr);
     }
 
     const { error } = await db.from('ap_products').upsert(payloads, { onConflict: 'id' });

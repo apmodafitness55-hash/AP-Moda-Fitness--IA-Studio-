@@ -413,10 +413,15 @@ export default function PDVTerminal({
       // Pre-fill customer/buyer and address data if a customer is selected in PDV to prevent double data entry
       let customerPayload: any = null;
       let shippingAddressPayload: any = null;
+      let shippingPayload: any = null;
       let metadataPayload: any = null;
 
       if (selectedClientObject) {
-        const cleanPhone = (selectedClientObject.phone || '').replace(/\D/g, '');
+        let cleanPhone = (selectedClientObject.phone || '').replace(/\D/g, '');
+        if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+          // Automatically prefix with Brazil country code 55 (critical for checkout auto-fill validation on payment gateways)
+          cleanPhone = '55' + cleanPhone;
+        }
         const cleanCpf = (selectedClientObject.cpf || '').replace(/\D/g, '');
         const cleanCep = (selectedClientObject.addressCep || '').replace(/\D/g, '');
 
@@ -430,8 +435,14 @@ export default function PDVTerminal({
           name: selectedClientObject.name,
           email: selectedClientObject.email ? selectedClientObject.email.trim() : `${firstName.toLowerCase()}@exemplo.com`,
           phone: cleanPhone || selectedClientObject.phone,
+          phone_code: '55',
+          phone_number: cleanPhone || selectedClientObject.phone,
+          whatsapp: cleanPhone || selectedClientObject.phone,
+          mobile: cleanPhone || selectedClientObject.phone,
           document: cleanCpf || selectedClientObject.cpf,
-          cpf: cleanCpf || selectedClientObject.cpf
+          cpf: cleanCpf || selectedClientObject.cpf,
+          cnpj: cleanCpf || selectedClientObject.cpf,
+          tax_id: cleanCpf || selectedClientObject.cpf
         };
 
         const addressData = {
@@ -443,15 +454,31 @@ export default function PDVTerminal({
           city: selectedClientObject.addressCidade || '',
           state: selectedClientObject.addressEstado || '',
           zip: cleanCep || selectedClientObject.addressCep || '',
-          cep: cleanCep || selectedClientObject.addressCep || ''
+          cep: cleanCep || selectedClientObject.addressCep || '',
+          zip_code: cleanCep || selectedClientObject.addressCep || '',
+          postal_code: cleanCep || selectedClientObject.addressCep || '',
+          country: 'BR'
         };
 
         customerPayload = {
           ...buyerData,
-          address: addressData
+          address: addressData,
+          billing_address: addressData,
+          shipping_address: addressData
         };
 
         shippingAddressPayload = addressData;
+
+        shippingPayload = {
+          name: selectedClientObject.name,
+          phone: cleanPhone || selectedClientObject.phone,
+          phone_number: cleanPhone || selectedClientObject.phone,
+          whatsapp: cleanPhone || selectedClientObject.phone,
+          mobile: cleanPhone || selectedClientObject.phone,
+          address: addressData,
+          shipping_address: addressData,
+          billing_address: addressData
+        };
 
         metadataPayload = {
           customer_name: selectedClientObject.name,
@@ -464,7 +491,9 @@ export default function PDVTerminal({
           shipping_neighborhood: selectedClientObject.addressBairro || '',
           shipping_city: selectedClientObject.addressCidade || '',
           shipping_state: selectedClientObject.addressEstado || '',
-          shipping_zip: cleanCep || selectedClientObject.addressCep || ''
+          shipping_zip: cleanCep || selectedClientObject.addressCep || '',
+          shipping_cep: cleanCep || selectedClientObject.addressCep || '',
+          shipping_zip_code: cleanCep || selectedClientObject.addressCep || ''
         };
       }
 
@@ -484,8 +513,10 @@ export default function PDVTerminal({
             itens: itensPayload,
             buyer: customerPayload || undefined,
             customer: customerPayload || undefined,
+            shipping: shippingPayload || undefined,
             shipping_address: shippingAddressPayload || undefined,
             billing_address: shippingAddressPayload || undefined,
+            address: shippingAddressPayload || undefined,
             metadata: metadataPayload || undefined
           })
         });
@@ -514,8 +545,10 @@ export default function PDVTerminal({
             isCents: true,
             buyer: customerPayload || undefined,
             customer: customerPayload || undefined,
+            shipping: shippingPayload || undefined,
             shipping_address: shippingAddressPayload || undefined,
             billing_address: shippingAddressPayload || undefined,
+            address: shippingAddressPayload || undefined,
             metadata: metadataPayload || undefined
           })
         });
