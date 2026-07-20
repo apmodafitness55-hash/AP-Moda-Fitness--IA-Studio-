@@ -781,16 +781,22 @@ export default function App() {
         setProducts(dbProducts);
         localStorage.setItem('ap_moda_products', JSON.stringify(dbProducts));
       } else {
-        // Supabase está vazio de produtos! Vamos proteger os dados locais e semear
-        const localProducts = lastProductsRef.current && lastProductsRef.current.length > 0 ? lastProductsRef.current : products;
-        if (localProducts && localProducts.length > 0) {
-          console.log('[Supabase Sync] Enviando seus produtos locais da tela para o Supabase vazio:', localProducts.length);
-          await syncBulkProductsToSupabase(localProducts);
+        if (isSeeded) {
+          console.log('[Supabase Sync] Banco de produtos vazio na nuvem e sistema já semeado. Respeitando estado limpo.');
+          setProducts([]);
+          localStorage.setItem('ap_moda_products', JSON.stringify([]));
         } else {
-          console.log('[Supabase Sync] Semeando catálogo de Moda Fitness padrão (INITIAL_PRODUCTS) no Supabase vazio:', INITIAL_PRODUCTS.length);
-          await syncBulkProductsToSupabase(INITIAL_PRODUCTS);
-          setProducts(INITIAL_PRODUCTS);
-          localStorage.setItem('ap_moda_products', JSON.stringify(INITIAL_PRODUCTS));
+          // Supabase está vazio de produtos! Vamos proteger os dados locais e semear
+          const localProducts = lastProductsRef.current && lastProductsRef.current.length > 0 ? lastProductsRef.current : products;
+          if (localProducts && localProducts.length > 0) {
+            console.log('[Supabase Sync] Enviando seus produtos locais da tela para o Supabase vazio:', localProducts.length);
+            await syncBulkProductsToSupabase(localProducts);
+          } else {
+            console.log('[Supabase Sync] Semeando catálogo de Moda Fitness padrão (INITIAL_PRODUCTS) no Supabase vazio:', INITIAL_PRODUCTS.length);
+            await syncBulkProductsToSupabase(INITIAL_PRODUCTS);
+            setProducts(INITIAL_PRODUCTS);
+            localStorage.setItem('ap_moda_products', JSON.stringify(INITIAL_PRODUCTS));
+          }
         }
       }
 
@@ -807,15 +813,21 @@ export default function App() {
         setClients(dbClients);
         localStorage.setItem('ap_moda_clients', JSON.stringify(dbClients));
       } else {
-        const localClients = lastClientsRef.current && lastClientsRef.current.length > 0 ? lastClientsRef.current : clients;
-        if (localClients && localClients.length > 0) {
-          console.log('[Supabase Sync] Enviando seus clientes locais da tela para o Supabase vazio:', localClients.length);
-          await syncBulkClientsToSupabase(localClients);
+        if (isSeeded) {
+          console.log('[Supabase Sync] Banco de clientes vazio na nuvem e sistema já semeado. Respeitando estado limpo.');
+          setClients([]);
+          localStorage.setItem('ap_moda_clients', JSON.stringify([]));
         } else {
-          console.log('[Supabase Sync] Semeando lista de clientes (INITIAL_CLIENTS) no Supabase vazio:', INITIAL_CLIENTS.length);
-          await syncBulkClientsToSupabase(INITIAL_CLIENTS);
-          setClients(INITIAL_CLIENTS);
-          localStorage.setItem('ap_moda_clients', JSON.stringify(INITIAL_CLIENTS));
+          const localClients = lastClientsRef.current && lastClientsRef.current.length > 0 ? lastClientsRef.current : clients;
+          if (localClients && localClients.length > 0) {
+            console.log('[Supabase Sync] Enviando seus clientes locais da tela para o Supabase vazio:', localClients.length);
+            await syncBulkClientsToSupabase(localClients);
+          } else {
+            console.log('[Supabase Sync] Semeando lista de clientes (INITIAL_CLIENTS) no Supabase vazio:', INITIAL_CLIENTS.length);
+            await syncBulkClientsToSupabase(INITIAL_CLIENTS);
+            setClients(INITIAL_CLIENTS);
+            localStorage.setItem('ap_moda_clients', JSON.stringify(INITIAL_CLIENTS));
+          }
         }
       }
 
@@ -832,15 +844,21 @@ export default function App() {
         setSales(dbSales);
         localStorage.setItem('ap_moda_sales', JSON.stringify(dbSales));
       } else {
-        const localSales = lastSalesRef.current && lastSalesRef.current.length > 0 ? lastSalesRef.current : sales;
-        if (localSales && localSales.length > 0) {
-          console.log('[Supabase Sync] Enviando suas vendas locais da tela para o Supabase vazio:', localSales.length);
-          await syncBulkSalesToSupabase(localSales);
+        if (isSeeded) {
+          console.log('[Supabase Sync] Banco de vendas vazio na nuvem e sistema já semeado. Respeitando estado limpo.');
+          setSales([]);
+          localStorage.setItem('ap_moda_sales', JSON.stringify([]));
         } else {
-          console.log('[Supabase Sync] Semeando histórico de vendas (INITIAL_SALES) no Supabase vazio:', INITIAL_SALES.length);
-          await syncBulkSalesToSupabase(INITIAL_SALES);
-          setSales(INITIAL_SALES);
-          localStorage.setItem('ap_moda_sales', JSON.stringify(INITIAL_SALES));
+          const localSales = lastSalesRef.current && lastSalesRef.current.length > 0 ? lastSalesRef.current : sales;
+          if (localSales && localSales.length > 0) {
+            console.log('[Supabase Sync] Enviando suas vendas locais da tela para o Supabase vazio:', localSales.length);
+            await syncBulkSalesToSupabase(localSales);
+          } else {
+            console.log('[Supabase Sync] Semeando histórico de vendas (INITIAL_SALES) no Supabase vazio:', INITIAL_SALES.length);
+            await syncBulkSalesToSupabase(INITIAL_SALES);
+            setSales(INITIAL_SALES);
+            localStorage.setItem('ap_moda_sales', JSON.stringify(INITIAL_SALES));
+          }
         }
       }
 
@@ -857,15 +875,21 @@ export default function App() {
         setTransactions(dbTransactions);
         localStorage.setItem('ap_moda_transactions', JSON.stringify(dbTransactions));
       } else {
-        const localTxs = lastTransactionsRef.current && lastTransactionsRef.current.length > 0 ? lastTransactionsRef.current : transactions;
-        if (localTxs && localTxs.length > 0) {
-          console.log('[Supabase Sync] Enviando fluxo de caixa local para o Supabase vazio:', localTxs.length);
-          await syncBulkTransactionsToSupabase(localTxs);
+        if (isSeeded) {
+          console.log('[Supabase Sync] Banco de transações vazio na nuvem e sistema já semeado. Respeitando estado limpo.');
+          setTransactions([]);
+          localStorage.setItem('ap_moda_transactions', JSON.stringify([]));
         } else {
-          console.log('[Supabase Sync] Semeando fluxo de caixa padrão (INITIAL_TRANSACTIONS) no Supabase vazio:', INITIAL_TRANSACTIONS.length);
-          await syncBulkTransactionsToSupabase(INITIAL_TRANSACTIONS);
-          setTransactions(INITIAL_TRANSACTIONS);
-          localStorage.setItem('ap_moda_transactions', JSON.stringify(INITIAL_TRANSACTIONS));
+          const localTxs = lastTransactionsRef.current && lastTransactionsRef.current.length > 0 ? lastTransactionsRef.current : transactions;
+          if (localTxs && localTxs.length > 0) {
+            console.log('[Supabase Sync] Enviando fluxo de caixa local para o Supabase vazio:', localTxs.length);
+            await syncBulkTransactionsToSupabase(localTxs);
+          } else {
+            console.log('[Supabase Sync] Semeando fluxo de caixa padrão (INITIAL_TRANSACTIONS) no Supabase vazio:', INITIAL_TRANSACTIONS.length);
+            await syncBulkTransactionsToSupabase(INITIAL_TRANSACTIONS);
+            setTransactions(INITIAL_TRANSACTIONS);
+            localStorage.setItem('ap_moda_transactions', JSON.stringify(INITIAL_TRANSACTIONS));
+          }
         }
       }
 
@@ -1057,17 +1081,27 @@ export default function App() {
               localStorage.setItem('ap_moda_products', JSON.stringify(dbProducts));
               console.log('[Public Catalog Init] Produtos carregados com sucesso do Supabase para visitantes:', dbProducts.length);
             } else {
-              console.log('[Public Catalog Init] Banco de dados vazio ou sem conexão. Carregando catálogo padrão INITIAL_PRODUCTS.');
-              setProducts(INITIAL_PRODUCTS);
-              localStorage.setItem('ap_moda_products', JSON.stringify(INITIAL_PRODUCTS));
-              try {
-                await syncBulkProductsToSupabase(INITIAL_PRODUCTS);
-              } catch (errSeed) {}
+              const isSeeded = localStorage.getItem('ap_system_seeded') === 'true';
+              if (isSeeded) {
+                console.log('[Public Catalog Init] Banco de dados vazio e sistema já semeado. Exibindo catálogo limpo.');
+                setProducts([]);
+                localStorage.setItem('ap_moda_products', JSON.stringify([]));
+              } else {
+                console.log('[Public Catalog Init] Banco de dados vazio e não semeado. Carregando catálogo padrão localmente (somente leitura).');
+                setProducts(INITIAL_PRODUCTS);
+                localStorage.setItem('ap_moda_products', JSON.stringify(INITIAL_PRODUCTS));
+              }
             }
           } catch (err) {
             console.warn('[Public Catalog Init] Falha ao carregar produtos na inicialização do visitante:', err);
-            setProducts(INITIAL_PRODUCTS);
-            localStorage.setItem('ap_moda_products', JSON.stringify(INITIAL_PRODUCTS));
+            const isSeeded = localStorage.getItem('ap_system_seeded') === 'true';
+            if (isSeeded) {
+              setProducts([]);
+              localStorage.setItem('ap_moda_products', JSON.stringify([]));
+            } else {
+              setProducts(INITIAL_PRODUCTS);
+              localStorage.setItem('ap_moda_products', JSON.stringify(INITIAL_PRODUCTS));
+            }
           }
         }
       }
