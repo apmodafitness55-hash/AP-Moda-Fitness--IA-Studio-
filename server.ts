@@ -764,47 +764,94 @@ let currentConfigKey: string = '';
 let isSupabaseVerifiedHealthy: boolean | null = null;
 
 function resolveSupabaseCredentials() {
-  let url = process.env.SUPABASE_URL || '';
-  let key = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || '';
+  // 1. Gather all unique non-empty, non-placeholder candidate URLs
+  const candidateUrls = new Set<string>();
+  if (process.env.SUPABASE_URL) candidateUrls.add(process.env.SUPABASE_URL.trim());
+  if (process.env.VITE_SUPABASE_URL) candidateUrls.add(process.env.VITE_SUPABASE_URL.trim());
 
-  // Determine if env variables are explicitly defined and valid
-  const hasEnvConfig = url && url.startsWith('http') && key && !key.startsWith('MY_');
-
-  if (url && url.startsWith('eyJ')) {
+  // Check saved local config file
+  const configPath = path.join(process.cwd(), 'db_config.json');
+  let savedConfig: any = null;
+  if (fs.existsSync(configPath)) {
     try {
-      const payload = JSON.parse(Buffer.from(url.split('.')[1], 'base64').toString('utf8'));
-      if (payload && payload.ref) {
-        if (process.env.VITE_SUPABASE_URL) {
-          url = process.env.VITE_SUPABASE_URL;
-        } else {
-          url = `https://${payload.ref}.supabase.co`;
-        }
+      savedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      if (savedConfig && typeof savedConfig === 'object') {
+        if (savedConfig.url) candidateUrls.add(savedConfig.url.trim());
       }
-    } catch (e: any) {
-      console.error('[Supabase Server Init] Erro ao decodificar JWT em SUPABASE_URL:', e.message);
+    } catch (e) {}
+  }
+
+  // 2. Gather all unique non-empty, non-placeholder candidate keys
+  const candidateKeys = new Set<string>();
+  if (process.env.SUPABASE_ANON_KEY) candidateKeys.add(process.env.SUPABASE_ANON_KEY.trim());
+  if (process.env.VITE_SUPABASE_ANON_KEY) candidateKeys.add(process.env.VITE_SUPABASE_ANON_KEY.trim());
+  if (process.env.SUPABASE_KEY) candidateKeys.add(process.env.SUPABASE_KEY.trim());
+  if (savedConfig && typeof savedConfig === 'object' && savedConfig.key) {
+    candidateKeys.add(savedConfig.key.trim());
+  }
+
+  // Helper to extract project reference ('ref') from a Supabase anon/JWT key
+  const getRefFromKey = (token: string): string | null => {
+    try {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+        if (payload && payload.ref) return String(payload.ref).toLowerCase();
+      }
+    } catch (e) {}
+    return null;
+  };
+
+  // Helper to extract project reference ('ref') from a Supabase URL
+  const getRefFromUrl = (urlString: string): string | null => {
+    try {
+      const match = urlString.match(/https?:\/\/([^.]+)\.supabase/i);
+      if (match) return match[1].toLowerCase();
+    } catch (e) {}
+    return null;
+  };
+
+  // 3. Try to find a matching URL & Key pair where the project reference matches
+  let matchedUrl = '';
+  let matchedKey = '';
+
+  const cleanUrls = Array.from(candidateUrls).filter(u => u && u.startsWith('http'));
+  const cleanKeys = Array.from(candidateKeys).filter(k => k && k.length > 50 && !k.startsWith('MY_'));
+
+  for (const u of cleanUrls) {
+    const urlRef = getRefFromUrl(u);
+    if (!urlRef) continue;
+    for (const k of cleanKeys) {
+      const keyRef = getRefFromKey(k);
+      if (keyRef === urlRef) {
+        matchedUrl = u;
+        matchedKey = k;
+        break;
+      }
+    }
+    if (matchedUrl) break;
+  }
+
+  // 4. Fallback: If no matching pairs can be found via JWT analysis, fallback to original logic
+  if (!matchedUrl || !matchedKey) {
+    const envUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+    const envKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || '';
+
+    const hasEnvConfig = envUrl && envUrl.startsWith('http') && envKey && !envKey.startsWith('MY_');
+
+    if (hasEnvConfig) {
+      matchedUrl = envUrl;
+      matchedKey = envKey;
+    } else if (savedConfig?.url && savedConfig?.key) {
+      matchedUrl = savedConfig.url;
+      matchedKey = savedConfig.key;
+    } else {
+      matchedUrl = envUrl || savedConfig?.url || '';
+      matchedKey = envKey || savedConfig?.key || '';
     }
   }
 
-  // Only fall back to db_config.json if environment variables are not set
-  if (!hasEnvConfig) {
-    const configPath = path.join(process.cwd(), 'db_config.json');
-    if (fs.existsSync(configPath)) {
-      try {
-        const savedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-        if (savedConfig.url && savedConfig.key) {
-          const isFirebaseUrl = savedConfig.url.includes('firebaseio.com') || savedConfig.url.includes('firebase');
-          if (!isFirebaseUrl) {
-            url = savedConfig.url;
-            key = savedConfig.key;
-          }
-        }
-      } catch (e) {
-        // Ignored
-      }
-    }
-  }
-
-  return { url, key };
+  return { url: matchedUrl, key: matchedKey };
 }
 
 async function checkSupabaseHealth(url: string, key: string): Promise<boolean> {
