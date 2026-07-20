@@ -937,7 +937,7 @@ export function CheckoutWizard({
                       <div key={idx} className="flex justify-between items-center p-2.5 bg-slate-50 border border-slate-100 rounded-xl relative">
                         <div className="flex items-center gap-2.5 text-left">
                           <div className="w-11 h-11 rounded-lg overflow-hidden bg-slate-200 flex-shrink-0 border border-slate-100">
-                            <img src={item.product.image} className="w-full h-full object-cover" />
+                            <img src={item.product.image} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                           </div>
                           <div className="leading-snug">
                             <p className="font-extrabold text-slate-800 text-[11px] truncate max-w-[140px]">{item.product.name}</p>
@@ -1006,7 +1006,7 @@ export function CheckoutWizard({
                     <div className="flex items-center justify-between gap-3 bg-white p-2 rounded-xl border border-slate-100 shadow-xs">
                       <div className="flex items-center gap-2.5">
                         <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-150 border border-slate-100 shrink-0">
-                          <img src={suggestedProduct.image} className="w-full h-full object-cover" />
+                          <img src={suggestedProduct.image} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         </div>
                         <div className="leading-snug">
                           <p className="font-extrabold text-slate-800 text-[10px] line-clamp-1 max-w-[150px]">

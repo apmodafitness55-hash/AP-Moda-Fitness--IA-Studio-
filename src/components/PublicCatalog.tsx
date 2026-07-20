@@ -4347,7 +4347,7 @@ export default function PublicCatalog({
                           className="w-28 shrink-0 space-y-1.5 cursor-pointer bg-white hover:bg-slate-50 p-2 border border-slate-100 rounded-xl"
                         >
                           <div className="aspect-[3/4] rounded-lg overflow-hidden relative">
-                            <img src={rel.image} className="w-full h-full object-cover" />
+                            <img src={rel.image} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                           </div>
                           <div className="text-left leading-tight text-[9px]">
                             <p className="font-extrabold text-slate-700 truncate">{rel.name}</p>

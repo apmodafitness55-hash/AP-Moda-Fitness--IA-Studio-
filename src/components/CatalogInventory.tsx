@@ -2151,7 +2151,7 @@ export default function CatalogInventory({
                 <div className="grid grid-cols-5 gap-2">
                   {newImages.map((img, idx) => (
                     <div key={idx} className="relative aspect-square rounded-lg border border-slate-200 overflow-hidden bg-slate-100 group shadow-xs">
-                      <img src={img} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                      <img src={img} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       <button
                         type="button"
                         onClick={() => {
@@ -2711,7 +2711,7 @@ export default function CatalogInventory({
                 <div className="grid grid-cols-5 gap-2">
                   {editImages.map((img, idx) => (
                     <div key={idx} className="relative aspect-square rounded-lg border border-slate-200 overflow-hidden bg-slate-100 group shadow-xs">
-                      <img src={img} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                      <img src={img} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       <button
                         type="button"
                         onClick={() => {

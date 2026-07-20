@@ -24,7 +24,20 @@ const firebase = {
     return {
       createBucket: async (b: string, opts?: any) => ({ error: null }),
       from: (b: string) => ({
-        upload: async (f: string, buf: any, opts?: any) => ({ data: { path: f }, error: null }),
+        upload: async (f: string, buf: any, opts?: any) => {
+          try {
+            const uploadsDir = path.join(process.cwd(), 'uploads');
+            if (!fs.existsSync(uploadsDir)) {
+              fs.mkdirSync(uploadsDir, { recursive: true });
+            }
+            fs.writeFileSync(path.join(uploadsDir, f), buf);
+            console.log('[Local Storage Fallback] Salvo com sucesso localmente:', f);
+            return { data: { path: f }, error: null };
+          } catch (err: any) {
+            console.error('[Local Storage Fallback] Erro ao salvar localmente:', err);
+            return { data: null, error: err };
+          }
+        },
         getPublicUrl: (f: string) => ({ data: { publicUrl: `/api/images/${f}` } })
       })
     };
@@ -916,6 +929,26 @@ app.post('/api/set-db-config', async (req, res) => {
   }
 });
 
+// Servidor de imagens locais para fallback do ImgBB
+app.get('/api/images/:filename', (req, res) => {
+  try {
+    const filename = req.params.filename;
+    // Impedir ataques de directory traversal
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).send('Filename inválido.');
+    }
+    const filePath = path.join(process.cwd(), 'uploads', filename);
+    if (fs.existsSync(filePath)) {
+      res.sendFile(filePath);
+    } else {
+      res.status(404).send('Imagem não encontrada localmente.');
+    }
+  } catch (err: any) {
+    console.error('[Serve Local Image Error]', err);
+    res.status(500).send('Erro interno ao servir imagem.');
+  }
+});
+
 // Lazy-initialized Gemini Client to prevent crashes during container start
 const aiClientsMap = new Map<string, GoogleGenAI>();
 function getGeminiClient(customApiKey?: string): GoogleGenAI {
@@ -1618,7 +1651,7 @@ app.post('/api/proxy/upload-image', async (req, res) => {
         'Content-Type': 'application/x-www-form-urlencoded'
       },
       body: body.toString()
-    }, 5000);
+    }, 30000);
 
     if (!imgbbRes.ok) {
       const errText = await imgbbRes.text();
