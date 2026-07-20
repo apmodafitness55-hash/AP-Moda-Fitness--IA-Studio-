@@ -17,7 +17,8 @@ import {
   X,
   Sparkles,
   Ruler,
-  Maximize
+  Maximize,
+  Loader2
 } from 'lucide-react';
 import { Product } from '../types';
 import ImageUploader from './ImageUploader';
@@ -363,6 +364,73 @@ export default function CatalogInventory({
   const [editVideoUrl, setEditVideoUrl] = useState('');
   const [editColors, setEditColors] = useState('');
   const [editSizes, setEditSizes] = useState('');
+
+  const [isResolvingNew, setIsResolvingNew] = useState(false);
+  const [isResolvingEdit, setIsResolvingEdit] = useState(false);
+
+  const resolveImageAndAdd = async (url: string, type: 'new' | 'edit') => {
+    const trimmed = url.trim();
+    if (!trimmed) return;
+
+    if (type === 'new') {
+      setIsResolvingNew(true);
+    } else {
+      setIsResolvingEdit(true);
+    }
+
+    try {
+      const response = await fetch(`/api/proxy/resolve-image-url?url=${encodeURIComponent(trimmed)}`);
+      if (response.ok) {
+        const result = await response.json();
+        if (result && result.resolved) {
+          if (type === 'new') {
+            setNewImages(prev => {
+              if (prev.includes(result.resolved)) return prev;
+              return [...prev, result.resolved];
+            });
+          } else {
+            setEditImages(prev => {
+              if (prev.includes(result.resolved)) return prev;
+              return [...prev, result.resolved];
+            });
+          }
+          return;
+        }
+      }
+      
+      // Fallback to original trimmed link if resolution endpoint fails
+      if (type === 'new') {
+        setNewImages(prev => {
+          if (prev.includes(trimmed)) return prev;
+          return [...prev, trimmed];
+        });
+      } else {
+        setEditImages(prev => {
+          if (prev.includes(trimmed)) return prev;
+          return [...prev, trimmed];
+        });
+      }
+    } catch (err) {
+      console.error('[Client Resolve Image URL Error]:', err);
+      if (type === 'new') {
+        setNewImages(prev => {
+          if (prev.includes(trimmed)) return prev;
+          return [...prev, trimmed];
+        });
+      } else {
+        setEditImages(prev => {
+          if (prev.includes(trimmed)) return prev;
+          return [...prev, trimmed];
+        });
+      }
+    } finally {
+      if (type === 'new') {
+        setIsResolvingNew(false);
+      } else {
+        setIsResolvingEdit(false);
+      }
+    }
+  };
 
   // Sync total stock based on color-specific stocks and size-color specific stocks
   React.useEffect(() => {
@@ -2200,14 +2268,15 @@ export default function CatalogInventory({
                     <input 
                       id="new-product-image-add-input"
                       type="text"
-                      placeholder="Cole o link da foto de um produto..."
-                      className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-md text-slate-600 focus:outline-hidden focus:border-pink-500 transition-all font-mono text-[10px]"
+                      disabled={isResolvingNew}
+                      placeholder={isResolvingNew ? "Convertendo link do ImgBB..." : "Cole o link da foto de um produto..."}
+                      className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-md text-slate-600 focus:outline-hidden focus:border-pink-500 transition-all font-mono text-[10px] disabled:bg-slate-100 disabled:text-slate-400"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
                           const val = (e.target as HTMLInputElement).value.trim();
                           if (val) {
-                            setNewImages(prev => [...prev, val]);
+                            resolveImageAndAdd(val, 'new');
                             (e.target as HTMLInputElement).value = '';
                           }
                         }
@@ -2215,16 +2284,24 @@ export default function CatalogInventory({
                     />
                     <button 
                       type="button" 
+                      disabled={isResolvingNew}
                       onClick={(e) => {
                         const input = document.getElementById('new-product-image-add-input') as HTMLInputElement;
                         if (input && input.value.trim()) {
-                          setNewImages(prev => [...prev, input.value.trim()]);
+                          resolveImageAndAdd(input.value.trim(), 'new');
                           input.value = '';
                         }
                       }}
-                      className="px-3 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-md transition-all cursor-pointer text-xs border-none"
+                      className="px-3 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-md transition-all cursor-pointer text-xs border-none flex items-center gap-1 disabled:bg-pink-400/80 disabled:cursor-not-allowed"
                     >
-                      Adicionar
+                      {isResolvingNew ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span>Aguarde...</span>
+                        </>
+                      ) : (
+                        <span>Adicionar</span>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -2760,14 +2837,15 @@ export default function CatalogInventory({
                     <input 
                       id="edit-product-image-add-input"
                       type="text"
-                      placeholder="Cole o link da foto de um produto..."
-                      className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-md text-slate-600 focus:outline-hidden focus:border-pink-500 transition-all font-mono text-[10px]"
+                      disabled={isResolvingEdit}
+                      placeholder={isResolvingEdit ? "Convertendo link do ImgBB..." : "Cole o link da foto de um produto..."}
+                      className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-md text-slate-600 focus:outline-hidden focus:border-pink-500 transition-all font-mono text-[10px] disabled:bg-slate-100 disabled:text-slate-400"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
                           const val = (e.target as HTMLInputElement).value.trim();
                           if (val) {
-                            setEditImages(prev => [...prev, val]);
+                            resolveImageAndAdd(val, 'edit');
                             (e.target as HTMLInputElement).value = '';
                           }
                         }
@@ -2775,16 +2853,24 @@ export default function CatalogInventory({
                     />
                     <button 
                       type="button" 
+                      disabled={isResolvingEdit}
                       onClick={(e) => {
                         const input = document.getElementById('edit-product-image-add-input') as HTMLInputElement;
                         if (input && input.value.trim()) {
-                          setEditImages(prev => [...prev, input.value.trim()]);
+                          resolveImageAndAdd(input.value.trim(), 'edit');
                           input.value = '';
                         }
                       }}
-                      className="px-3 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-md transition-all cursor-pointer text-xs border-none"
+                      className="px-3 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-md transition-all cursor-pointer text-xs border-none flex items-center gap-1 disabled:bg-pink-400/80 disabled:cursor-not-allowed"
                     >
-                      Adicionar
+                      {isResolvingEdit ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span>Aguarde...</span>
+                        </>
+                      ) : (
+                        <span>Adicionar</span>
+                      )}
                     </button>
                   </div>
                 </div>

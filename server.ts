@@ -2534,6 +2534,20 @@ app.get('/api/proxy/products', async (req, res) => {
   }
 });
 
+app.get('/api/proxy/resolve-image-url', async (req, res) => {
+  try {
+    const { url } = req.query;
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ error: 'URL é obrigatória.' });
+    }
+    const resolved = await resolveDirectImageUrl(url);
+    res.json({ original: url, resolved });
+  } catch (err: any) {
+    console.error('[Proxy Resolve Image URL] Erro:', err);
+    res.status(500).json({ error: err.message || 'Erro ao resolver link da imagem.' });
+  }
+});
+
 async function resolveDirectImageUrl(url: string): Promise<string> {
   if (!url || typeof url !== 'string') return url;
   const trimmed = url.trim();
