@@ -764,8 +764,11 @@ let currentConfigKey: string = '';
 let isSupabaseVerifiedHealthy: boolean | null = null;
 
 function resolveSupabaseCredentials() {
-  let url = process.env.SUPABASE_URL;
-  let key = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
+  let url = process.env.SUPABASE_URL || '';
+  let key = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || '';
+
+  // Determine if env variables are explicitly defined and valid
+  const hasEnvConfig = url && url.startsWith('http') && key && !key.startsWith('MY_');
 
   if (url && url.startsWith('eyJ')) {
     try {
@@ -782,19 +785,22 @@ function resolveSupabaseCredentials() {
     }
   }
 
-  const configPath = path.join(process.cwd(), 'db_config.json');
-  if (fs.existsSync(configPath)) {
-    try {
-      const savedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-      if (savedConfig.url && savedConfig.key) {
-        const isFirebaseUrl = savedConfig.url.includes('firebaseio.com') || savedConfig.url.includes('firebase');
-        if (!isFirebaseUrl) {
-          url = savedConfig.url;
-          key = savedConfig.key;
+  // Only fall back to db_config.json if environment variables are not set
+  if (!hasEnvConfig) {
+    const configPath = path.join(process.cwd(), 'db_config.json');
+    if (fs.existsSync(configPath)) {
+      try {
+        const savedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        if (savedConfig.url && savedConfig.key) {
+          const isFirebaseUrl = savedConfig.url.includes('firebaseio.com') || savedConfig.url.includes('firebase');
+          if (!isFirebaseUrl) {
+            url = savedConfig.url;
+            key = savedConfig.key;
+          }
         }
+      } catch (e) {
+        // Ignored
       }
-    } catch (e) {
-      // Ignored
     }
   }
 
@@ -892,12 +898,16 @@ app.get('/api/get-db-config', (req, res) => {
     let url = process.env.SUPABASE_URL || '';
     let key = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || '';
 
-    const configPath = path.join(process.cwd(), 'db_config.json');
-    if (fs.existsSync(configPath)) {
-      const savedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-      if (savedConfig.url && savedConfig.key) {
-        url = savedConfig.url;
-        key = savedConfig.key;
+    const hasEnvConfig = url && url.startsWith('http') && key && !key.startsWith('MY_');
+
+    if (!hasEnvConfig) {
+      const configPath = path.join(process.cwd(), 'db_config.json');
+      if (fs.existsSync(configPath)) {
+        const savedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        if (savedConfig.url && savedConfig.key) {
+          url = savedConfig.url;
+          key = savedConfig.key;
+        }
       }
     }
     res.json({ url, key });
