@@ -794,7 +794,7 @@ async function checkSupabaseHealth(url: string, key: string): Promise<boolean> {
   }
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1500);
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8-second timeout is safe for free-tier sleep wakeups
     const response = await fetch(`${url}/rest/v1/`, {
       headers: {
         'apikey': key,
@@ -826,18 +826,24 @@ function getFirebaseServerDb() {
     return new LocalDBAdapter();
   }
 
-  if (isSupabaseVerifiedHealthy === false) {
-    return new LocalDBAdapter();
-  }
+  const isDefaultSandbox = supabaseUrl && supabaseUrl.includes('ckrwmdaocoyigpmzpdyz');
 
-  if (isSupabaseVerifiedHealthy === null) {
-    isSupabaseVerifiedHealthy = false; // set temporary false to prevent concurrent check attempts
-    const { url, key } = resolveSupabaseCredentials();
-    checkSupabaseHealth(url || '', key || '').then(healthy => {
-      isSupabaseVerifiedHealthy = healthy;
-      console.log(`[Supabase Server Lazy Check] Resultado da verificação: ${healthy ? 'CONECTADO' : 'USANDO BANCO LOCAL SEGURO'}`);
-    });
-    return new LocalDBAdapter();
+  // If it's the default sandbox, fallback to LocalDB if unhealthy. 
+  // If it's a custom database, always use it to prevent data partition/loss.
+  if (isDefaultSandbox) {
+    if (isSupabaseVerifiedHealthy === false) {
+      return new LocalDBAdapter();
+    }
+
+    if (isSupabaseVerifiedHealthy === null) {
+      isSupabaseVerifiedHealthy = false; // set temporary false to prevent concurrent check attempts
+      const { url, key } = resolveSupabaseCredentials();
+      checkSupabaseHealth(url || '', key || '').then(healthy => {
+        isSupabaseVerifiedHealthy = healthy;
+        console.log(`[Supabase Server Lazy Check] Resultado da verificação: ${healthy ? 'CONECTADO' : 'USANDO BANCO LOCAL SEGURO'}`);
+      });
+      return new LocalDBAdapter();
+    }
   }
 
   if (supabaseClientInstance && (currentConfigUrl !== supabaseUrl || currentConfigKey !== supabaseKey)) {
