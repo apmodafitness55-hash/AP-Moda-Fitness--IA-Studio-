@@ -129,10 +129,12 @@ class SupabaseQueryBuilder {
     try {
       let q = this.query;
       if (!this.isSingle && !this.isMaybeSingle) {
-        const rawLimit = this.limitVal !== null ? this.limitVal : 20;
-        const limit = Math.min(rawLimit, 20); // Strict limit cap of 20 to prevent traffic overruns
-        const offset = this.offsetVal !== null ? this.offsetVal : 0;
-        q = q.range(offset, offset + limit - 1);
+        if (this.limitVal !== null) {
+          const offset = this.offsetVal !== null ? this.offsetVal : 0;
+          q = q.range(offset, offset + this.limitVal - 1);
+        } else if (this.offsetVal !== null) {
+          q = q.range(this.offsetVal, this.offsetVal + 99999);
+        }
       } else {
         if (this.isSingle) {
           q = q.single();
@@ -612,8 +614,11 @@ class LocalQueryBuilder {
         data = list[0] || null;
       } else {
         const offset = this.offsetVal !== null ? this.offsetVal : 0;
-        const limit = this.limitVal !== null ? this.limitVal : 20;
-        data = list.slice(offset, offset + limit);
+        if (this.limitVal !== null) {
+          data = list.slice(offset, offset + this.limitVal);
+        } else if (offset > 0) {
+          data = list.slice(offset);
+        }
       }
 
       const result = { data, error: null };
@@ -2063,10 +2068,18 @@ app.post('/api/clients/login', async (req, res) => {
 app.get('/api/proxy/clients', async (req, res) => {
   try {
     const db = getFirebaseServerDb();
-    const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
-    const limit = Math.min(rawLimit, 20); // Strict limit cap of 20 to prevent traffic overruns
+    const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
-    const { data, error } = await db.from('ap_clients').select('*').limit(limit).offset(offset);
+    
+    let query = db.from('ap_clients').select('*');
+    if (rawLimit !== null) {
+      query = query.limit(rawLimit);
+    }
+    if (offset > 0) {
+      query = query.offset(offset);
+    }
+    
+    const { data, error } = await query;
     if (error) throw error;
     const sanitized = await sanitizeClients(data || []);
     res.json(sanitized);
@@ -2166,10 +2179,18 @@ app.post('/api/proxy/clients', async (req, res) => {
 app.get('/api/proxy/sales', async (req, res) => {
   try {
     const db = getFirebaseServerDb();
-    const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
-    const limit = Math.min(rawLimit, 20); // Strict limit cap of 20 to prevent traffic overruns
+    const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
-    const { data, error } = await db.from('ap_sales').select('*').limit(limit).offset(offset);
+    
+    let query = db.from('ap_sales').select('*');
+    if (rawLimit !== null) {
+      query = query.limit(rawLimit);
+    }
+    if (offset > 0) {
+      query = query.offset(offset);
+    }
+    
+    const { data, error } = await query;
     if (error) throw error;
     const sanitized = await sanitizeSales(data || []);
     res.json(sanitized);
@@ -2208,10 +2229,18 @@ app.delete('/api/proxy/sales/:id', async (req, res) => {
 app.get('/api/proxy/transactions', async (req, res) => {
   try {
     const db = getFirebaseServerDb();
-    const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
-    const limit = Math.min(rawLimit, 20); // Strict limit cap of 20 to prevent traffic overruns
+    const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
-    const { data, error } = await db.from('ap_transactions').select('*').limit(limit).offset(offset);
+    
+    let query = db.from('ap_transactions').select('*');
+    if (rawLimit !== null) {
+      query = query.limit(rawLimit);
+    }
+    if (offset > 0) {
+      query = query.offset(offset);
+    }
+    
+    const { data, error } = await query;
     if (error) throw error;
     const sanitized = await sanitizeTransactions(data || []);
     res.json(sanitized);
@@ -2238,10 +2267,18 @@ app.post('/api/proxy/transactions', async (req, res) => {
 app.get('/api/proxy/online-orders', async (req, res) => {
   try {
     const db = getFirebaseServerDb();
-    const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
-    const limit = Math.min(rawLimit, 20); // Strict limit cap of 20 to prevent traffic overruns
+    const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
-    const { data, error } = await db.from('ap_online_orders').select('*').limit(limit).offset(offset);
+    
+    let query = db.from('ap_online_orders').select('*');
+    if (rawLimit !== null) {
+      query = query.limit(rawLimit);
+    }
+    if (offset > 0) {
+      query = query.offset(offset);
+    }
+    
+    const { data, error } = await query;
     if (error) throw error;
     const sanitized = await sanitizeOnlineOrders(data || []);
     res.json(sanitized);
@@ -2268,10 +2305,18 @@ app.post('/api/proxy/online-orders', async (req, res) => {
 app.get('/api/proxy/checkouts', async (req, res) => {
   try {
     const db = getFirebaseServerDb();
-    const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
-    const limit = Math.min(rawLimit, 20); // Strict limit cap of 20 to prevent traffic overruns
+    const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
-    const { data, error } = await db.from('ap_checkouts').select('*').limit(limit).offset(offset);
+    
+    let query = db.from('ap_checkouts').select('*');
+    if (rawLimit !== null) {
+      query = query.limit(rawLimit);
+    }
+    if (offset > 0) {
+      query = query.offset(offset);
+    }
+    
+    const { data, error } = await query;
     if (error) throw error;
     const sanitized = await sanitizeCheckouts(data || []);
     res.json(sanitized);
@@ -2329,10 +2374,18 @@ app.post('/api/proxy/checkouts', async (req, res) => {
 app.get('/api/proxy/team-members', async (req, res) => {
   try {
     const db = getFirebaseServerDb();
-    const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
-    const limit = Math.min(rawLimit, 20); // Strict limit cap of 20 to prevent traffic overruns
+    const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
-    const { data, error } = await db.from('ap_team_members').select('*').limit(limit).offset(offset);
+    
+    let query = db.from('ap_team_members').select('*');
+    if (rawLimit !== null) {
+      query = query.limit(rawLimit);
+    }
+    if (offset > 0) {
+      query = query.offset(offset);
+    }
+    
+    const { data, error } = await query;
     if (error) throw error;
     res.json(data || []);
   } catch (err: any) {
@@ -2412,10 +2465,18 @@ app.delete('/api/proxy/team-members/:id', async (req, res) => {
 app.get('/api/proxy/card-terminals', async (req, res) => {
   try {
     const db = getFirebaseServerDb();
-    const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
-    const limit = Math.min(rawLimit, 20); // Strict limit cap of 20 to prevent traffic overruns
+    const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
-    const { data, error } = await db.from('card_terminals').select('*').limit(limit).offset(offset);
+    
+    let query = db.from('card_terminals').select('*');
+    if (rawLimit !== null) {
+      query = query.limit(rawLimit);
+    }
+    if (offset > 0) {
+      query = query.offset(offset);
+    }
+    
+    const { data, error } = await query;
     if (error) throw error;
     res.json(data || []);
   } catch (err: any) {
@@ -2453,10 +2514,18 @@ app.delete('/api/proxy/card-terminals/:id', async (req, res) => {
 app.get('/api/proxy/products', async (req, res) => {
   try {
     const db = getFirebaseServerDb();
-    const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
-    const limit = Math.min(rawLimit, 20); // Strict limit cap of 20 to prevent traffic overruns
+    const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
-    const { data, error } = await db.from('ap_products').select('*').limit(limit).offset(offset);
+    
+    let query = db.from('ap_products').select('*');
+    if (rawLimit !== null) {
+      query = query.limit(rawLimit);
+    }
+    if (offset > 0) {
+      query = query.offset(offset);
+    }
+    
+    const { data, error } = await query;
     if (error) throw error;
     res.json(data || []);
   } catch (err: any) {
@@ -2465,10 +2534,90 @@ app.get('/api/proxy/products', async (req, res) => {
   }
 });
 
+async function resolveDirectImageUrl(url: string): Promise<string> {
+  if (!url || typeof url !== 'string') return url;
+  const trimmed = url.trim();
+  // Check if it looks like an ImgBB viewer link
+  const isImgbbViewer = (trimmed.includes('ibb.co/') || trimmed.includes('imgbb.com/')) && 
+                        !trimmed.includes('i.ibb.co/') && 
+                        !/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(trimmed);
+  if (!isImgbbViewer) {
+    return trimmed;
+  }
+
+  try {
+    console.log(`[ImgBB Resolver] Resolvendo link do visualizador: ${trimmed}`);
+    const response = await fetchWithTimeout(trimmed, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36'
+      }
+    }, 10000);
+
+    if (!response.ok) {
+      console.warn(`[ImgBB Resolver] Falha ao acessar página (status ${response.status})`);
+      return trimmed;
+    }
+
+    const html = await response.text();
+    const ogImageMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i) || 
+                         html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i);
+    if (ogImageMatch && ogImageMatch[1]) {
+      const directUrl = ogImageMatch[1].trim();
+      console.log(`[ImgBB Resolver] Link direto resolvido com sucesso: ${directUrl}`);
+      return directUrl;
+    }
+  } catch (err: any) {
+    console.error(`[ImgBB Resolver] Erro ao tentar resolver link:`, err.message || err);
+  }
+  return trimmed;
+}
+
+async function resolveProductPayloadImages(p: any) {
+  if (!p || typeof p !== 'object') return p;
+  
+  if (p.image && typeof p.image === 'string') {
+    p.image = await resolveDirectImageUrl(p.image);
+  }
+  
+  if (p.images) {
+    if (Array.isArray(p.images)) {
+      p.images = await Promise.all(p.images.map(async (img: any) => {
+        if (typeof img === 'string') return await resolveDirectImageUrl(img);
+        return img;
+      }));
+    } else if (typeof p.images === 'string') {
+      try {
+        if (p.images.startsWith('[') && p.images.endsWith(']')) {
+          const parsed = JSON.parse(p.images);
+          if (Array.isArray(parsed)) {
+            const resolved = await Promise.all(parsed.map(async (img: any) => {
+              if (typeof img === 'string') return await resolveDirectImageUrl(img);
+              return img;
+            }));
+            p.images = JSON.stringify(resolved);
+          }
+        } else {
+          p.images = await resolveDirectImageUrl(p.images);
+        }
+      } catch (e) {
+        p.images = await resolveDirectImageUrl(p.images);
+      }
+    }
+  }
+  return p;
+}
+
 app.post('/api/proxy/products', async (req, res) => {
   try {
     const db = getFirebaseServerDb();
     let payloads = req.body;
+
+    // Resolve any indirect ImgBB viewer links to direct CDN URLs
+    if (Array.isArray(payloads)) {
+      payloads = await Promise.all(payloads.map(p => resolveProductPayloadImages(p)));
+    } else if (payloads && typeof payloads === 'object') {
+      payloads = await resolveProductPayloadImages(payloads);
+    }
 
     // Dynamic schema discovery to strip invalid columns and avoid PostgREST column-not-found errors
     // Skip entirely for LocalDBAdapter as it doesn't enforce strict table schema
@@ -2536,10 +2685,18 @@ app.delete('/api/proxy/products/:id', async (req, res) => {
 app.get('/api/proxy/system-configs', async (req, res) => {
   try {
     const db = getFirebaseServerDb();
-    const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
-    const limit = Math.min(rawLimit, 20); // Strict limit cap of 20 to prevent traffic overruns
+    const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
-    const { data, error } = await db.from('ap_system_configs').select('key, value').limit(limit).offset(offset);
+    
+    let query = db.from('ap_system_configs').select('key, value');
+    if (rawLimit !== null) {
+      query = query.limit(rawLimit);
+    }
+    if (offset > 0) {
+      query = query.offset(offset);
+    }
+    
+    const { data, error } = await query;
     if (error) throw error;
 
     // Mask sensitive config values for frontend safety
