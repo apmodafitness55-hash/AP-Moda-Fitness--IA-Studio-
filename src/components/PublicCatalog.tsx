@@ -544,6 +544,32 @@ export default function PublicCatalog({
     }
   }, [selectedProduct?.id, selectedSize, selectedColor, productQty]);
 
+  // Keep selectedProduct and cart in sync with real-time products prop updates from Admin Panel
+  useEffect(() => {
+    if (!products || products.length === 0) return;
+
+    if (selectedProduct) {
+      const fresh = products.find(p => p.id === selectedProduct.id);
+      if (fresh && JSON.stringify(fresh) !== JSON.stringify(selectedProduct)) {
+        setSelectedProduct(fresh);
+      }
+    }
+
+    setCart(prevCart => {
+      if (!prevCart || prevCart.length === 0) return prevCart;
+      let hasChanges = false;
+      const updatedCart = prevCart.map(item => {
+        const fresh = products.find(p => p.id === item.product.id);
+        if (fresh && JSON.stringify(fresh) !== JSON.stringify(item.product)) {
+          hasChanges = true;
+          return { ...item, product: fresh };
+        }
+        return item;
+      });
+      return hasChanges ? updatedCart : prevCart;
+    });
+  }, [products]);
+
   // Mock alternative angles / views inside product details
   const [detailImageIdx, setDetailImageIdx] = useState(0);
   const [zoomPos, setZoomPos] = useState({ x: 50, y: 50 });

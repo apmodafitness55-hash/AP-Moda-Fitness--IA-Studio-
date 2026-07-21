@@ -1177,6 +1177,22 @@ export default function App() {
     };
   }, []);
 
+  // Escuta alterações de localStorage em outras abas para sincronização imediata do estoque entre Painel e Site
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'ap_moda_products' && e.newValue) {
+        try {
+          const updated = JSON.parse(e.newValue);
+          if (Array.isArray(updated) && updated.length > 0) {
+            setProducts(updated);
+          }
+        } catch (err) {}
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   // Intercepting and immediate-upload list wrappers for children components
   const handleUpdateClientsList = useCallback(async (updatedList: Client[] | ((prev: Client[]) => Client[])) => {
     setClients(prev => {
@@ -2338,43 +2354,45 @@ export default function App() {
   }, [systemOffline]);
 
   // Handlers
-  const handleAddSale = (newSale: Sale) => {
+  const handleAddSale = (newSale: Sale, skipStockDeduction = false) => {
     setSales(prev => [newSale, ...prev]);
 
-    // Update product stock counts
+    // Update product stock counts if not skipped
     let updatedProducts: Product[] = [];
-    setProducts(prevProducts => {
-      const newList = prevProducts.map(prod => {
-        const itemSold = newSale.items.find(it => it.productId === prod.id);
-        if (itemSold) {
-          const sz = (itemSold as any).selectedSize;
-          const col = (itemSold as any).selectedColor;
-          
-          let updatedColorStocks = prod.colorStocks ? { ...prod.colorStocks } : {};
-          let updatedSizeColorStocks = prod.sizeColorStocks ? JSON.parse(JSON.stringify(prod.sizeColorStocks)) : {};
+    if (!skipStockDeduction) {
+      setProducts(prevProducts => {
+        const newList = prevProducts.map(prod => {
+          const itemSold = newSale.items.find(it => it.productId === prod.id || (it.name && it.name.toLowerCase().includes(prod.name.toLowerCase())));
+          if (itemSold) {
+            const sz = (itemSold as any).selectedSize || (itemSold as any).size;
+            const col = (itemSold as any).selectedColor || (itemSold as any).color;
+            
+            let updatedColorStocks = prod.colorStocks ? { ...prod.colorStocks } : {};
+            let updatedSizeColorStocks = prod.sizeColorStocks ? JSON.parse(JSON.stringify(prod.sizeColorStocks)) : {};
 
-          if (sz && col && updatedSizeColorStocks[sz] && updatedSizeColorStocks[sz][col] !== undefined) {
-            updatedSizeColorStocks[sz][col] = Math.max(0, updatedSizeColorStocks[sz][col] - itemSold.quantity);
+            if (sz && col && updatedSizeColorStocks[sz] && updatedSizeColorStocks[sz][col] !== undefined) {
+              updatedSizeColorStocks[sz][col] = Math.max(0, updatedSizeColorStocks[sz][col] - itemSold.quantity);
+            }
+
+            if (col && updatedColorStocks[col] !== undefined) {
+              updatedColorStocks[col] = Math.max(0, updatedColorStocks[col] - itemSold.quantity);
+            }
+
+            const updatedProd = {
+              ...prod,
+              stock: Math.max(0, prod.stock - itemSold.quantity),
+              salesCount: prod.salesCount + itemSold.quantity,
+              colorStocks: updatedColorStocks,
+              sizeColorStocks: updatedSizeColorStocks
+            };
+            updatedProducts.push(updatedProd);
+            return updatedProd;
           }
-
-          if (col && updatedColorStocks[col] !== undefined) {
-            updatedColorStocks[col] = Math.max(0, updatedColorStocks[col] - itemSold.quantity);
-          }
-
-          const updatedProd = {
-            ...prod,
-            stock: Math.max(0, prod.stock - itemSold.quantity),
-            salesCount: prod.salesCount + itemSold.quantity,
-            colorStocks: updatedColorStocks,
-            sizeColorStocks: updatedSizeColorStocks
-          };
-          updatedProducts.push(updatedProd);
-          return updatedProd;
-        }
-        return prod;
+          return prod;
+        });
+        return newList;
       });
-      return newList;
-    });
+    }
 
     // Feed to cashflows / transactions
     const paymentDetailStr = newSale.payments && newSale.payments.length > 0
@@ -2562,15 +2580,17 @@ export default function App() {
 
           if (isPaidNow && !wasPaid) {
             const saleItems = o.items.map((it: any) => {
-              const matchedProd = products.find(p => p.name.toLowerCase() === it.productName.toLowerCase());
+              const matchedProd = products.find(p => p.id === it.productId) ||
+                                  products.find(p => p.name.toLowerCase() === (it.productName || '').toLowerCase()) ||
+                                  products.find(p => it.productName && it.productName.toLowerCase().startsWith(p.name.toLowerCase()));
               return {
                 productId: matchedProd?.id || it.productId || `p-ext-${Date.now()}`,
-                name: it.productName,
+                name: matchedProd?.name || it.productName,
                 quantity: Number(it.quantity || 1),
                 price: Number(it.price || 0),
                 cost: matchedProd?.cost || Math.round(it.price * 0.45),
-                selectedColor: it.color || '',
-                selectedSize: it.size || ''
+                selectedColor: it.color || it.selectedColor || '',
+                selectedSize: it.size || it.selectedSize || ''
               };
             });
 
@@ -2594,8 +2614,59 @@ export default function App() {
             };
 
             setTimeout(() => {
-              handleAddSale(newSale);
+              handleAddSale(newSale, true);
             }, 100);
+          }
+
+          if ((newStatus === 'Cancelado' || newStatus === 'Recusado') && o.status !== 'Cancelado' && o.status !== 'Recusado') {
+            let restoredProducts: Product[] = [];
+            setProducts(prevProducts => {
+              return prevProducts.map(prod => {
+                const itemInOrder = o.items.find((it: any) => 
+                  it.productId === prod.id || 
+                  (it.productName && (
+                    it.productName === prod.name || 
+                    it.productName.toLowerCase().startsWith(prod.name.toLowerCase()) ||
+                    prod.name.toLowerCase().startsWith(it.productName.toLowerCase())
+                  ))
+                );
+                if (itemInOrder) {
+                  const sz = itemInOrder.size || itemInOrder.selectedSize || '';
+                  const col = itemInOrder.color || itemInOrder.selectedColor || '';
+                  const qty = Number(itemInOrder.quantity || 1);
+
+                  let updatedColorStocks = prod.colorStocks ? { ...prod.colorStocks } : {};
+                  let updatedSizeColorStocks = prod.sizeColorStocks ? JSON.parse(JSON.stringify(prod.sizeColorStocks)) : {};
+
+                  if (sz && col && updatedSizeColorStocks[sz] && updatedSizeColorStocks[sz][col] !== undefined) {
+                    updatedSizeColorStocks[sz][col] = updatedSizeColorStocks[sz][col] + qty;
+                  }
+
+                  if (col && updatedColorStocks[col] !== undefined) {
+                    updatedColorStocks[col] = updatedColorStocks[col] + qty;
+                  }
+
+                  const restoredProd = {
+                    ...prod,
+                    stock: prod.stock + qty,
+                    salesCount: Math.max(0, (prod.salesCount || 0) - qty),
+                    colorStocks: updatedColorStocks,
+                    sizeColorStocks: updatedSizeColorStocks
+                  };
+                  restoredProducts.push(restoredProd);
+                  return restoredProd;
+                }
+                return prod;
+              });
+            });
+
+            if (restoredProducts.length > 0) {
+              saveDirtyIds('ap_dirty_products', Array.from(new Set([...getDirtyIds('ap_dirty_products'), ...restoredProducts.map(p => p.id)])));
+              const config = getSupabaseConfig();
+              if (config && !systemOffline) {
+                syncBulkProductsToSupabase(restoredProducts).catch(e => console.warn('Error syncing restored products:', e));
+              }
+            }
           }
 
           if (newStatus === 'Entregue' && o.status !== 'Entregue') {
@@ -2931,6 +3002,64 @@ export default function App() {
       if (orderExists) return prev;
       return [newOrder, ...prev];
     });
+
+    // Immediately decrement stock in products for items in the new online order
+    let updatedProducts: Product[] = [];
+    if (Array.isArray(newOrder.items) && newOrder.items.length > 0) {
+      setProducts(prevProducts => {
+        const newList = prevProducts.map(prod => {
+          const itemSold = newOrder.items.find((it: any) => 
+            it.productId === prod.id || 
+            (it.productName && (
+              it.productName === prod.name || 
+              it.productName.toLowerCase().startsWith(prod.name.toLowerCase()) ||
+              prod.name.toLowerCase().startsWith(it.productName.toLowerCase())
+            ))
+          );
+          if (itemSold) {
+            const sz = itemSold.size || itemSold.selectedSize || '';
+            const col = itemSold.color || itemSold.selectedColor || '';
+            const qty = Number(itemSold.quantity || 1);
+
+            let updatedColorStocks = prod.colorStocks ? { ...prod.colorStocks } : {};
+            let updatedSizeColorStocks = prod.sizeColorStocks ? JSON.parse(JSON.stringify(prod.sizeColorStocks)) : {};
+
+            if (sz && col && updatedSizeColorStocks[sz] && updatedSizeColorStocks[sz][col] !== undefined) {
+              updatedSizeColorStocks[sz][col] = Math.max(0, updatedSizeColorStocks[sz][col] - qty);
+            }
+
+            if (col && updatedColorStocks[col] !== undefined) {
+              updatedColorStocks[col] = Math.max(0, updatedColorStocks[col] - qty);
+            }
+
+            const updatedProd = {
+              ...prod,
+              stock: Math.max(0, prod.stock - qty),
+              salesCount: (prod.salesCount || 0) + qty,
+              colorStocks: updatedColorStocks,
+              sizeColorStocks: updatedSizeColorStocks
+            };
+            updatedProducts.push(updatedProd);
+            return updatedProd;
+          }
+          return prod;
+        });
+        return newList;
+      });
+
+      if (updatedProducts.length > 0) {
+        saveDirtyIds('ap_dirty_products', Array.from(new Set([...getDirtyIds('ap_dirty_products'), ...updatedProducts.map(p => p.id)])));
+        const config = getSupabaseConfig();
+        if (config && !systemOffline) {
+          syncBulkProductsToSupabase(updatedProducts).then(success => {
+            if (success) {
+              const affectedIds = updatedProducts.map(p => p.id);
+              saveDirtyIds('ap_dirty_products', getDirtyIds('ap_dirty_products').filter(id => !affectedIds.includes(id)));
+            }
+          }).catch(e => console.error(e));
+        }
+      }
+    }
 
     // Fire visual alert notification in management dashboard
     const newNotify = {
