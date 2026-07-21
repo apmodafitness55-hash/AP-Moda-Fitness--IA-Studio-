@@ -415,6 +415,7 @@ export default function OrdersLogistics({
   const [selectedCondProducts, setSelectedCondProducts] = useState<{ productId: string; productName: string; quantity: number; price: number; cost: number }[]>([]);
   const [currentSelectedProdId, setCurrentSelectedProdId] = useState('');
   const [currentSelectedProdQty, setCurrentSelectedProdQty] = useState(1);
+  const [selectedClientObj, setSelectedClientObj] = useState<Client | null>(null);
 
   // Active closure/return modal
   const [closingCondBag, setClosingCondBag] = useState<any | null>(null);
@@ -1607,6 +1608,7 @@ export default function OrdersLogistics({
                   setCondClient('');
                   setCondPhone('');
                   setCondDays(3);
+                  setSelectedClientObj(null);
                   setIsCondicionalModalOpen(true);
                 }}
                 className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-1.5 shadow-md shadow-pink-500/10 self-start sm:self-center border-none"
@@ -1681,7 +1683,11 @@ export default function OrdersLogistics({
                                     title="Chamar WhatsApp para alinhar peças"
                                     type="button"
                                     onClick={() => {
-                                      const text = `Olá, ${cond.clientName}! Tudo bem? ❤️ Aqui é da AP Moda Fitness. Passando para saber de deu tudo certinho com as peças da sua mala de condicional e quais você mais amou! 🥰`;
+                                      const dateLimitFormatted = cond.dateLimit;
+                                      const itemsText = cond.items.map((i: any) => `• ${i.quantity}x ${i.productName} - R$ ${i.price.toFixed(2)}`).join('\n');
+                                      const totalVal = cond.items.reduce((s: number, i: any) => s + (i.price * i.quantity), 0);
+                                      const totalFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalVal);
+                                      const text = `Olá, ${cond.clientName}! Tudo bem? ❤️\n\nPassando para acompanhar as pecinhas da sua *Mala de Condicional* da *AP Moda Fitness*! 🥰\n\n📦 *Peças na sua mala:*\n${itemsText}\n\n💰 *Valor total sob prova:* ${totalFormatted}\n⏳ *Prazo de devolução/retorno:* ${dateLimitFormatted}\n\nExperimente com calma e me diga quais você mais amou e quer ficar! Se precisar de ajuda para escolher ou quiser simular suas medidas no nosso *Provador Virtual*, estou por aqui! 🌸🏼‍♀️`;
                                       window.open(`https://api.whatsapp.com/send?phone=55${cond.phone}&text=${encodeURIComponent(text)}`, '_blank');
                                     }}
                                     className="p-1 px-2.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors border-none font-bold text-[10px] cursor-pointer flex items-center gap-1"
@@ -1749,6 +1755,86 @@ export default function OrdersLogistics({
             </div>
 
             <div className="p-6 space-y-4 text-xs text-slate-700 max-h-[85vh] overflow-y-auto">
+              <div className="bg-pink-50/40 p-3 rounded-xl border border-pink-100/55 space-y-2">
+                <label className="text-pink-850 font-bold uppercase text-[9px] tracking-wide block">Localizar Cliente no CRM (Otimização de Medidas)</label>
+                <select
+                  onChange={(e) => {
+                    const selectedId = e.target.value;
+                    if (selectedId) {
+                      const found = clients.find(c => c.id === selectedId);
+                      if (found) {
+                        setCondClient(found.name);
+                        setCondPhone(found.phone || '');
+                        setSelectedClientObj(found);
+                      }
+                    } else {
+                      setSelectedClientObj(null);
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-pink-500 transition-all font-medium font-sans text-xs"
+                >
+                  <option value="">-- Selecionar Cliente Cadastrada (Opcional) --</option>
+                  {clients.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} {c.phone ? `(${c.phone})` : ''}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Virtual Fitting Room CRM Integration display */}
+              {selectedClientObj && (selectedClientObj.busto || selectedClientObj.cintura || selectedClientObj.quadril || selectedClientObj.altura) && (
+                <div className="bg-slate-50 border border-slate-100 p-3 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-[9px] text-slate-500 uppercase tracking-widest font-mono">📏 Medidas do Perfil & Tamanho Recomendado</span>
+                    <span className="bg-pink-100 text-pink-700 font-extrabold px-2 py-0.5 rounded-full text-[10px]">
+                      Tamanho Ideal: {(() => {
+                        const busto = selectedClientObj.busto;
+                        const cintura = selectedClientObj.cintura;
+                        const quadril = selectedClientObj.quadril;
+                        const sizes = [];
+                        if (busto) {
+                          if (busto <= 88) sizes.push(1);
+                          else if (busto <= 96) sizes.push(2);
+                          else if (busto <= 104) sizes.push(3);
+                          else sizes.push(4);
+                        }
+                        if (cintura) {
+                          if (cintura <= 68) sizes.push(1);
+                          else if (cintura <= 76) sizes.push(2);
+                          else if (cintura <= 84) sizes.push(3);
+                          else sizes.push(4);
+                        }
+                        if (quadril) {
+                          if (quadril <= 98) sizes.push(1);
+                          else if (quadril <= 106) sizes.push(2);
+                          else if (quadril <= 114) sizes.push(3);
+                          else sizes.push(4);
+                        }
+                        const max = sizes.length > 0 ? Math.max(...sizes) : 2;
+                        return max === 1 ? 'P' : max === 2 ? 'M' : max === 3 ? 'G' : 'GG';
+                      })()}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5 text-center text-[10px]">
+                     <div className="bg-white p-1.5 rounded-lg border border-slate-150">
+                       <span className="block text-[8px] text-slate-400 font-bold uppercase">Busto</span>
+                       <span className="font-mono font-bold text-slate-700">{selectedClientObj.busto ? `${selectedClientObj.busto} cm` : '--'}</span>
+                     </div>
+                     <div className="bg-white p-1.5 rounded-lg border border-slate-150">
+                       <span className="block text-[8px] text-slate-400 font-bold uppercase">Cintura</span>
+                       <span className="font-mono font-bold text-slate-700">{selectedClientObj.cintura ? `${selectedClientObj.cintura} cm` : '--'}</span>
+                     </div>
+                     <div className="bg-white p-1.5 rounded-lg border border-slate-150">
+                       <span className="block text-[8px] text-slate-400 font-bold uppercase">Quadril</span>
+                       <span className="font-mono font-bold text-slate-700">{selectedClientObj.quadril ? `${selectedClientObj.quadril} cm` : '--'}</span>
+                     </div>
+                     <div className="bg-white p-1.5 rounded-lg border border-slate-150">
+                       <span className="block text-[8px] text-slate-400 font-bold uppercase">Altura/Peso</span>
+                       <span className="font-mono font-bold text-slate-700">{selectedClientObj.altura ? `${selectedClientObj.altura}m` : '--'}/{selectedClientObj.peso ? `${selectedClientObj.peso}kg` : '--'}</span>
+                     </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-slate-400 font-bold uppercase text-[9px] tracking-wide block">Nome da Cliente</label>
@@ -1931,7 +2017,15 @@ export default function OrdersLogistics({
 
                     setCondicionais(prev => [newCondBag, ...prev]);
                     setIsCondicionalModalOpen(false);
-                    alert(`Sacola condicional para a cliente ${condClient} gravada com sucesso! Uma mala exclusiva com ${selectedCondProducts.length} peças foi encaminhada.`);
+                    
+                    const openWhatsApp = confirm(`Sacola condicional para a cliente ${condClient} gravada com sucesso!\n\nDeseja abrir o WhatsApp para enviar o recibo detalhado da mala condicional com a lista de peças?`);
+                    if (openWhatsApp) {
+                      const itemsText = selectedCondProducts.map(i => `• ${i.quantity}x ${i.productName} - R$ ${i.price.toFixed(2)}`).join('\n');
+                      const totalVal = selectedCondProducts.reduce((s, i) => s + (i.price * i.quantity), 0);
+                      const totalFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalVal);
+                      const msgText = `Olá, ${condClient.trim()}! Tudo bem? ❤️\n\nSua *Mala de Condicional* da *AP Moda Fitness* está pronta e a caminho! 🥰\n\n📦 *Peças enviadas para você provar em casa:*\n${itemsText}\n\n💰 *Valor total sob prova:* ${totalFormatted}\n⏳ *Prazo para retorno sugerido:* ${dateLimitStr}\n\nExperimente tudo com carinho! Caso queira ajustar ou simular suas medidas no nosso *Provador Virtual*, estamos à disposição. Boas provas! 🌸🏃‍♀️`;
+                      window.open(`https://api.whatsapp.com/send?phone=55${condPhone.trim()}&text=${encodeURIComponent(msgText)}`, '_blank');
+                    }
                   }}
                   className="flex-1 py-2.5 bg-pink-600 text-white hover:bg-pink-700 rounded-xl font-bold transition-all cursor-pointer text-center shadow-md shadow-pink-500/10 border-none text-xs"
                 >

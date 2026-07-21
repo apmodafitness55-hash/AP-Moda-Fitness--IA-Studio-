@@ -511,10 +511,10 @@ export default function PublicCatalog({
 
   // Provador Virtual (Virtual Fitting Room) States
   const [isFittingRoomOpen, setIsFittingRoomOpen] = useState(false);
-  const [fitHeight, setFitHeight] = useState<string>('');
-  const [fitWeight, setFitWeight] = useState<string>('');
-  const [fitAge, setFitAge] = useState<string>('');
-  const [fitPreference, setFitPreference] = useState<'justo' | 'normal' | 'largo'>('normal');
+  const [fitHeight, setFitHeight] = useState<string>(() => localStorage.getItem('ap_fit_height') || '');
+  const [fitWeight, setFitWeight] = useState<string>(() => localStorage.getItem('ap_fit_weight') || '');
+  const [fitAge, setFitAge] = useState<string>(() => localStorage.getItem('ap_fit_age') || '');
+  const [fitPreference, setFitPreference] = useState<'justo' | 'normal' | 'largo'>(() => (localStorage.getItem('ap_fit_preference') as any) || 'normal');
   const [fitRecommendation, setFitRecommendation] = useState<string | null>(null);
 
   const [productQty, setProductQty] = useState(1);
@@ -1697,15 +1697,21 @@ export default function PublicCatalog({
     return bestSize;
   };
 
+  // Re-calculate recommendation on mount/product change if we have saved measurements
+  useEffect(() => {
+    if (fitHeight && fitWeight && fitAge) {
+      const currentHeight = Number(fitHeight);
+      const currentWeight = Number(fitWeight);
+      const currentAge = Number(fitAge);
+      const rec = calculateRecommendedSize(currentHeight, currentWeight, currentAge, fitPreference);
+      setFitRecommendation(rec);
+    }
+  }, [fitHeight, fitWeight, fitAge, fitPreference, selectedProduct]);
+
   const handleApplyRecommendedSize = (size: string) => {
     setSelectedSize(size);
     setIsFittingRoomOpen(false);
-    // Reset recommend states
-    setFitHeight('');
-    setFitWeight('');
-    setFitAge('');
-    setFitPreference('normal');
-    setFitRecommendation(null);
+    // Persist and keep the values so that they are persistent for other products!
   };
 
   // Compre o Look: Algoritmo de inteligência de cross-selling de peças fitness complementares
@@ -4674,6 +4680,7 @@ export default function PublicCatalog({
                     onChange={(e) => {
                       const val = e.target.value;
                       setFitAge(val);
+                      localStorage.setItem('ap_fit_age', val);
                       const currentHeight = Number(fitHeight) || 165;
                       const currentWeight = Number(fitWeight) || 60;
                       const currentAge = Number(val) || 30;
@@ -4698,6 +4705,7 @@ export default function PublicCatalog({
                     onChange={(e) => {
                       const val = e.target.value;
                       setFitWeight(val);
+                      localStorage.setItem('ap_fit_weight', val);
                       const currentHeight = Number(fitHeight) || 165;
                       const currentWeight = Number(val) || 60;
                       const currentAge = Number(fitAge) || 30;
@@ -4722,6 +4730,7 @@ export default function PublicCatalog({
                     onChange={(e) => {
                       const val = e.target.value;
                       setFitHeight(val);
+                      localStorage.setItem('ap_fit_height', val);
                       const currentHeight = Number(val) || 165;
                       const currentWeight = Number(fitWeight) || 60;
                       const currentAge = Number(fitAge) || 30;
@@ -4746,6 +4755,7 @@ export default function PublicCatalog({
                         type="button"
                         onClick={() => {
                           setFitPreference(pref);
+                          localStorage.setItem('ap_fit_preference', pref);
                           const currentHeight = Number(fitHeight) || 165;
                           const currentWeight = Number(fitWeight) || 60;
                           const currentAge = Number(fitAge) || 30;
