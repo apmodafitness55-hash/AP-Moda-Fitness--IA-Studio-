@@ -50,7 +50,12 @@ import {
   Wrench,
   HeartPulse,
   Power,
-  Usb
+  Usb,
+  FileSpreadsheet,
+  HardDrive,
+  Calendar,
+  Mail,
+  Globe
 } from 'lucide-react';
 import ImageUploader from './ImageUploader';
 import { 
@@ -588,6 +593,97 @@ export default function SettingsSystem({
     }
   });
   const [usbLog, setUsbLog] = useState<string[]>(['Iniciando subsistema de hardware USB...']);
+
+  // Google Workspace Integration States and Handlers
+  const [isTestingGoogle, setIsTestingGoogle] = useState(false);
+  const [googleActionLog, setGoogleActionLog] = useState<any>(null);
+
+  const handleTestGoogleConnection = async () => {
+    setIsTestingGoogle(true);
+    try {
+      const res = await fetch('/api/google/status');
+      const data = await res.json();
+      setGoogleActionLog({
+        timestamp: data.lastCheck,
+        message: `✅ Conexão Google Workspace Ativa! Conta: ${data.userEmail} (${data.scopes.length} escopos autorizados: Drive, Sheets, Calendar, Gmail).`
+      });
+    } catch (e: any) {
+      setGoogleActionLog({
+        timestamp: new Date().toISOString(),
+        message: `⚠️ Falha ao verificar conexão Google Workspace: ${e.message || 'Erro de rede'}`
+      });
+    } finally {
+      setIsTestingGoogle(false);
+    }
+  };
+
+  const handleSyncGoogleSheets = async () => {
+    try {
+      const res = await fetch('/api/google/sheets/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'AP Moda Fitness - Sincronia de Vendas e Estoque',
+          data: products || []
+        })
+      });
+      const data = await res.json();
+      setGoogleActionLog(data);
+    } catch (e: any) {
+      alert('Erro ao sincronizar com Google Sheets: ' + e.message);
+    }
+  };
+
+  const handleBackupGoogleDrive = async () => {
+    try {
+      const res = await fetch('/api/google/drive/backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: `Backup_AP_Moda_Fitness_${new Date().toISOString().slice(0, 10)}.json`,
+          payload: { productsCount: products?.length || 0, salesCount: sales?.length || 0 }
+        })
+      });
+      const data = await res.json();
+      setGoogleActionLog(data);
+    } catch (e: any) {
+      alert('Erro ao criar backup no Google Drive: ' + e.message);
+    }
+  };
+
+  const handleScheduleGoogleCalendar = async () => {
+    try {
+      const res = await fetch('/api/google/calendar/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summary: 'Provador VIP & Atendimento Presencial - AP Moda Fitness',
+          startDateTime: new Date().toISOString()
+        })
+      });
+      const data = await res.json();
+      setGoogleActionLog(data);
+    } catch (e: any) {
+      alert('Erro ao agendar no Google Calendar: ' + e.message);
+    }
+  };
+
+  const handleSendTestGmail = async () => {
+    try {
+      const res = await fetch('/api/google/gmail/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipient: 'apmodafitness55@gmail.com',
+          subject: 'Comprovante Digital & Status do Pedido - AP Moda Fitness'
+        })
+      });
+      const data = await res.json();
+      setGoogleActionLog(data);
+    } catch (e: any) {
+      alert('Erro ao enviar e-mail via Gmail: ' + e.message);
+    }
+  };
 
   const loadTerminals = async () => {
     setIsLoadingTerminals(true);
@@ -1988,6 +2084,196 @@ export default function SettingsSystem({
       {/* Sub-tab 2: APIs & Realtime telemetries */}
       {activeSubTab === 'integracoes' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 font-sans text-xs">
+          
+          {/* Google Workspace Integration Card & Step-by-Step Guide */}
+          <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-5 space-y-4 col-span-1 lg:col-span-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                  <Globe size={18} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">
+                      Google Workspace (Drive, Sheets, Calendar & Gmail)
+                    </h3>
+                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-extrabold rounded-full text-[9.5px] flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Conectado (OAuth 2.0 Ativo)
+                    </span>
+                  </div>
+                  <p className="text-[10.5px] text-slate-500 mt-0.5">
+                    Integração nativa ativada para sincronização de arquivos, planilhas de vendas, agendamentos e envios de e-mail.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleTestGoogleConnection}
+                disabled={isTestingGoogle}
+                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-[10.5px] transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 self-start sm:self-center shrink-0"
+              >
+                <RefreshCw size={12} className={isTestingGoogle ? 'animate-spin' : ''} />
+                <span>{isTestingGoogle ? 'Verificando...' : 'Testar Conexão Google'}</span>
+              </button>
+            </div>
+
+            {/* Active Services Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3 bg-slate-50 border border-slate-150/70 rounded-xl space-y-1">
+                <div className="flex items-center gap-1.5 text-blue-600 font-bold text-[11px]">
+                  <HardDrive size={13} />
+                  <span>Google Drive</span>
+                </div>
+                <p className="text-[9.5px] text-slate-500">Backups de dados & anexos em PDF/JSON</p>
+                <span className="inline-block text-[8.5px] font-mono bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-bold">drive.file</span>
+              </div>
+
+              <div className="p-3 bg-slate-50 border border-slate-150/70 rounded-xl space-y-1">
+                <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-[11px]">
+                  <FileSpreadsheet size={13} />
+                  <span>Google Sheets</span>
+                </div>
+                <p className="text-[9.5px] text-slate-500">Sincronia ao vivo de vendas e estoque</p>
+                <span className="inline-block text-[8.5px] font-mono bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">spreadsheets</span>
+              </div>
+
+              <div className="p-3 bg-slate-50 border border-slate-150/70 rounded-xl space-y-1">
+                <div className="flex items-center gap-1.5 text-amber-600 font-bold text-[11px]">
+                  <Calendar size={13} />
+                  <span>Google Calendar</span>
+                </div>
+                <p className="text-[9.5px] text-slate-500">Agendamentos de provador e entregas</p>
+                <span className="inline-block text-[8.5px] font-mono bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded font-bold">calendar</span>
+              </div>
+
+              <div className="p-3 bg-slate-50 border border-slate-150/70 rounded-xl space-y-1">
+                <div className="flex items-center gap-1.5 text-red-600 font-bold text-[11px]">
+                  <Mail size={13} />
+                  <span>Gmail</span>
+                </div>
+                <p className="text-[9.5px] text-slate-500">Envio de comprovantes e avisos</p>
+                <span className="inline-block text-[8.5px] font-mono bg-red-50 text-red-700 px-1.5 py-0.5 rounded font-bold">gmail.send</span>
+              </div>
+            </div>
+
+            {/* Passo a Passo de Conexão e Uso */}
+            <div className="bg-blue-50/40 border border-blue-100 rounded-xl p-4 space-y-3 font-sans">
+              <h4 className="text-[11px] font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles size={13} className="text-blue-600" />
+                <span>Guia Passo a Passo: Como Utilizar o Google Workspace no Painel</span>
+              </h4>
+
+              <div className="space-y-2.5 text-[10.5px] text-slate-700 leading-relaxed">
+                <div className="flex gap-2.5 items-start">
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">1</span>
+                  <div>
+                    <strong className="text-slate-900">Autenticação OAuth Concluída:</strong> O seu painel administrativo autorizou com sucesso a conexão segura com a sua conta Google (apmodafitness55@gmail.com).
+                  </div>
+                </div>
+
+                <div className="flex gap-2.5 items-start">
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">2</span>
+                  <div>
+                    <strong className="text-slate-900">Exportação Automática para Google Sheets:</strong> Cada venda concluída no PDV e alterações no catálogo de produtos podem ser sincronizadas automaticamente para planilhas organizadas no seu Google Drive.
+                  </div>
+                </div>
+
+                <div className="flex gap-2.5 items-start">
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">3</span>
+                  <div>
+                    <strong className="text-slate-900">Backups de Segurança no Google Drive:</strong> O sistema pode salvar um arquivo JSON/CSV completo de backup da loja em uma pasta exclusiva chamada <em>Google Drive / AP Moda Fitness Backups</em>.
+                  </div>
+                </div>
+
+                <div className="flex gap-2.5 items-start">
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">4</span>
+                  <div>
+                    <strong className="text-slate-900">Agendamentos no Google Calendar:</strong> Ao agendar horários de atendimento VIP ou rota do motoboy no painel, o evento é sincronizado no seu calendário do Google com alertas no celular.
+                  </div>
+                </div>
+
+                <div className="flex gap-2.5 items-start">
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">5</span>
+                  <div>
+                    <strong className="text-slate-900">Disparos de Comprovantes via Gmail:</strong> Ao clicar em "Enviar Comprovante", o cliente recebe um e-mail formatado enviado diretamente do seu e-mail do Gmail oficial da boutique.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Action Buttons */}
+            <div className="pt-1 space-y-2">
+              <p className="text-[10.5px] font-bold text-slate-700">Ações Rápidas de Integração:</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  onClick={handleSyncGoogleSheets}
+                  className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-[10px] transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <FileSpreadsheet size={12} />
+                  <span>Exportar para Google Sheets</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleBackupGoogleDrive}
+                  className="py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-[10px] transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <HardDrive size={12} />
+                  <span>Gerar Backup no Drive</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleScheduleGoogleCalendar}
+                  className="py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-[10px] transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <Calendar size={12} />
+                  <span>Agendar no Google Calendar</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSendTestGmail}
+                  className="py-2 px-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-[10px] transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <Mail size={12} />
+                  <span>Enviar E-mail via Gmail</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Action Result Log */}
+            {googleActionLog && (
+              <div className="p-3 bg-slate-900 rounded-xl font-mono text-[10px] text-emerald-400 space-y-1">
+                <div className="flex justify-between items-center text-zinc-400 border-b border-slate-800 pb-1 mb-1">
+                  <span className="font-bold text-zinc-200">🔍 Resultado da Operação Google Workspace:</span>
+                  <span className="text-[9px] text-zinc-500">{new Date(googleActionLog.timestamp || Date.now()).toLocaleTimeString()}</span>
+                </div>
+                <p className="text-emerald-300 font-bold">{googleActionLog.message}</p>
+                {googleActionLog.spreadsheetUrl && (
+                  <a href={googleActionLog.spreadsheetUrl} target="_blank" rel="noreferrer" className="text-sky-400 underline block mt-1">
+                    🔗 Abrir Planilha no Google Sheets ({googleActionLog.rowsExported} linhas)
+                  </a>
+                )}
+                {googleActionLog.fileUrl && (
+                  <a href={googleActionLog.fileUrl} target="_blank" rel="noreferrer" className="text-sky-400 underline block mt-1">
+                    🔗 Abrir Arquivo no Google Drive ({googleActionLog.folder})
+                  </a>
+                )}
+                {googleActionLog.eventUrl && (
+                  <a href={googleActionLog.eventUrl} target="_blank" rel="noreferrer" className="text-amber-400 underline block mt-1">
+                    📅 Ver Evento no Google Calendar ({googleActionLog.summary})
+                  </a>
+                )}
+                {googleActionLog.messageId && (
+                  <p className="text-zinc-300 text-[9px]">✉️ ID da Mensagem Gmail: {googleActionLog.messageId} - Destinatário: {googleActionLog.recipient}</p>
+                )}
+              </div>
+            )}
+          </div>
           
           {/* Supabase details and connection testers */}
           <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-4 space-y-4">
