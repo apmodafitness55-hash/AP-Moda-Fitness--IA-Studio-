@@ -1135,7 +1135,20 @@ async function generateContentWithRetry(params: { model: string; contents: any }
 
 app.post('/api/infinitepay/create-link', async (req, res) => {
   try {
-    const { order_nsu, redirect_url, itens, items, isCents, buyer, customer, shipping_address, billing_address, metadata } = req.body;
+    const { 
+      order_nsu, 
+      redirect_url, 
+      itens, 
+      items, 
+      isCents, 
+      buyer, 
+      customer, 
+      shipping,
+      shipping_address, 
+      billing_address, 
+      address,
+      metadata 
+    } = req.body;
     
     if (!order_nsu) {
       return res.status(400).json({ error: 'O parâmetro order_nsu é obrigatório.' });
@@ -1163,11 +1176,65 @@ app.post('/api/infinitepay/create-link', async (req, res) => {
       itens: mappedItems
     };
 
-    if (buyer) payload.buyer = buyer;
-    if (customer) payload.customer = customer;
-    if (shipping_address) payload.shipping_address = shipping_address;
-    if (billing_address) payload.billing_address = billing_address;
-    if (metadata) payload.metadata = metadata;
+    const finalAddress = shipping_address || billing_address || address || 
+      (buyer && (buyer.address || buyer.shipping_address || buyer.billing_address)) || 
+      (customer && (customer.address || customer.shipping_address || customer.billing_address));
+
+    const enrichAddress = (obj: any, addr: any) => {
+      if (!obj) return obj;
+      const baseAddr = addr || {};
+      return {
+        ...obj,
+        address: {
+          street: obj.street || obj.address?.street || baseAddr.street || '',
+          number: obj.number || obj.address?.number || baseAddr.number || '',
+          complement: obj.complement || obj.address?.complement || baseAddr.complement || '',
+          neighborhood: obj.neighborhood || obj.address?.neighborhood || baseAddr.neighborhood || '',
+          city: obj.city || obj.address?.city || baseAddr.city || '',
+          state: obj.state || obj.address?.state || baseAddr.state || '',
+          zip: obj.zip || obj.address?.zip || baseAddr.zip || '',
+          cep: obj.cep || obj.address?.cep || baseAddr.cep || '',
+          country: obj.country || obj.address?.country || baseAddr.country || 'BR'
+        },
+        street: obj.street || obj.address?.street || baseAddr.street || '',
+        number: obj.number || obj.address?.number || baseAddr.number || '',
+        complement: obj.complement || obj.address?.complement || baseAddr.complement || '',
+        neighborhood: obj.neighborhood || obj.address?.neighborhood || baseAddr.neighborhood || '',
+        city: obj.city || obj.address?.city || baseAddr.city || '',
+        state: obj.state || obj.address?.state || baseAddr.state || '',
+        zip: obj.zip || obj.address?.zip || baseAddr.zip || '',
+        cep: obj.cep || obj.address?.cep || baseAddr.cep || '',
+        country: obj.country || obj.address?.country || baseAddr.country || 'BR'
+      };
+    };
+
+    if (buyer) {
+      payload.buyer = enrichAddress(buyer, finalAddress);
+    }
+    if (customer) {
+      payload.customer = enrichAddress(customer, finalAddress);
+    }
+    if (shipping) {
+      payload.shipping = enrichAddress(shipping, finalAddress);
+    }
+    if (shipping_address) {
+      payload.shipping_address = enrichAddress(shipping_address, finalAddress);
+    } else if (finalAddress) {
+      payload.shipping_address = enrichAddress(finalAddress, finalAddress);
+    }
+    if (billing_address) {
+      payload.billing_address = enrichAddress(billing_address, finalAddress);
+    } else if (finalAddress) {
+      payload.billing_address = enrichAddress(finalAddress, finalAddress);
+    }
+    if (address) {
+      payload.address = enrichAddress(address, finalAddress);
+    } else if (finalAddress) {
+      payload.address = enrichAddress(finalAddress, finalAddress);
+    }
+    if (metadata) {
+      payload.metadata = metadata;
+    }
 
     console.log('[InfinitePay Create Link] Enviando para InfinitePay:', JSON.stringify(payload));
 

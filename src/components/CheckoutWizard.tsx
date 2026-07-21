@@ -506,9 +506,13 @@ export function CheckoutWizard({
           setAddressEstado(firstAddr.estado);
           setAddressCep(firstAddr.cep);
           
-          // Trigger freight calculation if delivery method is correios or motoboy
-          if (firstAddr.cep && (deliveryMethod === 'correios' || deliveryMethod === 'motoboy')) {
+          // Trigger freight calculation if delivery method is correios
+          if (firstAddr.cep && deliveryMethod === 'correios') {
             handleCalculateMelhorEnvio(firstAddr.cep);
+          } else if (deliveryMethod === 'motoboy') {
+            setSelectedFreightFee(12);
+            setSelectedFreightName('Motoboy Express');
+            setSelectedFreightId('motoboy-express');
           }
         } else {
           // No addresses on file, show address form to enter one
@@ -560,8 +564,12 @@ export function CheckoutWizard({
   // Auto calculate Melhor Envio when Cep is 8 digits in step 2
   useEffect(() => {
     const cleanCep = addressCep.replace(/\D/g, '');
-    if (cleanCep.length === 8 && (deliveryMethod === 'correios' || deliveryMethod === 'motoboy')) {
+    if (cleanCep.length === 8 && deliveryMethod === 'correios') {
       handleCalculateMelhorEnvio(addressCep);
+    } else if (deliveryMethod === 'motoboy') {
+      setSelectedFreightFee(12);
+      setSelectedFreightName('Motoboy Express');
+      setSelectedFreightId('motoboy-express');
     }
   }, [addressCep, deliveryMethod]);
 
@@ -1452,8 +1460,12 @@ export function CheckoutWizard({
                                       setAddressCep(addr.cep);
                                       
                                       // Trigger auto freight calculation
-                                      if (addr.cep && (deliveryMethod === 'correios' || deliveryMethod === 'motoboy')) {
+                                      if (addr.cep && deliveryMethod === 'correios') {
                                         handleCalculateMelhorEnvio(addr.cep);
+                                      } else if (deliveryMethod === 'motoboy') {
+                                        setSelectedFreightFee(12);
+                                        setSelectedFreightName('Motoboy Express');
+                                        setSelectedFreightId('motoboy-express');
                                       }
                                     }}
                                     className={`p-3 rounded-xl border text-left transition-all cursor-pointer relative
@@ -1717,75 +1729,90 @@ export function CheckoutWizard({
                           </div>
                         </div>
 
+                        {/* Motoboy Local Delivery Rate */}
+                        {deliveryMethod === 'motoboy' && (
+                          <div className="mt-3 bg-emerald-50 border border-emerald-200/60 rounded-xl p-3 text-left space-y-1">
+                            <p className="text-[10px] font-black text-emerald-850 flex items-center gap-1.5 uppercase tracking-wide">
+                              <Truck size={12} className="text-emerald-600 shrink-0" />
+                              <span>Entrega via Motoboy Express</span>
+                            </p>
+                            <p className="text-[10px] text-emerald-700 font-semibold leading-normal">
+                              Taxa fixa local de <strong>R$ 12,00</strong>. Receba seu pedido no mesmo dia ou em até 24 horas úteis!
+                            </p>
+                          </div>
+                        )}
+
                         {/* Live Freight Options */}
-                        <div className="mt-3 bg-slate-50 border border-slate-200/60 rounded-xl p-3 text-left space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Opções de Envio (Melhor Envio)</span>
-                            {isMelhorEnvioLoading && (
-                              <span className="text-[8px] text-pink-600 font-bold flex items-center gap-1 animate-pulse">
-                                <span className="w-1.5 h-1.5 border-2 border-pink-600 border-t-transparent rounded-full animate-spin inline-block" />
-                                Cotando...
-                              </span>
+                        {deliveryMethod === 'correios' && (
+                          <div className="mt-3 bg-slate-50 border border-slate-200/60 rounded-xl p-3 text-left space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Opções de Envio (Melhor Envio)</span>
+                              {isMelhorEnvioLoading && (
+                                <span className="text-[8px] text-pink-600 font-bold flex items-center gap-1 animate-pulse">
+                                  <span className="w-1.5 h-1.5 border-2 border-pink-600 border-t-transparent rounded-full animate-spin inline-block" />
+                                  Cotando...
+                                </span>
+                              )}
+                            </div>
+
+                            {addressCep.replace(/\D/g, '').length < 8 ? (
+                              <p className="text-[9px] text-slate-400">Por favor, digite um CEP válido de 8 dígitos para consultar prazos e valores de frete.</p>
+                            ) : isMelhorEnvioLoading ? (
+                              <div className="py-4 text-center">
+                                <span className="w-4 h-4 border-2 border-pink-500 border-t-transparent rounded-full animate-spin inline-block" />
+                                <p className="text-[9px] text-slate-400 mt-1">Buscando as melhores taxas de frete...</p>
+                              </div>
+                            ) : melhorEnvioError ? (
+                              <div className="p-2 bg-rose-50 border border-rose-100 rounded-lg text-rose-700 text-[9px] font-semibold">
+                                {melhorEnvioError}
+                                <button
+                                  type="button"
+                                  onClick={() => handleCalculateMelhorEnvio(addressCep)}
+                                  className="ml-2 underline text-rose-800 hover:text-rose-900 font-bold cursor-pointer"
+                                >
+                                  Tentar Novamente
+                                </button>
+                              </div>
+                            ) : melhorEnvioOptions.length > 0 ? (
+                              <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                                {melhorEnvioOptions.map((option) => {
+                                  const isSelected = selectedFreightName === option.name && selectedFreightFee === option.price;
+                                  return (
+                                    <div
+                                      key={option.id}
+                                      onClick={() => {
+                                        setSelectedFreightFee(option.price);
+                                        setSelectedFreightName(option.name);
+                                        setSelectedFreightId(option.id);
+                                      }}
+                                      className={`p-2 rounded-xl border transition-all flex items-center justify-between cursor-pointer
+                                        ${isSelected 
+                                          ? 'bg-pink-50/50 border-pink-300 shadow-xs' 
+                                          : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${isSelected ? 'border-pink-500 bg-pink-500' : 'border-slate-300'}`}>
+                                          {isSelected && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                                        </div>
+                                        <div>
+                                          <p className="text-[10px] font-bold text-slate-800">
+                                            {option.company} - {option.name}
+                                          </p>
+                                          <p className="text-[8px] text-slate-450 font-medium">Prazo estimado: {option.delivery_time} {option.delivery_time === 1 ? 'dia útil' : 'dias úteis'}</p>
+                                        </div>
+                                      </div>
+                                      <span className="text-[10px] font-black text-pink-600 font-mono">
+                                        R$ {Number(option.price).toFixed(2)}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <p className="text-[9px] text-slate-400">Insira um CEP para ver as opções de frete disponíveis.</p>
                             )}
                           </div>
-
-                          {addressCep.replace(/\D/g, '').length < 8 ? (
-                            <p className="text-[9px] text-slate-400">Por favor, digite um CEP válido de 8 dígitos para consultar prazos e valores de frete.</p>
-                          ) : isMelhorEnvioLoading ? (
-                            <div className="py-4 text-center">
-                              <span className="w-4 h-4 border-2 border-pink-500 border-t-transparent rounded-full animate-spin inline-block" />
-                              <p className="text-[9px] text-slate-400 mt-1">Buscando as melhores taxas de frete...</p>
-                            </div>
-                          ) : melhorEnvioError ? (
-                            <div className="p-2 bg-rose-50 border border-rose-100 rounded-lg text-rose-700 text-[9px] font-semibold">
-                              {melhorEnvioError}
-                              <button
-                                type="button"
-                                onClick={() => handleCalculateMelhorEnvio(addressCep)}
-                                className="ml-2 underline text-rose-800 hover:text-rose-900 font-bold cursor-pointer"
-                              >
-                                Tentar Novamente
-                              </button>
-                            </div>
-                          ) : melhorEnvioOptions.length > 0 ? (
-                            <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
-                              {melhorEnvioOptions.map((option) => {
-                                const isSelected = selectedFreightName === option.name && selectedFreightFee === option.price;
-                                return (
-                                  <div
-                                    key={option.id}
-                                    onClick={() => {
-                                      setSelectedFreightFee(option.price);
-                                      setSelectedFreightName(option.name);
-                                      setSelectedFreightId(option.id);
-                                    }}
-                                    className={`p-2 rounded-xl border transition-all flex items-center justify-between cursor-pointer
-                                      ${isSelected 
-                                        ? 'bg-pink-50/50 border-pink-300 shadow-xs' 
-                                        : 'bg-white border-slate-200 hover:bg-slate-50'}`}
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${isSelected ? 'border-pink-500 bg-pink-500' : 'border-slate-300'}`}>
-                                        {isSelected && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
-                                      </div>
-                                      <div>
-                                        <p className="text-[10px] font-bold text-slate-800">
-                                          {option.company} - {option.name}
-                                        </p>
-                                        <p className="text-[8px] text-slate-450 font-medium">Prazo estimado: {option.delivery_time} {option.delivery_time === 1 ? 'dia útil' : 'dias úteis'}</p>
-                                      </div>
-                                    </div>
-                                    <span className="text-[10px] font-black text-pink-600 font-mono">
-                                      R$ {Number(option.price).toFixed(2)}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <p className="text-[9px] text-slate-400">Insira um CEP para ver as opções de frete disponíveis.</p>
-                          )}
-                        </div>
+                        )}
                       </div>
                     )}
 
@@ -1947,7 +1974,7 @@ export function CheckoutWizard({
 
                         <div className="bg-white p-4 rounded-xl border border-emerald-150 shadow-xs space-y-3 relative overflow-hidden">
                           <p className="text-[11px] font-bold text-slate-700 leading-normal">
-                            O seu <strong>QR Code legítimo e código Pix Copia e Cola dinâmico</strong> serão gerados em tempo real pela <strong>InfinitePay</strong> assim que você clicar em "Enviar Pedido".
+                            O seu <strong>QR Code legítimo e código Pix Copia e Cola dinâmico</strong> serão gerados em tempo real pela <strong>InfinitePay</strong> assim que você clicar em "Finalizar Pedido".
                           </p>
                           <p className="text-[10.5px] text-slate-500 font-semibold leading-normal">
                             Após a conclusão do pagamento, o sistema dará baixa automática no estoque de forma instantânea! 🌸
@@ -2114,12 +2141,12 @@ export function CheckoutWizard({
                       ) : paymentMethod === 'cartao' ? (
                         <>
                           <CreditCard size={15} />
-                          <span>Pagar Seguro</span>
+                          <span>Finalizar Pedido</span>
                         </>
                       ) : (
                         <>
-                          <MessageCircle size={15} />
-                          <span>Enviar Pedido</span>
+                          <CheckCircle2 size={15} />
+                          <span>Finalizar Pedido</span>
                         </>
                       )}
                     </button>

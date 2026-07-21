@@ -767,6 +767,22 @@ export default function PublicCatalog({
     }
   }, [isCartOpen]);
 
+  // Recover cart backup if returning from payment gateway without finishing
+  useEffect(() => {
+    try {
+      const backup = localStorage.getItem('ap_vitrine_cart_backup');
+      const currentCart = localStorage.getItem('ap_vitrine_cart');
+      const hasActiveOrder = !!completedOrder;
+      
+      if (backup && (!currentCart || currentCart === '[]' || currentCart === 'null') && !hasActiveOrder) {
+        setCart(JSON.parse(backup));
+        localStorage.removeItem('ap_vitrine_cart_backup');
+      }
+    } catch (e) {
+      console.error('[Cart Recovery Error]:', e);
+    }
+  }, [completedOrder]);
+
   // Checkout form info
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -938,8 +954,12 @@ export default function PublicCatalog({
         .catch(err => console.error('[ViaCEP Error] Falha ao consultar CEP:', err));
 
       // 2. Dispara cálculo do frete no Melhor Envio se o método de frete exigir endereço
-      if (deliveryMethod === 'correios' || deliveryMethod === 'motoboy') {
+      if (deliveryMethod === 'correios') {
         handleCalculateMelhorEnvio(cleanCep);
+      } else if (deliveryMethod === 'motoboy') {
+        setSelectedFreightFee(12);
+        setSelectedFreightName('Motoboy Express');
+        setSelectedFreightId('motoboy-express');
       }
     }
   }, [addressCep, deliveryMethod]);
@@ -2052,6 +2072,19 @@ export default function PublicCatalog({
   };
 
   // Coupons simulation
+  const extractCampaignCoupon = () => {
+    try {
+      const text = `${floatingBanner?.title || ''} ${floatingBanner?.subtitle || ''}`;
+      const matches = text.match(/[A-Z0-9]{4,15}/g);
+      if (matches) {
+        const ignored = ["CUPOM", "OFF", "CARRINHO", "GRATIS", "SINAL", "VIP", "DESCONTO", "SEMANA", "GANHAR", "FRETE", "APROVEITAR", "INSERA"];
+        const found = matches.find(w => !ignored.includes(w));
+        if (found) return found;
+      }
+    } catch (e) {}
+    return 'APMODAFIT';
+  };
+
   const handleApplyCoupon = () => {
     const cleanCode = couponCode.trim().toUpperCase();
     if (!cleanCode) return;
@@ -2059,6 +2092,8 @@ export default function PublicCatalog({
     setCouponError(null);
     setCouponSuccess(null);
     setIsApplyingCoupon(true);
+
+    const campaignCoupon = extractCampaignCoupon().toUpperCase();
 
     setTimeout(() => {
       setIsApplyingCoupon(false);
@@ -2071,8 +2106,11 @@ export default function PublicCatalog({
       } else if (cleanCode === 'FRETEGRATIS') {
         setAppliedCoupon({ code: 'FRETEGRATIS', discountPercent: 0, fixedDiscount: 0 });
         setCouponSuccess('Cupom FRETEGRATIS ativado com sucesso!');
+      } else if (cleanCode === campaignCoupon || cleanCode === 'APMODAFIT' || cleanCode === 'APMODAFITNESS') {
+        setAppliedCoupon({ code: cleanCode, discountPercent: 5, fixedDiscount: 0 });
+        setCouponSuccess(`Cupom ${cleanCode} (5% OFF e Frete Grátis) aplicado com sucesso!`);
       } else {
-        setCouponError('Este cupom promocional expirou ou é inválido. Tente FITNESS10 ou FRETEGRATIS.');
+        setCouponError(`Este cupom promocional expirou ou é inválido. Tente ${campaignCoupon} ou FITNESS10.`);
       }
     }, 550);
   };
@@ -2121,6 +2159,7 @@ export default function PublicCatalog({
   const deliveryFee = useMemo(() => {
     if (deliveryMethod === 'retirada' || deliveryMethod === 'combinar') return 0;
     if (appliedCoupon?.code === 'FRETEGRATIS' || cartSubtotal >= 399) return 0;
+    if (deliveryMethod === 'motoboy') return 12;
     if (selectedFreightFee !== null) return selectedFreightFee;
     return 0; // Se não preencheu CEP ou não escolheu frete, a taxa de envio é exibida zerada (R$ 0,00)
   }, [deliveryMethod, cartSubtotal, appliedCoupon, selectedFreightFee]);
@@ -2947,6 +2986,7 @@ export default function PublicCatalog({
             orderMsg: orderMsg
           });
 
+          localStorage.setItem('ap_vitrine_cart_backup', JSON.stringify(cart));
           setCart([]);
           setIsGeneratingPaymentLink(false);
 
@@ -2981,6 +3021,7 @@ export default function PublicCatalog({
             orderMsg: orderMsg
           });
 
+          localStorage.setItem('ap_vitrine_cart_backup', JSON.stringify(cart));
           setCart([]);
           setIsGeneratingPaymentLink(false);
           window.location.href = linkData.url;
@@ -4874,17 +4915,27 @@ export default function PublicCatalog({
               <p className="text-[10px] text-slate-500 font-medium leading-normal">{floatingBanner.subtitle}</p>
             </div>
             
-            {floatingBanner.ctaLink && (
-              <a 
-                href={floatingBanner.ctaLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-center py-2 px-4 rounded-xl text-[10px] font-bold text-white transition hover:opacity-90 tracking-wide border-none"
-                style={{ backgroundColor: floatingBanner.bgColor }}
-              >
-                {floatingBanner.ctaText || "Aproveitar"}
-              </a>
-            )}
+            <button 
+              type="button"
+              onClick={() => {
+                const campaignCoupon = extractCampaignCoupon();
+                setAppliedCoupon({ code: campaignCoupon, discountPercent: 5, fixedDiscount: 0 });
+                setCouponCode(campaignCoupon);
+                setCouponSuccess(`Cupom ${campaignCoupon} (5% OFF e Frete Grátis) ativado com sucesso! Aproveite os produtos abaixo. 🎉`);
+                setIsFloatingDismissed(true);
+                
+                setTimeout(() => {
+                  const anchor = document.getElementById('search-catalog-bar') || document.getElementById('colecao-run-anchor');
+                  if (anchor) {
+                    anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }, 100);
+              }}
+              className="block w-full text-center py-2 px-4 rounded-xl text-[10px] font-bold text-white transition hover:opacity-90 tracking-wide border-none cursor-pointer"
+              style={{ backgroundColor: floatingBanner.bgColor }}
+            >
+              {floatingBanner.ctaText || "Aproveitar Desconto"}
+            </button>
           </div>
         </div>
       )}

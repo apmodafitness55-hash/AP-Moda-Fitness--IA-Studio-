@@ -233,23 +233,36 @@ export default function App() {
   // Keep logged in user session (currentUser) updated in real-time if their team member profile changes
   useEffect(() => {
     if (currentUser && teamMembers && teamMembers.length > 0) {
-      const match = teamMembers.find(m => m.id === currentUser.id || m.login === currentUser.login);
+      const currentUserId = currentUser.id || currentUser.details?.id || currentUser.supabaseData?.id;
+      const currentUserLogin = currentUser.login || currentUser.details?.login || currentUser.supabaseData?.login;
+      
+      let match = teamMembers.find(m => 
+        (currentUserId && m.id === currentUserId) || 
+        (currentUserLogin && m.login?.toLowerCase() === currentUserLogin.toLowerCase())
+      );
+
+      // Fallback: If no match but currentUser is Admin, sync with the main Admin of the system
+      if (!match && currentUser.role === 'Admin') {
+        match = teamMembers.find(m => m.role === 'Admin' && m.login?.toLowerCase() === 'admin');
+      }
+
       if (match) {
         if (
           match.name !== currentUser.name ||
           match.role !== currentUser.role ||
-          match.details !== currentUser.details ||
           match.avatar !== currentUser.avatar ||
           match.password !== currentUser.password
         ) {
           console.log('[User Session Sync] Atualizando sessão do usuário logado baseado nas alterações do perfil do colaborador:', match.name);
           setCurrentUser({
             ...currentUser,
+            id: match.id,
+            login: match.login,
             name: match.name,
             role: match.role,
-            details: match.details,
             avatar: match.avatar,
             password: match.password,
+            details: match,
             supabaseData: match
           });
         }
