@@ -47,8 +47,32 @@ CREATE TABLE IF NOT EXISTS ap_products (
   composition text,
   routes text,
   measurement_specs text,
+  compare_at_price numeric,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Migração / Garantia de colunas para tabelas já existentes no Supabase:
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS name text;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS sku text;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS category text;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS price numeric;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS cost numeric;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS stock integer;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS min_stock integer;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS image text;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS images text;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS sales_count integer;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS description text;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS video_url text;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS colors text;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS sizes text;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS size_colors text;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS color_stocks text;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS size_color_stocks text;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS composition text;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS routes text;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS measurement_specs text;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS compare_at_price numeric;
 
 -- 3. Tabela de Clientes (CRM / Cadastros)
 CREATE TABLE IF NOT EXISTS ap_clients (

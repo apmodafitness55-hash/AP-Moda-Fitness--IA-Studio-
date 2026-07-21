@@ -2619,7 +2619,66 @@ app.get('/api/proxy/products', async (req, res) => {
     
     const { data, error } = await query;
     if (error) throw error;
-    res.json(data || []);
+
+    const safeParseJson = (val: any, fallback: any = {}) => {
+      if (!val) return fallback;
+      if (typeof val === 'object') return val;
+      if (typeof val === 'string') {
+        try {
+          return JSON.parse(val);
+        } catch (e) {
+          return fallback;
+        }
+      }
+      return fallback;
+    };
+
+    const safeParseArray = (val: any) => {
+      if (!val) return [];
+      if (Array.isArray(val)) return val;
+      if (typeof val === 'string') {
+        try {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed)) return parsed;
+        } catch (e) {
+          if (val.includes(',')) {
+            return val.split(',').map(s => s.trim()).filter(Boolean);
+          }
+          return [val];
+        }
+      }
+      return [];
+    };
+
+    const sanitizedData = (data || []).map((r: any) => {
+      if (!r || typeof r !== 'object') return r;
+      return {
+        id: String(r.id),
+        name: r.name || '',
+        sku: r.sku || '',
+        category: r.category || 'Geral',
+        price: Number(r.price || 0),
+        cost: Number(r.cost || 0),
+        stock: Number(r.stock ?? 0),
+        minStock: Number(r.min_stock ?? r.minStock ?? 0),
+        image: r.image || '',
+        images: safeParseArray(r.images),
+        salesCount: Number(r.sales_count ?? r.salesCount ?? 0),
+        description: r.description || '',
+        videoUrl: r.video_url || r.videoUrl || '',
+        colors: safeParseArray(r.colors),
+        sizes: safeParseArray(r.sizes),
+        sizeColors: safeParseJson(r.size_colors ?? r.sizeColors, {}),
+        colorStocks: safeParseJson(r.color_stocks ?? r.colorStocks, {}),
+        sizeColorStocks: safeParseJson(r.size_color_stocks ?? r.sizeColorStocks, {}),
+        composition: r.composition || '',
+        routes: r.routes || '',
+        measurementSpecs: safeParseJson(r.measurement_specs ?? r.measurementSpecs, {}),
+        compare_at_price: Number(r.compare_at_price ?? r.compareAtPrice ?? 0)
+      };
+    });
+
+    res.json(sanitizedData);
   } catch (err: any) {
     console.error('[Proxy Products GET] Erro:', err);
     res.status(500).json({ error: err.message || 'Erro ao consultar produtos.' });
@@ -2725,48 +2784,95 @@ app.post('/api/proxy/products', async (req, res) => {
       payloads = await resolveProductPayloadImages(payloads);
     }
 
+    const items = Array.isArray(payloads) ? payloads : [payloads];
+
     // Dynamic schema discovery to strip invalid columns and avoid PostgREST column-not-found errors
-    // Skip entirely for LocalDBAdapter as it doesn't enforce strict table schema
+    let finalPayloads = items;
+
     if (db.constructor.name !== 'LocalDBAdapter') {
       try {
-        const { data: oneRow } = await db.from('ap_products').select('*').limit(1);
-        const existingCols = oneRow && oneRow.length > 0 ? Object.keys(oneRow[0]) : null;
-        const defaultCols = [
-          'id', 'name', 'sku', 'category', 'price', 'cost', 'stock', 'minStock', 'image', 'images', 
-          'salesCount', 'description', 'videoUrl', 'colors', 'sizes', 'sizeColors', 'colorStocks', 
-          'sizeColorStocks', 'size_colors', 'color_stocks', 'size_color_stocks', 'min_stock', 
-          'sales_count', 'video_url', 'composition', 'routes', 'measurementSpecs', 'measurement_specs'
-        ];
-        const columns = existingCols ? Array.from(new Set([...existingCols, ...defaultCols])) : defaultCols;
-        
-        if (Array.isArray(payloads)) {
-          payloads = payloads.map((p: any) => {
+        const { data: sampleRows } = await db.from('ap_products').select('*').limit(1);
+        const existingCols = (sampleRows && sampleRows.length > 0) ? Object.keys(sampleRows[0]) : null;
+
+        finalPayloads = items.map((p: any) => {
+          if (!p || typeof p !== 'object') return p;
+
+          const fullMapped: any = {
+            id: String(p.id),
+            name: String(p.name || ''),
+            sku: String(p.sku || ''),
+            category: String(p.category || 'Geral'),
+            price: Number(p.price || 0),
+            cost: Number(p.cost || 0),
+            stock: Number(p.stock ?? 0),
+            min_stock: Number(p.minStock ?? p.min_stock ?? 0),
+            minStock: Number(p.minStock ?? p.min_stock ?? 0),
+            image: String(p.image || ''),
+            images: Array.isArray(p.images) ? JSON.stringify(p.images) : String(p.images || '[]'),
+            sales_count: Number(p.salesCount ?? p.sales_count ?? 0),
+            salesCount: Number(p.salesCount ?? p.sales_count ?? 0),
+            description: String(p.description || ''),
+            video_url: String(p.videoUrl ?? p.video_url ?? ''),
+            videoUrl: String(p.videoUrl ?? p.video_url ?? ''),
+            colors: Array.isArray(p.colors) ? JSON.stringify(p.colors) : String(p.colors || '[]'),
+            sizes: Array.isArray(p.sizes) ? JSON.stringify(p.sizes) : String(p.sizes || '[]'),
+            size_colors: typeof p.sizeColors === 'object' ? JSON.stringify(p.sizeColors) : String(p.size_colors || '{}'),
+            sizeColors: typeof p.sizeColors === 'object' ? JSON.stringify(p.sizeColors) : String(p.size_colors || '{}'),
+            color_stocks: typeof p.colorStocks === 'object' ? JSON.stringify(p.colorStocks) : String(p.color_stocks || '{}'),
+            colorStocks: typeof p.colorStocks === 'object' ? JSON.stringify(p.colorStocks) : String(p.color_stocks || '{}'),
+            size_color_stocks: typeof p.sizeColorStocks === 'object' ? JSON.stringify(p.sizeColorStocks) : String(p.size_color_stocks || '{}'),
+            sizeColorStocks: typeof p.sizeColorStocks === 'object' ? JSON.stringify(p.sizeColorStocks) : String(p.size_color_stocks || '{}'),
+            composition: String(p.composition || ''),
+            routes: String(p.routes || ''),
+            measurement_specs: typeof p.measurementSpecs === 'object' ? JSON.stringify(p.measurementSpecs) : String(p.measurement_specs || '{}'),
+            measurementSpecs: typeof p.measurementSpecs === 'object' ? JSON.stringify(p.measurementSpecs) : String(p.measurement_specs || '{}'),
+            compare_at_price: Number(p.compare_at_price ?? p.compareAtPrice ?? 0)
+          };
+
+          if (existingCols && existingCols.length > 0) {
+            // Include ONLY keys that actually exist in the table columns!
             const sanitized: any = {};
-            columns.forEach(col => {
-              // Find any matching key (direct, camelCase, snake_case, etc)
-              if (p[col] !== undefined) {
-                sanitized[col] = p[col];
-              } else {
-                const camelCol = col.replace(/_([a-z])/g, g => g[1].toUpperCase());
-                const snakeCol = col.replace(/([A-Z])/g, "_$1").toLowerCase();
-                if (p[camelCol] !== undefined) {
-                  sanitized[col] = p[camelCol];
-                } else if (p[snakeCol] !== undefined) {
-                  sanitized[col] = p[snakeCol];
-                }
+            existingCols.forEach(col => {
+              if (fullMapped[col] !== undefined) {
+                sanitized[col] = fullMapped[col];
               }
             });
-            // Ensure id is always included
-            if (p.id) sanitized.id = p.id;
+            sanitized.id = String(p.id);
             return sanitized;
-          });
-        }
+          } else {
+            // Fallback for empty table: use standard snake_case keys which match SUPABASE_SETUP_INFO
+            return {
+              id: String(p.id),
+              name: String(p.name || ''),
+              sku: String(p.sku || ''),
+              category: String(p.category || 'Geral'),
+              price: Number(p.price || 0),
+              cost: Number(p.cost || 0),
+              stock: Number(p.stock ?? 0),
+              min_stock: Number(p.minStock ?? p.min_stock ?? 0),
+              image: String(p.image || ''),
+              images: Array.isArray(p.images) ? JSON.stringify(p.images) : String(p.images || '[]'),
+              sales_count: Number(p.salesCount ?? p.sales_count ?? 0),
+              description: String(p.description || ''),
+              video_url: String(p.videoUrl ?? p.video_url ?? ''),
+              colors: Array.isArray(p.colors) ? JSON.stringify(p.colors) : String(p.colors || '[]'),
+              sizes: Array.isArray(p.sizes) ? JSON.stringify(p.sizes) : String(p.sizes || '[]'),
+              size_colors: typeof p.sizeColors === 'object' ? JSON.stringify(p.sizeColors) : String(p.size_colors || '{}'),
+              color_stocks: typeof p.colorStocks === 'object' ? JSON.stringify(p.colorStocks) : String(p.color_stocks || '{}'),
+              size_color_stocks: typeof p.sizeColorStocks === 'object' ? JSON.stringify(p.sizeColorStocks) : String(p.size_color_stocks || '{}'),
+              composition: String(p.composition || ''),
+              routes: String(p.routes || ''),
+              measurement_specs: typeof p.measurementSpecs === 'object' ? JSON.stringify(p.measurementSpecs) : String(p.measurement_specs || '{}'),
+              compare_at_price: Number(p.compare_at_price ?? p.compareAtPrice ?? 0)
+            };
+          }
+        });
       } catch (schemaErr) {
         console.warn('[Proxy Products Schema Auto-discovery] Failed, using raw payload:', schemaErr);
       }
     }
 
-    const { error } = await db.from('ap_products').upsert(payloads, { onConflict: 'id' });
+    const { error } = await db.from('ap_products').upsert(finalPayloads, { onConflict: 'id' });
     if (error) throw error;
     res.json({ success: true });
   } catch (err: any) {
