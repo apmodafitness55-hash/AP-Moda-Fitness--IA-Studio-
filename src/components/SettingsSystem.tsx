@@ -317,6 +317,96 @@ export default function SettingsSystem({
   const [storeFooter, setStoreFooter] = useState(() => localStorage.getItem('ap_store_footer') || 'Obrigado por escolher a AP Moda Fitness! Peças lindas que elevam seu treino. Siga-nos no Instagram: @apmodafitness');
   const [storeLogoUrl, setStoreLogoUrl] = useState(() => localStorage.getItem('ap_store_logo') || 'https://images.unsplash.com/photo-1518310383802-640c2de311b2?w=120&q=80');
 
+  // Motoboy dynamic pricing state
+  const [motoboyRegions, setMotoboyRegions] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('ap_motoboy_regions');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [
+      { id: '1', city: 'Natal', name: 'Zona Sul (Capim Macio, Ponta Negra, Candelária, Neópolis)', price: 10 },
+      { id: '2', city: 'Natal', name: 'Zona Leste (Tirol, Petrópolis, Areia Preta, Alecrim)', price: 12 },
+      { id: '3', city: 'Natal', name: 'Zona Oeste (Dix-Sept Rosado, Quintas, Felipe Camarão)', price: 15 },
+      { id: '4', city: 'Natal', name: 'Zona Norte (Potengi, Igapó, Redinha)', price: 18 },
+      { id: '5', city: 'Parnamirim', name: 'Nova Parnamirim / Emaús / Cohabinal', price: 15 },
+      { id: '6', city: 'Parnamirim', name: 'Litoral (Cotovelo, Pirangi)', price: 25 },
+      { id: '7', city: 'São Gonçalo do Amarante', name: 'Aeroporto / Centro', price: 28 },
+      { id: '8', city: 'Grande Natal', name: 'Região metropolitana - outras áreas', price: 30 },
+      { id: '9', city: 'Outra Região', name: 'A Combinar com o Lojista no WhatsApp', price: 0 }
+    ];
+  });
+
+  const [newRegionCity, setNewRegionCity] = useState('Natal');
+  const [newRegionName, setNewRegionName] = useState('');
+  const [newRegionPrice, setNewRegionPrice] = useState(15);
+  const [editingRegionId, setEditingRegionId] = useState<string | null>(null);
+
+  const handleSaveRegion = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRegionName.trim()) {
+      alert('O nome do bairro/região é obrigatório.');
+      return;
+    }
+
+    let updatedList;
+    if (editingRegionId) {
+      updatedList = motoboyRegions.map(r => r.id === editingRegionId ? { ...r, city: newRegionCity.trim(), name: newRegionName.trim(), price: Number(newRegionPrice) } : r);
+    } else {
+      const newReg = {
+        id: 'reg_' + Math.random().toString(36).substr(2, 9),
+        city: newRegionCity.trim(),
+        name: newRegionName.trim(),
+        price: Number(newRegionPrice)
+      };
+      updatedList = [...motoboyRegions, newReg];
+    }
+
+    setMotoboyRegions(updatedList);
+    localStorage.setItem('ap_motoboy_regions', JSON.stringify(updatedList));
+    pushSystemConfigToSupabase('ap_motoboy_regions', JSON.stringify(updatedList));
+
+    // Reset Form
+    setNewRegionCity('Natal');
+    setNewRegionName('');
+    setNewRegionPrice(15);
+    setEditingRegionId(null);
+  };
+
+  const handleEditRegion = (reg: any) => {
+    setEditingRegionId(reg.id);
+    setNewRegionCity(reg.city);
+    setNewRegionName(reg.name);
+    setNewRegionPrice(reg.price);
+  };
+
+  const handleDeleteRegion = (id: string) => {
+    if (confirm('Tem certeza de que deseja remover esta região de entrega por motoboy?')) {
+      const updatedList = motoboyRegions.filter(r => r.id !== id);
+      setMotoboyRegions(updatedList);
+      localStorage.setItem('ap_motoboy_regions', JSON.stringify(updatedList));
+      pushSystemConfigToSupabase('ap_motoboy_regions', JSON.stringify(updatedList));
+    }
+  };
+
+  const handleRestoreDefaultRegions = () => {
+    if (confirm('Deseja restaurar as regiões de entrega padrão para a Região Metropolitana de Natal?')) {
+      const defaultList = [
+        { id: '1', city: 'Natal', name: 'Zona Sul (Capim Macio, Ponta Negra, Candelária, Neópolis)', price: 10 },
+        { id: '2', city: 'Natal', name: 'Zona Leste (Tirol, Petrópolis, Areia Preta, Alecrim)', price: 12 },
+        { id: '3', city: 'Natal', name: 'Zona Oeste (Dix-Sept Rosado, Quintas, Felipe Camarão)', price: 15 },
+        { id: '4', city: 'Natal', name: 'Zona Norte (Potengi, Igapó, Redinha)', price: 18 },
+        { id: '5', city: 'Parnamirim', name: 'Nova Parnamirim / Emaús / Cohabinal', price: 15 },
+        { id: '6', city: 'Parnamirim', name: 'Litoral (Cotovelo, Pirangi)', price: 25 },
+        { id: '7', city: 'São Gonçalo do Amarante', name: 'Aeroporto / Centro', price: 28 },
+        { id: '8', city: 'Grande Natal', name: 'Região metropolitana - outras áreas', price: 30 },
+        { id: '9', city: 'Outra Região', name: 'A Combinar com o Lojista no WhatsApp', price: 0 }
+      ];
+      setMotoboyRegions(defaultList);
+      localStorage.setItem('ap_motoboy_regions', JSON.stringify(defaultList));
+      pushSystemConfigToSupabase('ap_motoboy_regions', JSON.stringify(defaultList));
+    }
+  };
+
   useEffect(() => {
     const handleStorageSynced = () => {
       console.log('[SettingsSystem] Cloud-sync change detected! Sincronizando dados locais do localStorage com a interface.');
@@ -378,6 +468,13 @@ export default function SettingsSystem({
         const savedFlo = localStorage.getItem('ap_vitrine_floating_banner');
         if (savedFlo) {
           setFloatingBanner(JSON.parse(savedFlo));
+        }
+      } catch (e) {}
+
+      try {
+        const savedMotoboy = localStorage.getItem('ap_motoboy_regions');
+        if (savedMotoboy) {
+          setMotoboyRegions(JSON.parse(savedMotoboy));
         }
       } catch (e) {}
     };
@@ -1617,6 +1714,136 @@ export default function SettingsSystem({
                 </button>
               </div>
             </form>
+          </div>
+
+          {/* Dynamic Motoboy Pricing Configuration */}
+          <div className="lg:col-span-2 bg-white border border-slate-100 rounded-2xl shadow-xs p-5 space-y-4">
+            <h3 className="text-sm font-bold text-slate-800 mb-2 flex items-center gap-1.5 pb-2 border-b border-slate-50">
+              <Truck size={16} className="text-pink-600" />
+              <span>Configuração de Taxas do Motoboy</span>
+            </h3>
+            <p className="text-slate-400 text-[11px] leading-relaxed">
+              Adicione, remova ou edite a precificação de frete por motoboy de forma dinâmica de acordo com a área de cobertura / bairros da sua boutique em Natal e região metropolitana.
+            </p>
+
+            {/* Form to Add/Edit Region */}
+            <form onSubmit={handleSaveRegion} className="bg-slate-50 border border-slate-150 rounded-xl p-3.5 space-y-3">
+              <p className="font-bold text-slate-700 text-[11px] uppercase tracking-wide">
+                {editingRegionId ? '📝 Editar Região de Entrega' : '➕ Adicionar Nova Área/Bairro'}
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-slate-450 font-semibold mb-1">Cidade da Região</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={newRegionCity}
+                    onChange={(e) => setNewRegionCity(e.target.value)}
+                    placeholder="Ex: Natal, Parnamirim"
+                    className="w-full bg-white border border-slate-200 rounded-lg p-2 font-medium focus:outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-450 font-semibold mb-1">Bairro(s) ou Área de Abrangência</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={newRegionName}
+                    onChange={(e) => setNewRegionName(e.target.value)}
+                    placeholder="Ex: Zona Sul (Capim Macio)"
+                    className="w-full bg-white border border-slate-200 rounded-lg p-2 font-medium focus:outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-450 font-semibold mb-1">Taxa de Entrega (R$)</label>
+                  <input 
+                    type="number" 
+                    required
+                    min="0"
+                    step="0.01"
+                    value={newRegionPrice}
+                    onChange={(e) => setNewRegionPrice(Number(e.target.value))}
+                    placeholder="Ex: 12.00"
+                    className="w-full bg-white border border-slate-200 rounded-lg p-2 font-semibold text-slate-800 focus:outline-hidden font-mono"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                {editingRegionId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingRegionId(null);
+                      setNewRegionCity('Natal');
+                      setNewRegionName('');
+                      setNewRegionPrice(15);
+                    }}
+                    className="px-4 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-lg text-xs transition cursor-pointer"
+                  >
+                    Cancelar Edição
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  className="px-5 py-1.5 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-lg text-xs transition cursor-pointer shadow-sm shadow-pink-500/10"
+                >
+                  {editingRegionId ? 'Atualizar Região' : 'Salvar Região'}
+                </button>
+              </div>
+            </form>
+
+            {/* Table list of Regions */}
+            <div className="border border-slate-100 rounded-xl overflow-hidden bg-white">
+              <table className="w-full border-collapse text-left text-xs font-sans">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-450 font-bold border-b border-slate-100 uppercase text-[9px] tracking-wider">
+                    <th className="p-3">Cidade</th>
+                    <th className="p-3">Região / Bairro de Atuação</th>
+                    <th className="p-3 text-right">Taxa (R$)</th>
+                    <th className="p-3 text-center">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {motoboyRegions.map((reg) => (
+                    <tr key={reg.id} className="hover:bg-slate-50/55 font-medium text-slate-700">
+                      <td className="p-3 font-bold text-slate-800">{reg.city}</td>
+                      <td className="p-3">{reg.name}</td>
+                      <td className="p-3 text-right font-mono font-bold text-pink-600">R$ {Number(reg.price).toFixed(2)}</td>
+                      <td className="p-3">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleEditRegion(reg)}
+                            className="p-1 text-slate-400 hover:text-pink-600 transition cursor-pointer"
+                            title="Editar região"
+                          >
+                            <Edit size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRegion(reg.id)}
+                            className="p-1 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                            title="Excluir região"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="pt-2 flex justify-between items-center">
+              <button
+                type="button"
+                onClick={handleRestoreDefaultRegions}
+                className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-[10px] transition uppercase tracking-wider cursor-pointer"
+              >
+                🔄 Restaurar Regiões Padrão (Natal & Grande Natal)
+              </button>
+            </div>
           </div>
 
           <div className="space-y-6">

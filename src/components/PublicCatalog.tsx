@@ -800,6 +800,23 @@ export default function PublicCatalog({
   const [addressCep, setAddressCep] = useState('');
 
   const [deliveryMethod, setDeliveryMethod] = useState<'motoboy' | 'correios' | 'retirada' | 'combinar'>('motoboy');
+  const motoboyRegions = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('ap_motoboy_regions');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [
+      { id: '1', city: 'Natal', name: 'Zona Sul (Capim Macio, Ponta Negra, Candelária, Neópolis)', price: 10 },
+      { id: '2', city: 'Natal', name: 'Zona Leste (Tirol, Petrópolis, Areia Preta, Alecrim)', price: 12 },
+      { id: '3', city: 'Natal', name: 'Zona Oeste (Dix-Sept Rosado, Quintas, Felipe Camarão)', price: 15 },
+      { id: '4', city: 'Natal', name: 'Zona Norte (Potengi, Igapó, Redinha)', price: 18 },
+      { id: '5', city: 'Parnamirim', name: 'Nova Parnamirim / Emaús / Cohabinal', price: 15 },
+      { id: '6', city: 'Parnamirim', name: 'Litoral (Cotovelo, Pirangi)', price: 25 },
+      { id: '7', city: 'São Gonçalo do Amarante', name: 'Aeroporto / Centro', price: 28 },
+      { id: '8', city: 'Grande Natal', name: 'Região metropolitana - outras áreas', price: 30 },
+      { id: '9', city: 'Outra Região', name: 'A Combinar com o Lojista no WhatsApp', price: 0 }
+    ];
+  }, []);
   const [clientAddress, setClientAddress] = useState('');
   const [clientNotes, setClientNotes] = useState('');
   const [couponCode, setCouponCode] = useState('');
@@ -957,9 +974,17 @@ export default function PublicCatalog({
       if (deliveryMethod === 'correios') {
         handleCalculateMelhorEnvio(cleanCep);
       } else if (deliveryMethod === 'motoboy') {
-        setSelectedFreightFee(12);
-        setSelectedFreightName('Motoboy Express');
-        setSelectedFreightId('motoboy-express');
+        const savedRegionId = localStorage.getItem('ap_selected_motoboy_region') || '';
+        const reg = motoboyRegions.find((r: any) => r.id === savedRegionId);
+        if (reg) {
+          setSelectedFreightFee(reg.price);
+          setSelectedFreightName(`Motoboy - ${reg.name}`);
+          setSelectedFreightId(`motoboy-${reg.id}`);
+        } else {
+          setSelectedFreightFee(12);
+          setSelectedFreightName('Motoboy Express');
+          setSelectedFreightId('motoboy-express');
+        }
       }
     }
   }, [addressCep, deliveryMethod]);
@@ -2159,7 +2184,7 @@ export default function PublicCatalog({
   const deliveryFee = useMemo(() => {
     if (deliveryMethod === 'retirada' || deliveryMethod === 'combinar') return 0;
     if (appliedCoupon?.code === 'FRETEGRATIS' || cartSubtotal >= 399) return 0;
-    if (deliveryMethod === 'motoboy') return 12;
+    if (deliveryMethod === 'motoboy') return selectedFreightFee !== null ? selectedFreightFee : 12;
     if (selectedFreightFee !== null) return selectedFreightFee;
     return 0; // Se não preencheu CEP ou não escolheu frete, a taxa de envio é exibida zerada (R$ 0,00)
   }, [deliveryMethod, cartSubtotal, appliedCoupon, selectedFreightFee]);
@@ -2203,7 +2228,7 @@ export default function PublicCatalog({
 
   const storeInfo = useMemo(() => {
     let name = 'AP Moda Fitness';
-    let city = 'São José de Mipibu';
+    let city = 'Natal';
     let state = 'RN';
     let phone = '5521991234567';
 
@@ -2843,13 +2868,18 @@ export default function PublicCatalog({
         complement: addressComp || '',
         neighborhood: addressBairro || '',
         bairro: addressBairro || '',
+        district: addressBairro || '',
         city: addressCidade || '',
+        cidade: addressCidade || '',
         state: addressEstado || '',
+        uf: addressEstado || '',
         zip: cleanCep || addressCep || '',
         cep: cleanCep || addressCep || '',
         zip_code: cleanCep || addressCep || '',
         postal_code: cleanCep || addressCep || '',
-        country: 'BR'
+        country: 'BR',
+        logradouro: addressStreet || '',
+        numero: addressNum || ''
       };
 
       // Highly redundant payloads to support all historical and current schema variants of InfinitePay Checkout Links

@@ -199,6 +199,35 @@ export function CheckoutWizard({
 }: CheckoutWizardProps) {
   const [checkoutStep, setCheckoutStep] = useState<number>(initialStep || 1);
 
+  const motoboyRegions = React.useMemo(() => {
+    try {
+      const saved = localStorage.getItem('ap_motoboy_regions');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [
+      { id: '1', city: 'Natal', name: 'Zona Sul (Capim Macio, Ponta Negra, Candelária, Neópolis)', price: 10 },
+      { id: '2', city: 'Natal', name: 'Zona Leste (Tirol, Petrópolis, Areia Preta, Alecrim)', price: 12 },
+      { id: '3', city: 'Natal', name: 'Zona Oeste (Dix-Sept Rosado, Quintas, Felipe Camarão)', price: 15 },
+      { id: '4', city: 'Natal', name: 'Zona Norte (Potengi, Igapó, Redinha)', price: 18 },
+      { id: '5', city: 'Parnamirim', name: 'Nova Parnamirim / Emaús / Cohabinal', price: 15 },
+      { id: '6', city: 'Parnamirim', name: 'Litoral (Cotovelo, Pirangi)', price: 25 },
+      { id: '7', city: 'São Gonçalo do Amarante', name: 'Aeroporto / Centro', price: 28 },
+      { id: '8', city: 'Grande Natal', name: 'Região metropolitana - outras áreas', price: 30 },
+      { id: '9', city: 'Outra Região', name: 'A Combinar com o Lojista no WhatsApp', price: 0 }
+    ];
+  }, []);
+
+  const [selectedMotoboyRegionId, setSelectedMotoboyRegionId] = React.useState<string>(() => {
+    return localStorage.getItem('ap_selected_motoboy_region') || '';
+  });
+
+  const storeCityName = React.useMemo(() => {
+    return localStorage.getItem('ap_store_city') || 'Natal';
+  }, []);
+  const storeStateName = React.useMemo(() => {
+    return localStorage.getItem('ap_store_state') || 'RN';
+  }, []);
+
   useEffect(() => {
     if (initialStep !== undefined) {
       setCheckoutStep(initialStep);
@@ -510,9 +539,16 @@ export function CheckoutWizard({
           if (firstAddr.cep && deliveryMethod === 'correios') {
             handleCalculateMelhorEnvio(firstAddr.cep);
           } else if (deliveryMethod === 'motoboy') {
-            setSelectedFreightFee(12);
-            setSelectedFreightName('Motoboy Express');
-            setSelectedFreightId('motoboy-express');
+            const reg = motoboyRegions.find((r: any) => r.id === selectedMotoboyRegionId);
+            if (reg) {
+              setSelectedFreightFee(reg.price);
+              setSelectedFreightName(`Motoboy - ${reg.name}`);
+              setSelectedFreightId(`motoboy-${reg.id}`);
+            } else {
+              setSelectedFreightFee(12);
+              setSelectedFreightName('Motoboy Express');
+              setSelectedFreightId('motoboy-express');
+            }
           }
         } else {
           // No addresses on file, show address form to enter one
@@ -567,11 +603,18 @@ export function CheckoutWizard({
     if (cleanCep.length === 8 && deliveryMethod === 'correios') {
       handleCalculateMelhorEnvio(addressCep);
     } else if (deliveryMethod === 'motoboy') {
-      setSelectedFreightFee(12);
-      setSelectedFreightName('Motoboy Express');
-      setSelectedFreightId('motoboy-express');
+      const reg = motoboyRegions.find((r: any) => r.id === selectedMotoboyRegionId);
+      if (reg) {
+        setSelectedFreightFee(reg.price);
+        setSelectedFreightName(`Motoboy - ${reg.name}`);
+        setSelectedFreightId(`motoboy-${reg.id}`);
+      } else {
+        setSelectedFreightFee(12);
+        setSelectedFreightName('Motoboy Express');
+        setSelectedFreightId('motoboy-express');
+      }
     }
-  }, [addressCep, deliveryMethod]);
+  }, [addressCep, deliveryMethod, selectedMotoboyRegionId, motoboyRegions]);
 
   const handleStep1Submit = () => {
     if (cart.length === 0) {
@@ -1115,7 +1158,7 @@ export function CheckoutWizard({
                         <MapPin size={14} className="text-emerald-600 mt-0.5 shrink-0" />
                         <div className="space-y-0.5">
                           <span className="font-extrabold text-[9px] text-emerald-850 block uppercase tracking-wide">Ponto de Retirada Física (Frete R$ 0,00)</span>
-                          <p className="text-[10px] text-emerald-700 font-semibold leading-snug">Disponível para retirada na loja física em Assu, RN</p>
+                          <p className="text-[10px] text-emerald-700 font-semibold leading-snug">Disponível para retirada na loja física em {storeCityName}, {storeStateName}</p>
                         </div>
                       </div>
                     ) : (
@@ -1463,9 +1506,16 @@ export function CheckoutWizard({
                                       if (addr.cep && deliveryMethod === 'correios') {
                                         handleCalculateMelhorEnvio(addr.cep);
                                       } else if (deliveryMethod === 'motoboy') {
-                                        setSelectedFreightFee(12);
-                                        setSelectedFreightName('Motoboy Express');
-                                        setSelectedFreightId('motoboy-express');
+                                        const reg = motoboyRegions.find((r: any) => r.id === selectedMotoboyRegionId);
+                                        if (reg) {
+                                          setSelectedFreightFee(reg.price);
+                                          setSelectedFreightName(`Motoboy - ${reg.name}`);
+                                          setSelectedFreightId(`motoboy-${reg.id}`);
+                                        } else {
+                                          setSelectedFreightFee(12);
+                                          setSelectedFreightName('Motoboy Express');
+                                          setSelectedFreightId('motoboy-express');
+                                        }
                                       }
                                     }}
                                     className={`p-3 rounded-xl border text-left transition-all cursor-pointer relative
@@ -1598,7 +1648,7 @@ export function CheckoutWizard({
                           <MapPin size={14} className="text-emerald-600 mt-0.5 shrink-0" />
                           <div className="space-y-0.5">
                             <span className="font-extrabold text-[9px] text-emerald-850 block uppercase tracking-wide">Ponto de Retirada Física (Frete R$ 0,00)</span>
-                            <p className="text-[10px] text-emerald-700 font-semibold leading-snug">Disponível para retirada na loja física em Assu, RN</p>
+                            <p className="text-[10px] text-emerald-700 font-semibold leading-snug">Disponível para retirada na loja física em {storeCityName}, {storeStateName}</p>
                           </div>
                         </div>
 
@@ -1731,14 +1781,48 @@ export function CheckoutWizard({
 
                         {/* Motoboy Local Delivery Rate */}
                         {deliveryMethod === 'motoboy' && (
-                          <div className="mt-3 bg-emerald-50 border border-emerald-200/60 rounded-xl p-3 text-left space-y-1">
+                          <div className="mt-3 bg-emerald-50 border border-emerald-200/60 rounded-xl p-3 text-left space-y-2.5">
                             <p className="text-[10px] font-black text-emerald-850 flex items-center gap-1.5 uppercase tracking-wide">
                               <Truck size={12} className="text-emerald-600 shrink-0" />
                               <span>Entrega via Motoboy Express</span>
                             </p>
-                            <p className="text-[10px] text-emerald-700 font-semibold leading-normal">
-                              Taxa fixa local de <strong>R$ 12,00</strong>. Receba seu pedido no mesmo dia ou em até 24 horas úteis!
-                            </p>
+                            <div className="space-y-1">
+                              <label className="text-emerald-800 font-bold text-[9px] uppercase tracking-wider block">
+                                Selecione sua Região / Bairro *
+                              </label>
+                              <select
+                                value={selectedMotoboyRegionId}
+                                onChange={(e) => {
+                                  const id = e.target.value;
+                                  setSelectedMotoboyRegionId(id);
+                                  localStorage.setItem('ap_selected_motoboy_region', id);
+                                  
+                                  const reg = motoboyRegions.find((r: any) => r.id === id);
+                                  if (reg) {
+                                    setSelectedFreightFee(reg.price);
+                                    setSelectedFreightName(`Motoboy - ${reg.name}`);
+                                    setSelectedFreightId(`motoboy-${reg.id}`);
+                                  } else {
+                                    setSelectedFreightFee(12);
+                                    setSelectedFreightName('Motoboy Express');
+                                    setSelectedFreightId('motoboy-express');
+                                  }
+                                }}
+                                className="w-full px-2.5 py-1.5 bg-white border border-emerald-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-pink-550"
+                              >
+                                <option value="">-- Escolha uma região --</option>
+                                {motoboyRegions.map((reg: any) => (
+                                  <option key={reg.id} value={reg.id}>
+                                    {reg.city} - {reg.name} (R$ {Number(reg.price).toFixed(2)})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            {selectedFreightFee !== null && (
+                              <p className="text-[10px] text-emerald-700 font-bold leading-normal">
+                                Valor selecionado para o motoboy: <strong className="text-pink-600">R$ {Number(selectedFreightFee).toFixed(2)}</strong>.
+                              </p>
+                            )}
                           </div>
                         )}
 

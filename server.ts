@@ -1183,28 +1183,53 @@ app.post('/api/infinitepay/create-link', async (req, res) => {
     const enrichAddress = (obj: any, addr: any) => {
       if (!obj) return obj;
       const baseAddr = addr || {};
+      const street = obj.street || obj.logradouro || obj.address?.street || obj.address?.logradouro || baseAddr.street || baseAddr.logradouro || '';
+      const number = obj.number || obj.numero || obj.address?.number || obj.address?.numero || baseAddr.number || baseAddr.numero || '';
+      const complement = obj.complement || obj.complemento || obj.address?.complement || obj.address?.complemento || baseAddr.complement || baseAddr.complemento || '';
+      const neighborhood = obj.neighborhood || obj.bairro || obj.district || obj.address?.neighborhood || obj.address?.bairro || obj.address?.district || baseAddr.neighborhood || baseAddr.bairro || baseAddr.district || '';
+      const city = obj.city || obj.cidade || obj.address?.city || obj.address?.cidade || baseAddr.city || baseAddr.cidade || '';
+      const state = obj.state || obj.uf || obj.address?.state || obj.address?.uf || baseAddr.state || baseAddr.uf || '';
+      const zip = String(obj.zip || obj.cep || obj.zip_code || obj.postal_code || obj.address?.zip || obj.address?.cep || obj.address?.zip_code || obj.address?.postal_code || baseAddr.zip || baseAddr.cep || baseAddr.zip_code || baseAddr.postal_code || '').replace(/\D/g, '');
+      const country = obj.country || obj.pais || obj.address?.country || obj.address?.pais || baseAddr.country || baseAddr.pais || 'BR';
+
       return {
         ...obj,
         address: {
-          street: obj.street || obj.address?.street || baseAddr.street || '',
-          number: obj.number || obj.address?.number || baseAddr.number || '',
-          complement: obj.complement || obj.address?.complement || baseAddr.complement || '',
-          neighborhood: obj.neighborhood || obj.address?.neighborhood || baseAddr.neighborhood || '',
-          city: obj.city || obj.address?.city || baseAddr.city || '',
-          state: obj.state || obj.address?.state || baseAddr.state || '',
-          zip: obj.zip || obj.address?.zip || baseAddr.zip || '',
-          cep: obj.cep || obj.address?.cep || baseAddr.cep || '',
-          country: obj.country || obj.address?.country || baseAddr.country || 'BR'
+          street,
+          number,
+          complement,
+          neighborhood,
+          bairro: neighborhood,
+          district: neighborhood,
+          city,
+          cidade: city,
+          state,
+          uf: state,
+          zip,
+          cep: zip,
+          zip_code: zip,
+          postal_code: zip,
+          country,
+          logradouro: street,
+          numero: number
         },
-        street: obj.street || obj.address?.street || baseAddr.street || '',
-        number: obj.number || obj.address?.number || baseAddr.number || '',
-        complement: obj.complement || obj.address?.complement || baseAddr.complement || '',
-        neighborhood: obj.neighborhood || obj.address?.neighborhood || baseAddr.neighborhood || '',
-        city: obj.city || obj.address?.city || baseAddr.city || '',
-        state: obj.state || obj.address?.state || baseAddr.state || '',
-        zip: obj.zip || obj.address?.zip || baseAddr.zip || '',
-        cep: obj.cep || obj.address?.cep || baseAddr.cep || '',
-        country: obj.country || obj.address?.country || baseAddr.country || 'BR'
+        street,
+        number,
+        complement,
+        neighborhood,
+        bairro: neighborhood,
+        district: neighborhood,
+        city,
+        cidade: city,
+        state,
+        uf: state,
+        zip,
+        cep: zip,
+        zip_code: zip,
+        postal_code: zip,
+        country,
+        logradouro: street,
+        numero: number
       };
     };
 
