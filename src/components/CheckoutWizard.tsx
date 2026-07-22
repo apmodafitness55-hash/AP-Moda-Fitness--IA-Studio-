@@ -1766,10 +1766,21 @@ export function CheckoutWizard({
                               </div>
                               <button
                                 type="button"
-                                onClick={() => setShowAddressForm(true)}
-                                className="text-[9px] text-pink-600 hover:text-pink-700 font-bold underline cursor-pointer bg-transparent border-none"
+                                onClick={() => {
+                                  setSelectedAddressIndex('new');
+                                  setShowAddressForm(true);
+                                  setAddressStreet('');
+                                  setAddressNum('');
+                                  setAddressComp('');
+                                  setAddressBairro('');
+                                  setAddressCidade('');
+                                  setAddressEstado('RN');
+                                  setAddressCep('');
+                                }}
+                                className="text-[9px] text-pink-600 hover:text-pink-700 font-extrabold cursor-pointer bg-pink-50/80 hover:bg-pink-100/90 border border-pink-200 px-2 py-0.5 rounded-lg transition-colors flex items-center gap-1 shadow-2xs"
                               >
-                                ✏️ Editar / Outro Endereço
+                                <Plus size={10} />
+                                <span>Adicionar Novo Endereço</span>
                               </button>
                             </div>
                             <div className="pl-4 border-l-2 border-emerald-400 space-y-0.5">
@@ -1785,7 +1796,7 @@ export function CheckoutWizard({
                           <div className="space-y-2">
                             <div className="flex items-center justify-between">
                               <p className="font-extrabold text-[9px] uppercase tracking-wider text-slate-500">
-                                {isExistingClient && clientAddresses.length > 0 ? 'Preencher / Alterar Endereço de Entrega' : 'Endereço de Destino para Entrega'}
+                                {isExistingClient && clientAddresses.length > 0 ? 'Cadastrar Novo Endereço de Entrega' : 'Endereço de Destino para Entrega'}
                               </p>
                               {isExistingClient && clientAddresses.length > 0 && (
                                 <button
@@ -1808,7 +1819,7 @@ export function CheckoutWizard({
                                   }}
                                   className="text-[9px] text-emerald-700 hover:text-emerald-800 font-bold underline cursor-pointer bg-transparent border-none"
                                 >
-                                  ✓ Voltar para Endereços Salvos
+                                  ✓ Voltar para Endereço Cadastrado
                                 </button>
                               )}
                             </div>
