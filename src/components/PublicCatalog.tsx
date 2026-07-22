@@ -616,7 +616,7 @@ export default function PublicCatalog({
     return () => clearTimeout(timer);
   }, [selectedCategory, searchQuery, selectedSizesFilter, selectedColorsFilter]);
 
-  // Cart state
+  // Cart state persisted in localStorage
   const [cart, setCart] = useState<{
     product: Product;
     color: string;
@@ -624,7 +624,32 @@ export default function PublicCatalog({
     quantity: number;
     priceAtTime: number;
     isUpsell?: boolean;
-  }[]>([]);
+  }[]>(() => {
+    try {
+      const saved = localStorage.getItem('ap_vitrine_cart');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error('[Cart Load Error]:', e);
+    }
+    return [];
+  });
+
+  // Automatically save cart state to localStorage whenever modified
+  useEffect(() => {
+    try {
+      localStorage.setItem('ap_vitrine_cart', JSON.stringify(cart));
+      if (cart.length > 0) {
+        localStorage.setItem('ap_vitrine_cart_backup', JSON.stringify(cart));
+      }
+    } catch (e) {
+      console.error('[Cart Save Error]:', e);
+    }
+  }, [cart]);
 
   const mixMatchPairs = useMemo(() => {
     // 1. Exclude complete Conjuntos
