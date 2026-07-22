@@ -320,9 +320,14 @@ export function CheckoutWizard({
   const deliveryFee = React.useMemo(() => {
     if (deliveryMethod === 'retirada' || deliveryMethod === 'combinar') return 0;
     if (appliedCoupon?.code === 'FRETEGRATIS' || cartSubtotal >= 399) return 0;
+    if (deliveryMethod === 'motoboy') {
+      if (!selectedMotoboyRegionId) return 0;
+      const reg = motoboyRegions.find((r: any) => r.id === selectedMotoboyRegionId);
+      return reg ? reg.price : 0;
+    }
     if (selectedFreightFee !== null) return selectedFreightFee;
     return 0;
-  }, [deliveryMethod, cartSubtotal, appliedCoupon, selectedFreightFee]);
+  }, [deliveryMethod, cartSubtotal, appliedCoupon, selectedFreightFee, selectedMotoboyRegionId, motoboyRegions]);
 
   useEffect(() => {
     const handleStorageSynced = () => {
@@ -611,15 +616,21 @@ export function CheckoutWizard({
     if (cleanCep.length === 8 && deliveryMethod === 'correios') {
       handleCalculateMelhorEnvio(addressCep);
     } else if (deliveryMethod === 'motoboy') {
-      const reg = motoboyRegions.find((r: any) => r.id === selectedMotoboyRegionId);
-      if (reg) {
-        setSelectedFreightFee(reg.price);
-        setSelectedFreightName(`Motoboy - ${reg.name}`);
-        setSelectedFreightId(`motoboy-${reg.id}`);
+      if (selectedMotoboyRegionId) {
+        const reg = motoboyRegions.find((r: any) => r.id === selectedMotoboyRegionId);
+        if (reg) {
+          setSelectedFreightFee(reg.price);
+          setSelectedFreightName(`Motoboy - ${reg.name}`);
+          setSelectedFreightId(`motoboy-${reg.id}`);
+        } else {
+          setSelectedFreightFee(null);
+          setSelectedFreightName('Motoboy (Selecione a Região)');
+          setSelectedFreightId('motoboy-pending');
+        }
       } else {
-        setSelectedFreightFee(12);
-        setSelectedFreightName('Motoboy Express');
-        setSelectedFreightId('motoboy-express');
+        setSelectedFreightFee(null);
+        setSelectedFreightName('Motoboy (Selecione a Região)');
+        setSelectedFreightId('motoboy-pending');
       }
     }
   }, [addressCep, deliveryMethod, selectedMotoboyRegionId, motoboyRegions]);
@@ -677,6 +688,11 @@ export function CheckoutWizard({
       return;
     }
     
+    if (deliveryMethod === 'motoboy' && !selectedMotoboyRegionId) {
+      setCheckoutError('Por favor, selecione a sua Região / Bairro para a entrega via Motoboy.');
+      return;
+    }
+
     if (deliveryMethod !== 'retirada' && deliveryMethod !== 'combinar') {
       if (!addressStreet.trim() || !addressNum.trim() || !addressBairro.trim() || !addressCidade.trim() || !addressEstado.trim() || !addressCep.trim()) {
         setCheckoutError('Por favor, preencha todos os campos obrigatórios do endereço de entrega (Rua, Número, Bairro, Cidade, Estado e CEP).');
@@ -1741,96 +1757,152 @@ export function CheckoutWizard({
                     {/* Address form fields */}
                     {deliveryMethod !== 'retirada' && deliveryMethod !== 'combinar' && (
                       <div className="animate-in fade-in duration-200 space-y-2 border-t border-slate-100/60 pt-2.5">
-                        <p className="font-extrabold text-[9px] uppercase tracking-wider text-slate-500">Endereço de Destino para Entrega</p>
-                        
-                        <div className="grid grid-cols-3 gap-2">
-                          <div className="col-span-1">
-                            <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">CEP *</label>
-                            <input 
-                              type="text"
-                              required
-                              placeholder="Ex: 01311200"
-                              value={addressCep}
-                              onChange={(e) => setAddressCep(e.target.value)}
-                              className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none focus:border-pink-550 font-mono"
-                            />
+                        {isExistingClient && clientAddresses.length > 0 && !showAddressForm && selectedAddressIndex !== 'new' ? (
+                          <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-3 text-left space-y-1.5 font-sans">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-emerald-850 font-bold">
+                                <MapPin size={13} className="text-emerald-600 shrink-0" />
+                                <span className="text-[9.5px] font-extrabold uppercase tracking-wider">Endereço de Entrega Selecionado</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setShowAddressForm(true)}
+                                className="text-[9px] text-pink-600 hover:text-pink-700 font-bold underline cursor-pointer bg-transparent border-none"
+                              >
+                                ✏️ Editar / Outro Endereço
+                              </button>
+                            </div>
+                            <div className="pl-4 border-l-2 border-emerald-400 space-y-0.5">
+                              <p className="text-xs font-extrabold text-slate-800">
+                                {addressStreet || 'Rua Registrada'}, {addressNum || 'S/N'} {addressComp ? `(${addressComp})` : ''}
+                              </p>
+                              <p className="text-[10px] text-slate-600 font-semibold">
+                                {addressBairro || 'Bairro'} • {addressCidade || 'Natal'} - {addressEstado || 'RN'} • CEP {addressCep || '59000-000'}
+                              </p>
+                            </div>
                           </div>
-                          <div className="col-span-2">
-                            <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">Rua / Logradouro *</label>
-                            <input 
-                              type="text"
-                              required
-                              placeholder="Ex: Avenida Paulista"
-                              value={addressStreet}
-                              onChange={(e) => setAddressStreet(e.target.value)}
-                              className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none focus:border-pink-550"
-                            />
-                          </div>
-                        </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <p className="font-extrabold text-[9px] uppercase tracking-wider text-slate-500">
+                                {isExistingClient && clientAddresses.length > 0 ? 'Preencher / Alterar Endereço de Entrega' : 'Endereço de Destino para Entrega'}
+                              </p>
+                              {isExistingClient && clientAddresses.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setShowAddressForm(false);
+                                    if (selectedAddressIndex === 'new' || selectedAddressIndex === null) {
+                                      setSelectedAddressIndex(0);
+                                      const first = clientAddresses[0];
+                                      if (first) {
+                                        setAddressStreet(first.street);
+                                        setAddressNum(first.num);
+                                        setAddressComp(first.comp);
+                                        setAddressBairro(first.bairro);
+                                        setAddressCidade(first.cidade);
+                                        setAddressEstado(first.estado);
+                                        setAddressCep(first.cep);
+                                      }
+                                    }
+                                  }}
+                                  className="text-[9px] text-emerald-700 hover:text-emerald-800 font-bold underline cursor-pointer bg-transparent border-none"
+                                >
+                                  ✓ Voltar para Endereços Salvos
+                                </button>
+                              )}
+                            </div>
+                            
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="col-span-1">
+                                <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">CEP *</label>
+                                <input 
+                                  type="text"
+                                  required
+                                  placeholder="Ex: 01311200"
+                                  value={addressCep}
+                                  onChange={(e) => setAddressCep(e.target.value)}
+                                  className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none focus:border-pink-550 font-mono"
+                                />
+                              </div>
+                              <div className="col-span-2">
+                                <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">Rua / Logradouro *</label>
+                                <input 
+                                  type="text"
+                                  required
+                                  placeholder="Ex: Avenida Paulista"
+                                  value={addressStreet}
+                                  onChange={(e) => setAddressStreet(e.target.value)}
+                                  className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none focus:border-pink-550"
+                                />
+                              </div>
+                            </div>
 
-                        <div className="grid grid-cols-3 gap-2">
-                          <div>
-                            <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">Número *</label>
-                            <input 
-                              type="text"
-                              required
-                              placeholder="Ex: 100"
-                              value={addressNum}
-                              onChange={(e) => setAddressNum(e.target.value)}
-                              className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none focus:border-pink-550"
-                            />
-                          </div>
-                          <div className="col-span-2">
-                            <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">Complemento</label>
-                            <input 
-                              type="text"
-                              placeholder="Ex: Apto 101"
-                              value={addressComp}
-                              onChange={(e) => setAddressComp(e.target.value)}
-                              className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none"
-                            />
-                          </div>
-                        </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div>
+                                <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">Número *</label>
+                                <input 
+                                  type="text"
+                                  required
+                                  placeholder="Ex: 100"
+                                  value={addressNum}
+                                  onChange={(e) => setAddressNum(e.target.value)}
+                                  className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none focus:border-pink-550"
+                                />
+                              </div>
+                              <div className="col-span-2">
+                                <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">Complemento</label>
+                                <input 
+                                  type="text"
+                                  placeholder="Ex: Apto 101"
+                                  value={addressComp}
+                                  onChange={(e) => setAddressComp(e.target.value)}
+                                  className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none"
+                                />
+                              </div>
+                            </div>
 
-                        <div className="grid grid-cols-3 gap-2">
-                          <div>
-                            <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">Bairro *</label>
-                            <input 
-                              type="text"
-                              required
-                              placeholder="Ex: Cerqueira"
-                              value={addressBairro}
-                              onChange={(e) => setAddressBairro(e.target.value)}
-                              className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none"
-                            />
+                            <div className="grid grid-cols-3 gap-2">
+                              <div>
+                                <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">Bairro *</label>
+                                <input 
+                                  type="text"
+                                  required
+                                  placeholder="Ex: Cerqueira"
+                                  value={addressBairro}
+                                  onChange={(e) => setAddressBairro(e.target.value)}
+                                  className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">Cidade *</label>
+                                <input 
+                                  type="text"
+                                  required
+                                  placeholder="Ex: São Paulo"
+                                  value={addressCidade}
+                                  onChange={(e) => setAddressCidade(e.target.value)}
+                                  className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">Estado *</label>
+                                <input 
+                                  type="text"
+                                  required
+                                  placeholder="Ex: SP"
+                                  value={addressEstado}
+                                  onChange={(e) => setAddressEstado(e.target.value)}
+                                  className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none uppercase font-mono"
+                                />
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">Cidade *</label>
-                            <input 
-                              type="text"
-                              required
-                              placeholder="Ex: São Paulo"
-                              value={addressCidade}
-                              onChange={(e) => setAddressCidade(e.target.value)}
-                              className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">Estado *</label>
-                            <input 
-                              type="text"
-                              required
-                              placeholder="Ex: SP"
-                              value={addressEstado}
-                              onChange={(e) => setAddressEstado(e.target.value)}
-                              className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none uppercase font-mono"
-                            />
-                          </div>
-                        </div>
+                        )}
 
                         {/* Motoboy Local Delivery Rate */}
                         {deliveryMethod === 'motoboy' && (
-                          <div className="mt-3 bg-emerald-50 border border-emerald-200/60 rounded-xl p-3 text-left space-y-2.5">
+                          <div className="mt-3 bg-emerald-50/80 border border-emerald-200/70 rounded-xl p-3 text-left space-y-2.5">
                             <p className="text-[10px] font-black text-emerald-850 flex items-center gap-1.5 uppercase tracking-wide">
                               <Truck size={12} className="text-emerald-600 shrink-0" />
                               <span>Entrega via Motoboy Express</span>
@@ -1852,14 +1924,14 @@ export function CheckoutWizard({
                                     setSelectedFreightName(`Motoboy - ${reg.name}`);
                                     setSelectedFreightId(`motoboy-${reg.id}`);
                                   } else {
-                                    setSelectedFreightFee(12);
-                                    setSelectedFreightName('Motoboy Express');
-                                    setSelectedFreightId('motoboy-express');
+                                    setSelectedFreightFee(null);
+                                    setSelectedFreightName('Motoboy (Selecione a Região)');
+                                    setSelectedFreightId('motoboy-pending');
                                   }
                                 }}
-                                className="w-full px-2.5 py-1.5 bg-white border border-emerald-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-pink-550"
+                                className="w-full px-2.5 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-pink-550 cursor-pointer shadow-xs"
                               >
-                                <option value="">-- Escolha uma região --</option>
+                                <option value="">-- Escolha uma região / bairro --</option>
                                 {motoboyRegions.map((reg: any) => (
                                   <option key={reg.id} value={reg.id}>
                                     {reg.city} - {reg.name} (R$ {Number(reg.price).toFixed(2)})
@@ -1867,9 +1939,14 @@ export function CheckoutWizard({
                                 ))}
                               </select>
                             </div>
-                            {selectedFreightFee !== null && (
-                              <p className="text-[10px] text-emerald-700 font-bold leading-normal">
-                                Valor selecionado para o motoboy: <strong className="text-pink-600">R$ {Number(selectedFreightFee).toFixed(2)}</strong>.
+                            {selectedMotoboyRegionId && selectedFreightFee !== null ? (
+                              <p className="text-[10px] text-emerald-800 font-bold leading-normal flex items-center gap-1.5 bg-emerald-100/60 p-2 rounded-lg border border-emerald-200/60">
+                                <span>Valor da taxa para motoboy:</span>
+                                <strong className="text-pink-600 font-extrabold text-xs">R$ {Number(selectedFreightFee).toFixed(2)}</strong>
+                              </p>
+                            ) : (
+                              <p className="text-[10px] text-amber-800 font-bold leading-normal flex items-center gap-1.5 bg-amber-50 p-2 rounded-lg border border-amber-200/70">
+                                <span>⚠️ Por favor, selecione a região acima para calcular o valor da entrega via motoboy.</span>
                               </p>
                             )}
                           </div>
