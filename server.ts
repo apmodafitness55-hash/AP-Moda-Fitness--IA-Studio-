@@ -1086,42 +1086,83 @@ function cleanGeminiError(error: any): string {
     if (errStr.trim().startsWith('{')) {
       const parsed = JSON.parse(errStr);
       if (parsed.error && parsed.error.message) {
-        return parsed.error.message;
+        const msg = parsed.error.message;
+        if (msg.includes('429') || msg.toLowerCase().includes('quota') || msg.toLowerCase().includes('rate limit')) {
+          return 'Cota de uso da API do Gemini excedida para esta chave de API. Por favor, verifique seus limites no Google AI Studio ou aguarde alguns instantes.';
+        }
+        if (msg.includes('404') || msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('no longer available')) {
+          return 'Modelo do Gemini indisponível. O sistema utilizará automaticamente um modelo alternativo.';
+        }
+        return msg;
       }
     }
   } catch (ex) {}
 
+  if (errStr.includes('429') || errStr.toLowerCase().includes('quota') || errStr.toLowerCase().includes('rate limit')) {
+    return 'Cota de uso da API do Gemini excedida para esta chave de API. Por favor, verifique seus limites no Google AI Studio ou aguarde alguns instantes.';
+  }
+
   if (errStr.includes('503') || errStr.toLowerCase().includes('unavailable') || errStr.toLowerCase().includes('high demand') || errStr.toLowerCase().includes('overloaded')) {
-    return 'O servidor do Gemini está com alta demanda temporária neste momento. Por favor, aguarde alguns instantes e clique no botão novamente.';
+    return 'O servidor do Gemini está com alta demanda temporária neste momento. Por favor, aguarde alguns instantes e tente novamente.';
   }
   return errStr;
 }
 
-// Wrapper to perform Gemini model generation with a robust retry mechanism (backoff)
+// Wrapper to perform Gemini model generation with multi-model fallbacks and exponential backoff
 async function generateContentWithRetry(params: { model: string; contents: any }, customApiKey?: string): Promise<any> {
   const ai = getGeminiClient(customApiKey);
-  const maxRetries = 3;
-  let delay = 600;
+  const requestedModel = params.model || 'gemini-flash-latest';
+  const candidateModels = Array.from(new Set([
+    'gemini-flash-latest',
+    requestedModel,
+    'gemini-flash-lite-latest',
+    'gemini-flash-latest',
+    'gemini-flash-latest-lite-001'
+  ].filter(Boolean)));
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await ai.models.generateContent(params);
-      return response;
-    } catch (error: any) {
-      const errStr = String(error?.message || error || '');
-      const is503 = errStr.includes('503') || errStr.toLowerCase().includes('unavailable') || errStr.toLowerCase().includes('high demand') || errStr.toLowerCase().includes('resource_exhausted') || errStr.toLowerCase().includes('overloaded');
-      
-      console.warn(`[Gemini Retry Alert] Tentativa ${attempt} de geração falhou. Erro:`, errStr);
-      
-      if (is503 && attempt < maxRetries) {
-        console.log(`[Gemini Retry System] Aguardando ${delay}ms devido a alta demanda (503), e tentando novamente...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 2; // exponential backoff
-        continue;
+  let lastError: any = null;
+
+  for (const modelCandidate of candidateModels) {
+    const maxRetries = 2;
+    let delay = 500;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await ai.models.generateContent({
+          ...params,
+          model: modelCandidate
+        });
+        return response;
+      } catch (error: any) {
+        lastError = error;
+        const errStr = String(error?.message || error || '');
+        const isQuotaOrDemand = errStr.includes('429') || 
+                                errStr.includes('503') || 
+                                errStr.toLowerCase().includes('quota') || 
+                                errStr.toLowerCase().includes('unavailable') || 
+                                errStr.toLowerCase().includes('resource_exhausted') || 
+                                errStr.toLowerCase().includes('overloaded');
+        const isNotFound = errStr.includes('404') || errStr.toLowerCase().includes('not found') || errStr.toLowerCase().includes('no longer available');
+
+        if (isNotFound) {
+          console.warn(`[Gemini Engine] Model ${modelCandidate} not available (404). Trying next model...`);
+          break; // Try next candidate model
+        }
+
+        if (isQuotaOrDemand && attempt < maxRetries) {
+          console.warn(`[Gemini Retry Alert] Rate limit or demand error on ${modelCandidate} (Attempt ${attempt}). Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2;
+          continue;
+        }
+
+        console.warn(`[Gemini Engine] Candidate model ${modelCandidate} failed after attempt ${attempt}. Switching to next candidate...`);
+        break; // Switch to next candidate model
       }
-      throw error;
     }
   }
+
+  throw lastError;
 }
 
 // API Routes
@@ -3121,7 +3162,7 @@ Por favor, gere e retorne APENAS a descrição estruturada com formatação Mark
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-flash-latest',
       contents: { parts }
     }, clientKey);
 
@@ -3156,7 +3197,7 @@ Retorne os dois looks divididos de forma elegante com divisórias Markdown.`;
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-flash-latest',
       contents: prompt
     }, clientKey);
 
@@ -3190,7 +3231,7 @@ Retorne duas versões do script:
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-flash-latest',
       contents: prompt
     }, clientKey);
 
@@ -3232,7 +3273,7 @@ Retorne APENAS o texto da mensagem persuasiva pronta para ser enviada no WhatsAp
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-flash-latest',
       contents: prompt
     }, clientKey);
 
@@ -3272,7 +3313,7 @@ Por favor, seja direto, profissional, analítico e use tabelas Markdown para fac
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-flash-latest',
       contents: prompt
     }, clientKey);
 
@@ -3317,7 +3358,7 @@ Por favor, retorne apenas o objeto JSON limpo e estruturado.`;
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-flash-latest',
       contents: prompt
     }, clientKey);
 
@@ -3403,7 +3444,7 @@ RETORNE (Em formato Markdown com formatação impecável):
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-flash-latest',
       contents: prompt
     }, clientKey);
 
@@ -3433,7 +3474,7 @@ INSTRUÇÕES DE TRADUÇÃO:
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-flash-latest',
       contents: prompt
     }, clientKey);
 
@@ -3490,7 +3531,7 @@ Use formatação Markdown linda, profissional, tabelas limpas e com formatação
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-flash-latest',
       contents: prompt
     }, clientKey);
 
