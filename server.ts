@@ -3121,7 +3121,7 @@ Por favor, gere e retorne APENAS a descrição estruturada com formatação Mark
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: { parts }
     }, clientKey);
 
@@ -3156,7 +3156,7 @@ Retorne os dois looks divididos de forma elegante com divisórias Markdown.`;
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: prompt
     }, clientKey);
 
@@ -3190,7 +3190,7 @@ Retorne duas versões do script:
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: prompt
     }, clientKey);
 
@@ -3232,7 +3232,7 @@ Retorne APENAS o texto da mensagem persuasiva pronta para ser enviada no WhatsAp
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: prompt
     }, clientKey);
 
@@ -3272,7 +3272,7 @@ Por favor, seja direto, profissional, analítico e use tabelas Markdown para fac
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: prompt
     }, clientKey);
 
@@ -3317,7 +3317,7 @@ Por favor, retorne apenas o objeto JSON limpo e estruturado.`;
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: prompt
     }, clientKey);
 
@@ -3403,7 +3403,7 @@ RETORNE (Em formato Markdown com formatação impecável):
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: prompt
     }, clientKey);
 
@@ -3433,7 +3433,7 @@ INSTRUÇÕES DE TRADUÇÃO:
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: prompt
     }, clientKey);
 
@@ -3490,7 +3490,7 @@ Use formatação Markdown linda, profissional, tabelas limpas e com formatação
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash',
       contents: prompt
     }, clientKey);
 
