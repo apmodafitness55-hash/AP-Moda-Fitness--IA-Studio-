@@ -563,17 +563,19 @@ export default function CustomersCRM({
   const predictiveAnalysis = useMemo(() => {
     const now = new Date().getTime();
     return clients.map(client => {
-      const clientSales = sales.filter(s => 
+      const clientSales = sales.filter((s: any) => 
         s.clientName.toLowerCase() === client.name.toLowerCase() || 
-        (client.cpf && s.clientCpf === client.cpf)
+        (client.cpf && s.clientCpf && s.clientCpf === client.cpf)
       );
       
+      const getSaleTime = (s: any) => new Date(s.createdAt || s.date || Date.now()).getTime();
+
       const lastSale = clientSales.length > 0 
-        ? clientSales.reduce((latest, s) => new Date(s.date).getTime() > new Date(latest.date).getTime() ? s : latest, clientSales[0])
+        ? clientSales.reduce((latest: any, s: any) => getSaleTime(s) > getSaleTime(latest) ? s : latest, clientSales[0])
         : null;
 
       const daysSinceLastPurchase = lastSale 
-        ? Math.max(1, Math.floor((now - new Date(lastSale.date).getTime()) / (1000 * 60 * 60 * 24))) 
+        ? Math.max(1, Math.floor((now - getSaleTime(lastSale)) / (1000 * 60 * 60 * 24))) 
         : 45;
       
       let probability = 50;
@@ -619,7 +621,7 @@ export default function CustomersCRM({
         suggestedCategory,
         recommendedAction,
         estimatedLtv,
-        lastSaleDate: lastSale ? new Date(lastSale.date).toLocaleDateString('pt-BR') : 'Sem registro recente'
+        lastSaleDate: lastSale ? new Date((lastSale as any).createdAt || (lastSale as any).date || Date.now()).toLocaleDateString('pt-BR') : 'Sem registro recente'
       };
     }).sort((a, b) => b.probability - a.probability);
   }, [clients, sales]);

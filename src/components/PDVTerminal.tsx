@@ -360,6 +360,19 @@ export default function PDVTerminal({
     return clients.find(c => c.name.toLowerCase() === selectedClientName.trim().toLowerCase());
   }, [clients, selectedClientName]);
 
+  // Sync selected client in PDV to localStorage so Checkout/PublicCatalog can auto-import it
+  React.useEffect(() => {
+    if (selectedClientObject) {
+      try {
+        localStorage.setItem('ap_pdv_selected_client', JSON.stringify(selectedClientObject));
+        localStorage.setItem('ap_last_client_data', JSON.stringify(selectedClientObject));
+        window.dispatchEvent(new Event('ap-pdv-client-updated'));
+      } catch (e) {
+        console.warn('Error saving PDV selected client to localStorage:', e);
+      }
+    }
+  }, [selectedClientObject]);
+
   const clientCashbackAvailable = useMemo(() => {
     return selectedClientObject?.cashbackBalance || 0;
   }, [selectedClientObject]);
@@ -1020,6 +1033,11 @@ export default function PDVTerminal({
       createdAt: new Date().toISOString()
     };
     onAddClient(newClient);
+    try {
+      localStorage.setItem('ap_pdv_selected_client', JSON.stringify(newClient));
+      localStorage.setItem('ap_last_client_data', JSON.stringify(newClient));
+      window.dispatchEvent(new Event('ap-pdv-client-updated'));
+    } catch (e) {}
     setIsQuickAddOpen(false);
     setQuickPhone('');
     setQuickEmail('');

@@ -809,21 +809,129 @@ export default function PublicCatalog({
     }
   }, [completedOrder]);
 
-  // Checkout form info
-  const [clientName, setClientName] = useState('');
-  const [clientPhone, setClientPhone] = useState('');
-  const [clientEmail, setClientEmail] = useState('');
-  const [clientCpf, setClientCpf] = useState('');
-  const [clientBirthDate, setClientBirthDate] = useState('');
+  // Checkout form info with localStorage fallback persistence
+  const [clientName, setClientName] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.name || parsed.clientName || '';
+      }
+    } catch (e) {}
+    return '';
+  });
+  const [clientPhone, setClientPhone] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.phone || parsed.whatsapp || '';
+      }
+    } catch (e) {}
+    return '';
+  });
+  const [clientEmail, setClientEmail] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.email || '';
+      }
+    } catch (e) {}
+    return '';
+  });
+  const [clientCpf, setClientCpf] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.cpf || parsed.clientCpf || parsed.clientDoc || '';
+      }
+    } catch (e) {}
+    return '';
+  });
+  const [clientBirthDate, setClientBirthDate] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.birthDate || parsed.birth_date || '';
+      }
+    } catch (e) {}
+    return '';
+  });
   
   // Structured address components
-  const [addressStreet, setAddressStreet] = useState('');
-  const [addressNum, setAddressNum] = useState('');
-  const [addressComp, setAddressComp] = useState('');
-  const [addressBairro, setAddressBairro] = useState('');
-  const [addressCidade, setAddressCidade] = useState('');
-  const [addressEstado, setAddressEstado] = useState('');
-  const [addressCep, setAddressCep] = useState('');
+  const [addressStreet, setAddressStreet] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.addressStreet || parsed.street || parsed.rua || '';
+      }
+    } catch (e) {}
+    return '';
+  });
+  const [addressNum, setAddressNum] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.addressNum || parsed.number || parsed.numero || '';
+      }
+    } catch (e) {}
+    return '';
+  });
+  const [addressComp, setAddressComp] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.addressComp || parsed.complement || parsed.complemento || '';
+      }
+    } catch (e) {}
+    return '';
+  });
+  const [addressBairro, setAddressBairro] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.addressBairro || parsed.bairro || parsed.neighborhood || '';
+      }
+    } catch (e) {}
+    return '';
+  });
+  const [addressCidade, setAddressCidade] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.addressCidade || parsed.city || parsed.cidade || '';
+      }
+    } catch (e) {}
+    return '';
+  });
+  const [addressEstado, setAddressEstado] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.addressEstado || parsed.state || parsed.estado || '';
+      }
+    } catch (e) {}
+    return '';
+  });
+  const [addressCep, setAddressCep] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.addressCep || parsed.cep || '';
+      }
+    } catch (e) {}
+    return '';
+  });
 
   const [deliveryMethod, setDeliveryMethod] = useState<'motoboy' | 'correios' | 'retirada' | 'combinar'>('motoboy');
   const motoboyRegions = useMemo(() => {
@@ -919,6 +1027,62 @@ export default function PublicCatalog({
       fetchAndRestoreCheckout();
     }
   }, [products]);
+
+  // Auto load PDV / CRM selected client data when catalog loads or cart opens
+  useEffect(() => {
+    const loadPdvClient = () => {
+      try {
+        const pdvSaved = localStorage.getItem('ap_pdv_selected_client') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_checkout_client_data');
+        if (pdvSaved) {
+          const parsed = JSON.parse(pdvSaved);
+          if (parsed) {
+            if (!clientName && (parsed.name || parsed.clientName)) {
+              setClientName(parsed.name || parsed.clientName || '');
+            }
+            if (!clientPhone && (parsed.phone || parsed.whatsapp || parsed.mobile)) {
+              setClientPhone(parsed.phone || parsed.whatsapp || parsed.mobile || '');
+            }
+            if (!clientEmail && parsed.email) {
+              setClientEmail(parsed.email || '');
+            }
+            if (!clientCpf && (parsed.cpf || parsed.document)) {
+              setClientCpf(parsed.cpf || parsed.document || '');
+            }
+            if (!clientBirthDate && (parsed.birthDate || parsed.birth_date)) {
+              setClientBirthDate(parsed.birthDate || parsed.birth_date || '');
+            }
+            if (!addressStreet && (parsed.addressStreet || parsed.street)) {
+              setAddressStreet(parsed.addressStreet || parsed.street || '');
+            }
+            if (!addressNum && (parsed.addressNum || parsed.number)) {
+              setAddressNum(parsed.addressNum || parsed.number || '');
+            }
+            if (!addressComp && (parsed.addressComp || parsed.complement)) {
+              setAddressComp(parsed.addressComp || parsed.complement || '');
+            }
+            if (!addressBairro && (parsed.addressBairro || parsed.bairro || parsed.neighborhood)) {
+              setAddressBairro(parsed.addressBairro || parsed.bairro || parsed.neighborhood || '');
+            }
+            if (!addressCidade && (parsed.addressCidade || parsed.city)) {
+              setAddressCidade(parsed.addressCidade || parsed.city || '');
+            }
+            if (!addressEstado && (parsed.addressEstado || parsed.state)) {
+              setAddressEstado(parsed.addressEstado || parsed.state || '');
+            }
+            if (!addressCep && (parsed.addressCep || parsed.cep || parsed.zip)) {
+              setAddressCep(parsed.addressCep || parsed.cep || parsed.zip || '');
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[PDV Client Load Error]', e);
+      }
+    };
+
+    loadPdvClient();
+    window.addEventListener('ap-pdv-client-updated', loadPdvClient);
+    return () => window.removeEventListener('ap-pdv-client-updated', loadPdvClient);
+  }, [clientName, clientCpf]);
 
   const handleCalculateMelhorEnvio = async (cepToCalculate: string) => {
     const cleanCep = cepToCalculate.replace(/\D/g, '');
@@ -4867,6 +5031,7 @@ export default function PublicCatalog({
           <div className="bg-white w-full h-full md:max-w-md md:h-[calc(100%-2rem)] md:my-4 md:mr-4 md:rounded-3xl shadow-2xl p-5 flex flex-col justify-between overflow-hidden animate-in slide-in-from-right duration-250 font-sans text-slate-800" onClick={(e) => e.stopPropagation()}>
             <CheckoutWizard
               cart={cart}
+              clients={clients}
               initialStep={cartInitialStep}
               handleUpdateItemQty={handleUpdateItemQty}
               products={products}
@@ -5292,6 +5457,19 @@ export default function PublicCatalog({
                       
                       let found = (clients || []).find(c => c.cpf && c.cpf.replace(/\D/g, '') === cleaned);
                       if (!found) {
+                        // Check local storage for saved clients
+                        try {
+                          const storedClients = localStorage.getItem('ap_moda_clients');
+                          if (storedClients) {
+                            const parsed = JSON.parse(storedClients);
+                            if (Array.isArray(parsed)) {
+                              found = parsed.find((c: any) => c.cpf && c.cpf.replace(/\D/g, '') === cleaned);
+                            }
+                          }
+                        } catch (e) {}
+                      }
+
+                      if (!found) {
                         // Let's look in onlineOrders to see if there is an order with this CPF!
                         const matchedOrder = (onlineOrders || []).find(o => {
                           let orderCpf = o.cpf || '';
@@ -5321,18 +5499,54 @@ export default function PublicCatalog({
 
                       if (found) {
                         setLoggedClient(found);
-                        setClientName(found.name);
-                        setClientPhone(found.phone || found.whatsapp || '');
-                        setClientEmail(found.email || '');
-                        setClientCpf(found.cpf || '');
-                        setClientBirthDate(found.birthDate || '');
-                        setAddressStreet(found.addressStreet || '');
-                        setAddressNum(found.addressNum || '');
-                        setAddressComp(found.addressComp || '');
-                        setAddressBairro(found.addressBairro || '');
-                        setAddressCidade(found.addressCidade || '');
-                        setAddressEstado(found.addressEstado || '');
-                        setAddressCep(found.addressCep || '');
+                        const cName = found.name || '';
+                        const cPhone = found.phone || found.whatsapp || '';
+                        const cEmail = found.email || '';
+                        const cCpf = found.cpf || '';
+                        const cBirth = found.birthDate || '';
+                        const cStreet = found.addressStreet || found.street || '';
+                        const cNum = found.addressNum || found.number || '';
+                        const cComp = found.addressComp || found.complement || '';
+                        const cBairro = found.addressBairro || found.bairro || '';
+                        const cCidade = found.addressCidade || found.city || '';
+                        const cEstado = found.addressEstado || found.state || '';
+                        const cCep = found.addressCep || found.cep || '';
+
+                        setClientName(cName);
+                        setClientPhone(cPhone);
+                        setClientEmail(cEmail);
+                        setClientCpf(cCpf);
+                        setClientBirthDate(cBirth);
+                        setAddressStreet(cStreet);
+                        setAddressNum(cNum);
+                        setAddressComp(cComp);
+                        setAddressBairro(cBairro);
+                        setAddressCidade(cCidade);
+                        setAddressEstado(cEstado);
+                        setAddressCep(cCep);
+
+                        try {
+                          const clientData = {
+                            id: found.id,
+                            name: cName,
+                            phone: cPhone,
+                            email: cEmail,
+                            cpf: cCpf,
+                            birthDate: cBirth,
+                            addressStreet: cStreet,
+                            addressNum: cNum,
+                            addressComp: cComp,
+                            addressBairro: cBairro,
+                            addressCidade: cCidade,
+                            addressEstado: cEstado,
+                            addressCep: cCep
+                          };
+                          localStorage.setItem('ap_checkout_client_data', JSON.stringify(clientData));
+                          localStorage.setItem('ap_last_client_data', JSON.stringify(clientData));
+                          localStorage.setItem('ap_pdv_selected_client', JSON.stringify(clientData));
+                          window.dispatchEvent(new Event('ap-pdv-client-updated'));
+                        } catch (e) {}
+
                         setLoginError('');
                       } else {
                         setLoginError('CPF não localizado em nosso sistema. Faça seu primeiro pedido para se cadastrar automaticamente!');

@@ -35,6 +35,7 @@ interface CheckoutWizardProps {
     priceAtTime: number;
     isUpsell?: boolean;
   }[];
+  clients?: any[];
   handleUpdateItemQty: (index: number, delta: number) => void;
   products?: any[];
   onAddProductToCart?: (product: any, color: string, size: string, priceAtTime: number, isUpsell?: boolean) => void;
@@ -118,6 +119,7 @@ interface CheckoutWizardProps {
 
 export function CheckoutWizard({
   cart,
+  clients = [],
   handleUpdateItemQty,
   products,
   onAddProductToCart,
@@ -357,48 +359,124 @@ export function CheckoutWizard({
     }
   }, [deliveryMethod, pickupDate, pickupTime, setPickupDate, setPickupTime]);
 
-  // Auto identify when loggedClient changes
-  useEffect(() => {
-    if (loggedClient && loggedClient.cpf) {
-      setCpfVerified(true);
-      setIsExistingClient(true);
-      setClientCpf(loggedClient.cpf);
-      setClientName(loggedClient.name || '');
-      setClientPhone(loggedClient.phone || loggedClient.whatsapp || '');
-      setClientEmail(loggedClient.email || '');
-      setClientBirthDate(loggedClient.birthDate || '');
-      
-      const addresses: any[] = [];
-      if (loggedClient.addressStreet && loggedClient.addressCep) {
-        addresses.push({
-          id: 'profile',
-          label: 'Endereço de Cadastro',
-          street: loggedClient.addressStreet,
-          num: loggedClient.addressNum || '',
-          comp: loggedClient.addressComp || '',
-          bairro: loggedClient.addressBairro || '',
-          cidade: loggedClient.addressCidade || '',
-          estado: loggedClient.addressEstado || '',
-          cep: loggedClient.addressCep || ''
-        });
-      }
-      setClientAddresses(addresses);
-      if (addresses.length > 0) {
-        setSelectedAddressIndex(0);
-        setShowAddressForm(false);
-        setAddressStreet(addresses[0].street);
-        setAddressNum(addresses[0].num);
-        setAddressComp(addresses[0].comp);
-        setAddressBairro(addresses[0].bairro);
-        setAddressCidade(addresses[0].cidade);
-        setAddressEstado(addresses[0].estado);
-        setAddressCep(addresses[0].cep);
-      } else {
-        setSelectedAddressIndex('new');
-        setShowAddressForm(true);
-      }
+  const [selectedClientPdvId, setSelectedClientPdvId] = useState<string>('');
+
+  const handleSelectRegisteredClient = (clientObj: any) => {
+    if (!clientObj) return;
+    setCpfVerified(true);
+    setIsExistingClient(true);
+    if (clientObj.id) setSelectedClientPdvId(clientObj.id);
+
+    const name = clientObj.name || clientObj.clientName || '';
+    const phone = clientObj.phone || clientObj.whatsapp || '';
+    const email = clientObj.email || '';
+    const cpf = clientObj.cpf || clientObj.clientCpf || clientObj.clientDoc || '';
+    const birthDate = clientObj.birthDate || clientObj.birth_date || '';
+
+    if (name) setClientName(name);
+    if (phone) setClientPhone(phone);
+    if (email) setClientEmail(email);
+    if (cpf) setClientCpf(cpf);
+    if (birthDate) setClientBirthDate(birthDate);
+
+    const street = clientObj.addressStreet || clientObj.street || clientObj.rua || '';
+    const num = clientObj.addressNum || clientObj.number || clientObj.numero || '';
+    const comp = clientObj.addressComp || clientObj.complement || clientObj.complemento || '';
+    const bairro = clientObj.addressBairro || clientObj.bairro || clientObj.neighborhood || '';
+    const cidade = clientObj.addressCidade || clientObj.city || clientObj.cidade || '';
+    const estado = clientObj.addressEstado || clientObj.state || clientObj.estado || 'RN';
+    const cep = clientObj.addressCep || clientObj.cep || '';
+
+    if (street) setAddressStreet(street);
+    if (num) setAddressNum(num);
+    if (comp) setAddressComp(comp);
+    if (bairro) setAddressBairro(bairro);
+    if (cidade) setAddressCidade(cidade);
+    if (estado) setAddressEstado(estado);
+    if (cep) setAddressCep(cep);
+
+    const addresses: any[] = [];
+    if (street || cep) {
+      addresses.push({
+        id: `cli-addr-${clientObj.id || Date.now()}`,
+        label: 'Endereço Importado do Cadastro/PDV/CRM',
+        street: street || 'Rua Principal',
+        num: num || 'S/N',
+        comp: comp || '',
+        bairro: bairro || 'Centro',
+        cidade: cidade || 'Natal',
+        estado: estado || 'RN',
+        cep: cep || '59000-000'
+      });
     }
+    setClientAddresses(addresses);
+    if (addresses.length > 0) {
+      setSelectedAddressIndex(0);
+      setShowAddressForm(false);
+    } else {
+      setSelectedAddressIndex('new');
+      setShowAddressForm(true);
+    }
+
+    try {
+      const currentData = {
+        name: name || clientName,
+        phone: phone || clientPhone,
+        email: email || clientEmail,
+        cpf: cpf || clientCpf,
+        birthDate: birthDate || clientBirthDate,
+        addressStreet: street || addressStreet,
+        addressNum: num || addressNum,
+        addressComp: comp || addressComp,
+        addressBairro: bairro || addressBairro,
+        addressCidade: cidade || addressCidade,
+        addressEstado: estado || addressEstado,
+        addressCep: cep || addressCep
+      };
+      localStorage.setItem('ap_checkout_client_data', JSON.stringify(currentData));
+      localStorage.setItem('ap_last_client_data', JSON.stringify(currentData));
+    } catch (e) {}
+  };
+
+  // Auto identify when loggedClient changes or when PDV/Site client data is saved
+  useEffect(() => {
+    if (loggedClient && (loggedClient.cpf || loggedClient.name || loggedClient.email)) {
+      handleSelectRegisteredClient(loggedClient);
+      return;
+    }
+
+    const syncClientData = () => {
+      try {
+        const pdvSaved = localStorage.getItem('ap_pdv_selected_client') || 
+                      localStorage.getItem('ap_last_client_data') || 
+                      localStorage.getItem('ap_checkout_client_data') ||
+                      localStorage.getItem('ap_site_current_user');
+        if (pdvSaved) {
+          const parsed = JSON.parse(pdvSaved);
+          if (parsed && (parsed.name || parsed.clientName || parsed.cpf)) {
+            handleSelectRegisteredClient(parsed);
+          }
+        }
+      } catch (e) {
+        console.warn('[CheckoutWizard] Error syncing client data:', e);
+      }
+    };
+
+    syncClientData();
+    window.addEventListener('ap-pdv-client-updated', syncClientData);
+    window.addEventListener('ap-storage-synced', syncClientData);
+    return () => {
+      window.removeEventListener('ap-pdv-client-updated', syncClientData);
+      window.removeEventListener('ap-storage-synced', syncClientData);
+    };
   }, [loggedClient]);
+
+  // Bypass CPF check screen if clientName or clientCpf was already filled
+  useEffect(() => {
+    if (clientName && clientName.trim().length > 0) {
+      setCpfVerified(true);
+    }
+  }, [clientName]);
 
   const handleCheckCPF = async () => {
     setCheckoutError(null);
@@ -414,174 +492,102 @@ export function CheckoutWizard({
 
     setIsCheckingCpf(true);
     try {
-      const db = getSupabaseClient();
-      if (!db) {
-        throw new Error('Supabase client is not configured.');
-      }
-      
       const formattedCpf = clientCpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
       
-      // Query clients matching the CPF (either clean or formatted)
-      const { data: clients, error: clientError } = await db
-        .from('ap_clients')
-        .select('*')
-        .or(`cpf.eq.${cleanCpf},cpf.eq.${formattedCpf}`);
-        
-      if (clientError) {
-        throw clientError;
-      }
-      
+      let foundClient: any = null;
+
+      // SOURCE 1: Check clients prop array
       if (clients && clients.length > 0) {
-        // Existing customer found!
-        const foundClient = clients[0];
-        setIsExistingClient(true);
-        
-        // Populate personal data
-        setClientName(foundClient.name || '');
-        setClientPhone(foundClient.phone || foundClient.whatsapp || '');
-        setClientEmail(foundClient.email || '');
-        setClientBirthDate(foundClient.birthDate || '');
-        
-        // Build address options from client profile
-        const addresses: any[] = [];
-        
-        // 1. Add profile address if it has street and cep
-        if (foundClient.addressStreet && foundClient.addressCep) {
-          addresses.push({
-            id: 'profile',
-            label: 'Endereço de Cadastro',
-            street: foundClient.addressStreet,
-            num: foundClient.addressNum || '',
-            comp: foundClient.addressComp || '',
-            bairro: foundClient.addressBairro || '',
-            cidade: foundClient.addressCidade || '',
-            estado: foundClient.addressEstado || '',
-            cep: foundClient.addressCep || ''
-          });
-        }
-        
-        // 2. Fetch unique past addresses from sales
+        foundClient = clients.find((c: any) => {
+          const cCpf = (c.cpf || '').replace(/\D/g, '');
+          return cCpf === cleanCpf || c.cpf === formattedCpf;
+        });
+      }
+
+      // SOURCE 2: Check localStorage 'ap_moda_clients'
+      if (!foundClient) {
         try {
-          const { data: sales, error: salesError } = await db
-            .from('ap_sales')
-            .select('address')
-            .or(`clientDoc.eq.${cleanCpf},clientDoc.eq.${formattedCpf}`);
-            
-          if (!salesError && sales) {
-            const seenAddresses = new Set<string>();
-            if (foundClient.addressStreet && foundClient.addressCep) {
-              const profileStr = `${foundClient.addressStreet}, ${foundClient.addressNum || ''}, ${foundClient.addressBairro || ''}, ${foundClient.addressCidade || ''}`.toLowerCase().trim();
-              seenAddresses.add(profileStr);
+          const stored = localStorage.getItem('ap_moda_clients');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) {
+              foundClient = parsed.find((c: any) => {
+                const cCpf = (c.cpf || '').replace(/\D/g, '');
+                return cCpf === cleanCpf || c.cpf === formattedCpf;
+              });
             }
-            
-            sales.forEach((sale: any, index: number) => {
-              const rawAddr = sale.address;
-              if (rawAddr && typeof rawAddr === 'string' && rawAddr.trim()) {
-                const addrLower = rawAddr.toLowerCase().trim();
-                if (!seenAddresses.has(addrLower)) {
-                  seenAddresses.add(addrLower);
-                  
-                  // Simple heuristic parsing
-                  const parts = rawAddr.split(',').map(p => p.trim());
-                  let parsedCep = '';
-                  let parsedEstado = 'RN';
-                  let parsedCidade = 'Natal';
-                  let parsedBairro = '';
-                  let parsedNum = '';
-                  let parsedStreet = parts[0] || '';
-                  
-                  parts.forEach((p, idx) => {
-                    const cepMatch = p.match(/\d{5}-\d{3}/) || p.match(/\d{8}/);
-                    if (cepMatch) {
-                      parsedCep = cepMatch[0].replace(/\D/g, '');
-                    }
-                    if (p.length === 2 && p === p.toUpperCase() && idx > 0) {
-                      parsedEstado = p;
-                    }
-                  });
-                  
-                  addresses.push({
-                    id: `sale-${index}`,
-                    label: `Endereço de Pedido Anterior`,
-                    street: parts[0] || '',
-                    num: parts[1] || '',
-                    comp: parts[2] && parts[2].includes('CEP') ? '' : (parts[2] || ''),
-                    bairro: parts[3] || '',
-                    cidade: parts[4] || '',
-                    estado: parsedEstado,
-                    cep: parsedCep || foundClient.addressCep || ''
-                  });
-                }
+          }
+        } catch (e) {}
+      }
+
+      // SOURCE 3: Check localStorage saved client
+      if (!foundClient) {
+        try {
+          const pdvSaved = localStorage.getItem('ap_pdv_selected_client') || 
+                        localStorage.getItem('ap_last_client_data') || 
+                        localStorage.getItem('ap_checkout_client_data') ||
+                        localStorage.getItem('ap_site_current_user');
+          if (pdvSaved) {
+            const parsed = JSON.parse(pdvSaved);
+            if (parsed && (parsed.cpf || parsed.clientCpf)) {
+              const pCpf = String(parsed.cpf || parsed.clientCpf).replace(/\D/g, '');
+              if (pCpf === cleanCpf) {
+                foundClient = parsed;
               }
-            });
+            }
+          }
+        } catch (e) {}
+      }
+
+      // SOURCE 4: Query Supabase if configured
+      if (!foundClient) {
+        try {
+          const db = getSupabaseClient();
+          if (db) {
+            const { data: dbClients, error: clientError } = await db
+              .from('ap_clients')
+              .select('*')
+              .or(`cpf.eq.${cleanCpf},cpf.eq.${formattedCpf}`);
+            
+            if (!clientError && dbClients && dbClients.length > 0) {
+              foundClient = dbClients[0];
+            }
           }
         } catch (e) {
-          console.warn('Could not fetch historical sales addresses:', e);
+          console.warn('[CheckoutWizard] Supabase CPF check offline or unconfigured:', e);
         }
-        
-        setClientAddresses(addresses);
-        setCpfVerified(true);
-        
-        if (addresses.length > 0) {
-          // Select the first address by default
-          setSelectedAddressIndex(0);
-          setShowAddressForm(false);
-          
-          // Auto fill address state
-          const firstAddr = addresses[0];
-          setAddressStreet(firstAddr.street);
-          setAddressNum(firstAddr.num);
-          setAddressComp(firstAddr.comp);
-          setAddressBairro(firstAddr.bairro);
-          setAddressCidade(firstAddr.cidade);
-          setAddressEstado(firstAddr.estado);
-          setAddressCep(firstAddr.cep);
-          
-          // Trigger freight calculation if delivery method is correios
-          if (firstAddr.cep && deliveryMethod === 'correios') {
-            handleCalculateMelhorEnvio(firstAddr.cep);
-          } else if (deliveryMethod === 'motoboy') {
-            const reg = motoboyRegions.find((r: any) => r.id === selectedMotoboyRegionId);
-            if (reg) {
-              setSelectedFreightFee(reg.price);
-              setSelectedFreightName(`Motoboy - ${reg.name}`);
-              setSelectedFreightId(`motoboy-${reg.id}`);
-            } else {
-              setSelectedFreightFee(12);
-              setSelectedFreightName('Motoboy Express');
-              setSelectedFreightId('motoboy-express');
-            }
-          }
-        } else {
-          // No addresses on file, show address form to enter one
-          setSelectedAddressIndex('new');
-          setShowAddressForm(true);
-        }
-      } else {
-        // New client!
-        setIsExistingClient(false);
-        setClientAddresses([]);
-        setSelectedAddressIndex('new');
-        setShowAddressForm(true);
-        setCpfVerified(true);
-        
-        // Do NOT overwrite CPF but clean other fields so they can fill them fresh
-        setClientName('');
-        setClientPhone('');
-        setClientEmail('');
-        setClientBirthDate('');
-        
-        setAddressStreet('');
-        setAddressNum('');
-        setAddressComp('');
-        setAddressBairro('');
-        setAddressCidade('');
-        setAddressEstado('RN');
-        setAddressCep('');
       }
+
+      if (foundClient) {
+        handleSelectRegisteredClient(foundClient);
+        setIsCheckingCpf(false);
+        return;
+      }
+
+      // If client not found in database or CRM, proceed as a new/site client WITHOUT wiping existing non-empty form values
+      setIsExistingClient(false);
+      setCpfVerified(true);
+      setShowAddressForm(true);
+      setSelectedAddressIndex('new');
+
+      // Attempt to preserve or restore any previously typed data from localStorage draft
+      try {
+        const savedDraft = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data');
+        if (savedDraft) {
+          const parsed = JSON.parse(savedDraft);
+          if (!clientName && (parsed.name || parsed.clientName)) setClientName(parsed.name || parsed.clientName);
+          if (!clientPhone && (parsed.phone || parsed.whatsapp)) setClientPhone(parsed.phone || parsed.whatsapp);
+          if (!clientEmail && parsed.email) setClientEmail(parsed.email);
+          if (!addressStreet && (parsed.addressStreet || parsed.street)) setAddressStreet(parsed.addressStreet || parsed.street);
+          if (!addressNum && (parsed.addressNum || parsed.number)) setAddressNum(parsed.addressNum || parsed.number);
+          if (!addressBairro && (parsed.addressBairro || parsed.bairro)) setAddressBairro(parsed.addressBairro || parsed.bairro);
+          if (!addressCidade && (parsed.addressCidade || parsed.city)) setAddressCidade(parsed.addressCidade || parsed.city);
+          if (!addressEstado && (parsed.addressEstado || parsed.state)) setAddressEstado(parsed.addressEstado || parsed.state);
+          if (!addressCep && (parsed.addressCep || parsed.cep)) setAddressCep(parsed.addressCep || parsed.cep);
+        }
+      } catch (e) {}
     } catch (err: any) {
-      console.error('Error checking CPF in Supabase:', err);
-      // Fallback to offline registration so checkout remains unblocked
+      console.error('Error checking CPF in CheckoutWizard:', err);
       setIsExistingClient(false);
       setSelectedAddressIndex('new');
       setShowAddressForm(true);
@@ -1390,21 +1396,61 @@ export function CheckoutWizard({
                     </div>
                   ) : (
                     <div className="space-y-4 animate-in fade-in duration-300">
+                      {/* PDV / CRM Client Selector & Import Badge */}
+                      <div className="bg-[#1E3A42]/5 border border-[#1E3A42]/15 p-3 rounded-2xl space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 text-[#1E3A42]">
+                            <Sparkles size={13} className="text-pink-600 animate-pulse" />
+                            <span className="font-extrabold text-[10px] tracking-wider uppercase font-sans">Cliente Importado do PDV / CRM</span>
+                          </div>
+                          <span className="text-[9px] bg-emerald-600 text-white font-extrabold px-2 py-0.5 rounded-full uppercase font-mono shadow-xs">
+                            ✓ Dados Carregados
+                          </span>
+                        </div>
+
+                        {clients && clients.length > 0 && (
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-500 uppercase block font-sans">
+                              Trocar ou Selecionar Outra Cliente Cadastrada
+                            </label>
+                            <select
+                              value={selectedClientPdvId}
+                              onChange={(e) => {
+                                const found = clients.find(c => c.id === e.target.value);
+                                if (found) {
+                                  handleSelectRegisteredClient(found);
+                                }
+                              }}
+                              className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-pink-500 cursor-pointer font-sans"
+                            >
+                              <option value="">
+                                {clientName ? `✓ ${clientName} ${clientCpf ? `(CPF: ${clientCpf})` : ''}` : '-- Selecionar Cliente do PDV/CRM --'}
+                              </option>
+                              {clients.map(c => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name} {c.cpf ? `• CPF: ${c.cpf}` : ''} {c.phone ? `• Tel: ${c.phone}` : ''}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+
                       {isExistingClient ? (
-                        <div className="bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-100/70 space-y-1">
+                        <div className="bg-emerald-50/60 p-3 rounded-2xl border border-emerald-100/70 space-y-1">
                           <div className="flex items-center gap-1.5 text-emerald-800">
                             <Sparkles size={12} className="animate-pulse" />
-                            <span className="font-extrabold text-[10px] tracking-wider uppercase">Olá de volta! Confirmamos seus dados.</span>
+                            <span className="font-extrabold text-[10px] tracking-wider uppercase">Cadastro Confirmado</span>
                           </div>
                           <p className="text-[9.5px] text-slate-650 leading-normal">
-                            Que bom ter você aqui novamente, <strong>{clientName}</strong>! Identificamos o seu cadastro. Confira os dados e escolha seu endereço de entrega.
+                            Que bom ter você aqui, <strong>{clientName || 'Cliente'}</strong>! Seus dados foram importados com sucesso. Confira abaixo e confirme o endereço de entrega.
                           </p>
-                          <div className="pt-1.5 flex items-center justify-between text-[8.5px] font-bold text-slate-500 uppercase tracking-wider">
-                            <span>CPF: {clientCpf}</span>
+                          <div className="pt-1 flex items-center justify-between text-[8.5px] font-bold text-slate-500 uppercase tracking-wider">
+                            <span>CPF: {clientCpf || 'Não informado'}</span>
                             <button 
                               type="button" 
                               onClick={handleResetCpf} 
-                              className="text-pink-600 hover:text-pink-700 hover:underline cursor-pointer bg-transparent border-none"
+                              className="text-pink-600 hover:text-pink-700 hover:underline cursor-pointer bg-transparent border-none font-bold"
                             >
                               Alterar CPF
                             </button>
@@ -1418,11 +1464,11 @@ export function CheckoutWizard({
                           </div>
                           <p className="text-[9px] text-slate-500 font-medium">Cadastre-se rapidamente abaixo para garantir cashback de 5% nesta compra, brindes e suporte VIP!</p>
                           <div className="pt-1 flex items-center justify-between text-[8.5px] font-bold text-slate-500 uppercase tracking-wider">
-                            <span>CPF: {clientCpf}</span>
+                            <span>CPF: {clientCpf || 'Pendente'}</span>
                             <button 
                               type="button" 
                               onClick={handleResetCpf} 
-                              className="text-pink-600 hover:text-pink-700 hover:underline cursor-pointer bg-transparent border-none"
+                              className="text-pink-600 hover:text-pink-700 hover:underline cursor-pointer bg-transparent border-none font-bold"
                             >
                               Alterar CPF
                             </button>
@@ -1430,58 +1476,59 @@ export function CheckoutWizard({
                         </div>
                       )}
 
-                      <div className="space-y-3.5 text-xs">
-                        {/* Only show personal fields to edit or fill if it's a new customer or if they want to edit */}
-                        {!isExistingClient && (
-                          <>
+                      <div className="space-y-3.5 text-xs font-sans">
+                        {/* Always show personal fields for verification and edits */}
+                        <div className="space-y-2.5 bg-slate-50/70 p-3 rounded-2xl border border-slate-200/60 font-sans">
+                          <span className="text-[9.5px] font-extrabold text-slate-700 uppercase tracking-wider block border-b border-slate-200/60 pb-1">
+                            👤 Dados Pessoais da Cliente
+                          </span>
+                          <div>
+                            <label className="text-slate-450 font-bold text-[9px] uppercase tracking-wider block mb-0.5">Nome Completo *</label>
+                            <input 
+                              type="text"
+                              required
+                              placeholder="Ex: Gabriela Duarte"
+                              value={clientName}
+                              onChange={(e) => setClientName(e.target.value)}
+                              className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-medium text-xs focus:outline-none focus:border-pink-550"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <label className="text-slate-450 font-bold text-[9px] uppercase tracking-wider block">Seu Nome Completo *</label>
+                              <label className="text-slate-450 font-bold text-[9px] uppercase tracking-wider block mb-0.5">Data de Nascimento (Opcional)</label>
+                              <input 
+                                type="date"
+                                value={clientBirthDate}
+                                onChange={(e) => setClientBirthDate(e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-medium text-xs focus:outline-none focus:border-pink-550 font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-slate-450 font-bold text-[9px] uppercase tracking-wider block mb-0.5">Celular / WhatsApp *</label>
                               <input 
                                 type="text"
                                 required
-                                placeholder="Ex: Gabriela Duarte"
-                                value={clientName}
-                                onChange={(e) => setClientName(e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-xs focus:outline-none focus:border-pink-550"
+                                placeholder="Ex: (11) 99999-8888"
+                                value={clientPhone}
+                                onChange={(e) => setClientPhone(e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-medium text-xs focus:outline-none focus:border-pink-550 font-mono"
                               />
                             </div>
+                          </div>
 
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <label className="text-slate-450 font-bold text-[9px] uppercase tracking-wider block">Data de Nascimento (Opcional)</label>
-                                <input 
-                                  type="date"
-                                  value={clientBirthDate}
-                                  onChange={(e) => setClientBirthDate(e.target.value)}
-                                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-xs focus:outline-none focus:border-pink-550 font-mono"
-                                />
-                              </div>
-                              <div>
-                                <label className="text-slate-450 font-bold text-[9px] uppercase tracking-wider block">Celular / WhatsApp *</label>
-                                <input 
-                                  type="text"
-                                  required
-                                  placeholder="Ex: (11) 99999-8888"
-                                  value={clientPhone}
-                                  onChange={(e) => setClientPhone(e.target.value)}
-                                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-xs focus:outline-none focus:border-pink-550 font-mono"
-                                />
-                              </div>
-                            </div>
-
-                            <div>
-                              <label className="text-slate-450 font-bold text-[9px] uppercase tracking-wider block">E-mail *</label>
-                              <input 
-                                type="email"
-                                required
-                                placeholder="Ex: gabriela@email.com"
-                                value={clientEmail}
-                                onChange={(e) => setClientEmail(e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-medium text-xs focus:outline-none focus:border-pink-550"
-                              />
-                            </div>
-                          </>
-                        )}
+                          <div>
+                            <label className="text-slate-450 font-bold text-[9px] uppercase tracking-wider block mb-0.5">E-mail *</label>
+                            <input 
+                              type="email"
+                              required
+                              placeholder="Ex: gabriela@email.com"
+                              value={clientEmail}
+                              onChange={(e) => setClientEmail(e.target.value)}
+                              className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-medium text-xs focus:outline-none focus:border-pink-550"
+                            />
+                          </div>
+                        </div>
 
                         {/* Addresses list for Old Customer */}
                         {isExistingClient && clientAddresses.length > 0 && (
