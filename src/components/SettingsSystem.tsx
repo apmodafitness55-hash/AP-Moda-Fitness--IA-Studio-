@@ -613,23 +613,24 @@ export default function SettingsSystem({
     setIsTestingGemini(true);
     setGeminiTestStatus(null);
     try {
-      const key = geminiApiKey.trim() || localStorage.getItem('gemini_api_key') || '';
-      const res = await fetch('/api/ai/descritor', {
+      const key = geminiApiKey.trim() || localStorage.getItem('gemini_api_key') || localStorage.getItem('GEMINI_API_KEY') || '';
+      const res = await fetch('/api/gemini/generate-description', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(key ? { 'x-gemini-api-key': key } : {})
         },
         body: JSON.stringify({
-          productName: 'Legging Teste Conexão IA',
+          name: 'Legging Teste Conexão IA',
           style: 'Fitness',
           materials: ['Poliamida'],
-          extraInfo: 'Teste rápido de conexão'
+          extraInstructions: 'Teste rápido de conexão com Google Gemini'
         })
       });
+
       const data = await res.json();
-      if (res.ok && data.result) {
-        setGeminiTestStatus('✨ Conexão com Google Gemini realizada com SUCESSO! A IA gerou resposta normalmente.');
+      if (res.ok && data.success && data.text) {
+        setGeminiTestStatus('✨ Conexão com Google Gemini realizada com SUCESSO! A IA respondeu normalmente.');
       } else {
         setGeminiTestStatus(`⚠️ Resposta do Gemini: ${data.error || 'Verifique a chave informada'}`);
       }

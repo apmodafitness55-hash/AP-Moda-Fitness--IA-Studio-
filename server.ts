@@ -3077,9 +3077,11 @@ app.post('/api/proxy/clear-all', async (req, res) => {
 });
 
 // 1. Product Description Generator Agent
-app.post('/api/gemini/generate-description', async (req, res) => {
+app.post(['/api/gemini/generate-description', '/api/ai/descritor'], async (req, res) => {
   try {
-    const { image, name, materials, style, extraInstructions } = req.body;
+    const { image, materials, style } = req.body;
+    const name = req.body.name || req.body.productName;
+    const extraInstructions = req.body.extraInstructions || req.body.extraInfo;
 
     const parts: any[] = [];
 
@@ -3123,7 +3125,7 @@ Por favor, gere e retorne APENAS a descrição estruturada com formatação Mark
       contents: { parts }
     }, clientKey);
 
-    res.json({ success: true, text: response.text });
+    res.json({ success: true, text: response.text, result: response.text });
   } catch (error: any) {
     console.error('Gemini generate-description error:', error);
     res.status(500).json({ success: false, error: cleanGeminiError(error) });
