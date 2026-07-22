@@ -25,7 +25,9 @@ import {
   AlertCircle,
   Megaphone,
   Palette,
-  Globe
+  Globe,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { Product, Client } from '../types';
 import { pushSystemConfigToSupabase } from '../supabase';
@@ -45,9 +47,13 @@ export default function AIAgentsHub({
   setActiveSubTab: propSetActiveSubTab
 }: AIAgentsHubProps) {
   // Navigation tabs for the AI Agente Hub
+  // Sub tab active state
   const [internalActiveSubTab, setInternalActiveSubTab] = useState<'descritor' | 'estilista' | 'whatsapp' | 'sentinela' | 'campanha' | 'consultoria' | 'tradutor' | 'precificador'>('descritor');
   const activeSubTab = propActiveSubTab || internalActiveSubTab;
   const setActiveSubTab = propSetActiveSubTab || setInternalActiveSubTab;
+
+  // Maximized full-screen workspace state
+  const [isMaximized, setIsMaximized] = useState<boolean>(false);
 
   const getGeminiHeaders = () => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -762,7 +768,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
   };
 
   return (
-    <div className="space-y-6 font-sans">
+    <div className={`font-sans transition-all duration-300 ${isMaximized ? 'fixed inset-0 z-50 bg-slate-950 text-slate-100 p-6 md:p-8 overflow-y-auto space-y-6' : 'space-y-6'}`}>
       {/* Premium Error Overlay System with Contingency Fallback */}
       {errorMessage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 flex">
@@ -848,17 +854,28 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex -space-x-2">
-              <div className="w-8 h-8 rounded-full bg-pink-150 border-2 border-slate-900 text-pink-600 font-bold text-[11px] flex items-center justify-center">RD</div>
-              <div className="w-8 h-8 rounded-full bg-emerald-100 border-2 border-slate-900 text-emerald-700 font-bold text-[11px] flex items-center justify-center">ES</div>
-              <div className="w-8 h-8 rounded-full bg-violet-100 border-2 border-slate-900 text-violet-700 font-bold text-[11px] flex items-center justify-center">CO</div>
-              <div className="w-8 h-8 rounded-full bg-indigo-100 border-2 border-slate-900 text-indigo-700 font-bold text-[11px] flex items-center justify-center">ST</div>
-              <div className="w-8 h-8 rounded-full bg-amber-100 border-2 border-slate-900 text-amber-700 font-bold text-[11px] flex items-center justify-center">MK</div>
-              <div className="w-8 h-8 rounded-full bg-cyan-100 border-2 border-slate-900 text-cyan-750 font-bold text-[11px] flex items-center justify-center">CH</div>
-              <div className="w-8 h-8 rounded-full bg-purple-100 border-2 border-slate-900 text-purple-750 font-bold text-[11px] flex items-center justify-center">TR</div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsMaximized(!isMaximized)}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white font-bold rounded-xl text-xs transition shadow-md cursor-pointer border border-pink-400/30 shrink-0"
+            >
+              {isMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+              <span>{isMaximized ? 'Restaurar Vista' : 'Maximizar Agente'}</span>
+            </button>
+
+            <div className="hidden sm:flex items-center gap-2">
+              <div className="flex -space-x-2">
+                <div className="w-8 h-8 rounded-full bg-pink-150 border-2 border-slate-900 text-pink-600 font-bold text-[11px] flex items-center justify-center">RD</div>
+                <div className="w-8 h-8 rounded-full bg-emerald-100 border-2 border-slate-900 text-emerald-700 font-bold text-[11px] flex items-center justify-center">ES</div>
+                <div className="w-8 h-8 rounded-full bg-violet-100 border-2 border-slate-900 text-violet-700 font-bold text-[11px] flex items-center justify-center">CO</div>
+                <div className="w-8 h-8 rounded-full bg-indigo-100 border-2 border-slate-900 text-indigo-700 font-bold text-[11px] flex items-center justify-center">ST</div>
+                <div className="w-8 h-8 rounded-full bg-amber-100 border-2 border-slate-900 text-amber-700 font-bold text-[11px] flex items-center justify-center">MK</div>
+                <div className="w-8 h-8 rounded-full bg-cyan-100 border-2 border-slate-900 text-cyan-750 font-bold text-[11px] flex items-center justify-center">CH</div>
+                <div className="w-8 h-8 rounded-full bg-purple-100 border-2 border-slate-900 text-purple-750 font-bold text-[11px] flex items-center justify-center">TR</div>
+              </div>
+              <span className="text-[11px] text-slate-400 font-mono font-medium pl-1">7 Agentes Online</span>
             </div>
-            <span className="text-[11px] text-slate-400 font-mono font-medium pl-1">7 Agentes Online</span>
           </div>
         </div>
       </div>

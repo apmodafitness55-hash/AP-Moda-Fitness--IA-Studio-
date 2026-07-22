@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { validateCPF } from './PublicCatalog'; // Import CPF validation helper if exported, or define it locally
 import { getSupabaseClient } from '../supabase';
+import { playSaleSuccessSound } from '../lib/audioFeedback';
 
 interface CheckoutWizardProps {
   cart: {
@@ -265,6 +266,7 @@ export function CheckoutWizard({
             if (status === 'pago' || statusPag === 'pago') {
               console.log(`[CheckoutWizard] Pix confirmado em tempo real para o pedido: ${completedOrder.id}`);
               setOrderPaymentStatus('pago');
+              playSaleSuccessSound();
               clearInterval(interval);
             }
           }

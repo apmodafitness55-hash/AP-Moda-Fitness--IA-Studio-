@@ -560,6 +560,70 @@ export default function CustomersCRM({
     return sales.filter(s => s.clientName.toLowerCase() === selectedClientDetail.name.toLowerCase());
   }, [selectedClientDetail, sales]);
 
+  const predictiveAnalysis = useMemo(() => {
+    const now = new Date().getTime();
+    return clients.map(client => {
+      const clientSales = sales.filter(s => 
+        s.clientName.toLowerCase() === client.name.toLowerCase() || 
+        (client.cpf && s.clientCpf === client.cpf)
+      );
+      
+      const lastSale = clientSales.length > 0 
+        ? clientSales.reduce((latest, s) => new Date(s.date).getTime() > new Date(latest.date).getTime() ? s : latest, clientSales[0])
+        : null;
+
+      const daysSinceLastPurchase = lastSale 
+        ? Math.max(1, Math.floor((now - new Date(lastSale.date).getTime()) / (1000 * 60 * 60 * 24))) 
+        : 45;
+      
+      let probability = 50;
+      let status: 'Alta Propensão' | 'Janela Ideal' | 'Risco de Churn' | 'Novo Cliente' = 'Janela Ideal';
+      let colorClass = 'text-amber-700 bg-amber-50 border-amber-200';
+      let suggestedCategory = 'Conjunto Zero Costura';
+      let recommendedAction = 'Oferecer Lançamento de Inverno';
+
+      if (daysSinceLastPurchase >= 20 && daysSinceLastPurchase <= 60) {
+        probability = 92;
+        status = 'Alta Propensão';
+        colorClass = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+        suggestedCategory = 'Top Fitness & Legging Cós Alto';
+        recommendedAction = 'Enviar Novidades VIP no WhatsApp + Bônus Cashback';
+      } else if (daysSinceLastPurchase > 60 && daysSinceLastPurchase <= 120) {
+        probability = 75;
+        status = 'Janela Ideal';
+        colorClass = 'text-blue-700 bg-blue-50 border-blue-200';
+        suggestedCategory = 'Shorts & Bermudas Anatomic';
+        recommendedAction = 'Enviar Cupom 10% OFF "RECOMPRAVIP"';
+      } else if (daysSinceLastPurchase > 120) {
+        probability = 35;
+        status = 'Risco de Churn';
+        colorClass = 'text-rose-700 bg-rose-50 border-rose-200';
+        suggestedCategory = 'Acessórios & Viseira AP';
+        recommendedAction = 'Campanha de Reengajamento Específica';
+      } else {
+        probability = 60;
+        status = 'Novo Cliente';
+        colorClass = 'text-purple-700 bg-purple-50 border-purple-200';
+        suggestedCategory = 'Regata & Casaco UV';
+        recommendedAction = 'Enviar Pesquisa de Satisfação NPS + Pós-Venda';
+      }
+
+      const estimatedLtv = (client.totalSpent || 150) * 1.8;
+
+      return {
+        client,
+        daysSinceLastPurchase,
+        probability,
+        status,
+        colorClass,
+        suggestedCategory,
+        recommendedAction,
+        estimatedLtv,
+        lastSaleDate: lastSale ? new Date(lastSale.date).toLocaleDateString('pt-BR') : 'Sem registro recente'
+      };
+    }).sort((a, b) => b.probability - a.probability);
+  }, [clients, sales]);
+
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || !newPhone.trim()) {
@@ -895,6 +959,17 @@ export default function CustomersCRM({
         >
           <Coins size={14} />
           <span>Fidelidade & Cashback</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('preditiva' as any)}
+          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
+            ${(activeSubTab as string) === 'preditiva' 
+              ? 'border-pink-600 text-pink-600' 
+              : 'border-transparent text-slate-450 hover:text-slate-705'}`}
+        >
+          <TrendingUp size={14} />
+          <span>Análise Preditiva CRM</span>
         </button>
       </div>
 
@@ -2186,6 +2261,126 @@ export default function CustomersCRM({
 
               </div>
             )}
+
+      {/* Tab 6: Análise Preditiva CRM */}
+      {(activeSubTab as string) === 'preditiva' && (
+        <div className="space-y-6 font-sans animate-fade-in">
+          {/* Header & KPI Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-xs space-y-1">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Total Analisado</span>
+              <p className="text-2xl font-black text-slate-800 font-mono">{predictiveAnalysis.length} Clientes</p>
+              <p className="text-[10px] text-slate-500 font-medium">Algoritmo de ciclo de recompra ativo</p>
+            </div>
+
+            <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100 shadow-xs space-y-1">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800">Alta Propensão</span>
+              <p className="text-2xl font-black text-emerald-700 font-mono">
+                {predictiveAnalysis.filter(p => p.probability >= 80).length} Clientes
+              </p>
+              <p className="text-[10px] text-emerald-600 font-medium">Janela de 20-60 dias pós-compra</p>
+            </div>
+
+            <div className="bg-blue-50/60 p-4 rounded-2xl border border-blue-100 shadow-xs space-y-1">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-800">Janela de Recompra</span>
+              <p className="text-2xl font-black text-blue-700 font-mono">
+                {predictiveAnalysis.filter(p => p.probability >= 60 && p.probability < 80).length} Clientes
+              </p>
+              <p className="text-[10px] text-blue-600 font-medium">Janela de 60-120 dias pós-compra</p>
+            </div>
+
+            <div className="bg-rose-50/60 p-4 rounded-2xl border border-rose-100 shadow-xs space-y-1">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-800">Risco de Churn</span>
+              <p className="text-2xl font-black text-rose-700 font-mono">
+                {predictiveAnalysis.filter(p => p.probability < 50).length} Clientes
+              </p>
+              <p className="text-[10px] text-rose-600 font-medium">Mais de 120 dias sem novos pedidos</p>
+            </div>
+          </div>
+
+          {/* Predictive Repurchase Analysis Table */}
+          <div className="bg-white border border-slate-100 rounded-2xl shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50/50">
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-800">Matriz de Previsão de Recompra Inteligente</h3>
+                <p className="text-[10px] text-slate-500 font-medium">Modelagem preditiva baseada em frequência, categoria preferida e ciclo de vida ativo</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-500">Filtrar por Propensão:</span>
+                <input 
+                  type="text"
+                  placeholder="Buscar por cliente..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none w-48"
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100 text-slate-450 text-[9px] font-black uppercase tracking-widest">
+                    <th className="px-4 py-3">Cliente</th>
+                    <th className="px-4 py-3">Última Compra</th>
+                    <th className="px-4 py-3">Score de Recompra</th>
+                    <th className="px-4 py-3">Categoria Prevista</th>
+                    <th className="px-4 py-3">Ação Comercial Sugerida</th>
+                    <th className="px-4 py-3 text-right">Acionar Cliente</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
+                  {predictiveAnalysis
+                    .filter(item => item.client.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .map((item) => {
+                      const whatsappMessage = encodeURIComponent(
+                        `Olá, ${item.client.name}! 🌸 Tudo bem? Notamos que faz ${item.daysSinceLastPurchase} dias desde o seu último pedido na AP Moda Fitness! Preparamos novidades exclusivas na linha de ${item.suggestedCategory} para você. Gostaria de dar uma olhada no nosso catálogo VIP?`
+                      );
+                      const whatsappLink = `https://api.whatsapp.com/send?phone=55${item.client.phone.replace(/\D/g, '')}&text=${whatsappMessage}`;
+
+                      return (
+                        <tr key={item.client.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="px-4 py-3.5">
+                            <div className="font-bold text-slate-800">{item.client.name}</div>
+                            <div className="text-[9.5px] text-slate-400 font-mono">{item.client.phone} • {item.client.email}</div>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="font-bold text-slate-700">{item.lastSaleDate}</div>
+                            <div className="text-[9.5px] text-slate-400 font-mono">Há {item.daysSinceLastPurchase} dias</div>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${item.colorClass}`}>
+                                {item.probability}% • {item.status}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5 font-bold text-pink-600">
+                            {item.suggestedCategory}
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-600 text-[11px]">
+                            {item.recommendedAction}
+                          </td>
+                          <td className="px-4 py-3.5 text-right">
+                            <a
+                              href={whatsappLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-extrabold text-[10px] shadow-sm transition active:scale-95"
+                            >
+                              <span>Contatar no Zap</span>
+                              <ArrowRight size={12} />
+                            </a>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
             {/* Manual Adjust Modal (Kept unchanged and working) */}
             {adjustingClient && (

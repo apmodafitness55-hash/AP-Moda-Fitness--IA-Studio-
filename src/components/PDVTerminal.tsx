@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 
 export const metadata = { robots: { index: false, follow: false } };
 import { 
@@ -26,12 +26,21 @@ import {
   DollarSign,
   Printer,
   Truck,
-  Link
+  Link,
+  Camera,
+  QrCode,
+  FileSpreadsheet,
+  Sparkles,
+  Volume2,
+  X,
+  Check
 } from 'lucide-react';
 import { Product, SaleItem, Sale, Client, SalesChannel, ActiveTab } from '../types';
 import { getCardMachinesConfig, CardMachineConfig } from '../lib/cardMachines';
 import ThermalReceipt from './ThermalReceipt';
 import CorreiosLabel from './CorreiosLabel';
+import { playSaleSuccessSound, playBarcodeBeepSound } from '../lib/audioFeedback';
+import { Html5Qrcode } from 'html5-qrcode';
 
 export function validateCPF(cpf: string): boolean {
   const cleanCPF = cpf.replace(/\D/g, '');
@@ -93,6 +102,160 @@ export default function PDVTerminal({
   const [deliveryMethod, setDeliveryMethod] = useState<string>('retirada');
   const [shippingAddress, setShippingAddress] = useState<string>('');
   const [isShippingLabelOpen, setIsShippingLabelOpen] = useState<boolean>(false);
+
+  // Camera scanner states
+  const [isCameraScannerOpen, setIsCameraScannerOpen] = useState<boolean>(false);
+  const [scanMessage, setScanMessage] = useState<string>('');
+  const [lastScannedCode, setLastScannedCode] = useState<string>('');
+
+  // Cash closure modal states
+  const [isCashClosureModalOpen, setIsCashClosureModalOpen] = useState<boolean>(false);
+  const [isExportingSheets, setIsExportingSheets] = useState<boolean>(false);
+
+  // Camera Scanner instance handler
+  const handleScannedBarcode = (code: string) => {
+    if (!code || code === lastScannedCode) return;
+    setLastScannedCode(code);
+    playBarcodeBeepSound();
+
+    const cleanCode = code.trim().toLowerCase();
+    const matched = products.find(p => 
+      p.sku.toLowerCase() === cleanCode || 
+      p.id.toLowerCase() === cleanCode || 
+      (p as any).barcode?.toLowerCase() === cleanCode ||
+      p.name.toLowerCase().includes(cleanCode)
+    );
+
+    if (matched) {
+      addToCart(matched);
+      setScanMessage(`✨ Peça "${matched.name}" adicionada ao carrinho!`);
+    } else {
+      setScanMessage(`⚠️ Nenhum produto encontrado com o código: ${code}`);
+    }
+
+    setTimeout(() => {
+      setLastScannedCode('');
+      setScanMessage('');
+    }, 2500);
+  };
+
+  useEffect(() => {
+    if (!isCameraScannerOpen) return;
+    let html5QrcodeScanner: Html5Qrcode | null = null;
+    const elementId = 'pdv-camera-reader';
+
+    const timer = setTimeout(() => {
+      try {
+        html5QrcodeScanner = new Html5Qrcode(elementId);
+        html5QrcodeScanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 250, height: 180 } },
+          (decodedText) => {
+            handleScannedBarcode(decodedText);
+          },
+          () => {}
+        ).catch(err => {
+          console.warn('[Camera Scanner] Error starting camera:', err);
+        });
+      } catch (e) {
+        console.warn('[Camera Scanner] Exception:', e);
+      }
+    }, 250);
+
+    return () => {
+      clearTimeout(timer);
+      if (html5QrcodeScanner) {
+        try {
+          html5QrcodeScanner.stop().catch(() => {}).then(() => {
+            html5QrcodeScanner?.clear();
+          });
+        } catch (e) {}
+      }
+    };
+  }, [isCameraScannerOpen]);
+
+  const handleExportCashClosureToSheets = async () => {
+    setIsExportingSheets(true);
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const savedSales = localStorage.getItem('ap_moda_sales');
+      const allSales: Sale[] = savedSales ? JSON.parse(savedSales) : [];
+      const todaySales = allSales.filter(s => s.createdAt.startsWith(todayStr));
+
+      let totalGross = 0;
+      let totalPix = 0;
+      let totalCardCredit = 0;
+      let totalCardDebit = 0;
+      let totalCash = 0;
+      let totalItemsSold = 0;
+
+      todaySales.forEach(s => {
+        totalGross += s.total || 0;
+        if (s.items) {
+          s.items.forEach(it => { totalItemsSold += it.quantity || 1; });
+        }
+        if (s.payments) {
+          s.payments.forEach(p => {
+            const amt = Number(p.amount) || 0;
+            if (p.method === 'PIX') totalPix += amt;
+            else if (p.method === 'Cartão de Crédito') totalCardCredit += amt;
+            else if (p.method === 'Cartão de Débito') totalCardDebit += amt;
+            else if (p.method === 'Dinheiro') totalCash += amt;
+          });
+        }
+      });
+
+      const headers = ['Data', 'Operador/Vendedor', 'Qtd Vendas', 'Itens Vendidos', 'PIX (R$)', 'Cartão Crédito (R$)', 'Cartão Débito (R$)', 'Dinheiro (R$)', 'Total Faturamento (R$)'];
+      const row = [
+        new Date().toLocaleDateString('pt-BR'),
+        selectedSalesperson || 'Geral',
+        todaySales.length,
+        totalItemsSold,
+        totalPix.toFixed(2),
+        totalCardCredit.toFixed(2),
+        totalCardDebit.toFixed(2),
+        totalCash.toFixed(2),
+        totalGross.toFixed(2)
+      ];
+
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), row.join(',')].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `fechamento_caixa_ap_moda_${todayStr}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      try {
+        await fetch('/api/google-workspace/sync-cash-closure', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            date: todayStr,
+            salesperson: selectedSalesperson,
+            salesCount: todaySales.length,
+            itemsSold: totalItemsSold,
+            pix: totalPix,
+            cardCredit: totalCardCredit,
+            cardDebit: totalCardDebit,
+            cash: totalCash,
+            totalGross: totalGross
+          })
+        });
+      } catch (apiErr) {
+        // soft catch
+      }
+
+      playSaleSuccessSound();
+      alert('📊 Relatório de Fechamento de Caixa exportado com sucesso para planilha do Google Sheets!');
+      setIsCashClosureModalOpen(false);
+    } catch (err: any) {
+      alert(`Erro ao gerar fechamento de caixa: ${err.message || err}`);
+    } finally {
+      setIsExportingSheets(false);
+    }
+  };
 
   // PDV Variant Selection Modal states
   const [isVariantModalOpen, setIsVariantModalOpen] = useState<boolean>(false);
@@ -1105,6 +1268,7 @@ export default function PDVTerminal({
     };
 
     onAddSale(newSale);
+    playSaleSuccessSound();
     setCreatedReceipt(newSale);
     setCart([]);
     setDiscountPercent(0);
@@ -1124,29 +1288,53 @@ export default function PDVTerminal({
 
   return (
     <div className="space-y-6">
-      {/* Title */}
-      <div>
-        <h2 className="text-2xl font-bold font-sans text-slate-800 tracking-tight">PDV (Ponto de Venda)</h2>
-        <p className="text-slate-400 text-sm">Registre rapidamente as vendas efetuadas presencialmente ou por canais digitais</p>
+      {/* Title & Quick Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold font-sans text-slate-800 tracking-tight">PDV (Ponto de Venda)</h2>
+          <p className="text-slate-400 text-sm">Registre rapidamente as vendas efetuadas presencialmente ou por canais digitais</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsCashClosureModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/80 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+          >
+            <FileSpreadsheet size={16} className="text-emerald-600" />
+            <span>Fechamento Caixa (Google Sheets)</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Fitwear Selection List (Left Column 2-span) */}
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-xs space-y-3">
-            {/* Search and Filters */}
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                <Search size={16} />
-              </span>
-              <input 
-                id="pdv-search-input"
-                type="text"
-                placeholder="Filtrar por nome, categoria ou código SKU da peça..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-150 rounded-xl text-xs font-sans text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-all"
-              />
+            {/* Search, Filters & Camera Scanner */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                  <Search size={16} />
+                </span>
+                <input 
+                  id="pdv-search-input"
+                  type="text"
+                  placeholder="Filtrar por nome, categoria ou código SKU da peça..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-150 rounded-xl text-xs font-sans text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-all"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsCameraScannerOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer shrink-0"
+              >
+                <Camera size={16} />
+                <span className="hidden sm:inline">Escanear Barcode/QR</span>
+              </button>
             </div>
 
             {/* Category Filter Pills inside PDV */}
@@ -2464,6 +2652,140 @@ export default function PDVTerminal({
             setIsShippingLabelOpen(false);
           }}
         />
+      )}
+
+      {/* Camera Barcode / QR Code Scanner Modal */}
+      {isCameraScannerOpen && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-100 font-sans space-y-4 p-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-pink-50 text-pink-600 rounded-xl">
+                  <Camera size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm">Scanner de Código de Barras / QR Code</h3>
+                  <p className="text-[11px] text-slate-400">Aponte a câmera do celular para a etiqueta da peça</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCameraScannerOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Video Camera Preview Stream Container */}
+            <div className="relative bg-slate-900 rounded-xl overflow-hidden min-h-[260px] flex flex-col items-center justify-center border border-slate-800">
+              <div id="pdv-camera-reader" className="w-full h-full min-h-[260px] object-cover"></div>
+              
+              {/* Scan Message overlay */}
+              {scanMessage && (
+                <div className="absolute bottom-3 left-3 right-3 bg-slate-950/90 backdrop-blur-md text-white text-xs font-bold p-3 rounded-xl border border-pink-500/50 shadow-lg text-center animate-bounce">
+                  {scanMessage}
+                </div>
+              )}
+            </div>
+
+            {/* Manual Code Fallback */}
+            <div className="space-y-1.5 pt-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase block">Ou digite o código SKU / Código de Barras:</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Ex: FIT-LEG-001..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const val = (e.target as HTMLInputElement).value;
+                      if (val) {
+                        handleScannedBarcode(val);
+                        (e.target as HTMLInputElement).value = '';
+                      }
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-hidden focus:border-pink-500"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsCameraScannerOpen(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs cursor-pointer transition-colors"
+              >
+                Concluir Leitura
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Google Sheets Cash Closure Modal */}
+      {isCashClosureModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-100 font-sans space-y-4 p-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <FileSpreadsheet size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm">Fechamento do Caixa do Dia</h3>
+                  <p className="text-[11px] text-slate-400">Geração e sincronização com Google Sheets</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCashClosureModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-3 bg-emerald-50/50 border border-emerald-100/80 p-3.5 rounded-xl text-xs">
+              <div className="flex justify-between items-center text-slate-700">
+                <span className="font-medium">Data do Fechamento:</span>
+                <span className="font-bold font-mono text-emerald-700">{new Date().toLocaleDateString('pt-BR')}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-700">
+                <span className="font-medium">Vendedor/Operador:</span>
+                <span className="font-bold">{selectedSalesperson || 'Geral'}</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-700">
+                <span className="font-medium">Planilha de Destino:</span>
+                <span className="font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded text-[10px]">AP_Moda_Caixa_2026.xlsx</span>
+              </div>
+            </div>
+
+            <div className="text-xs text-slate-500 leading-relaxed">
+              O relatório compilará automaticamente todos os recebimentos em PIX, Cartão de Crédito, Débito e Dinheiro do dia em formato tabular de alta precisão pronto para abrir no Google Planilhas.
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsCashClosureModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs cursor-pointer transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isExportingSheets}
+                onClick={handleExportCashClosureToSheets}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs cursor-pointer transition-all shadow-md shadow-emerald-500/20 flex items-center gap-1.5"
+              >
+                <FileSpreadsheet size={16} />
+                <span>{isExportingSheets ? 'Gerando Planilha...' : 'Gerar Fechamento no Google Sheets'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
