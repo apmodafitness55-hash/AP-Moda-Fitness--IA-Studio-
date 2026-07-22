@@ -594,6 +594,52 @@ export default function SettingsSystem({
   });
   const [usbLog, setUsbLog] = useState<string[]>(['Iniciando subsistema de hardware USB...']);
 
+  // Gemini IA Integration States
+  const [geminiApiKey, setGeminiApiKey] = useState<string>(() => {
+    return localStorage.getItem('gemini_api_key') || localStorage.getItem('GEMINI_API_KEY') || '';
+  });
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [geminiTestStatus, setGeminiTestStatus] = useState<string | null>(null);
+  const [isTestingGemini, setIsTestingGemini] = useState(false);
+
+  const handleSaveGeminiKey = (e: React.FormEvent) => {
+    e.preventDefault();
+    localStorage.setItem('gemini_api_key', geminiApiKey.trim());
+    localStorage.setItem('GEMINI_API_KEY', geminiApiKey.trim());
+    setGeminiTestStatus('✅ Chave do Gemini salva com sucesso no seu navegador!');
+  };
+
+  const handleTestGeminiKey = async () => {
+    setIsTestingGemini(true);
+    setGeminiTestStatus(null);
+    try {
+      const key = geminiApiKey.trim() || localStorage.getItem('gemini_api_key') || '';
+      const res = await fetch('/api/ai/descritor', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(key ? { 'x-gemini-api-key': key } : {})
+        },
+        body: JSON.stringify({
+          productName: 'Legging Teste Conexão IA',
+          style: 'Fitness',
+          materials: ['Poliamida'],
+          extraInfo: 'Teste rápido de conexão'
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.result) {
+        setGeminiTestStatus('✨ Conexão com Google Gemini realizada com SUCESSO! A IA gerou resposta normalmente.');
+      } else {
+        setGeminiTestStatus(`⚠️ Resposta do Gemini: ${data.error || 'Verifique a chave informada'}`);
+      }
+    } catch (err: any) {
+      setGeminiTestStatus(`❌ Falha ao conectar com Gemini: ${err.message || 'Erro de conexão'}`);
+    } finally {
+      setIsTestingGemini(false);
+    }
+  };
+
   // Google Workspace Integration States and Handlers
   const [isTestingGoogle, setIsTestingGoogle] = useState(false);
   const [googleActionLog, setGoogleActionLog] = useState<any>(null);
@@ -2275,6 +2321,75 @@ export default function SettingsSystem({
             )}
           </div>
           
+          {/* Google Gemini AI Integration Card */}
+          <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-4 space-y-4">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-50">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 animate-fade-in">
+                <Sparkles size={15} className="text-purple-600" />
+                <span>Google Gemini (Inteligência Artificial)</span>
+              </h3>
+              <span className={`w-2.5 h-2.5 rounded-full ${geminiApiKey ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+            </div>
+
+            <form onSubmit={handleSaveGeminiKey} className="space-y-3 font-sans">
+              <p className="text-[10.5px] text-slate-500 leading-relaxed">
+                Insira sua chave de API do <strong>Google Gemini (API Key)</strong> para ativar a geração de descrições, análises de estoque, copiloto de WhatsApp, estamparia e precificação com IA.
+              </p>
+
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-slate-700 font-semibold text-[10px]">Chave de API do Gemini (API Key)</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowGeminiKey(!showGeminiKey)}
+                    className="text-[10px] text-purple-600 font-bold hover:underline cursor-pointer"
+                  >
+                    {showGeminiKey ? 'Esconder' : 'Mostrar'}
+                  </button>
+                </div>
+                <input
+                  type={showGeminiKey ? 'text' : 'password'}
+                  value={geminiApiKey}
+                  onChange={(e) => setGeminiApiKey(e.target.value)}
+                  placeholder="Cole sua chave aqui (ex: AIzaSy...)"
+                  className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 font-mono text-[10px] text-slate-700 focus:outline-hidden"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="submit"
+                  className="py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-[10px] transition flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <Save size={11} />
+                  <span>Salvar Chave Gemini</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isTestingGemini}
+                  onClick={handleTestGeminiKey}
+                  className="py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-[10px] transition flex items-center justify-center gap-1 cursor-pointer disabled:opacity-55"
+                >
+                  <RefreshCw size={11} className={isTestingGemini ? 'animate-spin' : ''} />
+                  <span>{isTestingGemini ? 'Testando IA...' : 'Testar IA Gemini'}</span>
+                </button>
+              </div>
+            </form>
+
+            {geminiTestStatus && (
+              <div className={`p-2.5 rounded-xl text-[10px] font-sans border ${geminiTestStatus.includes('SUCESSO') || geminiTestStatus.includes('salva') ? 'bg-emerald-50 border-emerald-200 text-emerald-800 font-medium' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                {geminiTestStatus}
+              </div>
+            )}
+
+            <div className="p-3 bg-purple-50/50 border border-purple-100 rounded-xl space-y-1.5 text-[10px]">
+              <span className="font-bold text-purple-900 block">💡 Onde obter sua Chave do Gemini?</span>
+              <p className="text-slate-600 text-[9.5px]">
+                Acesse o site <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-purple-700 underline font-bold">Google AI Studio (aistudio.google.com)</a>, clique em <strong>"Create API key"</strong>, crie sua chave e cole no campo acima.
+              </p>
+            </div>
+          </div>
+
           {/* Supabase details and connection testers */}
           <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-4 space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-slate-50">

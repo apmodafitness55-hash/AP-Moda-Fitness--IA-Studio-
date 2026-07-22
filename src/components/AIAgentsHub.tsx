@@ -51,7 +51,7 @@ export default function AIAgentsHub({
 
   const getGeminiHeaders = () => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const key = (import.meta as any).env.VITE_GEMINI_API_KEY;
+    const key = localStorage.getItem('gemini_api_key') || localStorage.getItem('GEMINI_API_KEY') || (import.meta as any).env.VITE_GEMINI_API_KEY;
     if (key) {
       headers['x-gemini-api-key'] = key;
     }
