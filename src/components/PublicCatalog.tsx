@@ -978,8 +978,33 @@ export default function PublicCatalog({
   }, []);
   const [clientAddress, setClientAddress] = useState('');
   const [clientNotes, setClientNotes] = useState('');
-  const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercent: number; fixedDiscount: number } | null>(null);
+  const [couponCode, setCouponCode] = useState(() => {
+    try {
+      return localStorage.getItem('ap_coupon_code') || '';
+    } catch (e) {
+      return '';
+    }
+  });
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercent: number; fixedDiscount: number } | null>(() => {
+    try {
+      const saved = localStorage.getItem('ap_applied_coupon');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return null;
+  });
+
+  // Sync applied coupon with localStorage
+  useEffect(() => {
+    try {
+      if (appliedCoupon) {
+        localStorage.setItem('ap_applied_coupon', JSON.stringify(appliedCoupon));
+        localStorage.setItem('ap_coupon_code', appliedCoupon.code);
+      } else {
+        localStorage.removeItem('ap_applied_coupon');
+        localStorage.removeItem('ap_coupon_code');
+      }
+    } catch (e) {}
+  }, [appliedCoupon]);
 
   // Melhor Envio delivery calculation states
   const [selectedFreightFee, setSelectedFreightFee] = useState<number | null>(null);
@@ -1222,6 +1247,8 @@ export default function PublicCatalog({
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [couponSuccess, setCouponSuccess] = useState<string | null>(null);
+  const [showCouponToast, setShowCouponToast] = useState(false);
+  const [couponToastMsg, setCouponToastMsg] = useState('');
   const [cepResultError, setCepResultError] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
@@ -3309,6 +3336,39 @@ export default function PublicCatalog({
           </div>
         )}
 
+        {/* 1.5 Active Coupon Banner */}
+        {appliedCoupon && (
+          <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white py-1.5 px-4 text-center text-[11px] md:text-xs font-bold flex items-center justify-center gap-2 shadow-sm animate-in fade-in duration-300">
+            <span>
+              🏷️ Cupom <strong className="font-mono bg-white/20 text-white px-2 py-0.5 rounded-full uppercase tracking-wider">{appliedCoupon.code}</strong> Ativo! 
+              {appliedCoupon.discountPercent > 0 ? ` (${appliedCoupon.discountPercent}% OFF e Frete Grátis na sacola)` : ` (R$ ${appliedCoupon.fixedDiscount.toFixed(2)} OFF na sacola)`}
+            </span>
+            <button 
+              type="button" 
+              onClick={() => handleOpenCart(1)}
+              className="bg-white text-emerald-800 hover:bg-emerald-50 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-xs transition ml-1 cursor-pointer border-none"
+            >
+              Ver Sacola →
+            </button>
+            <button 
+              type="button" 
+              onClick={() => {
+                setAppliedCoupon(null);
+                setCouponCode('');
+                setCouponSuccess(null);
+                try {
+                  localStorage.removeItem('ap_applied_coupon');
+                  localStorage.removeItem('ap_coupon_code');
+                } catch (e) {}
+              }} 
+              className="text-white/80 hover:text-white text-[10px] ml-2 p-1 font-normal cursor-pointer border-none bg-transparent"
+              title="Remover cupom"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
       {/* 2. Main Premium Sticky Header */}
       <header className="bg-white/95 backdrop-blur-md sticky top-0 z-40 border-b border-slate-100 px-4 md:px-8 py-3 flex justify-between items-center max-w-7xl mx-auto rounded-b-3xl">
         {/* Left Side menu indicators */}
@@ -5175,11 +5235,20 @@ export default function PublicCatalog({
               type="button"
               onClick={() => {
                 const campaignCoupon = extractCampaignCoupon();
-                setAppliedCoupon({ code: campaignCoupon, discountPercent: 5, fixedDiscount: 0 });
+                const couponObj = { code: campaignCoupon, discountPercent: 5, fixedDiscount: 0 };
+                setAppliedCoupon(couponObj);
                 setCouponCode(campaignCoupon);
-                setCouponSuccess(`Cupom ${campaignCoupon} (5% OFF e Frete Grátis) ativado com sucesso! Aproveite os produtos abaixo. 🎉`);
+                const msg = `Cupom ${campaignCoupon} (5% OFF e Frete Grátis) ativado com sucesso para sua sacola! 🎉`;
+                setCouponSuccess(msg);
+                setCouponToastMsg(msg);
+                setShowCouponToast(true);
                 setIsFloatingDismissed(true);
-                
+
+                try {
+                  localStorage.setItem('ap_applied_coupon', JSON.stringify(couponObj));
+                  localStorage.setItem('ap_coupon_code', campaignCoupon);
+                } catch (e) {}
+
                 setTimeout(() => {
                   const anchor = document.getElementById('search-catalog-bar') || document.getElementById('colecao-run-anchor');
                   if (anchor) {
@@ -5191,6 +5260,40 @@ export default function PublicCatalog({
               style={{ backgroundColor: floatingBanner.bgColor }}
             >
               {floatingBanner.ctaText || "Aproveitar Desconto"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 10.5 Active Coupon Toast Feedback */}
+      {showCouponToast && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] max-w-md w-[92%] bg-slate-900/95 backdrop-blur-md text-white p-4 rounded-2xl shadow-2xl border border-emerald-500/40 flex items-center justify-between gap-3 animate-in slide-in-from-top duration-300">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl flex-shrink-0">
+              🏷️
+            </div>
+            <div className="text-left">
+              <h5 className="font-extrabold text-xs text-emerald-400 uppercase tracking-wider">Cupom de Desconto Ativado!</h5>
+              <p className="text-[11px] text-slate-200 leading-tight mt-0.5">{couponToastMsg || `Cupom ${couponCode} adicionado à sua sacola!`}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setShowCouponToast(false);
+                handleOpenCart(1);
+              }}
+              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-3 py-1.5 rounded-xl text-[10px] font-extrabold uppercase tracking-wider transition shadow-sm cursor-pointer border-none"
+            >
+              Ver Sacola
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCouponToast(false)}
+              className="text-slate-400 hover:text-white p-1 cursor-pointer border-none bg-transparent flex items-center justify-center h-6 w-6"
+            >
+              <X size={16} />
             </button>
           </div>
         </div>
