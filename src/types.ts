@@ -47,6 +47,10 @@ export interface Product {
   composition?: string;
   routes?: string;
   compare_at_price?: number;
+  weight?: number; // em kg (ex: 0.35)
+  width?: number; // em cm (ex: 20)
+  height?: number; // em cm (ex: 5)
+  length?: number; // em cm (ex: 25)
 }
 
 export interface SaleItem {

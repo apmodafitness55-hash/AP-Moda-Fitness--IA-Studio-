@@ -4231,14 +4231,14 @@ app.post('/api/melhor-envio/calculate', async (req, res) => {
       cleanToken = cleanToken.substring(7).trim();
     }
 
-    // Dimensões/Pesos médios de peças fitness para pacote
+    // Dimensões/Pesos informados nos produtos (ou fallbacks seguros)
     const cartItems = items || [];
     const productsPayload = cartItems.map((item: any, idx: number) => ({
       id: String(item.product?.id || idx),
-      width: 15,
-      height: 4,
-      length: 20,
-      weight: 0.35, 
+      width: Number(item.product?.width || item.width || 20),
+      height: Number(item.product?.height || item.height || 5),
+      length: Number(item.product?.length || item.length || 25),
+      weight: Number(item.product?.weight || item.weight || 0.35), 
       insurance_value: Number(item.priceAtTime || item.product?.price || 100),
       quantity: Number(item.quantity || 1)
     }));
@@ -4523,16 +4523,40 @@ app.post('/api/melhor-envio/generate-label', async (req, res) => {
     }
 
     const totalQty = orderItems.reduce((sum: number, it: any) => sum + Number(it.quantity || 1), 0) || 1;
-    const height = Math.max(4, Math.min(20, totalQty * 3));
-    const weight = Math.max(0.3, Number((totalQty * 0.35).toFixed(2)));
+    let totalCalcWeight = 0;
+    let maxCalcWidth = 20;
+    let maxCalcLength = 25;
+    let totalCalcHeight = 0;
+
+    orderItems.forEach((it: any) => {
+      const q = Number(it.quantity || 1);
+      const w = Number(it.product?.weight || it.weight || 0.35);
+      const wd = Number(it.product?.width || it.width || 20);
+      const lg = Number(it.product?.length || it.length || 25);
+      const hg = Number(it.product?.height || it.height || 5);
+
+      totalCalcWeight += w * q;
+      if (wd > maxCalcWidth) maxCalcWidth = wd;
+      if (lg > maxCalcLength) maxCalcLength = lg;
+      totalCalcHeight += hg * q;
+    });
+
+    if (totalCalcWeight <= 0) totalCalcWeight = 0.35 * totalQty;
+    if (totalCalcHeight <= 0) totalCalcHeight = 5 * totalQty;
+
+    const finalWidth = Math.max(15, maxCalcWidth);
+    const finalLength = Math.max(20, maxCalcLength);
+    const finalHeight = Math.max(4, Math.min(105, totalCalcHeight));
+    const finalWeight = Math.max(0.2, Number(totalCalcWeight.toFixed(2)));
+
     const insuranceValue = order.total || 100.00;
 
     const volumesPayload = [
       {
-        width: 15,
-        height: height,
-        length: 20,
-        weight: weight
+        width: finalWidth,
+        height: finalHeight,
+        length: finalLength,
+        weight: finalWeight
       }
     ];
 

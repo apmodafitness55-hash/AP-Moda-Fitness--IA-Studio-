@@ -341,6 +341,12 @@ export default function CatalogInventory({
   const [newColors, setNewColors] = useState('Preto, Pink Glow, Branco, Azul Celeste');
   const [newSizes, setNewSizes] = useState('P, M, G, GG');
 
+  // Dimensões & Peso para frete (Melhor Envio / Correios)
+  const [newWeight, setNewWeight] = useState(0.35); // kg (350g)
+  const [newWidth, setNewWidth] = useState(20); // cm
+  const [newHeight, setNewHeight] = useState(5); // cm
+  const [newLength, setNewLength] = useState(25); // cm
+
   // Adding customizable / dynamic category entry states
   const [isCreatingNewCategory, setIsCreatingNewCategory] = useState(false);
   const [newCustomCategoryInput, setNewCustomCategoryInput] = useState('');
@@ -364,6 +370,10 @@ export default function CatalogInventory({
   const [editVideoUrl, setEditVideoUrl] = useState('');
   const [editColors, setEditColors] = useState('');
   const [editSizes, setEditSizes] = useState('');
+  const [editWeight, setEditWeight] = useState(0.35);
+  const [editWidth, setEditWidth] = useState(20);
+  const [editHeight, setEditHeight] = useState(5);
+  const [editLength, setEditLength] = useState(25);
 
   const [isResolvingNew, setIsResolvingNew] = useState(false);
   const [isResolvingEdit, setIsResolvingEdit] = useState(false);
@@ -595,7 +605,11 @@ export default function CatalogInventory({
         sizeColors: finalSizeColors,
         colorStocks: finalColorStocks,
         sizeColorStocks: finalSizeColorStocks,
-        measurementSpecs: finalMeasurementSpecs
+        measurementSpecs: finalMeasurementSpecs,
+        weight: Number(newWeight) || 0.35,
+        width: Number(newWidth) || 20,
+        height: Number(newHeight) || 5,
+        length: Number(newLength) || 25,
       };
 
       await onAddProduct(newProd);
@@ -618,6 +632,10 @@ export default function CatalogInventory({
       setNewVideoUrl('');
       setNewColors('Preto, Pink Glow, Branco, Azul Celeste');
       setNewSizes('P, M, G, GG');
+      setNewWeight(0.35);
+      setNewWidth(20);
+      setNewHeight(5);
+      setNewLength(25);
       setNewSizeColors({});
       setNewColorStocks({});
       setNewSizeColorStocks({});
@@ -648,6 +666,10 @@ export default function CatalogInventory({
     setEditVideoUrl(p.videoUrl || '');
     setEditColors(p.colors ? p.colors.join(', ') : 'Preto');
     setEditSizes(p.sizes ? p.sizes.join(', ') : 'P, M, G');
+    setEditWeight(p.weight ?? 0.35);
+    setEditWidth(p.width ?? 20);
+    setEditHeight(p.height ?? 5);
+    setEditLength(p.length ?? 25);
     
     // Map record string[] to record string for local input editing
     const scObj: Record<string, string> = {};
@@ -747,7 +769,11 @@ export default function CatalogInventory({
         sizeColors: finalSizeColors,
         colorStocks: finalColorStocks,
         sizeColorStocks: finalSizeColorStocks,
-        measurementSpecs: finalMeasurementSpecs
+        measurementSpecs: finalMeasurementSpecs,
+        weight: Number(editWeight) || 0.35,
+        width: Number(editWidth) || 20,
+        height: Number(editHeight) || 5,
+        length: Number(editLength) || 25,
       });
 
       setIsEditModalOpen(false);
@@ -967,8 +993,16 @@ export default function CatalogInventory({
                       </div>
                     </td>
 
-                    {/* Sku */}
-                    <td className="p-4 font-mono text-[10px] font-bold text-slate-500">{p.sku}</td>
+                    {/* Sku & Freight Specs */}
+                    <td className="p-4">
+                      <div className="font-mono text-[10px] font-bold text-slate-500">{p.sku}</div>
+                      <div className="mt-1 text-[9px] text-slate-400 font-mono flex items-center gap-1" title="Peso e Dimensões da Embalagem para cálculo de Frete">
+                        <span className="text-[10px]">📦</span>
+                        <span>{p.weight ?? 0.35}kg</span>
+                        <span>|</span>
+                        <span>{p.length ?? 25}x{p.width ?? 20}x{p.height ?? 5}cm</span>
+                      </div>
+                    </td>
 
                     {/* Category Label */}
                     <td className="p-4">
@@ -1934,6 +1968,71 @@ export default function CatalogInventory({
                 </div>
               </div>
 
+              {/* Dimensões & Peso para Frete (Melhor Envio / Correios) */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[10px] text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    📦 Dimensões & Peso para Frete (Melhor Envio)
+                  </span>
+                  <span className="text-[9px] bg-pink-100 text-pink-700 font-semibold px-2 py-0.5 rounded-full">Etiquetas / Cotação</span>
+                </div>
+                <div className="grid grid-cols-4 gap-2 text-xs">
+                  <div className="space-y-1">
+                    <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Peso (kg)</label>
+                    <input 
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      required
+                      placeholder="0.35"
+                      value={newWeight}
+                      onChange={(e) => setNewWeight(Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
+                    />
+                    <span className="text-[8px] text-slate-400 block leading-none">Ex: 0.35 = 350g</span>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Compr. (cm)</label>
+                    <input 
+                      type="number"
+                      step="1"
+                      min="1"
+                      required
+                      placeholder="25"
+                      value={newLength}
+                      onChange={(e) => setNewLength(Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Largura (cm)</label>
+                    <input 
+                      type="number"
+                      step="1"
+                      min="1"
+                      required
+                      placeholder="20"
+                      value={newWidth}
+                      onChange={(e) => setNewWidth(Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Altura (cm)</label>
+                    <input 
+                      type="number"
+                      step="1"
+                      min="1"
+                      required
+                      placeholder="5"
+                      value={newHeight}
+                      onChange={(e) => setNewHeight(Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-1 text-xs">
                 <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Descrição Detalhada (Aparece no Site)</label>
                 <textarea 
@@ -2500,6 +2599,71 @@ export default function CatalogInventory({
                     onChange={(e) => setEditMinStock(Number(e.target.value))}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono text-xs"
                   />
+                </div>
+              </div>
+
+              {/* Dimensões & Peso para Frete (Melhor Envio / Correios) */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[10px] text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    📦 Dimensões & Peso para Frete (Melhor Envio)
+                  </span>
+                  <span className="text-[9px] bg-pink-100 text-pink-700 font-semibold px-2 py-0.5 rounded-full">Etiquetas / Cotação</span>
+                </div>
+                <div className="grid grid-cols-4 gap-2 text-xs">
+                  <div className="space-y-1">
+                    <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Peso (kg)</label>
+                    <input 
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      required
+                      placeholder="0.35"
+                      value={editWeight}
+                      onChange={(e) => setEditWeight(Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
+                    />
+                    <span className="text-[8px] text-slate-400 block leading-none">Ex: 0.35 = 350g</span>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Compr. (cm)</label>
+                    <input 
+                      type="number"
+                      step="1"
+                      min="1"
+                      required
+                      placeholder="25"
+                      value={editLength}
+                      onChange={(e) => setEditLength(Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Largura (cm)</label>
+                    <input 
+                      type="number"
+                      step="1"
+                      min="1"
+                      required
+                      placeholder="20"
+                      value={editWidth}
+                      onChange={(e) => setEditWidth(Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Altura (cm)</label>
+                    <input 
+                      type="number"
+                      step="1"
+                      min="1"
+                      required
+                      placeholder="5"
+                      value={editHeight}
+                      onChange={(e) => setEditHeight(Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
+                    />
+                  </div>
                 </div>
               </div>
 
