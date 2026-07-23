@@ -381,15 +381,15 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
     let targetCss = '';
 
     if (selectedPrinter === '100x150') {
-      pageCss = `@page { size: 100mm 150mm portrait; margin: 0; }`;
+      pageCss = `@page { size: 100mm auto; margin: 0; }`;
       targetCss = `
         #printable-thermal-receipt {
-          width: 100mm !important;
-          max-width: 100mm !important;
-          min-height: 150mm !important;
+          width: 96mm !important;
+          max-width: 96mm !important;
+          min-height: 140mm !important;
           height: auto !important;
           max-height: none !important;
-          padding: 5mm !important;
+          padding: 3mm !important;
           overflow: visible !important;
           box-sizing: border-box !important;
         }
@@ -401,7 +401,9 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
           width: 76mm !important;
           max-width: 76mm !important;
           height: auto !important;
+          max-height: none !important;
           padding: 2mm !important;
+          overflow: visible !important;
           box-sizing: border-box !important;
         }
       `;
@@ -412,7 +414,9 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
           width: 52mm !important;
           max-width: 52mm !important;
           height: auto !important;
+          max-height: none !important;
           padding: 1.5mm !important;
+          overflow: visible !important;
           box-sizing: border-box !important;
         }
       `;
@@ -423,19 +427,23 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
           width: 46mm !important;
           max-width: 46mm !important;
           height: auto !important;
+          max-height: none !important;
           padding: 1mm !important;
+          overflow: visible !important;
           box-sizing: border-box !important;
         }
       `;
     } else {
       // A4
-      pageCss = `@page { size: A4 portrait; margin: 10mm; }`;
+      pageCss = `@page { size: A4 portrait; margin: 8mm; }`;
       targetCss = `
         #printable-thermal-receipt {
-          width: 190mm !important;
+          width: 100% !important;
           max-width: 190mm !important;
           height: auto !important;
+          max-height: none !important;
           padding: 0 !important;
+          overflow: visible !important;
           box-sizing: border-box !important;
         }
       `;
@@ -445,9 +453,10 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
       @media print {
         ${pageCss}
 
-        html, body, #root, #main-app-container {
+        html, body, #root, #main-app-container, .modal-overlay-thermal, .modal-overlay-thermal div {
           visibility: visible !important;
           height: auto !important;
+          max-height: none !important;
           min-height: 100% !important;
           overflow: visible !important;
           margin: 0 !important;
@@ -1041,7 +1050,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
                 className={`bg-white border select-all border-slate-350 shadow-xl transition-all duration-300 relative flex flex-col text-slate-800
                   ${selectedPrinter === '58mm' ? 'max-w-[240px] p-3 text-[10px] font-mono leading-snug' :
                     selectedPrinter === 'label' ? 'max-w-[210px] p-2 text-[9px] font-mono leading-tight' :
-                    selectedPrinter === '100x150' ? 'w-[378px] h-[567px] p-6 text-[10px] font-mono leading-normal overflow-hidden rounded-md' :
+                    selectedPrinter === '100x150' ? 'w-[378px] min-h-[527px] p-4 text-[10px] font-mono leading-normal rounded-md' :
                     selectedPrinter === 'A4' ? 'max-w-[620px] p-10 text-[12px] font-sans leading-relaxed' :
                     'max-w-[340px] p-5 text-[11px] font-mono leading-relaxed'
                   }
@@ -1149,7 +1158,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
                 </table>
               ) : (
                 /* POS traditional receipt list */
-                <div className="space-y-1.5 divide-y divide-slate-100 max-h-56 overflow-y-auto pr-0.5">
+                <div className="space-y-1.5 divide-y divide-slate-100 print:max-h-none print:overflow-visible pr-0.5">
                   {sale.items.map((item, idx) => (
                     <div key={idx} className="pt-1.5 first:pt-0 leading-tight">
                       <div className="flex justify-between">
