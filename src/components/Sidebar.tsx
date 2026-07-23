@@ -175,7 +175,7 @@ export default function Sidebar({
       group: 'FINANCEIRO',
       items: [
         { id: 'FINANCEIRO_CAIXA', label: 'Fluxo de Caixa & Contas', icon: Coins, keywords: 'financeiro accounts contas caixa transacoes', tab: ActiveTab.FINANCEIRO },
-        { id: 'METODOS_PAGAMENTO', label: 'Métodos de Pagamento', icon: CreditCard, keywords: 'pagamento pix specie maquininha cartao vitrine', tab: ActiveTab.METODOS_PAGAMENTO }
+        { id: 'METODOS_PAGAMENTO', label: 'Métodos & InfinitePay', icon: CreditCard, keywords: 'pagamento pix infinitepay infinity pay maquininha cartao vitrine gateway credentials chave handle', tab: ActiveTab.METODOS_PAGAMENTO }
       ]
     },
     {
@@ -279,7 +279,7 @@ export default function Sidebar({
       group: 'FINANCEIRO',
       items: [
         { id: 'FINANCEIRO_CAIXA', label: 'Fluxo de Caixa & Contas', icon: Coins, keywords: 'financeiro accounts contas caixa transacoes', tab: ActiveTab.FINANCEIRO },
-        { id: 'METODOS_PAGAMENTO', label: 'Métodos de Pagamento', icon: CreditCard, keywords: 'pagamento pix specie maquininha cartao vitrine', tab: ActiveTab.METODOS_PAGAMENTO }
+        { id: 'METODOS_PAGAMENTO', label: 'Métodos & InfinitePay', icon: CreditCard, keywords: 'pagamento pix infinitepay infinity pay maquininha cartao vitrine gateway credentials chave handle', tab: ActiveTab.METODOS_PAGAMENTO }
       ]
     },
     {

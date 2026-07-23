@@ -2322,6 +2322,51 @@ export default function SettingsSystem({
             )}
           </div>
           
+          {/* InfinitePay (Infinity Pay) Integration Card */}
+          <div className="bg-gradient-to-br from-white via-pink-50/20 to-slate-50 border border-pink-200/80 rounded-2xl shadow-xs p-4 space-y-3">
+            <div className="flex justify-between items-center pb-2 border-b border-pink-100">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                <ShieldCheck size={16} className="text-pink-600" />
+                <span>InfinitePay (Infinity Pay Checkout & Pix)</span>
+              </h3>
+              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-extrabold rounded-full text-[9px] border border-emerald-200">
+                ● Ativo no Checkout
+              </span>
+            </div>
+
+            <p className="text-[10.5px] text-slate-600 leading-relaxed">
+              O gateway de pagamentos oficial da sua loja está conectado à InfinitePay via API REST e Webhooks de confirmação instantânea.
+            </p>
+
+            <div className="p-3 bg-white rounded-xl border border-slate-200/80 space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-bold text-slate-500">Handle do Vendedor:</span>
+                <span className="font-mono font-extrabold text-pink-600 bg-pink-50 px-2 py-0.5 rounded-lg border border-pink-100">
+                  {localStorage.getItem('infinitepay_handle') || 'ap-moda-fitness'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-bold text-slate-500">Endpoint Webhook:</span>
+                <span className="font-mono text-[10px] text-slate-700 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200 truncate max-w-[220px]">
+                  /api/webhook/infinitepay
+                </span>
+              </div>
+            </div>
+
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('ap-navigate-tab', { detail: 'METODOS_PAGAMENTO' }));
+                }}
+                className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl transition cursor-pointer flex items-center justify-center gap-2 border-0 shadow-xs"
+              >
+                <CreditCard size={14} className="text-pink-400" />
+                <span>Gerenciar Parâmetros & Chaves da InfinitePay</span>
+              </button>
+            </div>
+          </div>
+
           {/* Google Gemini AI Integration Card */}
           <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-4 space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-slate-50">

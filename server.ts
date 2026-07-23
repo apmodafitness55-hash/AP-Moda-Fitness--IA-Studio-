@@ -1210,7 +1210,7 @@ app.post('/api/infinitepay/create-link', async (req, res) => {
     });
 
     const payload: any = {
-      handle: "ap-moda-fitness",
+      handle: req.body.handle || process.env.INFINITEPAY_HANDLE || "ap-moda-fitness",
       order_nsu: String(order_nsu),
       redirect_url: redirect_url || "https://apmodafitness2.com.br/pagamento-concluido",
       items: mappedItems,
@@ -1324,6 +1324,50 @@ app.post('/api/infinitepay/create-link', async (req, res) => {
   } catch (err: any) {
     console.error('[InfinitePay Exception]:', err);
     return res.status(500).json({ error: err.message || 'Erro interno ao criar link de pagamento InfinitePay.' });
+  }
+});
+
+app.post('/api/infinitepay/test-connection', async (req, res) => {
+  try {
+    const handle = req.body.handle || process.env.INFINITEPAY_HANDLE || 'ap-moda-fitness';
+    const testPayload = {
+      handle,
+      order_nsu: `TEST-${Date.now()}`,
+      redirect_url: 'https://apmodafitness2.com.br',
+      items: [{ quantity: 1, price: 100, description: 'Teste de Conexao InfinitePay' }],
+      itens: [{ quantity: 1, price: 100, description: 'Teste de Conexao InfinitePay' }]
+    };
+
+    const response = await fetchWithTimeout('https://api.checkout.infinitepay.io/links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(testPayload)
+    }, 6000);
+
+    const resText = await response.text();
+    let data: any = {};
+    try { data = JSON.parse(resText); } catch (e) { data = { raw: resText }; }
+
+    if (response.ok && (data.url || data.link_url || data.id || data.slug)) {
+      return res.json({
+        success: true,
+        handle,
+        message: `Conexão bem-sucedida com a API da InfinitePay para o handle "${handle}".`,
+        linkUrl: data.url || data.link_url
+      });
+    } else {
+      return res.status(response.status || 400).json({
+        success: false,
+        handle,
+        error: data.error || data.message || resText || 'Resposta inesperada da InfinitePay',
+        raw: data
+      });
+    }
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'Erro ao conectar com servidor InfinitePay'
+    });
   }
 });
 

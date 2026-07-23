@@ -744,7 +744,7 @@ export default function VendasList({
                   }
                   #printable-invoice-sheet {
                     display: block !important;
-                    position: absolute !important;
+                    position: fixed !important;
                     left: 0 !important;
                     top: 0 !important;
                     width: 100% !important;
@@ -752,7 +752,7 @@ export default function VendasList({
                     margin: 0 !important;
                     background: #ffffff !important;
                     color: #000000 !important;
-                    z-index: 9999999 !important;
+                    z-index: 99999999 !important;
                   }
                   #printable-invoice-sheet * {
                     color: #000000 !important;

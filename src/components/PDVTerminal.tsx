@@ -673,16 +673,17 @@ export default function PDVTerminal({
         };
       }
 
+      const activeHandle = localStorage.getItem('infinitepay_handle') || "ap-moda-fitness";
       let data: any = null;
       try {
-        console.log('[InfinitePay PDV] Enviando requisição POST direta para https://api.checkout.infinitepay.io/links');
+        console.log('[InfinitePay PDV] Enviando requisição POST direta para https://api.checkout.infinitepay.io/links com handle:', activeHandle);
         const directResponse = await fetch('https://api.checkout.infinitepay.io/links', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            handle: "ap-moda-fitness",
+            handle: activeHandle,
             order_nsu: orderId,
             redirect_url: window.location.origin,
             items: itensPayload,
@@ -715,6 +716,7 @@ export default function PDVTerminal({
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
+            handle: activeHandle,
             order_nsu: orderId,
             redirect_url: window.location.origin,
             itens: itensPayload,

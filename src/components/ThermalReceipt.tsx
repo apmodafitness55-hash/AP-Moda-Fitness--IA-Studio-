@@ -469,7 +469,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
 
         #printable-thermal-receipt {
           display: block !important;
-          position: absolute !important;
+          position: fixed !important;
           left: 0 !important;
           top: 0 !important;
           margin: 0 !important;
@@ -479,7 +479,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
           font-size: ${fontSelector[fontSize]} !important;
           box-shadow: none !important;
           border: none !important;
-          z-index: 9999999 !important;
+          z-index: 99999999 !important;
         }
 
         ${targetCss}
@@ -498,15 +498,18 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
     `;
     document.head.appendChild(style);
 
+    const cleanup = () => {
+      try {
+        const addedStyle = document.getElementById('thermal-receipt-print-styles');
+        if (addedStyle) addedStyle.remove();
+      } catch (e) {}
+    };
+
+    window.addEventListener('afterprint', cleanup, { once: true });
     window.print();
 
-    // Clean up style tag after window print opens
-    setTimeout(() => {
-      const addedStyle = document.getElementById('thermal-receipt-print-styles');
-      if (addedStyle) {
-        addedStyle.remove();
-      }
-    }, 1000);
+    // Safety timeout (30 seconds)
+    setTimeout(cleanup, 30000);
   };
 
   return (

@@ -277,7 +277,7 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
 
         #printable-shipping-label {
           display: block !important;
-          position: absolute !important;
+          position: fixed !important;
           left: 0 !important;
           top: 0 !important;
           ${dimsCss}
@@ -287,7 +287,7 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
           color: #000000 !important;
           font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
           box-sizing: border-box !important;
-          z-index: 9999999 !important;
+          z-index: 99999999 !important;
         }
 
         #printable-shipping-label * {
@@ -298,10 +298,20 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
     `;
 
     document.head.appendChild(style);
+    
+    // Listen for afterprint event so styles persist until print dialog closes
+    const cleanup = () => {
+      try {
+        const el = document.getElementById(printWindowStyleId);
+        if (el) el.remove();
+      } catch (e) {}
+    };
+
+    window.addEventListener('afterprint', cleanup, { once: true });
     window.print();
-    setTimeout(() => {
-      style.remove();
-    }, 1000);
+
+    // Fallback safety timeout (30 seconds) in case afterprint does not fire
+    setTimeout(cleanup, 30000);
   };
 
   return (

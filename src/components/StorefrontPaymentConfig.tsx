@@ -21,7 +21,17 @@ import {
   Cpu, 
   Zap, 
   ToggleLeft, 
-  ToggleRight 
+  ToggleRight,
+  Copy,
+  ExternalLink,
+  ShieldCheck,
+  Key,
+  RefreshCw,
+  Globe,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 
 export interface CardTerminal {
@@ -31,6 +41,19 @@ export interface CardTerminal {
   serialNumber?: string;
   status: 'Ativo' | 'Inativo';
   notes?: string;
+}
+
+export interface InfinitePayConfigData {
+  handle: string;
+  apiKey: string;
+  mode: 'production' | 'sandbox';
+  redirectUrl: string;
+  autoFillCustomerData: boolean;
+  pixFeePercent: number;
+  debitFeePercent: number;
+  credit1xFeePercent: number;
+  creditInstallmentFeePercent: number;
+  allowInstallmentsUpTo: number;
 }
 
 export interface StorefrontPaymentConfigData {
@@ -82,6 +105,35 @@ export default function StorefrontPaymentConfig() {
     ];
   });
 
+  // InfinitePay Configuration State
+  const [infinitePayConfig, setInfinitePayConfig] = useState<InfinitePayConfigData>(() => {
+    const saved = localStorage.getItem('ap_infinitepay_config');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return {
+      handle: localStorage.getItem('infinitepay_handle') || 'ap-moda-fitness',
+      apiKey: localStorage.getItem('infinitepay_api_key') || '',
+      mode: 'production',
+      redirectUrl: 'https://apmodafitness2.com.br/pagamento-concluido',
+      autoFillCustomerData: true,
+      pixFeePercent: 0.00,
+      debitFeePercent: 1.38,
+      credit1xFeePercent: 3.16,
+      creditInstallmentFeePercent: 5.40,
+      allowInstallmentsUpTo: 12
+    };
+  });
+
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
+  const [isTestingInfinitePay, setIsTestingInfinitePay] = useState(false);
+  const [infinitePayTestResult, setInfinitePayTestResult] = useState<{ success: boolean; message: string; linkUrl?: string } | null>(null);
+
+  const webhookUrl = typeof window !== 'undefined' 
+    ? `${window.location.origin}/api/webhook/infinitepay`
+    : 'https://seu-dominio.com/api/webhook/infinitepay';
+
   // Keep state synced
   useEffect(() => {
     localStorage.setItem('ap_moda_payment_config', JSON.stringify(config));
@@ -90,6 +142,16 @@ export default function StorefrontPaymentConfig() {
   useEffect(() => {
     localStorage.setItem('ap_moda_card_terminals', JSON.stringify(terminals));
   }, [terminals]);
+
+  useEffect(() => {
+    localStorage.setItem('ap_infinitepay_config', JSON.stringify(infinitePayConfig));
+    if (infinitePayConfig.handle) {
+      localStorage.setItem('infinitepay_handle', infinitePayConfig.handle.trim());
+    }
+    if (infinitePayConfig.apiKey) {
+      localStorage.setItem('infinitepay_api_key', infinitePayConfig.apiKey.trim());
+    }
+  }, [infinitePayConfig]);
 
   // Terminal form states
   const [isAddTerminalOpen, setIsAddTerminalOpen] = useState(false);
@@ -114,11 +176,58 @@ export default function StorefrontPaymentConfig() {
           setTerminals(JSON.parse(savedTerminals));
         } catch (e) {}
       }
+      const savedIP = localStorage.getItem('ap_infinitepay_config');
+      if (savedIP) {
+        try {
+          setInfinitePayConfig(JSON.parse(savedIP));
+        } catch (e) {}
+      }
     };
 
     window.addEventListener('ap-storage-synced', handleStorageSynced);
     return () => window.removeEventListener('ap-storage-synced', handleStorageSynced);
   }, []);
+
+  // Copy webhook URL helper
+  const handleCopyWebhookUrl = () => {
+    navigator.clipboard.writeText(webhookUrl);
+    setCopiedWebhook(true);
+    setTimeout(() => setCopiedWebhook(false), 2500);
+  };
+
+  // Test InfinitePay API Connection Live
+  const handleTestInfinitePayConnection = async () => {
+    setIsTestingInfinitePay(true);
+    setInfinitePayTestResult(null);
+    try {
+      const handleToTest = infinitePayConfig.handle.trim() || 'ap-moda-fitness';
+      const res = await fetch('/api/infinitepay/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handle: handleToTest })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setInfinitePayTestResult({
+          success: true,
+          message: `🟢 Conexão com a InfinitePay confirmada! Handle "${data.handle}" verificado e apto para receber pagamentos.`,
+          linkUrl: data.linkUrl
+        });
+      } else {
+        setInfinitePayTestResult({
+          success: false,
+          message: `⚠️ Resposta da InfinitePay: ${data.error || 'Não foi possível validar o Handle com a API'}`
+        });
+      }
+    } catch (err: any) {
+      setInfinitePayTestResult({
+        success: false,
+        message: `❌ Erro ao testar comunicação com a InfinitePay: ${err.message || err}`
+      });
+    } finally {
+      setIsTestingInfinitePay(false);
+    }
+  };
 
   // Handle saving configurations
   const [isSavedSuccess, setIsSavedSuccess] = useState(false);
@@ -126,8 +235,18 @@ export default function StorefrontPaymentConfig() {
     const jsonStr = JSON.stringify(config);
     localStorage.setItem('ap_moda_payment_config', jsonStr);
     
+    // Save InfinitePay
+    const ipStr = JSON.stringify(infinitePayConfig);
+    localStorage.setItem('ap_infinitepay_config', ipStr);
+    localStorage.setItem('infinitepay_handle', infinitePayConfig.handle.trim());
+    if (infinitePayConfig.apiKey) {
+      localStorage.setItem('infinitepay_api_key', infinitePayConfig.apiKey.trim());
+    }
+
     // Also push to Supabase
     await pushSystemConfigToSupabase('ap_moda_payment_config', jsonStr);
+    await pushSystemConfigToSupabase('ap_infinitepay_config', ipStr);
+    await pushSystemConfigToSupabase('infinitepay_handle', infinitePayConfig.handle.trim());
 
     // Also retroactively mirror / keep in sync company_info pixKey and ap_pix_key for backwards compatibility
     try {
@@ -146,7 +265,7 @@ export default function StorefrontPaymentConfig() {
 
     setIsSavedSuccess(true);
     setTimeout(() => setIsSavedSuccess(false), 3000);
-    alert('Configurações de formas de pagamentos da Vitrine salvas e sincronizadas na nuvem com sucesso!');
+    alert('Configurações de formas de pagamentos e da InfinitePay salvas e sincronizadas com sucesso!');
   };
 
   // Handle adding card reader terminal
@@ -221,6 +340,221 @@ export default function StorefrontPaymentConfig() {
         {/* Left Column: Direct Configurations of Storefront Checkout */}
         <div className="xl:col-span-2 space-y-6">
           
+          {/* SECTION 0: INFINITEPAY (INFINITY PAY) INTEGRATION & CREDENTIALS */}
+          <div className="bg-gradient-to-br from-white via-pink-50/20 to-slate-50 border border-pink-200/80 rounded-2xl overflow-hidden shadow-sm text-left">
+            <div className="p-4 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white flex justify-between items-center flex-wrap gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 bg-pink-600 rounded-lg text-white">
+                  <ShieldCheck size={18} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-xs tracking-tight text-white uppercase">
+                      Gateway & Checkout InfinitePay (Infinity Pay)
+                    </span>
+                    <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 font-extrabold rounded-full text-[8.5px] border border-emerald-500/30">
+                      ⚡ Checkout Oficial Ativo
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-300">
+                    Configuração de Handle do Vendedor, Chaves de API, Webhook e URLs de Pagamento Seguro
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleTestInfinitePayConnection}
+                  disabled={isTestingInfinitePay}
+                  className="px-3 py-1.5 bg-pink-600 hover:bg-pink-700 text-white font-extrabold text-[9.5px] uppercase tracking-wider rounded-lg transition flex items-center gap-1 cursor-pointer border-0 disabled:opacity-50"
+                  title="Validar se o Handle e a API da InfinitePay estão respondendo"
+                >
+                  <RefreshCw size={11} className={isTestingInfinitePay ? 'animate-spin' : ''} />
+                  <span>{isTestingInfinitePay ? 'Testando...' : 'Testar API'}</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-4">
+              
+              {/* Row 1: Handle / Username and API Key */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-slate-700 font-extrabold text-[9px] uppercase block tracking-wider mb-1 flex items-center gap-1">
+                    <Zap size={11} className="text-pink-600" />
+                    <span>Handle / Tag do Vendedor na InfinitePay *</span>
+                  </label>
+                  <div className="flex items-center bg-white border border-slate-250 rounded-xl overflow-hidden shadow-xs focus-within:border-pink-500">
+                    <span className="px-2.5 py-1.5 text-slate-400 font-mono text-xs bg-slate-50 border-r border-slate-200 select-none">
+                      checkout.infinitepay.io/
+                    </span>
+                    <input 
+                      type="text"
+                      required
+                      placeholder="ex: ap-moda-fitness"
+                      value={infinitePayConfig.handle}
+                      onChange={(e) => setInfinitePayConfig(prev => ({ ...prev, handle: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') }))}
+                      className="w-full px-3 py-2 bg-transparent text-xs font-mono font-extrabold text-pink-600 outline-none"
+                    />
+                  </div>
+                  <span className="text-[8.5px] text-slate-500 block mt-1">
+                    💡 Este é seu nome de usuário único registrado na InfinitePay para onde os pagamentos do e-commerce e do PDV são creditados.
+                  </span>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-slate-700 font-extrabold text-[9px] uppercase tracking-wider flex items-center gap-1">
+                      <Key size={11} className="text-pink-600" />
+                      <span>Chave Privada de API / Client Secret (Opcional)</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="text-[9px] font-extrabold text-pink-600 hover:underline cursor-pointer bg-transparent border-0 flex items-center gap-1"
+                    >
+                      {showApiKey ? <EyeOff size={10} /> : <Eye size={10} />}
+                      <span>{showApiKey ? 'Ocultar' : 'Exibir'}</span>
+                    </button>
+                  </div>
+                  <input 
+                    type={showApiKey ? 'text' : 'password'}
+                    placeholder="ex: ip_sec_live_..."
+                    value={infinitePayConfig.apiKey}
+                    onChange={(e) => setInfinitePayConfig(prev => ({ ...prev, apiKey: e.target.value }))}
+                    className="w-full px-3 py-2 bg-white border border-slate-250 rounded-xl text-xs font-mono text-slate-800 outline-none focus:border-pink-500 shadow-xs"
+                  />
+                  <span className="text-[8.5px] text-slate-500 block mt-1">
+                    🔒 Utilizada para chamadas autenticadas de consulta e confirmação de webhook no servidor.
+                  </span>
+                </div>
+              </div>
+
+              {/* Row 2: Webhook URL and Redirect URL */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-150/60">
+                <div>
+                  <label className="text-slate-700 font-extrabold text-[9px] uppercase block tracking-wider mb-1 flex items-center gap-1">
+                    <Globe size={11} className="text-pink-600" />
+                    <span>URL do Webhook do Servidor (Notificação Instantânea)</span>
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input 
+                      type="text"
+                      readOnly
+                      value={webhookUrl}
+                      className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-[10.5px] font-mono text-slate-600 outline-none select-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCopyWebhookUrl}
+                      className={`px-3 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wider transition cursor-pointer flex items-center gap-1 shrink-0 border-0 ${
+                        copiedWebhook ? 'bg-emerald-600 text-white' : 'bg-slate-800 hover:bg-slate-900 text-white'
+                      }`}
+                    >
+                      {copiedWebhook ? <CheckCircle2 size={12} /> : <Copy size={12} />}
+                      <span>{copiedWebhook ? 'Copiado!' : 'Copiar'}</span>
+                    </button>
+                  </div>
+                  <span className="text-[8.5px] text-slate-500 block mt-1">
+                    📋 Cole esta URL de Webhook no painel da InfinitePay em <strong>Configurações &gt; Webhooks</strong> para baixa automática dos pedidos.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-slate-700 font-extrabold text-[9px] uppercase block tracking-wider mb-1 flex items-center gap-1">
+                    <ExternalLink size={11} className="text-pink-600" />
+                    <span>URL de Retorno / Sucesso após Pagamento</span>
+                  </label>
+                  <input 
+                    type="text"
+                    placeholder="https://apmodafitness2.com.br/pagamento-concluido"
+                    value={infinitePayConfig.redirectUrl}
+                    onChange={(e) => setInfinitePayConfig(prev => ({ ...prev, redirectUrl: e.target.value }))}
+                    className="w-full px-3 py-2 bg-white border border-slate-250 rounded-xl text-xs font-mono text-slate-800 outline-none focus:border-pink-500 shadow-xs"
+                  />
+                  <span className="text-[8.5px] text-slate-500 block mt-1">
+                    🌐 Para onde o cliente é direcionado logo após concluir o pagamento na tela da InfinitePay.
+                  </span>
+                </div>
+              </div>
+
+              {/* Row 3: Toggles and Rates */}
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
+                  <div className="space-y-0.5">
+                    <span className="font-extrabold text-xs text-slate-800 uppercase tracking-tight block">
+                      Preenchimento Automático do Comprador
+                    </span>
+                    <p className="text-[10px] text-slate-500">
+                      Envia Nome, CPF/CNPJ, E-mail, Celular e Endereço de Entrega direto no payload para agilizar o checkout.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setInfinitePayConfig(prev => ({ ...prev, autoFillCustomerData: !prev.autoFillCustomerData }))}
+                    className={`px-3 py-1 rounded-full font-black text-[9px] uppercase tracking-wider border cursor-pointer ${
+                      infinitePayConfig.autoFillCustomerData 
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                        : 'bg-slate-100 text-slate-400 border-slate-200'
+                    }`}
+                  >
+                    {infinitePayConfig.autoFillCustomerData ? 'Ativado' : 'Desativado'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                  <div className="p-2 bg-slate-50 border border-slate-150 rounded-lg text-center">
+                    <span className="text-[8px] font-bold uppercase text-slate-400 block">Taxa Pix</span>
+                    <span className="text-xs font-black font-mono text-emerald-600">0.00%</span>
+                  </div>
+                  <div className="p-2 bg-slate-50 border border-slate-150 rounded-lg text-center">
+                    <span className="text-[8px] font-bold uppercase text-slate-400 block">Taxa Débito</span>
+                    <span className="text-xs font-black font-mono text-slate-700">1.38%</span>
+                  </div>
+                  <div className="p-2 bg-slate-50 border border-slate-150 rounded-lg text-center">
+                    <span className="text-[8px] font-bold uppercase text-slate-400 block">Crédito 1x</span>
+                    <span className="text-xs font-black font-mono text-slate-700">3.16%</span>
+                  </div>
+                  <div className="p-2 bg-slate-50 border border-slate-150 rounded-lg text-center">
+                    <span className="text-[8px] font-bold uppercase text-slate-400 block">Parcelado 12x</span>
+                    <span className="text-xs font-black font-mono text-pink-600">5.40% / parc.</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Test Result Feedback */}
+              {infinitePayTestResult && (
+                <div className={`p-3 rounded-xl border font-sans text-xs flex items-start gap-2 ${
+                  infinitePayTestResult.success 
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                    : 'bg-amber-50 border-amber-200 text-amber-900'
+                }`}>
+                  {infinitePayTestResult.success ? (
+                    <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                  )}
+                  <div className="space-y-1">
+                    <p className="font-bold">{infinitePayTestResult.message}</p>
+                    {infinitePayTestResult.linkUrl && (
+                      <a 
+                        href={infinitePayTestResult.linkUrl} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className="text-pink-600 font-extrabold underline text-[11px] block"
+                      >
+                        🔗 Clique para testar abrir o link de checkout gerado
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+
           {/* SECTION 1: PIX PAYMENT METHOD */}
           <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs text-left">
             <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">

@@ -433,6 +433,10 @@ body.theme-rosa {
    MASTER SYSTEM-WIDE PRINT FIX (Anti-Blank Page & Clean Single-Element Print)
    ========================================================================== */
 @media print {
+  @page {
+    margin: 0;
+  }
+
   html, body {
     background: #ffffff !important;
     background-color: #ffffff !important;
@@ -467,37 +471,51 @@ body.theme-rosa {
     visibility: hidden !important;
   }
 
+  /* Strip background overlays & scroll constraints from modal containers when printing */
+  .fixed, .inset-0, .backdrop-blur-xs, .bg-slate-900\/60, .bg-slate-900\/65 {
+    background: transparent !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+  }
+
   /* Make ONLY our printable targets and their descendants visible */
   #printable-thermal-receipt, #printable-thermal-receipt *,
   #printable-shipping-label, #printable-shipping-label *,
   #printable-invoice-sheet, #printable-invoice-sheet *,
-  #replenishment-report-modal, #replenishment-report-modal * {
+  #printable-inventory-sheet, #printable-inventory-sheet *,
+  #replenishment-report-modal, #replenishment-report-modal *,
+  .printable-area, .printable-area * {
     visibility: visible !important;
   }
 
-  /* Position printable targets at top-left of the page sheet */
+  /* Position printable targets as FIXED at top-left of the physical paper sheet */
   #printable-thermal-receipt,
   #printable-shipping-label,
   #printable-invoice-sheet,
-  #replenishment-report-modal {
+  #printable-inventory-sheet,
+  #replenishment-report-modal,
+  .printable-area {
     display: block !important;
-    position: absolute !important;
+    position: fixed !important;
     left: 0 !important;
     top: 0 !important;
     margin: 0 !important;
-    z-index: 9999999 !important;
+    z-index: 99999999 !important;
     background: #ffffff !important;
     color: #000000 !important;
     box-shadow: none !important;
     border: none !important;
     opacity: 1 !important;
+    overflow: visible !important;
   }
 
   /* Ensure text and icons inside targets render as solid black on white */
   #printable-thermal-receipt *,
   #printable-shipping-label *,
   #printable-invoice-sheet *,
-  #replenishment-report-modal * {
+  #printable-inventory-sheet *,
+  #replenishment-report-modal *,
+  .printable-area * {
     color: #000000 !important;
     background: transparent !important;
     text-shadow: none !important;

@@ -354,7 +354,7 @@ export default function PublicCatalog({
     };
   });
 
-  // Floating campaign promotion banner configuration
+  // Floating campaign promotion banner configuration (Default: 1st Purchase Coupon)
   const [floatingBanner, setFloatingBanner] = useState<any>(() => {
     try {
       const saved = localStorage.getItem('ap_vitrine_floating_banner');
@@ -362,10 +362,10 @@ export default function PublicCatalog({
     } catch(e){}
     return {
       show: true,
-      title: "✨ CUPOM DA SEMANA",
-      subtitle: "Insira APMODAFIT no carrinho para ganhar 5% OFF e frete grátis!",
-      ctaText: "Aproveitar Desconto",
-      ctaLink: "https://wa.me/5511999990000?text=Quero%20aproveitar%20o%20cupom%20de%20desconto",
+      title: "🎁 CUPOM DE 1ª COMPRA",
+      subtitle: "Ganhe 10% OFF + Frete Grátis no seu primeiro pedido com o cupom PRIMEIRACOMPRA!",
+      ctaText: "Aproveitar Desconto na Sacola",
+      ctaLink: "",
       bgColor: "#ec4899", // pink-500
       textColor: "#ffffff"
     };
@@ -2293,6 +2293,14 @@ export default function PublicCatalog({
       }];
     });
 
+    if (!appliedCoupon) {
+      const firstPurchaseCoupon = { code: 'PRIMEIRACOMPRA', discountPercent: 10, fixedDiscount: 0 };
+      setAppliedCoupon(firstPurchaseCoupon);
+      setCouponCode('PRIMEIRACOMPRA');
+      setCouponToastMsg('🎁 Cupom de 1ª Compra PRIMEIRACOMPRA (10% OFF + Frete Grátis) aplicado automaticamente!');
+      setShowCouponToast(true);
+    }
+
     handleOpenCart(1);
   };
 
@@ -2342,6 +2350,14 @@ export default function PublicCatalog({
         isUpsell
       }];
     });
+
+    if (!appliedCoupon) {
+      const firstPurchaseCoupon = { code: 'PRIMEIRACOMPRA', discountPercent: 10, fixedDiscount: 0 };
+      setAppliedCoupon(firstPurchaseCoupon);
+      setCouponCode('PRIMEIRACOMPRA');
+      setCouponToastMsg('🎁 Cupom de 1ª Compra PRIMEIRACOMPRA (10% OFF + Frete Grátis) aplicado automaticamente!');
+      setShowCouponToast(true);
+    }
   };
 
   // Coupons simulation
@@ -2370,7 +2386,13 @@ export default function PublicCatalog({
 
     setTimeout(() => {
       setIsApplyingCoupon(false);
-      if (cleanCode === 'FITNESS10' || cleanCode === 'VERAO10' || cleanCode === 'QUERO10') {
+      if (cleanCode === 'PRIMEIRACOMPRA' || cleanCode === 'PRIMEIRA10' || cleanCode === 'PRIMEIRAPEDIDO') {
+        setAppliedCoupon({ code: cleanCode, discountPercent: 10, fixedDiscount: 0 });
+        setCouponSuccess(`🎁 Cupom de 1ª Compra ${cleanCode} (10% OFF + Frete Grátis) aplicado com sucesso!`);
+      } else if (cleanCode === 'CLIENTEVIP' || cleanCode === 'FIDELIDADE5') {
+        setAppliedCoupon({ code: cleanCode, discountPercent: 5, fixedDiscount: 0 });
+        setCouponSuccess(`👑 Cupom Cliente VIP ${cleanCode} (5% OFF) aplicado com sucesso!`);
+      } else if (cleanCode === 'FITNESS10' || cleanCode === 'VERAO10' || cleanCode === 'QUERO10') {
         setAppliedCoupon({ code: cleanCode, discountPercent: 10, fixedDiscount: 0 });
         setCouponSuccess(`Cupom ${cleanCode} (10% de desconto) aplicado com sucesso!`);
       } else if (cleanCode === 'BEMVINDA50' || cleanCode === 'MODAFIT50') {
@@ -2380,8 +2402,8 @@ export default function PublicCatalog({
         setAppliedCoupon({ code: 'FRETEGRATIS', discountPercent: 0, fixedDiscount: 0 });
         setCouponSuccess('Cupom FRETEGRATIS ativado com sucesso!');
       } else if (cleanCode === campaignCoupon || cleanCode === 'APMODAFIT' || cleanCode === 'APMODAFITNESS') {
-        setAppliedCoupon({ code: cleanCode, discountPercent: 5, fixedDiscount: 0 });
-        setCouponSuccess(`Cupom ${cleanCode} (5% OFF e Frete Grátis) aplicado com sucesso!`);
+        setAppliedCoupon({ code: cleanCode, discountPercent: 10, fixedDiscount: 0 });
+        setCouponSuccess(`Cupom ${cleanCode} (10% OFF e Frete Grátis) aplicado com sucesso!`);
       } else {
         setCouponError(`Este cupom promocional expirou ou é inválido. Tente ${campaignCoupon} ou FITNESS10.`);
       }
@@ -3165,16 +3187,17 @@ export default function PublicCatalog({
         shipping_zip_code: cleanCep || addressCep
       };
 
+      const activeHandle = localStorage.getItem('infinitepay_handle') || "ap-moda-fitness";
       let linkData: any = null;
       try {
-        console.log('[InfinitePay Checkout] Enviando requisição POST direta para https://api.checkout.infinitepay.io/links');
+        console.log('[InfinitePay Checkout] Enviando requisição POST direta para https://api.checkout.infinitepay.io/links com handle:', activeHandle);
         const directResponse = await fetch('https://api.checkout.infinitepay.io/links', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            handle: "ap-moda-fitness",
+            handle: activeHandle,
             order_nsu: orderId,
             redirect_url: window.location.href,
             items: itensPayload,
@@ -3207,6 +3230,7 @@ export default function PublicCatalog({
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
+            handle: activeHandle,
             order_nsu: orderId,
             redirect_url: window.location.href,
             itens: itensPayload,
@@ -5234,32 +5258,29 @@ export default function PublicCatalog({
             <button 
               type="button"
               onClick={() => {
-                const campaignCoupon = extractCampaignCoupon();
-                const couponObj = { code: campaignCoupon, discountPercent: 5, fixedDiscount: 0 };
+                const campaignCoupon = extractCampaignCoupon() || 'PRIMEIRACOMPRA';
+                const discountPct = 10;
+                const couponObj = { code: campaignCoupon, discountPercent: discountPct, fixedDiscount: 0 };
                 setAppliedCoupon(couponObj);
                 setCouponCode(campaignCoupon);
-                const msg = `Cupom ${campaignCoupon} (5% OFF e Frete Grátis) ativado com sucesso para sua sacola! 🎉`;
+                const msg = `🎁 Cupom de 1ª Compra ${campaignCoupon} (${discountPct}% OFF + Frete Grátis) foi ativado e adicionado à sua sacola! 🎉`;
                 setCouponSuccess(msg);
                 setCouponToastMsg(msg);
                 setShowCouponToast(true);
                 setIsFloatingDismissed(true);
 
+                // Open Cart modal so user immediately sees their coupon active in the sacola
+                handleOpenCart(1);
+
                 try {
                   localStorage.setItem('ap_applied_coupon', JSON.stringify(couponObj));
                   localStorage.setItem('ap_coupon_code', campaignCoupon);
                 } catch (e) {}
-
-                setTimeout(() => {
-                  const anchor = document.getElementById('search-catalog-bar') || document.getElementById('colecao-run-anchor');
-                  if (anchor) {
-                    anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }
-                }, 100);
               }}
               className="block w-full text-center py-2 px-4 rounded-xl text-[10px] font-bold text-white transition hover:opacity-90 tracking-wide border-none cursor-pointer"
               style={{ backgroundColor: floatingBanner.bgColor }}
             >
-              {floatingBanner.ctaText || "Aproveitar Desconto"}
+              {floatingBanner.ctaText || "Aproveitar Desconto na Sacola"}
             </button>
           </div>
         </div>
@@ -5627,18 +5648,19 @@ export default function PublicCatalog({
 
                       if (found) {
                         setLoggedClient(found);
-                        const cName = found.name || '';
-                        const cPhone = found.phone || found.whatsapp || '';
-                        const cEmail = found.email || '';
-                        const cCpf = found.cpf || '';
-                        const cBirth = found.birthDate || '';
-                        const cStreet = found.addressStreet || found.street || '';
-                        const cNum = found.addressNum || found.number || '';
-                        const cComp = found.addressComp || found.complement || '';
-                        const cBairro = found.addressBairro || found.bairro || '';
-                        const cCidade = found.addressCidade || found.city || '';
-                        const cEstado = found.addressEstado || found.state || '';
-                        const cCep = found.addressCep || found.cep || '';
+                        const fAny = found as any;
+                        const cName = fAny.name || '';
+                        const cPhone = fAny.phone || fAny.whatsapp || '';
+                        const cEmail = fAny.email || '';
+                        const cCpf = fAny.cpf || '';
+                        const cBirth = fAny.birthDate || '';
+                        const cStreet = fAny.addressStreet || fAny.street || '';
+                        const cNum = fAny.addressNum || fAny.number || '';
+                        const cComp = fAny.addressComp || fAny.complement || '';
+                        const cBairro = fAny.addressBairro || fAny.bairro || '';
+                        const cCidade = fAny.addressCidade || fAny.city || '';
+                        const cEstado = fAny.addressEstado || fAny.state || '';
+                        const cCep = fAny.addressCep || fAny.cep || '';
 
                         setClientName(cName);
                         setClientPhone(cPhone);
