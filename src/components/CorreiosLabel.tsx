@@ -237,15 +237,19 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
     const dimsCss = isLandscapePrint
       ? `
         width: 150mm !important;
-        height: 100mm !important;
+        min-height: 100mm !important;
+        height: auto !important;
         max-width: 150mm !important;
-        max-height: 100mm !important;
+        max-height: none !important;
+        overflow: visible !important;
       `
       : `
         width: 100mm !important;
-        height: 150mm !important;
+        min-height: 150mm !important;
+        height: auto !important;
         max-width: 100mm !important;
-        max-height: 150mm !important;
+        max-height: none !important;
+        overflow: visible !important;
       `;
 
     style.innerHTML = `
@@ -277,7 +281,7 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
 
         #printable-shipping-label {
           display: block !important;
-          position: fixed !important;
+          position: absolute !important;
           left: 0 !important;
           top: 0 !important;
           ${dimsCss}

@@ -386,10 +386,11 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
         #printable-thermal-receipt {
           width: 100mm !important;
           max-width: 100mm !important;
-          height: 150mm !important;
-          max-height: 150mm !important;
+          min-height: 150mm !important;
+          height: auto !important;
+          max-height: none !important;
           padding: 5mm !important;
-          overflow: hidden !important;
+          overflow: visible !important;
           box-sizing: border-box !important;
         }
       `;
@@ -469,7 +470,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
 
         #printable-thermal-receipt {
           display: block !important;
-          position: fixed !important;
+          position: absolute !important;
           left: 0 !important;
           top: 0 !important;
           margin: 0 !important;
@@ -478,6 +479,9 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
           font-family: ${selectedPrinter === 'A4' ? "'Inter', system-ui, sans-serif" : "'JetBrains Mono', Courier, monospace"} !important;
           font-size: ${fontSelector[fontSize]} !important;
           box-shadow: none !important;
+          height: auto !important;
+          max-height: none !important;
+          overflow: visible !important;
           border: none !important;
           z-index: 99999999 !important;
         }

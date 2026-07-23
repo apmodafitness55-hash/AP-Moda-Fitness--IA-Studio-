@@ -488,7 +488,7 @@ body.theme-rosa {
     visibility: visible !important;
   }
 
-  /* Position printable targets as FIXED at top-left of the physical paper sheet */
+  /* Position printable targets at absolute top-left with natural auto-height flow to prevent cut-offs */
   #printable-thermal-receipt,
   #printable-shipping-label,
   #printable-invoice-sheet,
@@ -496,7 +496,7 @@ body.theme-rosa {
   #replenishment-report-modal,
   .printable-area {
     display: block !important;
-    position: fixed !important;
+    position: absolute !important;
     left: 0 !important;
     top: 0 !important;
     margin: 0 !important;
@@ -506,7 +506,40 @@ body.theme-rosa {
     box-shadow: none !important;
     border: none !important;
     opacity: 1 !important;
+    height: auto !important;
+    max-height: none !important;
     overflow: visible !important;
+  }
+
+  /* Specific Paper Format Classes to ensure 100% complete data without cropping */
+  .print-format-58mm {
+    width: 54mm !important;
+    max-width: 54mm !important;
+    padding: 1.5mm !important;
+    box-sizing: border-box !important;
+  }
+
+  .print-format-80mm {
+    width: 76mm !important;
+    max-width: 76mm !important;
+    padding: 2mm !important;
+    box-sizing: border-box !important;
+  }
+
+  .print-format-100x150, .print-format-label {
+    width: 100mm !important;
+    max-width: 100mm !important;
+    min-height: 150mm !important;
+    height: auto !important;
+    padding: 4mm !important;
+    box-sizing: border-box !important;
+  }
+
+  .print-format-a4 {
+    width: 100% !important;
+    max-width: 190mm !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
   }
 
   /* Ensure text and icons inside targets render as solid black on white */

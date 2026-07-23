@@ -1653,7 +1653,7 @@ export default function CatalogInventory({
                 }
                 #replenishment-report-modal {
                   display: block !important;
-                  position: fixed !important;
+                  position: absolute !important;
                   left: 0 !important;
                   top: 0 !important;
                   width: 100% !important;

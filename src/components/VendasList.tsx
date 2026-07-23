@@ -744,7 +744,7 @@ export default function VendasList({
                   }
                   #printable-invoice-sheet {
                     display: block !important;
-                    position: fixed !important;
+                    position: absolute !important;
                     left: 0 !important;
                     top: 0 !important;
                     width: 100% !important;
