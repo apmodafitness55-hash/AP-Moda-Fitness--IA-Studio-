@@ -118,6 +118,63 @@ export default function OrdersLogistics({
   const [isUpdatingStatusId, setIsUpdatingStatusId] = useState<string | null>(null);
   const [isProcessingCredPay, setIsProcessingCredPay] = useState(false);
   const [copiedTextId, setCopiedTextId] = useState<string | null>(null);
+  const [editingOrder, setEditingOrder] = useState<any | null>(null);
+
+  const handleDeleteOnlineOrder = (orderId: string) => {
+    if (confirm(`Tem certeza de que deseja excluir definitivamente o pedido online #${orderId}? Esta ação removerá o pedido do sistema.`)) {
+      setOnlineOrders(prev => prev.filter(o => o.id !== orderId));
+      
+      try {
+        const url = localStorage.getItem('ap_supabase_url');
+        const key = localStorage.getItem('ap_supabase_key');
+        if (url && key) {
+          fetch(`${url}/rest/v1/ap_online_orders?id=eq.${orderId}`, {
+            method: 'DELETE',
+            headers: {
+              'apikey': key,
+              'Authorization': `Bearer ${key}`
+            }
+          }).catch(() => {});
+        }
+      } catch (e) {}
+
+      showCustomAlert('Sucesso', `Pedido online #${orderId} foi excluído definitivamente.`);
+    }
+  };
+
+  const handleInvoiceOrder = (order: any) => {
+    if (confirm(`Deseja lançar e faturar o pedido #${order.id} diretamente no PDV/Faturamento de Vendas?`)) {
+      const items = Array.isArray(order.items) && order.items.length > 0 
+        ? order.items 
+        : [{ productName: 'Item Pedido Web', quantity: 1, price: order.total || 0 }];
+      
+      const subtotal = items.reduce((sum: number, it: any) => sum + (Number(it.price) * Number(it.quantity)), 0) || order.total || 0;
+      const deliveryFee = Number(order.deliveryFee) || 0;
+
+      const newSale: Sale = {
+        id: `venda-web-${Date.now().toString().slice(-6)}`,
+        clientName: order.clientName || 'Cliente Online',
+        salesperson: 'Loja Online (E-commerce)',
+        channel: 'E-commerce',
+        items: items.map((it: any) => ({
+          productId: it.productId || 'p1',
+          name: it.productName || it.name || 'Produto Online',
+          quantity: Number(it.quantity) || 1,
+          price: Number(it.price) || 0,
+          cost: 0
+        })),
+        total: subtotal + deliveryFee,
+        costTotal: 0,
+        status: 'Concluída',
+        createdAt: new Date().toISOString(),
+        address: order.address || undefined
+      };
+
+      onAddSale(newSale);
+      handleUpdateOrderStatus(order.id, 'Entregue');
+      showCustomAlert('Venda Faturada', `Pedido #${order.id} faturado com sucesso! Lançado na lista de Vendas do PDV.`);
+    }
+  };
 
   const isMelhorEnvioDelivery = (method?: string) => {
     if (!method) return false;
@@ -834,6 +891,36 @@ export default function OrdersLogistics({
                         >
                           <Printer size={12} />
                           <span className="hidden sm:inline">Etiqueta</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleInvoiceOrder(order)}
+                          title="Faturar e Lançar Venda no PDV"
+                          className="p-1 px-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200/40 rounded font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          <ShoppingBag size={12} />
+                          <span className="hidden md:inline">Faturar</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setEditingOrder(order)}
+                          title="Editar Dados do Pedido"
+                          className="p-1 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/50 rounded font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          <Edit size={12} />
+                          <span className="hidden md:inline">Editar</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteOnlineOrder(order.id)}
+                          title="Excluir Definitivamente este Pedido Online"
+                          className="p-1 px-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/40 rounded font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          <Trash2 size={12} />
+                          <span className="hidden md:inline">Excluir</span>
                         </button>
                       </div>
                     </div>
@@ -2457,6 +2544,255 @@ export default function OrdersLogistics({
             setOnlineOrders(prev => prev.map(o => o.id === orderId ? { ...o, trackingCode: code } : o));
           }}
         />
+      )}
+
+      {/* Edit Order Modal */}
+      {editingOrder && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-all">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+              <span className="font-bold text-xs tracking-wider uppercase font-sans flex items-center gap-2">
+                <Edit size={14} className="text-pink-400" />
+                <span>Editar Pedido Online #{editingOrder.id}</span>
+              </span>
+              <button 
+                type="button"
+                onClick={() => setEditingOrder(null)}
+                className="text-slate-400 hover:text-white transition-colors text-xs p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                setOnlineOrders(prev => prev.map(o => o.id === editingOrder.id ? editingOrder : o));
+                
+                try {
+                  const url = localStorage.getItem('ap_supabase_url');
+                  const key = localStorage.getItem('ap_supabase_key');
+                  if (url && key) {
+                    fetch(`${url}/rest/v1/ap_online_orders?id=eq.${editingOrder.id}`, {
+                      method: 'PATCH',
+                      headers: {
+                        'apikey': key,
+                        'Authorization': `Bearer ${key}`,
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify(editingOrder)
+                    }).catch(() => {});
+                  }
+                } catch(err) {}
+
+                showCustomAlert('Sucesso', `Pedido #${editingOrder.id} atualizado com sucesso!`);
+                setEditingOrder(null);
+              }}
+              className="p-5 space-y-4 overflow-y-auto font-sans text-xs flex-1"
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Nome do Cliente</label>
+                  <input 
+                    type="text"
+                    required
+                    value={editingOrder.clientName || ''}
+                    onChange={(e) => setEditingOrder({ ...editingOrder, clientName: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-semibold focus:outline-none focus:border-pink-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Telefone / WhatsApp</label>
+                  <input 
+                    type="text"
+                    required
+                    value={editingOrder.phone || ''}
+                    onChange={(e) => setEditingOrder({ ...editingOrder, phone: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-mono focus:outline-none focus:border-pink-500"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Endereço de Entrega</label>
+                <input 
+                  type="text"
+                  value={editingOrder.address || ''}
+                  onChange={(e) => setEditingOrder({ ...editingOrder, address: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-medium focus:outline-none focus:border-pink-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Status do Pedido</label>
+                  <select 
+                    value={editingOrder.status || 'Pendente'}
+                    onChange={(e) => setEditingOrder({ ...editingOrder, status: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-bold focus:outline-none focus:border-pink-500"
+                  >
+                    <option value="Pendente">Pendente / Aguardando Separação</option>
+                    <option value="Separando">Em Separação</option>
+                    <option value="Pronto">Pronto para Enviar</option>
+                    <option value="Saiu para Entrega">Saiu para Entrega</option>
+                    <option value="Entregue">Entregue</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Status do Pagamento</label>
+                  <select 
+                    value={editingOrder.status_pagamento || 'pendente'}
+                    onChange={(e) => setEditingOrder({ ...editingOrder, status_pagamento: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-bold focus:outline-none focus:border-pink-500"
+                  >
+                    <option value="pendente">Pendente / Aguardando Pago</option>
+                    <option value="pago">Pago / Confirmado</option>
+                    <option value="cancelado">Cancelado</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Taxa de Entrega (R$)</label>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    value={editingOrder.deliveryFee !== undefined ? editingOrder.deliveryFee : 0}
+                    onChange={(e) => {
+                      const fee = parseFloat(e.target.value) || 0;
+                      setEditingOrder({ ...editingOrder, deliveryFee: fee });
+                    }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-mono focus:outline-none focus:border-pink-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Valor Total (R$)</label>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    value={editingOrder.total !== undefined ? editingOrder.total : 0}
+                    onChange={(e) => {
+                      const tot = parseFloat(e.target.value) || 0;
+                      setEditingOrder({ ...editingOrder, total: tot });
+                    }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-mono font-bold focus:outline-none focus:border-pink-500"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Observações / CPF</label>
+                <textarea 
+                  rows={2}
+                  value={editingOrder.notes || ''}
+                  onChange={(e) => setEditingOrder({ ...editingOrder, notes: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:border-pink-500"
+                />
+              </div>
+
+              {/* Items List inside Modal */}
+              <div className="border-t border-slate-100 pt-3 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Itens do Pedido ({editingOrder.items?.length || 0})</span>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      const currentItems = editingOrder.items || [];
+                      setEditingOrder({
+                        ...editingOrder,
+                        items: [...currentItems, { productName: 'Novo Produto', quantity: 1, price: 0 }]
+                      });
+                    }}
+                    className="text-[10px] font-bold text-pink-600 hover:text-pink-700 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus size={12} />
+                    <span>Adicionar Item</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {(editingOrder.items || []).map((it: any, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200/60">
+                      <input 
+                        type="text"
+                        placeholder="Nome do Produto"
+                        value={it.productName || it.name || ''}
+                        onChange={(e) => {
+                          const updatedItems = [...editingOrder.items];
+                          updatedItems[idx] = { ...updatedItems[idx], productName: e.target.value };
+                          setEditingOrder({ ...editingOrder, items: updatedItems });
+                        }}
+                        className="flex-1 px-2 py-1 bg-white border border-slate-200 rounded text-slate-800 text-[11px]"
+                      />
+                      <input 
+                        type="number"
+                        min="1"
+                        placeholder="Qtd"
+                        value={it.quantity || 1}
+                        onChange={(e) => {
+                          const updatedItems = [...editingOrder.items];
+                          updatedItems[idx] = { ...updatedItems[idx], quantity: Number(e.target.value) || 1 };
+                          setEditingOrder({ ...editingOrder, items: updatedItems });
+                        }}
+                        className="w-14 px-2 py-1 bg-white border border-slate-200 rounded text-slate-800 text-[11px] font-mono text-center"
+                      />
+                      <input 
+                        type="number"
+                        step="0.01"
+                        placeholder="Preço R$"
+                        value={it.price || 0}
+                        onChange={(e) => {
+                          const updatedItems = [...editingOrder.items];
+                          updatedItems[idx] = { ...updatedItems[idx], price: Number(e.target.value) || 0 };
+                          setEditingOrder({ ...editingOrder, items: updatedItems });
+                        }}
+                        className="w-20 px-2 py-1 bg-white border border-slate-200 rounded text-slate-800 text-[11px] font-mono"
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const updatedItems = editingOrder.items.filter((_: any, i: number) => i !== idx);
+                          setEditingOrder({ ...editingOrder, items: updatedItems });
+                        }}
+                        className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
+                        title="Remover Item"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-3 border-t border-slate-100">
+                <button 
+                  type="button"
+                  onClick={() => handleDeleteOnlineOrder(editingOrder.id)}
+                  className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl font-bold transition flex items-center gap-1 cursor-pointer"
+                >
+                  <Trash2 size={14} />
+                  <span>Excluir</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setEditingOrder(null)}
+                  className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-650 rounded-xl font-bold transition cursor-pointer text-center"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-xl font-bold transition shadow-sm cursor-pointer text-center"
+                >
+                  Salvar Alterações
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Premium Alert/Confirm Modal Dialog Overlay */}

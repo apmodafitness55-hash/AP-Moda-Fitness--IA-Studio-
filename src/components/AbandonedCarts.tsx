@@ -236,23 +236,18 @@ export default function AbandonedCarts({ checkouts = [], setCheckouts, onSyncChe
   // Clear checkout record
   const handleDeleteCheckout = async (id: string) => {
     if (window.confirm('Deseja realmente arquivar/remover este registro de carrinho abandonado?')) {
+      const updated = checkouts.filter(c => c.id !== id);
+      setCheckouts(updated);
+      localStorage.setItem('ap_moda_checkouts', JSON.stringify(updated));
+
       try {
-        const res = await fetch(`/api/proxy/checkouts/${id}`, {
-          method: 'DELETE'
-        });
-        if (res.ok) {
-          const updated = checkouts.filter(c => c.id !== id);
-          setCheckouts(updated);
-          localStorage.setItem('ap_moda_checkouts', JSON.stringify(updated));
-        } else {
-          alert('Não foi possível excluir o carrinho do Supabase.');
-        }
+        await fetch(`/api/proxy/checkouts/${id}`, { method: 'DELETE' });
       } catch (err) {
-        console.error('Erro ao excluir checkout:', err);
-        // Fallback local deletion
-        const updated = checkouts.filter(c => c.id !== id);
-        setCheckouts(updated);
-        localStorage.setItem('ap_moda_checkouts', JSON.stringify(updated));
+        console.error('Erro ao excluir checkout no servidor:', err);
+      }
+
+      if (selectedCheckout?.id === id) {
+        setSelectedCheckout(null);
       }
     }
   };

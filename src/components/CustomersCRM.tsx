@@ -639,24 +639,32 @@ export default function CustomersCRM({
     }
 
     if (editingClient) {
-      // Simulate/trigger editing of localized elements
-      editingClient.name = newName.trim();
-      editingClient.email = newEmail.trim() || 'cliente@exemplo.com';
-      editingClient.phone = newPhone.trim();
-      editingClient.cpf = newCpf.trim() || undefined;
-      editingClient.birthDate = newBirthDate.trim() || undefined;
-      editingClient.channel = newChannel;
-      editingClient.npsScore = newNps;
-      
-      // Save measurements
-      editingClient.busto = newBusto ? parseFloat(newBusto) : undefined;
-      editingClient.cintura = newCintura ? parseFloat(newCintura) : undefined;
-      editingClient.quadril = newQuadril ? parseFloat(newQuadril) : undefined;
-      editingClient.coxa = newCoxa ? parseFloat(newCoxa) : undefined;
-      editingClient.altura = newAltura ? parseFloat(newAltura) : undefined;
-      editingClient.peso = newPeso ? parseFloat(newPeso) : undefined;
-      editingClient.vip = newVip;
-      
+      const updatedClient: Client = {
+        ...editingClient,
+        name: newName.trim(),
+        email: newEmail.trim() || 'cliente@exemplo.com',
+        phone: newPhone.trim(),
+        cpf: newCpf.trim() || undefined,
+        birthDate: newBirthDate.trim() || undefined,
+        channel: newChannel,
+        npsScore: newNps,
+        vip: newVip,
+        busto: newBusto ? parseFloat(newBusto) : undefined,
+        cintura: newCintura ? parseFloat(newCintura) : undefined,
+        quadril: newQuadril ? parseFloat(newQuadril) : undefined,
+        coxa: newCoxa ? parseFloat(newCoxa) : undefined,
+        altura: newAltura ? parseFloat(newAltura) : undefined,
+        peso: newPeso ? parseFloat(newPeso) : undefined
+      };
+
+      const updatedList = clients.map(c => c.id === editingClient.id ? updatedClient : c);
+      if (onUpdateClients) {
+        onUpdateClients(updatedList);
+      }
+      if (selectedClientDetail && selectedClientDetail.id === editingClient.id) {
+        setSelectedClientDetail(updatedClient);
+      }
+
       alert('Dados da cliente atualizados com sucesso no CRM!');
       setEditingClient(null);
     } else {
@@ -710,6 +718,23 @@ export default function CustomersCRM({
     setNewPeso(client.peso ? String(client.peso) : '');
     
     setIsAddModalOpen(true);
+  };
+
+  const handleDeleteClient = (clientId: string, clientName: string) => {
+    if (confirm(`Tem certeza de que deseja excluir definitivamente o cadastro da cliente "${clientName}"? Esta ação removerá os dados do diretório.`)) {
+      const updatedList = clients.filter(c => c.id !== clientId);
+      if (onUpdateClients) {
+        onUpdateClients(updatedList);
+      }
+      if (selectedClientDetail && selectedClientDetail.id === clientId) {
+        setSelectedClientDetail(null);
+      }
+      if (editingClient && editingClient.id === clientId) {
+        setIsAddModalOpen(false);
+        resetForm();
+      }
+      alert(`Cadastro da cliente "${clientName}" excluído com sucesso!`);
+    }
   };
 
   const resetForm = () => {
@@ -1094,6 +1119,14 @@ export default function CustomersCRM({
                             title="Editar Dados"
                           >
                             <Edit size={12} />
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => handleDeleteClient(c.id, c.name)}
+                            className="p-1 text-slate-400 hover:text-red-600 rounded hover:bg-rose-50 transition"
+                            title="Excluir Cliente"
+                          >
+                            <Trash2 size={12} />
                           </button>
                         </div>
                       </td>
@@ -2593,11 +2626,35 @@ export default function CustomersCRM({
                 )}
               </div>
 
+              <div className="flex gap-2 pt-2 border-t border-slate-100">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    const clientToEdit = selectedClientDetail;
+                    setSelectedClientDetail(null);
+                    handleOpenEdit(clientToEdit);
+                  }}
+                  className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold font-sans transition flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <Edit size={13} />
+                  <span>Editar Dados</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => handleDeleteClient(selectedClientDetail.id, selectedClientDetail.name)}
+                  className="py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold font-sans transition flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <Trash2 size={13} />
+                  <span>Excluir</span>
+                </button>
+              </div>
+
               <button 
+                type="button"
                 onClick={() => setSelectedClientDetail(null)}
-                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-650 rounded-xl text-xs font-bold font-sans transition-all cursor-pointer text-center"
+                className="w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-xl text-[11px] font-medium font-sans transition-all cursor-pointer text-center"
               >
-                Fechar Perfil
+                Fechar Ficha
               </button>
             </div>
           </div>
@@ -2800,6 +2857,17 @@ export default function CustomersCRM({
               </div>
 
               <div className="flex gap-2 pt-4">
+                {editingClient && (
+                  <button 
+                    type="button" 
+                    onClick={() => handleDeleteClient(editingClient.id, editingClient.name)}
+                    className="px-3 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-bold font-sans transition-all cursor-pointer text-center flex items-center justify-center gap-1"
+                    title="Excluir Cliente"
+                  >
+                    <Trash2 size={14} />
+                    <span>Excluir</span>
+                  </button>
+                )}
                 <button 
                   type="button" 
                   onClick={() => {
