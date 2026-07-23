@@ -1628,17 +1628,31 @@ export default function CatalogInventory({
           <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-250" id="replenishment-report-modal">
             <style>{`
               @media print {
-                html, body, #root {
-                  visibility: hidden !important;
-                  height: 0 !important;
-                  overflow: hidden !important;
+                @page {
+                  size: A4 portrait;
+                  margin: 15mm 10mm 15mm 10mm;
+                }
+                html, body, #root, #main-app-container {
+                  visibility: visible !important;
+                  height: auto !important;
+                  min-height: 100% !important;
+                  overflow: visible !important;
                   margin: 0 !important;
                   padding: 0 !important;
+                  background: #ffffff !important;
+                }
+                body * {
+                  visibility: hidden !important;
+                }
+                .no-print, .print-hidden, header, aside, nav, footer, button {
+                  display: none !important;
+                  visibility: hidden !important;
                 }
                 #replenishment-report-modal, #replenishment-report-modal * {
                   visibility: visible !important;
                 }
                 #replenishment-report-modal {
+                  display: block !important;
                   position: absolute !important;
                   left: 0 !important;
                   top: 0 !important;
@@ -1649,6 +1663,13 @@ export default function CatalogInventory({
                   box-shadow: none !important;
                   margin: 0 !important;
                   padding: 0 !important;
+                  background: #ffffff !important;
+                  color: #000000 !important;
+                  z-index: 9999999 !important;
+                }
+                #replenishment-report-modal * {
+                  color: #000000 !important;
+                  background: transparent !important;
                 }
                 #replenishment-report-modal button,
                 #replenishment-report-modal .p-4.bg-slate-50 {

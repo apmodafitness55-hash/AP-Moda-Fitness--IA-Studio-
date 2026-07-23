@@ -364,43 +364,107 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
 
   const handlePrint = () => {
     // Add print trigger styles dynamically to avoid affecting other screens permanently
+    const existing = document.getElementById('thermal-receipt-print-styles');
+    if (existing) existing.remove();
+
     const style = document.createElement('style');
     style.id = 'thermal-receipt-print-styles';
     
-    // Width map for print target
-    const widthMap = {
-      '58mm': '53mm',
-      '80mm': '76mm',
-      'label': '46mm',
-      '100x150': '96mm',
-      'A4': '190mm'
-    };
-    
     const fontSelector = {
-      'xs': '9px',
-      'sm': '11px',
-      'md': '13px',
-      'lg': '15px'
+      'xs': '8.5px',
+      'sm': '10px',
+      'md': '11.5px',
+      'lg': '13.5px'
     };
+
+    let pageCss = '';
+    let targetCss = '';
+
+    if (selectedPrinter === '100x150') {
+      pageCss = `@page { size: 100mm 150mm portrait; margin: 0; }`;
+      targetCss = `
+        #printable-thermal-receipt {
+          width: 100mm !important;
+          max-width: 100mm !important;
+          height: 150mm !important;
+          max-height: 150mm !important;
+          padding: 5mm !important;
+          overflow: hidden !important;
+          box-sizing: border-box !important;
+        }
+      `;
+    } else if (selectedPrinter === '80mm') {
+      pageCss = `@page { size: 80mm auto; margin: 0; }`;
+      targetCss = `
+        #printable-thermal-receipt {
+          width: 76mm !important;
+          max-width: 76mm !important;
+          height: auto !important;
+          padding: 2mm !important;
+          box-sizing: border-box !important;
+        }
+      `;
+    } else if (selectedPrinter === '58mm') {
+      pageCss = `@page { size: 58mm auto; margin: 0; }`;
+      targetCss = `
+        #printable-thermal-receipt {
+          width: 52mm !important;
+          max-width: 52mm !important;
+          height: auto !important;
+          padding: 1.5mm !important;
+          box-sizing: border-box !important;
+        }
+      `;
+    } else if (selectedPrinter === 'label') {
+      pageCss = `@page { size: 50mm auto; margin: 0; }`;
+      targetCss = `
+        #printable-thermal-receipt {
+          width: 46mm !important;
+          max-width: 46mm !important;
+          height: auto !important;
+          padding: 1mm !important;
+          box-sizing: border-box !important;
+        }
+      `;
+    } else {
+      // A4
+      pageCss = `@page { size: A4 portrait; margin: 10mm; }`;
+      targetCss = `
+        #printable-thermal-receipt {
+          width: 190mm !important;
+          max-width: 190mm !important;
+          height: auto !important;
+          padding: 0 !important;
+          box-sizing: border-box !important;
+        }
+      `;
+    }
 
     style.innerHTML = `
       @media print {
-        @page { 
-          size: auto; 
-          margin: 0; 
-        }
-        html, body, #root {
-          visibility: hidden !important;
-          height: 0 !important;
-          overflow: hidden !important;
+        ${pageCss}
+
+        html, body, #root, #main-app-container {
+          visibility: visible !important;
+          height: auto !important;
+          min-height: 100% !important;
+          overflow: visible !important;
           margin: 0 !important;
           padding: 0 !important;
+          background: #ffffff !important;
         }
+
+        body * {
+          visibility: hidden !important;
+        }
+
+        .no-print, .print-hidden, header, aside, nav, footer, button {
+          display: none !important;
+          visibility: hidden !important;
+        }
+
         #printable-thermal-receipt, #printable-thermal-receipt * {
           visibility: visible !important;
-        }
-        .no-print { 
-          display: none !important; 
         }
 
         #printable-thermal-receipt {
@@ -408,30 +472,23 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
           position: absolute !important;
           left: 0 !important;
           top: 0 !important;
-          transform: none !important;
-          width: ${widthMap[selectedPrinter]} !important;
-          max-width: 100% !important;
-          height: auto !important;
-          page-break-inside: avoid !important;
           margin: 0 !important;
-          padding: ${selectedPrinter === 'A4' ? '12mm' : selectedPrinter === '100x150' ? '6mm' : '1.5mm'} !important;
-          border: none !important;
-          box-shadow: none !important;
-          background: white !important;
+          background: #ffffff !important;
+          color: #000000 !important;
           font-family: ${selectedPrinter === 'A4' ? "'Inter', system-ui, sans-serif" : "'JetBrains Mono', Courier, monospace"} !important;
           font-size: ${fontSelector[fontSize]} !important;
+          box-shadow: none !important;
+          border: none !important;
+          z-index: 9999999 !important;
         }
-        /* Ensure descendants of printable container are visible and styled properly */
+
+        ${targetCss}
+
         #printable-thermal-receipt * {
           color: #000000 !important;
           background: transparent !important;
         }
-        .modal-overlay-thermal {
-          display: none !important;
-          background: transparent !important;
-        }
-        
-        /* Adjustments for labels */
+
         ${selectedPrinter === 'label' || selectedPrinter === '100x150' ? `
           #printable-thermal-receipt * {
             line-height: 1.15 !important;

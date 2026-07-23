@@ -230,93 +230,73 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
     const style = document.createElement('style');
     style.id = printWindowStyleId;
     
-    if (isLandscapePrint) {
-      style.innerHTML = `
-        @media print {
-          html, body, #root {
-            visibility: hidden !important;
-            height: 0 !important;
-            overflow: hidden !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          #printable-shipping-label, #printable-shipping-label * {
-            visibility: visible !important;
-          }
-          #printable-shipping-label {
-            display: block !important;
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 150mm !important;
-            height: 100mm !important;
-            max-width: 150mm !important;
-            max-height: 100mm !important;
-            margin: 0 !important;
-            padding: 3.5mm !important;
-            background: #ffffff !important;
-            color: #000000 !important;
-            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
-            box-sizing: border-box !important;
-            z-index: 999999 !important;
-          }
-          #printable-shipping-label * {
-            color: #000000 !important;
-            background: transparent !important;
-          }
-          @page {
-            size: 150mm 100mm landscape;
-            margin: 0;
-          }
-          .no-print {
-            display: none !important;
-          }
-        }
+    const pageCss = isLandscapePrint
+      ? `@page { size: 150mm 100mm landscape; margin: 0; }`
+      : `@page { size: 100mm 150mm portrait; margin: 0; }`;
+
+    const dimsCss = isLandscapePrint
+      ? `
+        width: 150mm !important;
+        height: 100mm !important;
+        max-width: 150mm !important;
+        max-height: 100mm !important;
+      `
+      : `
+        width: 100mm !important;
+        height: 150mm !important;
+        max-width: 100mm !important;
+        max-height: 150mm !important;
       `;
-    } else {
-      style.innerHTML = `
-        @media print {
-          html, body, #root {
-            visibility: hidden !important;
-            height: 0 !important;
-            overflow: hidden !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          #printable-shipping-label, #printable-shipping-label * {
-            visibility: visible !important;
-          }
-          #printable-shipping-label {
-            display: block !important;
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100mm !important;
-            height: 150mm !important;
-            max-width: 100mm !important;
-            max-height: 150mm !important;
-            margin: 0 !important;
-            padding: 3.5mm !important;
-            background: #ffffff !important;
-            color: #000000 !important;
-            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
-            box-sizing: border-box !important;
-            z-index: 999999 !important;
-          }
-          #printable-shipping-label * {
-            color: #000000 !important;
-            background: transparent !important;
-          }
-          @page {
-            size: 100mm 150mm;
-            margin: 0;
-          }
-          .no-print {
-            display: none !important;
-          }
+
+    style.innerHTML = `
+      @media print {
+        ${pageCss}
+
+        html, body, #root, #main-app-container {
+          visibility: visible !important;
+          height: auto !important;
+          min-height: 100% !important;
+          overflow: visible !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #ffffff !important;
         }
-      `;
-    }
+
+        body * {
+          visibility: hidden !important;
+        }
+
+        .no-print, .print-hidden, header, aside, nav, footer, button {
+          display: none !important;
+          visibility: hidden !important;
+        }
+
+        #printable-shipping-label, #printable-shipping-label * {
+          visibility: visible !important;
+        }
+
+        #printable-shipping-label {
+          display: block !important;
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          ${dimsCss}
+          margin: 0 !important;
+          padding: 3.5mm !important;
+          background: #ffffff !important;
+          color: #000000 !important;
+          font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
+          box-sizing: border-box !important;
+          z-index: 9999999 !important;
+        }
+
+        #printable-shipping-label * {
+          color: #000000 !important;
+          background: transparent !important;
+        }
+      }
+    `;
+
     document.head.appendChild(style);
     window.print();
     setTimeout(() => {

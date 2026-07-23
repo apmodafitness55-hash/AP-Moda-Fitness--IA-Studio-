@@ -720,26 +720,43 @@ export default function VendasList({
               <style>{`
                 @media print {
                   @page {
-                    size: A4;
+                    size: A4 portrait;
                     margin: 15mm 10mm 15mm 10mm;
                   }
-                  html, body, #root {
-                    visibility: hidden !important;
-                    height: 0 !important;
-                    overflow: hidden !important;
+                  html, body, #root, #main-app-container {
+                    visibility: visible !important;
+                    height: auto !important;
+                    min-height: 100% !important;
+                    overflow: visible !important;
                     margin: 0 !important;
                     padding: 0 !important;
+                    background: #ffffff !important;
+                  }
+                  body * {
+                    visibility: hidden !important;
+                  }
+                  .no-print, .print-hidden, header, aside, nav, footer, button {
+                    display: none !important;
+                    visibility: hidden !important;
                   }
                   #printable-invoice-sheet, #printable-invoice-sheet * {
                     visibility: visible !important;
                   }
                   #printable-invoice-sheet {
+                    display: block !important;
                     position: absolute !important;
                     left: 0 !important;
                     top: 0 !important;
                     width: 100% !important;
                     padding: 0 !important;
                     margin: 0 !important;
+                    background: #ffffff !important;
+                    color: #000000 !important;
+                    z-index: 9999999 !important;
+                  }
+                  #printable-invoice-sheet * {
+                    color: #000000 !important;
+                    background: transparent !important;
                   }
                 }
               `}</style>
