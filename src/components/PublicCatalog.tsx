@@ -1153,7 +1153,14 @@ export default function PublicCatalog({
         body: JSON.stringify({
           to_cep: cleanCep,
           items: cart.map(item => ({
-            product: { id: item.product.id, price: item.product.price },
+            product: { 
+              id: item.product.id, 
+              price: item.product.price,
+              weight: item.product.weight,
+              width: item.product.width,
+              height: item.product.height,
+              length: item.product.length
+            },
             priceAtTime: item.priceAtTime,
             quantity: item.quantity
           }))
@@ -3279,7 +3286,12 @@ export default function PublicCatalog({
               quantity: it.quantity,
               price: it.priceAtTime,
               color: it.color,
-              size: it.size
+              size: it.size,
+              weight: it.product.weight,
+              width: it.product.width,
+              height: it.product.height,
+              length: it.product.length,
+              product: it.product
             })),
             qrcode_image: qrCodeImage,
             emv: emvString,
@@ -3317,7 +3329,12 @@ export default function PublicCatalog({
               quantity: it.quantity,
               price: it.priceAtTime,
               color: it.color,
-              size: it.size
+              size: it.size,
+              weight: it.product.weight,
+              width: it.product.width,
+              height: it.product.height,
+              length: it.product.length,
+              product: it.product
             })),
             paymentUrl: linkData.url,
             orderMsg: orderMsg
