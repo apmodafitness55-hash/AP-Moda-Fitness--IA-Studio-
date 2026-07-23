@@ -471,14 +471,19 @@ body.theme-rosa {
     visibility: hidden !important;
   }
 
-  /* Strip background overlays & scroll constraints from modal containers when printing */
+  /* Strip background overlays, transforms, flex offsets & scroll constraints from modal containers when printing */
   .fixed, .inset-0, .backdrop-blur-xs, .bg-slate-900\/60, .bg-slate-900\/65,
-  .modal-overlay-thermal, .modal-overlay-thermal *, div[class*="modal"] {
+  .modal-overlay-thermal, .modal-overlay-thermal *, div[class*="modal"], div[class*="modal"] * {
     background: transparent !important;
     backdrop-filter: none !important;
+    transform: none !important;
+    filter: none !important;
+    position: static !important;
     box-shadow: none !important;
     max-height: none !important;
     overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   /* Make ONLY our printable targets and their descendants visible */
