@@ -479,7 +479,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
 
         #printable-thermal-receipt {
           display: block !important;
-          position: absolute !important;
+          position: fixed !important;
           left: 0 !important;
           top: 0 !important;
           margin: 0 !important;

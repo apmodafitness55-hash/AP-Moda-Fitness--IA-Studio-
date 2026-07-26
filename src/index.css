@@ -473,7 +473,7 @@ body.theme-rosa {
 
   /* Strip background overlays, transforms, flex offsets & scroll constraints from modal containers when printing */
   .fixed, .inset-0, .backdrop-blur-xs, .bg-slate-900\/60, .bg-slate-900\/65,
-  .modal-overlay-thermal, .modal-overlay-thermal *, div[class*="modal"], div[class*="modal"] * {
+  .modal-overlay-thermal, div[class*="modal"] {
     background: transparent !important;
     backdrop-filter: none !important;
     transform: none !important;
@@ -496,7 +496,7 @@ body.theme-rosa {
     visibility: visible !important;
   }
 
-  /* Position printable targets at absolute top-left with natural auto-height flow to prevent cut-offs */
+  /* Position printable targets fixed at top-left (0,0) of page 1 with natural auto-height flow to prevent vertical displacement */
   #printable-thermal-receipt,
   #printable-shipping-label,
   #printable-invoice-sheet,
@@ -504,7 +504,7 @@ body.theme-rosa {
   #replenishment-report-modal,
   .printable-area {
     display: block !important;
-    position: absolute !important;
+    position: fixed !important;
     left: 0 !important;
     top: 0 !important;
     margin: 0 !important;
