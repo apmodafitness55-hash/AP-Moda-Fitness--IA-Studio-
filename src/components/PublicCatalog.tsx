@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { validateCouponForCpf, Coupon } from '../utils/couponUtils';
 import { 
   ShoppingBag, 
   Search, 
@@ -985,7 +986,7 @@ export default function PublicCatalog({
       return '';
     }
   });
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercent: number; fixedDiscount: number } | null>(() => {
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercent: number; fixedDiscount: number; maxPerCpf?: number; isFirstPurchase?: boolean } | null>(() => {
     try {
       const saved = localStorage.getItem('ap_applied_coupon');
       if (saved) return JSON.parse(saved);
@@ -2393,29 +2394,53 @@ export default function PublicCatalog({
 
     setTimeout(() => {
       setIsApplyingCoupon(false);
-      if (cleanCode === 'PRIMEIRACOMPRA' || cleanCode === 'PRIMEIRA10' || cleanCode === 'PRIMEIRAPEDIDO') {
-        setAppliedCoupon({ code: cleanCode, discountPercent: 10, fixedDiscount: 0 });
-        setCouponSuccess(`🎁 Cupom de 1ª Compra ${cleanCode} (10% OFF + Frete Grátis) aplicado com sucesso!`);
-      } else if (cleanCode === 'CLIENTEVIP' || cleanCode === 'FIDELIDADE5') {
-        setAppliedCoupon({ code: cleanCode, discountPercent: 5, fixedDiscount: 0 });
-        setCouponSuccess(`👑 Cupom Cliente VIP ${cleanCode} (5% OFF) aplicado com sucesso!`);
-      } else if (cleanCode === 'FITNESS10' || cleanCode === 'VERAO10' || cleanCode === 'QUERO10') {
-        setAppliedCoupon({ code: cleanCode, discountPercent: 10, fixedDiscount: 0 });
-        setCouponSuccess(`Cupom ${cleanCode} (10% de desconto) aplicado com sucesso!`);
-      } else if (cleanCode === 'BEMVINDA50' || cleanCode === 'MODAFIT50') {
-        setAppliedCoupon({ code: cleanCode, discountPercent: 0, fixedDiscount: 50 });
-        setCouponSuccess(`Cupom ${cleanCode} (R$ 50,00 de desconto) aplicado com sucesso!`);
-      } else if (cleanCode === 'FRETEGRATIS') {
-        setAppliedCoupon({ code: 'FRETEGRATIS', discountPercent: 0, fixedDiscount: 0 });
-        setCouponSuccess('Cupom FRETEGRATIS ativado com sucesso!');
-      } else if (cleanCode === campaignCoupon || cleanCode === 'APMODAFIT' || cleanCode === 'APMODAFITNESS') {
-        setAppliedCoupon({ code: cleanCode, discountPercent: 10, fixedDiscount: 0 });
-        setCouponSuccess(`Cupom ${cleanCode} (10% OFF e Frete Grátis) aplicado com sucesso!`);
+
+      const valResult = validateCouponForCpf(cleanCode, clientCpf, sales, onlineOrders);
+      if (!valResult.valid) {
+        setCouponError(valResult.message || 'Cupom inválido para este CPF.');
+        setAppliedCoupon(null);
+        return;
+      }
+
+      const couponObj = valResult.couponObj;
+      if (couponObj) {
+        const discountPercent = couponObj.type === 'percent' ? couponObj.value : 0;
+        const fixedDiscount = couponObj.type === 'fixed' ? couponObj.value : 0;
+
+        setAppliedCoupon({
+          code: couponObj.code,
+          discountPercent,
+          fixedDiscount,
+          maxPerCpf: couponObj.maxPerCpf ?? 1,
+          isFirstPurchase: couponObj.isFirstPurchase ?? false
+        });
+
+        const cleanCpfDigits = (clientCpf || '').replace(/\D/g, '');
+        if (cleanCpfDigits.length === 11) {
+          setCouponSuccess(`✓ Cupom ${couponObj.code} aplicado com sucesso!`);
+        } else {
+          setCouponSuccess(`✓ Cupom ${couponObj.code} ativado! A regra de uso por CPF será confirmada na etapa de identificação.`);
+        }
       } else {
         setCouponError(`Este cupom promocional expirou ou é inválido. Tente ${campaignCoupon} ou FITNESS10.`);
+        setAppliedCoupon(null);
       }
-    }, 550);
+    }, 400);
   };
+
+  // Re-validate applied coupon whenever clientCpf, sales, or onlineOrders change
+  useEffect(() => {
+    if (!appliedCoupon) return;
+    const cleanCpfDigits = (clientCpf || '').replace(/\D/g, '');
+    if (cleanCpfDigits.length === 11) {
+      const valResult = validateCouponForCpf(appliedCoupon.code, clientCpf, sales, onlineOrders);
+      if (!valResult.valid) {
+        setAppliedCoupon(null);
+        setCouponError(valResult.message || 'Cupom removido: inválido para o CPF informado.');
+        setCouponSuccess(null);
+      }
+    }
+  }, [clientCpf, sales, onlineOrders]);
 
   // Computations
   const suggestedProduct = useMemo(() => {
@@ -5201,6 +5226,8 @@ export default function PublicCatalog({
               couponError={couponError}
               couponSuccess={couponSuccess}
               appliedCoupon={appliedCoupon}
+              sales={sales}
+              onlineOrders={onlineOrders}
               loggedClient={loggedClient}
               useCashback={useCashback}
               setUseCashback={setUseCashback}

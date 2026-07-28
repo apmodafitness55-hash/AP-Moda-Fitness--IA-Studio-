@@ -23,6 +23,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { validateCPF } from './PublicCatalog'; // Import CPF validation helper if exported, or define it locally
+import { validateCouponForCpf } from '../utils/couponUtils';
 import { getSupabaseClient } from '../supabase';
 import { playSaleSuccessSound } from '../lib/audioFeedback';
 
@@ -115,10 +116,14 @@ interface CheckoutWizardProps {
   setIsCartOpen: (val: boolean) => void;
   setIsProfileModalOpen: (val: boolean) => void;
   initialStep?: number;
+  sales?: any[];
+  onlineOrders?: any[];
 }
 
 export function CheckoutWizard({
   cart,
+  sales = [],
+  onlineOrders = [],
   clients = [],
   handleUpdateItemQty,
   products,
@@ -703,6 +708,15 @@ export function CheckoutWizard({
     if (deliveryMethod === 'retirada') {
       if (!pickupDate || !pickupTime) {
         setCheckoutError('Por favor, agende uma Data e Horário para a retirada do seu pedido na loja.');
+        return;
+      }
+    }
+
+    // Validate applied coupon against CPF
+    if (appliedCoupon && appliedCoupon.code) {
+      const couponValidation = validateCouponForCpf(appliedCoupon.code, clientCpf, sales, onlineOrders);
+      if (!couponValidation.valid) {
+        setCheckoutError(couponValidation.message || `O cupom ${appliedCoupon.code} não pode ser utilizado com este CPF.`);
         return;
       }
     }

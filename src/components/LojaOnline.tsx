@@ -54,15 +54,9 @@ interface LojaOnlineProps {
   onUpdateProduct?: (product: Product) => void;
 }
 
-export interface Coupon {
-  code: string;
-  type: 'percent' | 'fixed';
-  value: number;
-  minPurchase: number;
-  limitUses: number;
-  usedCount: number;
-  validUntil: string;
-}
+import { Coupon, getStoredCoupons, saveStoredCoupons } from '../utils/couponUtils';
+
+export type { Coupon };
 
 export default function LojaOnline({ 
   products, 
@@ -138,12 +132,8 @@ export default function LojaOnline({
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
-  // Coupon listing state
-  const [coupons, setCoupons] = useState<Coupon[]>([
-    { code: 'FITNESS10', type: 'percent', value: 10, minPurchase: 150, limitUses: 100, usedCount: 32, validUntil: '2026-06-30' },
-    { code: 'BEMVINDA50', type: 'fixed', value: 50, minPurchase: 300, limitUses: 50, usedCount: 15, validUntil: '2026-07-15' },
-    { code: 'FRETEGRATIS', type: 'percent', value: 0, minPurchase: 399, limitUses: 500, usedCount: 88, validUntil: '2026-12-31' }
-  ]);
+  // Coupon listing state initialized from localStorage
+  const [coupons, setCoupons] = useState<Coupon[]>(() => getStoredCoupons());
 
   // Form states for creating new coupon
   const [newCode, setNewCode] = useState('');
@@ -151,7 +141,9 @@ export default function LojaOnline({
   const [newValue, setNewValue] = useState(10);
   const [newMinPurchase, setNewMinPurchase] = useState(100);
   const [newLimitUses, setNewLimitUses] = useState(100);
-  const [newValidUntil, setNewValidUntil] = useState('2026-07-31');
+  const [newMaxPerCpf, setNewMaxPerCpf] = useState<number>(1); // Default: 1 vez por CPF
+  const [newIsFirstPurchase, setNewIsFirstPurchase] = useState<boolean>(false);
+  const [newValidUntil, setNewValidUntil] = useState('2026-12-31');
 
   // Interactive Public Showcase State (Mock e-commerce preview)
   const [previewCategory, setPreviewCategory] = useState('Todos');
@@ -543,7 +535,7 @@ export default function LojaOnline({
     }
 
     const uppercaseCode = newCode.trim().toUpperCase();
-    if (coupons.some(c => c.code === uppercaseCode)) {
+    if (coupons.some(c => c.code.toUpperCase() === uppercaseCode)) {
       alert('Este código de cupom já existe no sistema!');
       return;
     }
@@ -555,19 +547,29 @@ export default function LojaOnline({
       minPurchase: Number(newMinPurchase),
       limitUses: Number(newLimitUses),
       usedCount: 0,
-      validUntil: newValidUntil
+      validUntil: newValidUntil,
+      maxPerCpf: Number(newMaxPerCpf),
+      isFirstPurchase: Boolean(newIsFirstPurchase)
     };
 
-    setCoupons(prev => [newCouponItem, ...prev]);
+    const updatedCoupons = [newCouponItem, ...coupons];
+    setCoupons(updatedCoupons);
+    saveStoredCoupons(updatedCoupons);
+
     setNewCode('');
     setNewValue(10);
     setNewMinPurchase(100);
-    alert(`Cupom ${uppercaseCode} cadastrado com sucesso e já está ativo para uso!`);
+    setNewMaxPerCpf(1);
+    setNewIsFirstPurchase(false);
+    
+    alert(`Cupom ${uppercaseCode} cadastrado com sucesso! Regra por CPF: ${newMaxPerCpf === 0 ? 'Sem limite por CPF' : `${newMaxPerCpf} uso(s) por CPF`}`);
   };
 
   const handleDeleteCoupon = (code: string) => {
     if (confirm(`Excluir o cupom ${code}? Ele não poderá mais ser usado por clientes.`)) {
-      setCoupons(prev => prev.filter(c => c.code !== code));
+      const updatedCoupons = coupons.filter(c => c.code !== code);
+      setCoupons(updatedCoupons);
+      saveStoredCoupons(updatedCoupons);
     }
   };
 
@@ -1070,6 +1072,22 @@ export default function LojaOnline({
                         <p className="text-[11px] text-slate-500">
                           Compra Mínima: <strong className="text-slate-650">R$ {coupon.minPurchase.toFixed(2)}</strong>
                         </p>
+                        
+                        {/* CPF restriction badge */}
+                        <div className="pt-1 flex flex-wrap gap-1">
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            (coupon.maxPerCpf ?? 1) === 1 ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                            (coupon.maxPerCpf ?? 1) === 2 ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                            'bg-slate-100 text-slate-600 border border-slate-200'
+                          }`}>
+                            👤 {(coupon.maxPerCpf ?? 1) === 1 ? '1 uso por CPF' : (coupon.maxPerCpf ?? 1) === 2 ? 'Até 2 usos por CPF' : 'Sem limite por CPF'}
+                          </span>
+                          {coupon.isFirstPurchase && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
+                              🎁 1ª Compra
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -1153,6 +1171,42 @@ export default function LojaOnline({
                     className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-500 font-bold mb-1">
+                  Limite de Usos por CPF <span className="text-pink-600">*</span>
+                </label>
+                <select
+                  value={newMaxPerCpf}
+                  onChange={(e) => setNewMaxPerCpf(Number(e.target.value))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 font-bold text-slate-800 focus:outline-hidden"
+                >
+                  <option value={1}>👤 Apenas 1 vez por CPF (Recomendado)</option>
+                  <option value={2}>👤 No máximo 2 vezes por CPF</option>
+                  <option value={0}>🔓 Sem limite por CPF (Uso livre)</option>
+                </select>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  {newMaxPerCpf === 1 && '🔒 Cada CPF poderá aplicar este cupom apenas 1 única vez.'}
+                  {newMaxPerCpf === 2 && '🔒 Cada CPF poderá aplicar este cupom no máximo 2 vezes.'}
+                  {newMaxPerCpf === 0 && '🔓 Clientes podem aplicar este cupom múltiplas vezes.'}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 bg-pink-50/60 p-2.5 rounded-lg border border-pink-100">
+                <input
+                  type="checkbox"
+                  id="chk-first-purchase"
+                  checked={newIsFirstPurchase}
+                  onChange={(e) => setNewIsFirstPurchase(e.target.checked)}
+                  className="rounded text-pink-600 focus:ring-pink-500 w-4 h-4 cursor-pointer"
+                />
+                <label htmlFor="chk-first-purchase" className="text-xs font-bold text-slate-700 cursor-pointer">
+                  🎁 Cupom Exclusivo de Primeira Compra
+                  <span className="block text-[10px] text-slate-400 font-normal">
+                    Bloqueia clientes que já possuem compras registradas no CPF.
+                  </span>
+                </label>
               </div>
 
               <div>
