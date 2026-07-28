@@ -216,17 +216,33 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
     localStorage.setItem('ap_moda_receipt_cut_lines', String(cutLinesCount));
   }, [cutLinesCount]);
 
-  const subtotal = useMemo(() => {
-    return sale.total;
+  // Real subtotal calculated from sum of individual items
+  const itemsSubtotal = useMemo(() => {
+    if (!sale || !sale.items || sale.items.length === 0) return sale?.total || 0;
+    return sale.items.reduce((acc, item) => acc + ((item.price || 0) * (item.quantity || 1)), 0);
   }, [sale]);
 
-  const discountAmount = useMemo(() => {
-    return Number(((subtotal * discountPercent) / 100).toFixed(2));
-  }, [subtotal, discountPercent]);
+  // Real discount recorded on the sale (e.g. coupons, promotions, PIX discount)
+  const saleDiscount = useMemo(() => {
+    if (itemsSubtotal > (sale?.total || 0) && (sale?.total || 0) > 0) {
+      return Number((itemsSubtotal - sale.total).toFixed(2));
+    }
+    return 0;
+  }, [itemsSubtotal, sale]);
+
+  // Optional manual discount adjustment slider on the preview panel
+  const manualDiscountAmount = useMemo(() => {
+    if (discountPercent > 0) {
+      const net = itemsSubtotal - saleDiscount;
+      return Number(((net * discountPercent) / 100).toFixed(2));
+    }
+    return 0;
+  }, [itemsSubtotal, saleDiscount, discountPercent]);
 
   const finalTotal = useMemo(() => {
-    return Math.max(0, subtotal - discountAmount);
-  }, [subtotal, discountAmount]);
+    const total = itemsSubtotal - saleDiscount - manualDiscountAmount;
+    return Math.max(0, Number(total.toFixed(2)));
+  }, [itemsSubtotal, saleDiscount, manualDiscountAmount]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -852,7 +868,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
 
                 <div className="space-y-1">
                   <div className="flex justify-between items-center">
-                    <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Lançar Desconto de Amostragem (%)</label>
+                    <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Desconto Extra Opcional (%)</label>
                     <span className="text-slate-700 font-mono font-bold">{discountPercent}%</span>
                   </div>
                   <input 
@@ -865,8 +881,8 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
                     className="w-full accent-pink-600 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer"
                   />
                   <div className="flex justify-between text-[10px] text-slate-400 font-medium font-sans">
-                    <span>Sem desconto</span>
-                    <span>Abatimento: {formatCurrency(discountAmount)}</span>
+                    <span>Sem extra</span>
+                    <span>Abatimento: {formatCurrency(manualDiscountAmount)}</span>
                     <span>Máx. 50%</span>
                   </div>
                 </div>
@@ -1169,13 +1185,20 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
             <div className="space-y-1 text-[10px]">
               <div className="flex justify-between text-slate-600">
                 <span>Subtotal dos itens</span>
-                <span>{formatCurrency(subtotal)}</span>
+                <span>{formatCurrency(itemsSubtotal)}</span>
               </div>
               
-              {discountAmount > 0 && (
-                <div className="flex justify-between text-rose-500 font-medium">
-                  <span>Desconto de Amostragem ({discountPercent}%)</span>
-                  <span>- {formatCurrency(discountAmount)}</span>
+              {saleDiscount > 0 && (
+                <div className="flex justify-between text-rose-600 font-medium">
+                  <span>Desconto do Pedido ({Math.round((saleDiscount / itemsSubtotal) * 100)}% OFF)</span>
+                  <span>- {formatCurrency(saleDiscount)}</span>
+                </div>
+              )}
+
+              {manualDiscountAmount > 0 && (
+                <div className="flex justify-between text-amber-600 font-medium">
+                  <span>Desconto Adicional ({discountPercent}%)</span>
+                  <span>- {formatCurrency(manualDiscountAmount)}</span>
                 </div>
               )}
             </div>
