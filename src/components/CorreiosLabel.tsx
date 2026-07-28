@@ -7,6 +7,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { X, Printer, Check, Tag, FileText } from 'lucide-react';
 import JsBarcode from 'jsbarcode';
 import { getSupabaseClient } from '../supabase';
+import { getStoreConfig } from '../utils/storeConfig';
 
 interface FormattedItem {
   name: string;
@@ -116,11 +117,12 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
   // Label style tab selector: 'thermal' (Default marketplace) or 'correios' (With content declaration)
   const [activeLabelType, setActiveLabelType] = useState<'thermal' | 'correios'>('thermal');
 
-  // Remetente / Store Address configured according to requested default details
-  const storeName = localStorage.getItem('ap_store_name') || 'AP Moda Fitness';
-  const storeAddress = localStorage.getItem('ap_store_address') || 'Av. Hermes da Fonseca, 500, Tirol - Natal, RN';
-  const storeCep = localStorage.getItem('ap_store_cep') || '59020-000';
-  const storeCnpj = localStorage.getItem('ap_store_cnpj') || '52.348.910/0001-88';
+  // Remetente / Store Address configured according to store settings
+  const storeCfg = getStoreConfig();
+  const storeName = storeCfg.name;
+  const storeAddress = storeCfg.fullAddress;
+  const storeCep = localStorage.getItem('ap_store_cep') || '59150-000';
+  const storeCnpj = storeCfg.cnpj;
 
   // Identify recipient data
   const recipientName = order?.clientName || sale?.clientName || 'Cliente';

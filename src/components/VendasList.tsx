@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { Sale, Product, Transaction } from '../types';
 import ThermalReceipt from './ThermalReceipt';
+import { getStoreConfig } from '../utils/storeConfig';
 
 interface VendasListProps {
   sales: Sale[];
@@ -763,27 +764,34 @@ export default function VendasList({
               
               <div className="space-y-6">
                 {/* Brand Header */}
-                <div className="flex justify-between items-start border-b border-slate-150 pb-6">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="font-serif text-lg font-black tracking-widest text-slate-900">AP MODA FITNESS</span>
+                {(() => {
+                  const storeConfig = getStoreConfig();
+                  return (
+                    <div className="flex justify-between items-start border-b border-slate-150 pb-6">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-serif text-lg font-black tracking-widest text-slate-900 uppercase">
+                            {storeConfig.name}
+                          </span>
+                        </div>
+                        <p className="text-slate-500 text-[10px] leading-relaxed">
+                          CNPJ: {storeConfig.cnpj}<br />
+                          {storeConfig.fullAddress}<br />
+                          Instagram: {storeConfig.instagram} • Tel: {storeConfig.phone}
+                        </p>
+                      </div>
+                      <div className="text-right space-y-1">
+                        <span className="bg-pink-100 text-pink-800 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
+                          Comprovante de Venda
+                        </span>
+                        <h2 className="text-slate-800 font-bold text-xs">PEDIDO #{selectedSaleForInvoice.id.slice(-8).toUpperCase()}</h2>
+                        <p className="text-slate-400 text-[10px]">
+                          Data: {new Date(selectedSaleForInvoice.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-slate-400 text-[10px] leading-relaxed">
-                      CNPJ: 45.678.901/0001-23<br />
-                      Av. Paulista, 1000 - Bela Vista, São Paulo - SP<br />
-                      Instagram: @apmodafitness.oficial • Tel: (11) 98765-4321
-                    </p>
-                  </div>
-                  <div className="text-right space-y-1">
-                    <span className="bg-pink-100 text-pink-800 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
-                      Comprovante de Venda
-                    </span>
-                    <h2 className="text-slate-800 font-bold text-xs">PEDIDO #{selectedSaleForInvoice.id.slice(-8).toUpperCase()}</h2>
-                    <p className="text-slate-400 text-[10px]">
-                      Data: {new Date(selectedSaleForInvoice.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* Client / Order details */}
                 <div className="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border border-slate-100 text-[11px]">

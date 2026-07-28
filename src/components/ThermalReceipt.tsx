@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { Sale } from '../types';
 import { pushSystemConfigToSupabase } from '../supabase';
+import { getStoreConfig } from '../utils/storeConfig';
 
 interface CompanyInfo {
   name: string;
@@ -68,7 +69,7 @@ interface ThermalReceiptProps {
 export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
   // Load company config with localStorage fallback and dynamic system configuration parsing
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(() => {
-    // 1. Check if there is an explicit saved ap_moda_company_info
+    const storeCfg = getStoreConfig();
     const saved = localStorage.getItem('ap_moda_company_info');
     let parsed: Partial<CompanyInfo> = {};
     if (saved) {
@@ -79,52 +80,39 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
       }
     }
 
-    // 2. Read from system global localStorage keys, with dynamic clean fallbacks (no fake data)
-    const sysName = localStorage.getItem('ap_store_name');
-    const sysSlogan = localStorage.getItem('ap_store_slogan');
-    const sysCnpj = localStorage.getItem('ap_store_cnpj');
-    const sysAddress = localStorage.getItem('ap_store_address');
-    const sysPhone = localStorage.getItem('ap_store_phone');
-    const sysFooter = localStorage.getItem('ap_store_footer');
-
-    // Helper to clean up mock fallback data
-    const cleanValue = (val: string | null, defaultValue: string = '') => {
-      if (!val) return defaultValue;
-      const trimmed = val.trim();
-      const lowered = trimmed.toLowerCase();
-      if (
-        lowered.includes('12.345.678') || 
-        lowered.includes('paulista') || 
-        lowered.includes('copacabana') ||
-        lowered.includes('98888-7777') ||
-        lowered.includes('99123-4567')
-      ) {
-        return defaultValue;
-      }
-      return trimmed;
+    const isMock = (val?: string) => {
+      if (!val) return true;
+      const l = val.toLowerCase();
+      return (
+        l.includes('12.345.678') ||
+        l.includes('45.678.901') ||
+        l.includes('paulista') ||
+        l.includes('copacabana') ||
+        l.includes('99123-4567') ||
+        l.includes('98765-4321')
+      );
     };
 
-    // Split address into addressLine1 and addressLine2 if needed
-    const rawAddress = cleanValue(sysAddress);
-    let addr1 = rawAddress;
-    let addr2 = '';
-    if (rawAddress && rawAddress.includes(' - ')) {
-      const parts = rawAddress.split(' - ');
-      addr1 = parts[0];
-      addr2 = parts.slice(1).join(' - ');
-    }
+    const name = !isMock(parsed.name) ? parsed.name! : storeCfg.name;
+    const cnpj = !isMock(parsed.cnpj) ? parsed.cnpj! : storeCfg.cnpj;
+    const addressLine1 = !isMock(parsed.addressLine1) ? parsed.addressLine1! : storeCfg.address;
+    const addressLine2 = !isMock(parsed.addressLine2) ? parsed.addressLine2! : `${storeCfg.city} - ${storeCfg.state}`;
+    const phone = !isMock(parsed.phone) ? parsed.phone! : storeCfg.phone;
+    const slogan = parsed.slogan && parsed.slogan.trim() ? parsed.slogan : storeCfg.slogan;
+    const instructions = parsed.instructions && parsed.instructions.trim() ? parsed.instructions : storeCfg.footer;
+    const pixKey = !isMock(parsed.pixKey) ? parsed.pixKey! : storeCfg.pixKey;
 
     return {
-      name: (cleanValue(parsed.name) || cleanValue(sysName) || 'AP MODA FITNESS').trim(),
-      subName: (cleanValue(parsed.subName) || cleanValue(sysName) || '').trim(),
-      cnpj: (cleanValue(parsed.cnpj) || cleanValue(sysCnpj) || '').trim(),
-      addressLine1: (cleanValue(parsed.addressLine1) || addr1 || '').trim(),
-      addressLine2: (cleanValue(parsed.addressLine2) || addr2 || '').trim(),
-      phone: (cleanValue(parsed.phone) || cleanValue(sysPhone) || '').trim(),
-      slogan: (cleanValue(parsed.slogan) || cleanValue(sysSlogan) || 'Estilo, Conforto e Performance no seu Treino').trim(),
-      website: (cleanValue(parsed.website) || '').trim(),
-      instructions: (cleanValue(parsed.instructions) || cleanValue(sysFooter) || '').trim(),
-      pixKey: (cleanValue(parsed.pixKey) || cleanValue(localStorage.getItem('ap_pix_key')) || '').trim()
+      name,
+      subName: name,
+      cnpj,
+      addressLine1,
+      addressLine2,
+      phone,
+      slogan,
+      website: parsed.website || '',
+      instructions,
+      pixKey
     };
   });
 

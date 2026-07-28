@@ -262,65 +262,25 @@ export default function SettingsSystem({
   const [storeName, setStoreName] = useState(() => localStorage.getItem('ap_store_name') || 'AP Moda Fitness');
   const [sellerCommissionRate, setSellerCommissionRate] = useState(() => localStorage.getItem('ap_commission_rate') || '5');
   const [storeSlogan, setStoreSlogan] = useState(() => localStorage.getItem('ap_store_slogan') || 'Onde o seu limite vira ponto de partida');
-  const [storeCnpj, setStoreCnpj] = useState(() => localStorage.getItem('ap_store_cnpj') || '12.345.678/0001-90');
-  const [storeAddress, setStoreAddress] = useState(() => localStorage.getItem('ap_store_address') || 'Av. Copacabana, 820 - Rio de Janeiro, RJ');
+  const [storeCnpj, setStoreCnpj] = useState(() => localStorage.getItem('ap_store_cnpj') || '67.074.681/0001-03');
+  const [storeAddress, setStoreAddress] = useState(() => localStorage.getItem('ap_store_address') || 'Travessa Jose Jorge, 51, Centro');
   
   const [storeCity, setStoreCity] = useState(() => {
     const saved = localStorage.getItem('ap_store_city');
-    if (saved) return saved;
-    try {
-      const companySaved = localStorage.getItem('ap_moda_company_info');
-      if (companySaved) {
-        const parsed = JSON.parse(companySaved);
-        if (parsed.addressLine2) {
-          const parts = parsed.addressLine2.split('-');
-          if (parts[0]) return parts[0].trim();
-        }
-      }
-    } catch (e) {}
-    const addr = localStorage.getItem('ap_store_address') || '';
-    if (addr.includes('São José de Mipibu')) return 'São José de Mipibu';
-    if (addr.includes(' - ')) {
-      const parts = addr.split(' - ');
-      if (parts[1]) {
-        const sub = parts[1].split(',');
-        return sub[0].trim();
-      }
-    }
-    return 'São José de Mipibu';
+    if (saved && !saved.includes('Rio de Janeiro')) return saved;
+    return 'Sao Jose de Mipibu';
   });
 
   const [storeState, setStoreState] = useState(() => {
     const saved = localStorage.getItem('ap_store_state');
-    if (saved) return saved;
-    try {
-      const companySaved = localStorage.getItem('ap_moda_company_info');
-      if (companySaved) {
-        const parsed = JSON.parse(companySaved);
-        if (parsed.addressLine2) {
-          const parts = parsed.addressLine2.split('-');
-          if (parts[1]) return parts[1].trim();
-        }
-      }
-    } catch (e) {}
-    const addr = localStorage.getItem('ap_store_address') || '';
-    if (addr.includes('São José de Mipibu')) return 'RN';
-    if (addr.includes(' - ')) {
-      const parts = addr.split(' - ');
-      if (parts[1] && parts[1].includes(',')) {
-        const sub = parts[1].split(',');
-        if (sub[1]) return sub[1].trim();
-      } else if (parts[2]) {
-        return parts[2].trim();
-      }
-    }
+    if (saved && saved !== 'RJ') return saved;
     return 'RN';
   });
 
-  const [storePhone, setStorePhone] = useState(() => localStorage.getItem('ap_store_phone') || '(21) 99123-4567');
-  const [storePixKey, setStorePixKey] = useState(() => localStorage.getItem('ap_pix_key') || 'apmodafitness55@gmail.com');
-  const [storeFooter, setStoreFooter] = useState(() => localStorage.getItem('ap_store_footer') || 'Obrigado por escolher a AP Moda Fitness! Peças lindas que elevam seu treino. Siga-nos no Instagram: @apmodafitness');
-  const [storeLogoUrl, setStoreLogoUrl] = useState(() => localStorage.getItem('ap_store_logo') || 'https://images.unsplash.com/photo-1518310383802-640c2de311b2?w=120&q=80');
+  const [storePhone, setStorePhone] = useState(() => localStorage.getItem('ap_store_phone') || '(84) 99198-2963');
+  const [storePixKey, setStorePixKey] = useState(() => localStorage.getItem('ap_pix_key') || '67.074.681/0001-03');
+  const [storeFooter, setStoreFooter] = useState(() => localStorage.getItem('ap_store_footer') || 'Obrigado por escolher a AP Moda Fitness! Peças lindas que elevam seu treino. Siga-nos no Instagram: @ap_moda_fitness2');
+  const [storeLogoUrl, setStoreLogoUrl] = useState(() => localStorage.getItem('ap_store_logo') || 'https://i.ibb.co/n8YXgr1x/1000584197-png.png');
 
   // Motoboy dynamic pricing state
   const [motoboyRegions, setMotoboyRegions] = useState<any[]>(() => {
