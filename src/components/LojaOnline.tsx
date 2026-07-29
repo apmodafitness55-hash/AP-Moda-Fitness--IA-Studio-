@@ -1429,7 +1429,7 @@ export default function LojaOnline({
                   {/* Description */}
                   <div className="space-y-0.5">
                     <span className="text-[8px] text-slate-500 font-bold uppercase tracking-wider block">Destaque da Peça</span>
-                    <p className="text-[10px] text-slate-300 leading-relaxed font-medium">
+                    <p className="text-[10px] text-slate-300 leading-relaxed font-medium whitespace-pre-line">
                       {selectedDetailProduct.description || "Peça fitness premium modeladora de alta qualidade. Confeccionada com elastano original para maior durabilidade e conforto em treinos intensos."}
                     </p>
                   </div>

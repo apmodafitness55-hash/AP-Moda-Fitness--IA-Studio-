@@ -4697,7 +4697,7 @@ export default function PublicCatalog({
                         <span>{activeAccordion === 'desc' ? '−' : '+'}</span>
                       </button>
                       {activeAccordion === 'desc' && (
-                        <div className="p-3 text-[10px] text-slate-500 leading-relaxed bg-white border-t border-[#1E3A42]/10">
+                        <div className="p-3 text-[10px] text-slate-500 leading-relaxed bg-white border-t border-[#1E3A42]/10 whitespace-pre-line">
                           {selectedProduct.description || "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é ultra resistente, confortável e totalmente ideal para quem busca estilo em treinos intensos."}
                         </div>
                       )}
