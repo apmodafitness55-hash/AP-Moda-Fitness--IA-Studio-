@@ -46,7 +46,8 @@ import {
   Handshake,
   Ruler,
   Clock,
-  Package
+  Package,
+  AlertCircle
 } from 'lucide-react';
 import { Product, Client } from '../types';
 import { pushSystemConfigToSupabase } from '../supabase';
@@ -1393,9 +1394,9 @@ export default function PublicCatalog({
     return Array.from(colors).sort();
   }, [products]);
 
-  // Filter products that have stock
+  // Filter products for public catalog showcase (including out of stock products for urgency feedback)
   const visibleProducts = useMemo(() => {
-    return products.filter(p => {
+    const list = products.filter(p => {
       const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                             p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
                             (p.category || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -1410,7 +1411,14 @@ export default function PublicCatalog({
       const matchesColors = selectedColorsFilter.length === 0 || 
                             (p.colors && p.colors.some(c => selectedColorsFilter.includes(c)));
 
-      return matchesSearch && matchesCategory && matchesSizes && matchesColors && p.stock > 0;
+      return matchesSearch && matchesCategory && matchesSizes && matchesColors;
+    });
+
+    // Sort in-stock items first, out-of-stock items after
+    return list.sort((a, b) => {
+      const aHasStock = a.stock > 0 ? 1 : 0;
+      const bHasStock = b.stock > 0 ? 1 : 0;
+      return bHasStock - aHasStock;
     });
   }, [products, searchQuery, selectedCategory, selectedSizesFilter, selectedColorsFilter]);
 
@@ -3976,7 +3984,7 @@ export default function PublicCatalog({
           ) : visibleProducts.length === 0 ? (
             <div className="bg-white border border-slate-100 rounded-3xl p-12 text-center text-slate-400 max-w-md mx-auto">
               <ShoppingBag size={42} className="mx-auto text-slate-300 mb-3" />
-              <p className="font-bold text-slate-600 text-xs">Nenhum produto em estoque encontrado.</p>
+              <p className="font-bold text-slate-600 text-xs">Nenhum produto encontrado.</p>
               <p className="text-[11px] mt-1 text-slate-400">Tente buscar por termos alternativos ou limpe os filtros selecionados.</p>
               <button 
                 onClick={() => { setSearchQuery(''); setSelectedCategory('Todos'); setSelectedSizesFilter([]); setSelectedColorsFilter([]); }}
@@ -3990,6 +3998,8 @@ export default function PublicCatalog({
               {visibleProducts.map(prod => {
                 const isItemLiked = wishlistLikes[prod.id]?.active || false;
                 const totalWishCount = getProductReviewCount(prod.id, prod.name, prod.category);
+                const isOutOfStock = prod.stock <= 0;
+
                 return (
                   <div 
                     key={prod.id} 
@@ -4002,7 +4012,7 @@ export default function PublicCatalog({
                         <img 
                           src={prod.image} 
                           alt={prod.name} 
-                          className="w-full h-full object-cover group-hover:scale-104 transition-transform duration-700"
+                          className={`w-full h-full object-cover group-hover:scale-104 transition-transform duration-700 ${isOutOfStock ? 'opacity-75 grayscale-[20%]' : ''}`}
                           referrerPolicy="no-referrer"
                         />
                       ) : (
@@ -4034,11 +4044,25 @@ export default function PublicCatalog({
                         </span>
                       )}
 
-                      {/* Stock safety highlight */}
-                      {prod.stock <= 3 && (
-                        <span className="absolute top-3 left-3 bg-rose-600 text-white px-2 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wide">
+                      {/* Stock safety / out of stock highlight */}
+                      {isOutOfStock ? (
+                        <span className="absolute top-3 left-3 bg-slate-900/90 text-amber-300 border border-amber-400/30 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-md z-10">
+                          <AlertCircle size={10} className="text-amber-400 animate-pulse" />
+                          ESGOTADO
+                        </span>
+                      ) : prod.stock <= 3 ? (
+                        <span className="absolute top-3 left-3 bg-rose-600 text-white px-2 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wide z-10">
                           ÚLTIMAS PEÇAS!
                         </span>
+                      ) : null}
+
+                      {/* Urgency Center Badge overlay when out of stock */}
+                      {isOutOfStock && (
+                        <div className="absolute inset-0 bg-slate-950/20 backdrop-blur-[1px] flex items-center justify-center pointer-events-none">
+                          <span className="bg-slate-900/95 text-white px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl border border-white/20">
+                            Esgotado
+                          </span>
+                        </div>
                       )}
                     </div>
 
@@ -4077,26 +4101,41 @@ export default function PublicCatalog({
                               <span className="text-[10px] text-slate-400 line-through font-mono leading-none mb-1">
                                 R$ {prod.compare_at_price.toFixed(2)}
                               </span>
-                              <span className="font-extrabold text-[15px] text-slate-900 leading-none">
+                              <span className={`font-extrabold text-[15px] leading-none ${isOutOfStock ? 'text-slate-400' : 'text-slate-900'}`}>
                                 R$ {prod.price.toFixed(2)}
                               </span>
                             </>
                           ) : (
-                            <span className="font-extrabold text-[15px] text-slate-900 leading-none">
+                            <span className={`font-extrabold text-[15px] leading-none ${isOutOfStock ? 'text-slate-400' : 'text-slate-900'}`}>
                               R$ {prod.price.toFixed(2)}
                             </span>
                           )}
                         </div>
                         
-                        {/* Quick Add icon */}
-                        <button
-                          type="button"
-                          onClick={(e) => handleQuickAdd(prod, e)}
-                          className="w-7 h-7 bg-slate-900 hover:bg-pink-600 hover:scale-105 active:scale-95 text-white rounded-full flex items-center justify-center transition cursor-pointer"
-                          title="Compra Rápida"
-                        >
-                          <Plus size={14} />
-                        </button>
+                        {/* Quick Add icon or View button if out of stock */}
+                        {isOutOfStock ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenProduct(prod);
+                            }}
+                            className="px-2.5 py-1 bg-slate-200 text-slate-700 hover:bg-slate-300 rounded-lg flex items-center gap-1 transition text-[9px] font-black uppercase tracking-wider cursor-pointer border-none"
+                            title="Ver detalhes do produto esgotado"
+                          >
+                            <Eye size={12} />
+                            <span>Ver</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => handleQuickAdd(prod, e)}
+                            className="w-7 h-7 bg-slate-900 hover:bg-pink-600 hover:scale-105 active:scale-95 text-white rounded-full flex items-center justify-center transition cursor-pointer border-none"
+                            title="Compra Rápida"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        )}
                       </div>
 
                     </div>
@@ -4526,6 +4565,28 @@ export default function PublicCatalog({
                       )}
                     </button>
                   </div>
+
+                  {/* ALERTA DE REPOSIÇÃO & URGÊNCIA DE ESTOQUE ESGOTADO */}
+                  {isEsgotado && (
+                    <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-3.5 space-y-2 text-left animate-in fade-in duration-300">
+                      <div className="flex items-center gap-2 text-amber-900 font-extrabold text-xs">
+                        <AlertCircle size={15} className="text-amber-600 flex-shrink-0 animate-pulse" />
+                        <span>Produto Esgotado Temporariamente</span>
+                      </div>
+                      <p className="text-[11px] text-amber-800 leading-snug">
+                        Esta peça teve altíssima procura e o estoque acabou! Solicite prioridade de reposição com nosso atendimento.
+                      </p>
+                      <a
+                        href={`https://wa.me/55${(storeInfo?.phone || '21991234567').replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Vi no site da AP Moda Fitness que o produto "${selectedProduct.name}" está esgotado. Gostaria de saber se terá reposição em breve!`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition shadow-xs text-decoration-none"
+                      >
+                        <MessageCircle size={14} />
+                        <span>Avise-me quando repor via WhatsApp</span>
+                      </a>
+                    </div>
+                  )}
 
                   {/* FREIGHT SHIPPING CALCULATOR SYSTEM */}
                   <div className="border-t border-[#1E3A42]/10 pt-4 space-y-2 text-left">
