@@ -421,7 +421,7 @@ export default function PublicCatalog({
   // Configure SEO tags for public vitrine indexation
   useEffect(() => {
     // 1. Set the clean retail meta title
-    document.title = "AP Moda Fitness | Moda Fitness Premium";
+    document.title = "AP2 Moda Fitness | Moda Fitness Feminina Premium";
 
     // 2. Add or update canonical link pointing directly to the public vitrine url
     let canonicalLink = document.querySelector('link[rel="canonical"]');
@@ -430,7 +430,7 @@ export default function PublicCatalog({
       canonicalLink.setAttribute('rel', 'canonical');
       document.head.appendChild(canonicalLink);
     }
-    canonicalLink.setAttribute('href', 'https://apmodafitness.com.br/vitrine');
+    canonicalLink.setAttribute('href', 'https://www.apmodafitness2.com.br');
 
     // 3. Ensure robots meta is set to index, follow for public catalog
     let robotsMeta = document.querySelector('meta[name="robots"]');

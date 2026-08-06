@@ -24,6 +24,7 @@ import {
 
 import { ActiveTab, Product, Sale, Client, Transaction } from './types';
 import { INITIAL_PRODUCTS, INITIAL_CLIENTS, INITIAL_SALES, INITIAL_TRANSACTIONS } from './data/mockData';
+import { playSaleSuccessSound, playNotificationSound } from './lib/audioFeedback';
 
 import Sidebar from './components/Sidebar';
 import DashboardOverview from './components/DashboardOverview';
@@ -339,18 +340,18 @@ export default function App() {
     if (isCustomerView) {
       // Indexable Public Vitrine view
       robotsMeta.setAttribute('content', 'index, follow');
-      document.title = "AP Moda Fitness | Moda Fitness Premium";
+      document.title = "AP2 Moda Fitness | Moda Fitness Feminina Premium";
       
       if (!canonicalLink) {
         canonicalLink = document.createElement('link');
         canonicalLink.setAttribute('rel', 'canonical');
         document.head.appendChild(canonicalLink);
       }
-      canonicalLink.setAttribute('href', 'https://apmodafitness.com.br/vitrine');
+      canonicalLink.setAttribute('href', 'https://www.apmodafitness2.com.br');
     } else {
       // Non-indexable administrative panel/PDV/CRM views
       robotsMeta.setAttribute('content', 'noindex, nofollow');
-      document.title = "AP Moda Fitness — Painel Administrativo";
+      document.title = "AP Moda Fitness 2 — Painel Interno";
       
       if (canonicalLink) {
         canonicalLink.remove();
@@ -471,9 +472,127 @@ export default function App() {
     return INITIAL_TRANSACTIONS;
   });
 
-  // State for notification dropdown
+  // State for notification dropdown and real-time sale alert toast
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [newSaleToast, setNewSaleToast] = useState<{
+    id: string;
+    clientName: string;
+    total: number;
+    source?: string;
+    itemsCount?: number;
+  } | null>(null);
+
+  const alertedSaleIdsRef = useRef<Set<string>>(new Set());
+
+  const [notificationPermission, setNotificationPermission] = useState<string>(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission;
+    }
+    return 'default';
+  });
+
+  const handleRequestNotificationPermission = async () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      try {
+        const res = await Notification.requestPermission();
+        setNotificationPermission(res);
+        if (res === 'granted') {
+          playSaleSuccessSound();
+          new Notification('🎉 Notificações de Venda Ativas!', {
+            body: 'Tudo pronto! Você receberá avisos sonoros e na tela sempre que uma venda for realizada na sua loja virtual.',
+            icon: '/icon.png'
+          });
+        } else if (res === 'denied') {
+          alert('As notificações foram bloqueadas no navegador. Para permitir, clique no ícone de cadeado na barra do navegador.');
+        }
+      } catch (e) {
+        console.warn('Erro ao solicitar permissão de notificação:', e);
+      }
+    } else {
+      alert('Seu navegador não possui suporte nativo para notificações de área de trabalho.');
+    }
+  };
+
+  const triggerSaleAlert = useCallback((saleData: { id: string; clientName: string; total: number; source?: string; itemsCount?: number }) => {
+    if (!saleData || !saleData.id) return;
+
+    // Deduplicate alerts for the same sale ID
+    if (alertedSaleIdsRef.current.has(saleData.id)) {
+      return;
+    }
+    alertedSaleIdsRef.current.add(saleData.id);
+
+    // 1. Play loud, cheerful cash-register chime sound
+    try {
+      playSaleSuccessSound();
+    } catch (err) {
+      console.warn('Could not play sale chime sound:', err);
+    }
+
+    // 2. Desktop Web Push Notification
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        const formattedValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(saleData.total || 0);
+        const notification = new Notification('🎉 Nova Venda na AP Moda Fitness!', {
+          body: `Cliente: ${saleData.clientName || 'Cliente'}\nValor: ${formattedValue} (${saleData.source || 'Loja Virtual'})\nClique para visualizar no painel de logística.`,
+          icon: '/icon.png',
+          tag: `sale-${saleData.id}`,
+          requireInteraction: true
+        });
+        notification.onclick = () => {
+          window.focus();
+          setActiveTab(ActiveTab.PEDIDOS);
+        };
+      } catch (e) {
+        console.warn('Failed to display web notification:', e);
+      }
+    }
+
+    // 3. Flashing browser tab title
+    if (typeof document !== 'undefined') {
+      const originalTitle = document.title || 'AP Moda Fitness';
+      let count = 0;
+      const interval = setInterval(() => {
+        count++;
+        document.title = (count % 2 === 0) 
+          ? `🔔 (1 NOVA VENDA!) AP Moda Fitness` 
+          : `🛍️ R$ ${(saleData.total || 0).toFixed(2)} - Novo Pedido!`;
+        if (count >= 14) {
+          clearInterval(interval);
+          document.title = originalTitle;
+        }
+      }, 900);
+
+      const resetTitle = () => {
+        clearInterval(interval);
+        document.title = originalTitle;
+        window.removeEventListener('focus', resetTitle);
+        window.removeEventListener('click', resetTitle);
+      };
+      window.addEventListener('focus', resetTitle);
+      window.addEventListener('click', resetTitle);
+    }
+
+    // 4. Floating On-Screen Toast Alert
+    setNewSaleToast(saleData);
+    setTimeout(() => {
+      setNewSaleToast(prev => (prev?.id === saleData.id ? null : prev));
+    }, 15000);
+
+    // 5. System Notification List Item
+    const newNotify = {
+      id: Date.now(),
+      title: `🎉 Nova Venda: ${saleData.source || 'Loja Virtual'}!`,
+      detail: `${saleData.clientName || 'Cliente'} comprou R$ ${(saleData.total || 0).toFixed(2)}. Pedido gravado na aba Logística.`,
+      read: false,
+      type: 'sale' as const
+    };
+    setNotifications(prev => [newNotify, ...prev]);
+
+    // 6. WhatsApp Business API notification trigger
+    triggerWhatsAppAlert('sale_completed', saleData);
+  }, []);
 
   // Previous state refs for delta comparisons
   const prevProductsRef = useRef<Product[]>(products);
@@ -2077,6 +2196,13 @@ export default function App() {
             };
             if (!prev.some(s => s.id === mapped.id)) {
               updated = [mapped, ...prev];
+              triggerSaleAlert({
+                id: mapped.id,
+                clientName: mapped.clientName,
+                total: mapped.total,
+                source: mapped.channel || 'Loja Virtual / PDV',
+                itemsCount: mapped.items?.length
+              });
             }
           } else if (eventType === 'UPDATE' && newRec) {
             const mapped = {
@@ -2151,6 +2277,13 @@ export default function App() {
             };
             if (!prev.some(o => o.id === mapped.id)) {
               updated = [mapped, ...prev];
+              triggerSaleAlert({
+                id: mapped.id,
+                clientName: mapped.clientName,
+                total: mapped.total,
+                source: 'E-commerce / Catálogo Online',
+                itemsCount: mapped.items?.length
+              });
             }
           } else if (eventType === 'UPDATE' && newRec) {
             const mapped = {
@@ -2529,12 +2662,13 @@ export default function App() {
       }
     });
 
-    // Send WhatsApp sale completed alert
-    triggerWhatsAppAlert('sale_completed', {
+    // Trigger comprehensive sale alert (Audio chime, Web Push, Title flash, Toast, System notification, WhatsApp)
+    triggerSaleAlert({
       id: newSale.id,
       clientName: newSale.clientName,
-      itemsCount: newSale.items.length,
-      total: newSale.total
+      total: newSale.total,
+      source: newSale.channel || 'Balcão / PDV',
+      itemsCount: newSale.items ? newSale.items.length : 1
     });
 
     // Send WhatsApp stock alerts if any products crossed threshold
@@ -3061,15 +3195,14 @@ export default function App() {
       }
     }
 
-    // Fire visual alert notification in management dashboard
-    const newNotify = {
-      id: Date.now(),
-      title: 'Novo Pedido p/ WhatsApp! 🛍️',
-      detail: `${newOrder.clientName} montou uma sacola no catálogo no valor de R$ ${newOrder.total.toFixed(2)}. Pedido guardado na aba de Logística.`,
-      read: false,
-      type: 'sale' as const
-    };
-    setNotifications((prev: any[]) => [newNotify, ...prev]);
+    // Trigger real-time sale alert (Sound chime, Web Push, Flashing tab title, Toast, System notification, WhatsApp)
+    triggerSaleAlert({
+      id: newOrder.id,
+      clientName: newOrder.clientName,
+      total: newOrder.total,
+      source: 'Loja Virtual (Site)',
+      itemsCount: Array.isArray(newOrder.items) ? newOrder.items.length : 1
+    });
   };
 
   const handleAddCheckout = (newCheckout: any) => {
@@ -3475,6 +3608,55 @@ export default function App() {
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-slate-50 flex" id="main-app-container">
+        {/* Floating Toast Alert Banner for Real-Time Sales */}
+        {newSaleToast && (
+          <div className="fixed top-4 right-4 z-50 bg-gradient-to-r from-emerald-600 via-teal-700 to-emerald-800 text-white p-4 rounded-2xl shadow-2xl border border-emerald-300/40 max-w-sm w-full animate-in slide-in-from-top-6 duration-300">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl shrink-0 animate-bounce">
+                🛍️
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-extrabold text-[11px] uppercase tracking-wider text-emerald-100 font-mono">
+                    🎉 Nova Venda Realizada!
+                  </span>
+                  <span className="bg-emerald-400 text-emerald-950 font-black text-[9px] px-2 py-0.5 rounded-full uppercase font-mono shadow-xs shrink-0">
+                    Ao Vivo
+                  </span>
+                </div>
+                <p className="text-sm font-black text-white truncate mt-0.5">
+                  {newSaleToast.clientName || 'Cliente Especial'}
+                </p>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-xs font-extrabold text-emerald-200">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(newSaleToast.total || 0)}
+                  </span>
+                  <span className="text-[10px] text-emerald-100/80 font-medium">
+                    {newSaleToast.source || 'Loja Virtual'}
+                  </span>
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <button 
+                    onClick={() => {
+                      setActiveTab(ActiveTab.PEDIDOS);
+                      setNewSaleToast(null);
+                    }} 
+                    className="flex-1 bg-white text-emerald-900 hover:bg-emerald-50 active:scale-95 font-extrabold text-xs py-1.5 px-3 rounded-xl transition-all shadow-md cursor-pointer text-center"
+                  >
+                    Ver Pedido na Logística 📦
+                  </button>
+                  <button 
+                    onClick={() => setNewSaleToast(null)} 
+                    className="text-white/80 hover:text-white hover:bg-white/10 p-1.5 rounded-lg text-xs transition-colors cursor-pointer"
+                    title="Fechar Notificação"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       {/* Sidebar navigation */}
       <Sidebar 
         activeTab={activeTab} 
@@ -3629,9 +3811,9 @@ export default function App() {
 
               {/* Notification bubble menu */}
               {isNotificationsOpen && (
-                <div id="notifications-menu" className="absolute right-0 mt-3 bg-white border border-slate-100 rounded-xl shadow-xl w-72 p-3 z-50 text-xs space-y-2 text-left animate-in fade-in-50 duration-200">
+                <div id="notifications-menu" className="absolute right-0 mt-3 bg-white border border-slate-100 rounded-xl shadow-xl w-80 p-3 z-50 text-xs space-y-2 text-left animate-in fade-in-50 duration-200">
                   <div className="flex justify-between items-center border-b border-slate-50 pb-2">
-                    <span className="font-bold text-slate-800">Mensagens do Sistema</span>
+                    <span className="font-bold text-slate-800">Alertas de Vendas ao Vivo</span>
                     <button 
                       onClick={() => setNotifications(prev => prev.map(n => ({...n, read: true})))}
                       className="text-pink-600 hover:text-pink-700 font-bold text-[10px] cursor-pointer"
@@ -3639,12 +3821,33 @@ export default function App() {
                       Marcar Lidas
                     </button>
                   </div>
-                  <div className="divide-y divide-slate-50 max-h-56 overflow-y-auto">
+
+                  {/* Sound & Web push controls inside notification menu */}
+                  <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex items-center justify-between gap-1.5 my-1">
+                    <button
+                      onClick={() => playSaleSuccessSound()}
+                      className="flex-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[10px] py-1 px-2 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                      title="Ouvir o efeito sonoro de caixa registradora emitido a cada nova venda"
+                    >
+                      <span>🔊 Testar Som</span>
+                    </button>
+                    {notificationPermission !== 'granted' && (
+                      <button
+                        onClick={handleRequestNotificationPermission}
+                        className="flex-1 bg-pink-600 hover:bg-pink-700 text-white font-bold text-[10px] py-1 px-2 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                        title="Ativar avisos de área de trabalho e som automático"
+                      >
+                        <span>🔔 Ativar Popups</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="divide-y divide-slate-50 max-h-60 overflow-y-auto">
                     {notifications.length === 0 ? (
-                      <p className="py-4 text-center text-slate-400 text-[11px]">Nenhuma nova notificação</p>
+                      <p className="py-4 text-center text-slate-400 text-[11px]">Nenhuma nova notificação de venda</p>
                     ) : (
                       notifications.map(n => (
-                        <div key={n.id} className={`py-2 text-slate-700 leading-tight ${!n.read ? 'bg-pink-50/20 px-1 py-1 rounded' : ''}`}>
+                        <div key={n.id} className={`py-2 text-slate-700 leading-tight ${!n.read ? 'bg-pink-50/30 px-1.5 py-1.5 rounded-lg border-l-2 border-pink-500' : ''}`}>
                           <p className="font-semibold">{n.title}</p>
                           <p className="text-slate-400 text-[10px] mt-0.5">{n.detail}</p>
                         </div>
