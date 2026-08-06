@@ -265,7 +265,11 @@ export default function PublicCatalog({
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const [storeName, setStoreName] = useState(() => {
-    return localStorage.getItem('ap_vitrine_store_name') || "AP Moda Fitness";
+    const saved = localStorage.getItem('ap_vitrine_store_name');
+    if (!saved || saved === 'AP Moda Fitness') {
+      return "AP2 Moda Fitness";
+    }
+    return saved;
   });
   const [storeSub, setStoreSub] = useState(() => {
     return localStorage.getItem('ap_vitrine_store_sub') || "Moda Fitness Premium";
@@ -2537,7 +2541,7 @@ export default function PublicCatalog({
   }, []);
 
   const storeInfo = useMemo(() => {
-    let name = 'AP Moda Fitness';
+    let name = 'AP2 Moda Fitness';
     let city = 'Natal';
     let state = 'RN';
     let phone = '5521991234567';
@@ -4932,7 +4936,7 @@ export default function PublicCatalog({
 
       {/* Custom footer signature line */}
       <div className="text-center py-4 bg-transparent border-t border-slate-100 select-none text-[10px] text-slate-400 font-bold tracking-wider uppercase font-sans">
-        © {new Date().getFullYear()} AP Moda Fitness • Desenvolvido exclusivamente para você render o máximo.
+        © {new Date().getFullYear()} AP2 Moda Fitness • Desenvolvido exclusivamente para você render o máximo.
       </div>
 
       {/* 9. Interactive Float WhatsApp Button with notify sticker */}

@@ -14,7 +14,8 @@ export interface StoreConfig {
 }
 
 export function getStoreConfig(): StoreConfig {
-  const name = (localStorage.getItem('ap_store_name') || 'AP Moda Fitness').trim();
+  const nameVal = localStorage.getItem('ap_store_name');
+  const name = (!nameVal || nameVal === 'AP Moda Fitness' ? 'AP2 Moda Fitness' : nameVal).trim();
   const slogan = (localStorage.getItem('ap_store_slogan') || 'Onde o seu limite vira ponto de partida').trim();
   let cnpj = (localStorage.getItem('ap_store_cnpj') || '67.074.681/0001-03').trim();
   let address = (localStorage.getItem('ap_store_address') || 'Travessa Jose Jorge, 51, Centro').trim();
