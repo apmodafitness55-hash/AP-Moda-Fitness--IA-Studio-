@@ -444,11 +444,11 @@ export function CheckoutWizard({
         addressCep: cep || addressCep
       };
       localStorage.setItem('ap_checkout_client_data', JSON.stringify(currentData));
-      localStorage.setItem('ap_last_client_data', JSON.stringify(currentData));
+      localStorage.setItem('ap_site_current_user', JSON.stringify(currentData));
     } catch (e) {}
   };
 
-  // Auto identify when loggedClient changes or when PDV/Site client data is saved
+  // Auto identify when loggedClient changes or when Site client data is saved
   useEffect(() => {
     if (loggedClient && (loggedClient.cpf || loggedClient.name || loggedClient.email)) {
       handleSelectRegisteredClient(loggedClient);
@@ -457,12 +457,10 @@ export function CheckoutWizard({
 
     const syncClientData = () => {
       try {
-        const pdvSaved = localStorage.getItem('ap_pdv_selected_client') || 
-                      localStorage.getItem('ap_last_client_data') || 
-                      localStorage.getItem('ap_checkout_client_data') ||
+        const siteSaved = localStorage.getItem('ap_checkout_client_data') || 
                       localStorage.getItem('ap_site_current_user');
-        if (pdvSaved) {
-          const parsed = JSON.parse(pdvSaved);
+        if (siteSaved) {
+          const parsed = JSON.parse(siteSaved);
           if (parsed && (parsed.name || parsed.clientName || parsed.cpf)) {
             handleSelectRegisteredClient(parsed);
           }
@@ -473,20 +471,18 @@ export function CheckoutWizard({
     };
 
     syncClientData();
-    window.addEventListener('ap-pdv-client-updated', syncClientData);
     window.addEventListener('ap-storage-synced', syncClientData);
     return () => {
-      window.removeEventListener('ap-pdv-client-updated', syncClientData);
       window.removeEventListener('ap-storage-synced', syncClientData);
     };
   }, [loggedClient]);
 
-  // Bypass CPF check screen if clientName or clientCpf was already filled
+  // Verify CPF screen when CPF or clientName is already filled
   useEffect(() => {
-    if (clientName && clientName.trim().length > 0) {
+    if (clientName && clientName.trim().length > 0 && clientCpf && clientCpf.trim().length > 0) {
       setCpfVerified(true);
     }
-  }, [clientName]);
+  }, [clientName, clientCpf]);
 
   const handleCheckCPF = async () => {
     setCheckoutError(null);
@@ -506,7 +502,7 @@ export function CheckoutWizard({
       
       let foundClient: any = null;
 
-      // SOURCE 1: Check clients prop array
+      // SOURCE 1: Check clients prop array for explicit matching CPF only
       if (clients && clients.length > 0) {
         foundClient = clients.find((c: any) => {
           const cCpf = (c.cpf || '').replace(/\D/g, '');
@@ -530,15 +526,13 @@ export function CheckoutWizard({
         } catch (e) {}
       }
 
-      // SOURCE 3: Check localStorage saved client
+      // SOURCE 3: Check site current user session
       if (!foundClient) {
         try {
-          const pdvSaved = localStorage.getItem('ap_pdv_selected_client') || 
-                        localStorage.getItem('ap_last_client_data') || 
-                        localStorage.getItem('ap_checkout_client_data') ||
+          const siteSaved = localStorage.getItem('ap_checkout_client_data') || 
                         localStorage.getItem('ap_site_current_user');
-          if (pdvSaved) {
-            const parsed = JSON.parse(pdvSaved);
+          if (siteSaved) {
+            const parsed = JSON.parse(siteSaved);
             if (parsed && (parsed.cpf || parsed.clientCpf)) {
               const pCpf = String(parsed.cpf || parsed.clientCpf).replace(/\D/g, '');
               if (pCpf === cleanCpf) {
@@ -613,6 +607,24 @@ export function CheckoutWizard({
     setClientAddresses([]);
     setSelectedAddressIndex(null);
     setShowAddressForm(false);
+    setClientCpf('');
+    setClientName('');
+    setClientPhone('');
+    setClientEmail('');
+    setClientBirthDate('');
+    setAddressStreet('');
+    setAddressNum('');
+    setAddressComp('');
+    setAddressBairro('');
+    setAddressCidade('');
+    setAddressEstado('');
+    setAddressCep('');
+    try {
+      localStorage.removeItem('ap_checkout_client_data');
+      localStorage.removeItem('ap_site_current_user');
+      localStorage.removeItem('ap_pdv_selected_client');
+      localStorage.removeItem('ap_last_client_data');
+    } catch (e) {}
   };
 
   // Auto calculate Melhor Envio when Cep is 8 digits in step 2
@@ -1426,45 +1438,6 @@ export function CheckoutWizard({
                     </div>
                   ) : (
                     <div className="space-y-4 animate-in fade-in duration-300">
-                      {/* PDV / CRM Client Selector & Import Badge */}
-                      <div className="bg-[#1E3A42]/5 border border-[#1E3A42]/15 p-3 rounded-2xl space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5 text-[#1E3A42]">
-                            <Sparkles size={13} className="text-pink-600 animate-pulse" />
-                            <span className="font-extrabold text-[10px] tracking-wider uppercase font-sans">Cliente Importado do PDV / CRM</span>
-                          </div>
-                          <span className="text-[9px] bg-emerald-600 text-white font-extrabold px-2 py-0.5 rounded-full uppercase font-mono shadow-xs">
-                            ✓ Dados Carregados
-                          </span>
-                        </div>
-
-                        {clients && clients.length > 0 && (
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-bold text-slate-500 uppercase block font-sans">
-                              Trocar ou Selecionar Outra Cliente Cadastrada
-                            </label>
-                            <select
-                              value={selectedClientPdvId}
-                              onChange={(e) => {
-                                const found = clients.find(c => c.id === e.target.value);
-                                if (found) {
-                                  handleSelectRegisteredClient(found);
-                                }
-                              }}
-                              className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-pink-500 cursor-pointer font-sans"
-                            >
-                              <option value="">
-                                {clientName ? `✓ ${clientName} ${clientCpf ? `(CPF: ${clientCpf})` : ''}` : '-- Selecionar Cliente do PDV/CRM --'}
-                              </option>
-                              {clients.map(c => (
-                                <option key={c.id} value={c.id}>
-                                  {c.name} {c.cpf ? `• CPF: ${c.cpf}` : ''} {c.phone ? `• Tel: ${c.phone}` : ''}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
-                      </div>
 
                       {isExistingClient ? (
                         <div className="bg-emerald-50/60 p-3 rounded-2xl border border-emerald-100/70 space-y-1">

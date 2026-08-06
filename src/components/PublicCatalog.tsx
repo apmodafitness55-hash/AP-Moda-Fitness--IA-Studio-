@@ -839,7 +839,7 @@ export default function PublicCatalog({
   // Checkout form info with localStorage fallback persistence
   const [clientName, setClientName] = useState(() => {
     try {
-      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_site_current_user');
       if (saved) {
         const parsed = JSON.parse(saved);
         return parsed.name || parsed.clientName || '';
@@ -849,7 +849,7 @@ export default function PublicCatalog({
   });
   const [clientPhone, setClientPhone] = useState(() => {
     try {
-      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_site_current_user');
       if (saved) {
         const parsed = JSON.parse(saved);
         return parsed.phone || parsed.whatsapp || '';
@@ -859,7 +859,7 @@ export default function PublicCatalog({
   });
   const [clientEmail, setClientEmail] = useState(() => {
     try {
-      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_site_current_user');
       if (saved) {
         const parsed = JSON.parse(saved);
         return parsed.email || '';
@@ -869,7 +869,7 @@ export default function PublicCatalog({
   });
   const [clientCpf, setClientCpf] = useState(() => {
     try {
-      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_site_current_user');
       if (saved) {
         const parsed = JSON.parse(saved);
         return parsed.cpf || parsed.clientCpf || parsed.clientDoc || '';
@@ -879,7 +879,7 @@ export default function PublicCatalog({
   });
   const [clientBirthDate, setClientBirthDate] = useState(() => {
     try {
-      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_site_current_user');
       if (saved) {
         const parsed = JSON.parse(saved);
         return parsed.birthDate || parsed.birth_date || '';
@@ -891,7 +891,7 @@ export default function PublicCatalog({
   // Structured address components
   const [addressStreet, setAddressStreet] = useState(() => {
     try {
-      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_site_current_user');
       if (saved) {
         const parsed = JSON.parse(saved);
         return parsed.addressStreet || parsed.street || parsed.rua || '';
@@ -901,7 +901,7 @@ export default function PublicCatalog({
   });
   const [addressNum, setAddressNum] = useState(() => {
     try {
-      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_site_current_user');
       if (saved) {
         const parsed = JSON.parse(saved);
         return parsed.addressNum || parsed.number || parsed.numero || '';
@@ -911,7 +911,7 @@ export default function PublicCatalog({
   });
   const [addressComp, setAddressComp] = useState(() => {
     try {
-      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_site_current_user');
       if (saved) {
         const parsed = JSON.parse(saved);
         return parsed.addressComp || parsed.complement || parsed.complemento || '';
@@ -921,7 +921,7 @@ export default function PublicCatalog({
   });
   const [addressBairro, setAddressBairro] = useState(() => {
     try {
-      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_site_current_user');
       if (saved) {
         const parsed = JSON.parse(saved);
         return parsed.addressBairro || parsed.bairro || parsed.neighborhood || '';
@@ -931,7 +931,7 @@ export default function PublicCatalog({
   });
   const [addressCidade, setAddressCidade] = useState(() => {
     try {
-      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_site_current_user');
       if (saved) {
         const parsed = JSON.parse(saved);
         return parsed.addressCidade || parsed.city || parsed.cidade || '';
@@ -941,7 +941,7 @@ export default function PublicCatalog({
   });
   const [addressEstado, setAddressEstado] = useState(() => {
     try {
-      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_site_current_user');
       if (saved) {
         const parsed = JSON.parse(saved);
         return parsed.addressEstado || parsed.state || parsed.estado || '';
@@ -951,7 +951,7 @@ export default function PublicCatalog({
   });
   const [addressCep, setAddressCep] = useState(() => {
     try {
-      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_pdv_selected_client');
+      const saved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_site_current_user');
       if (saved) {
         const parsed = JSON.parse(saved);
         return parsed.addressCep || parsed.cep || '';
@@ -1080,13 +1080,13 @@ export default function PublicCatalog({
     }
   }, [products]);
 
-  // Auto load PDV / CRM selected client data when catalog loads or cart opens
+  // Auto load site user client data when catalog loads or cart opens
   useEffect(() => {
-    const loadPdvClient = () => {
+    const loadSiteClient = () => {
       try {
-        const pdvSaved = localStorage.getItem('ap_pdv_selected_client') || localStorage.getItem('ap_last_client_data') || localStorage.getItem('ap_checkout_client_data');
-        if (pdvSaved) {
-          const parsed = JSON.parse(pdvSaved);
+        const siteSaved = localStorage.getItem('ap_checkout_client_data') || localStorage.getItem('ap_site_current_user');
+        if (siteSaved) {
+          const parsed = JSON.parse(siteSaved);
           if (parsed) {
             if (!clientName && (parsed.name || parsed.clientName)) {
               setClientName(parsed.name || parsed.clientName || '');
@@ -1127,13 +1127,13 @@ export default function PublicCatalog({
           }
         }
       } catch (e) {
-        console.warn('[PDV Client Load Error]', e);
+        console.warn('[Site Client Load Error]', e);
       }
     };
 
-    loadPdvClient();
-    window.addEventListener('ap-pdv-client-updated', loadPdvClient);
-    return () => window.removeEventListener('ap-pdv-client-updated', loadPdvClient);
+    loadSiteClient();
+    window.addEventListener('ap-storage-synced', loadSiteClient);
+    return () => window.removeEventListener('ap-storage-synced', loadSiteClient);
   }, [clientName, clientCpf]);
 
   const handleCalculateMelhorEnvio = async (cepToCalculate: string) => {
@@ -5797,9 +5797,7 @@ export default function PublicCatalog({
                             addressCep: cCep
                           };
                           localStorage.setItem('ap_checkout_client_data', JSON.stringify(clientData));
-                          localStorage.setItem('ap_last_client_data', JSON.stringify(clientData));
-                          localStorage.setItem('ap_pdv_selected_client', JSON.stringify(clientData));
-                          window.dispatchEvent(new Event('ap-pdv-client-updated'));
+                          localStorage.setItem('ap_site_current_user', JSON.stringify(clientData));
                         } catch (e) {}
 
                         setLoginError('');
