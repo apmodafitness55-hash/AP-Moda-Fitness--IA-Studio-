@@ -27,7 +27,12 @@ import {
   HelpCircle,
   Clock,
   CheckCircle,
-  FileText
+  FileText,
+  Search,
+  Link2,
+  Filter,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 
 interface PartnerPortalProps {
@@ -35,6 +40,7 @@ interface PartnerPortalProps {
   onLogout: () => void;
   onlineOrders?: any[];
   sales?: any[];
+  products?: any[];
 }
 
 interface Partner {
@@ -57,7 +63,7 @@ interface WithdrawRequest {
   date: string;
 }
 
-export default function PartnerPortal({ currentUser, onLogout, onlineOrders = [], sales = [] }: PartnerPortalProps) {
+export default function PartnerPortal({ currentUser, onLogout, onlineOrders = [], sales = [], products = [] }: PartnerPortalProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'links' | 'financeiro'>('dashboard');
   const [copiedCoupon, setCopiedCoupon] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -126,6 +132,78 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
   const [pixKey, setPixKey] = useState<string>('');
   const [withdrawSucessMsg, setWithdrawSucessMsg] = useState<string>('');
   const [withdrawErrorMsg, setWithdrawErrorMsg] = useState<string>('');
+
+  // Curated product selection for Partner's Custom Promotion List
+  const allProductsList = useMemo(() => {
+    if (products && products.length > 0) return products;
+    try {
+      const saved = localStorage.getItem('ap_moda_products');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  }, [products]);
+
+  const [partnerCuratedIds, setPartnerCuratedIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(`ap_partner_curated_${currentPartner.id}`);
+      if (saved) return JSON.parse(saved);
+    } catch(e){}
+    return [];
+  });
+
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [copiedCuratedLink, setCopiedCuratedLink] = useState(false);
+
+  const toggleProductInCuratedList = (prodId: string) => {
+    setPartnerCuratedIds(prev => {
+      const updated = prev.includes(prodId) ? prev.filter(id => id !== prodId) : [...prev, prodId];
+      try {
+        localStorage.setItem(`ap_partner_curated_${currentPartner.id}`, JSON.stringify(updated));
+      } catch(e){}
+      return updated;
+    });
+  };
+
+  const curatedSelectionLink = useMemo(() => {
+    const origin = typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost')
+      ? window.location.origin
+      : 'https://www.apmodafitness2.com.br';
+    
+    if (partnerCuratedIds.length > 0) {
+      return `${origin}/?ref=${currentPartner.couponCode}&produtos=${partnerCuratedIds.join(',')}`;
+    }
+    return `${origin}/?ref=${currentPartner.couponCode}`;
+  }, [currentPartner.couponCode, partnerCuratedIds]);
+
+  const handleCopyCuratedLink = () => {
+    navigator.clipboard.writeText(curatedSelectionLink);
+    setCopiedCuratedLink(true);
+    setTimeout(() => setCopiedCuratedLink(false), 2500);
+  };
+
+  const curatedShareText = useMemo(() => {
+    const selectedProdsNames = allProductsList
+      .filter(p => partnerCuratedIds.includes(p.id))
+      .map(p => `• ${p.name}`)
+      .slice(0, 4);
+
+    let text = `✨ Minhas Peças Favoritas da AP Moda Fitness! ✨\n\n`;
+    if (selectedProdsNames.length > 0) {
+      text += `Preparei uma seleção especial de lançamentos para você:\n${selectedProdsNames.join('\n')}\n`;
+      if (partnerCuratedIds.length > 4) {
+        text += `...e mais ${partnerCuratedIds.length - 4} peças incríveis!\n`;
+      }
+      text += `\n`;
+    }
+    text += `🎁 Use meu cupom *${currentPartner.couponCode}* no checkout e ganhe desconto exclusivo!\n\n`;
+    text += `Acesse a minha lista completa aqui:\n${curatedSelectionLink}`;
+    return text;
+  }, [allProductsList, partnerCuratedIds, currentPartner.couponCode, curatedSelectionLink]);
+
+  const curatedWhatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(curatedShareText)}`;
 
   // Save partners if mutated
   const updatePartnerBalance = (updatedBalance: number) => {
@@ -571,6 +649,161 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* CREATOR/INFLUENCER CURATED SELECTION LINK BUILDER */}
+            <div className="lg:col-span-12 bg-slate-900 border border-slate-800 rounded-3xl p-5 md:p-6 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <ShoppingBag size={18} className="text-pink-500" />
+                    <h3 className="font-extrabold text-white text-base">
+                      Crie um Link com sua Seleção de Produtos Favoritos
+                    </h3>
+                  </div>
+                  <p className="text-slate-400 text-xs">
+                    Escolha as peças que você está ofertando no Instagram, Stories ou WhatsApp. O link gerado abrirá o catálogo destacando a sua seleção e com seu cupom <strong>{currentPartner.couponCode}</strong> pré-aplicado!
+                  </p>
+                </div>
+                <div className="shrink-0 flex items-center gap-2 bg-pink-500/10 border border-pink-500/20 px-3 py-1.5 rounded-2xl text-pink-400 text-xs font-extrabold font-mono">
+                  <span>{partnerCuratedIds.length} peça{partnerCuratedIds.length !== 1 ? 's' : ''} selecionada{partnerCuratedIds.length !== 1 ? 's' : ''}</span>
+                </div>
+              </div>
+
+              {/* Generated Link Bar & Quick Share Buttons */}
+              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold uppercase bg-pink-600/15 border border-pink-500/25 text-pink-400 px-2.5 py-0.5 rounded-full tracking-wider">
+                    Link Direto da Sua Seleção
+                  </span>
+                  {partnerCuratedIds.length > 0 && (
+                    <button 
+                      onClick={() => setPartnerCuratedIds([])}
+                      className="text-[10px] text-slate-500 hover:text-rose-400 font-bold transition cursor-pointer"
+                    >
+                      Limpar Seleção
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={curatedSelectionLink}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 font-mono text-slate-200 text-xs focus:outline-hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCopyCuratedLink}
+                    className="py-3 px-4 bg-pink-600 hover:bg-pink-700 text-white font-extrabold text-xs rounded-xl transition cursor-pointer border-none shrink-0 flex items-center gap-1.5"
+                    title="Copiar Link da Seleção"
+                  >
+                    {copiedCuratedLink ? <Check size={14} className="text-white" /> : <Copy size={14} />}
+                    <span>{copiedCuratedLink ? 'Copiado! ✓' : 'Copiar Link'}</span>
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <a
+                    href={curatedWhatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl flex items-center gap-2 transition cursor-pointer border-none"
+                  >
+                    <Send size={13} />
+                    <span>Compartilhar Seleção no WhatsApp</span>
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (navigator.share) {
+                        navigator.share({
+                          title: `Seleção de Produtos | ${currentPartner.name}`,
+                          text: curatedShareText,
+                          url: curatedSelectionLink
+                        }).catch(() => {});
+                      } else {
+                        handleCopyCuratedLink();
+                      }
+                    }}
+                    className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-extrabold text-xs rounded-xl flex items-center gap-2 transition cursor-pointer border-none"
+                  >
+                    <Share2 size={13} />
+                    <span>Outras Redes (Instagram / Telegram)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Product Selector Catalog Filter */}
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-300">
+                    Selecione as Peças do Catálogo Oficial:
+                  </h4>
+                  
+                  <div className="relative w-full sm:w-64">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input
+                      type="text"
+                      placeholder="Buscar por nome ou código..."
+                      value={productSearchTerm}
+                      onChange={(e) => setProductSearchTerm(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl pl-9 pr-3 py-2 focus:outline-none focus:border-pink-500 font-sans"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-96 overflow-y-auto pr-1">
+                  {allProductsList
+                    .filter(p => {
+                      if (!productSearchTerm.trim()) return true;
+                      const term = productSearchTerm.toLowerCase();
+                      return p.name.toLowerCase().includes(term) || (p.category && p.category.toLowerCase().includes(term)) || (p.sku && p.sku.toLowerCase().includes(term));
+                    })
+                    .map(p => {
+                      const isSelected = partnerCuratedIds.includes(p.id);
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => toggleProductInCuratedList(p.id)}
+                          className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center gap-3 select-none
+                            ${isSelected 
+                              ? 'bg-pink-950/40 border-pink-500/80 shadow-md shadow-pink-500/10' 
+                              : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`}
+                        >
+                          <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 overflow-hidden shrink-0 relative">
+                            {p.image ? (
+                              <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-slate-600 text-[10px] font-bold">Sem Foto</div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 min-w-0 text-left">
+                            <p className="text-xs font-extrabold text-white truncate">{p.name}</p>
+                            <p className="text-[10px] text-pink-400 font-bold font-mono">
+                              R$ {p.price.toFixed(2).replace('.', ',')}
+                            </p>
+                            <span className="text-[9px] text-slate-500 font-medium truncate block">
+                              {p.category || 'Moda Fitness'}
+                            </span>
+                          </div>
+
+                          <div className="shrink-0 text-slate-400">
+                            {isSelected ? (
+                              <CheckSquare size={18} className="text-pink-500" />
+                            ) : (
+                              <Square size={18} className="text-slate-700" />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+
             </div>
 
           </div>

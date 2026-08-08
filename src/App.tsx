@@ -3490,6 +3490,7 @@ export default function App() {
         onLogout={() => setCurrentUser(null)}
         onlineOrders={onlineOrders}
         sales={sales}
+        products={products}
       />
     );
   }

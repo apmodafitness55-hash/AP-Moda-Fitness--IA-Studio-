@@ -715,6 +715,41 @@ export default function PublicCatalog({
     }
   }, [products]);
 
+  // Partner & Influencer Link Support (?ref=CUPOM&produtos=ID1,ID2)
+  const [affiliateRefCode, setAffiliateRefCode] = useState<string | null>(null);
+  const [partnerCuratedProductIds, setPartnerCuratedProductIds] = useState<string[]>([]);
+  const [isShowingOnlyCurated, setIsShowingOnlyCurated] = useState(false);
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const refParam = urlParams.get('ref') || urlParams.get('cupom') || urlParams.get('affiliate') || urlParams.get('parceira');
+    const prodsParam = urlParams.get('produtos') || urlParams.get('prods') || urlParams.get('lista') || urlParams.get('itens');
+
+    if (refParam) {
+      const cleanRef = refParam.trim().toUpperCase();
+      setAffiliateRefCode(cleanRef);
+      setCouponCode(cleanRef);
+      setAppliedCoupon({
+        code: cleanRef,
+        discountPercent: 5,
+        fixedDiscount: 0,
+        maxPerCpf: 1,
+        isFirstPurchase: false
+      });
+      try {
+        localStorage.setItem('ap_applied_coupon', cleanRef);
+      } catch (e) {}
+    }
+
+    if (prodsParam) {
+      const ids = prodsParam.split(',').map(s => s.trim()).filter(Boolean);
+      if (ids.length > 0) {
+        setPartnerCuratedProductIds(ids);
+        setIsShowingOnlyCurated(true);
+      }
+    }
+  }, []);
+
   // Keep URL search params updated when selecting or closing product modal
   useEffect(() => {
     if (selectedProduct) {
@@ -1535,6 +1570,10 @@ export default function PublicCatalog({
   // Filter products for public catalog showcase (including out of stock products for urgency feedback)
   const visibleProducts = useMemo(() => {
     const list = products.filter(p => {
+      if (isShowingOnlyCurated && partnerCuratedProductIds.length > 0) {
+        if (!partnerCuratedProductIds.includes(p.id)) return false;
+      }
+
       const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                             p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
                             (p.category || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -1558,7 +1597,7 @@ export default function PublicCatalog({
       const bHasStock = b.stock > 0 ? 1 : 0;
       return bHasStock - aHasStock;
     });
-  }, [products, searchQuery, selectedCategory, selectedSizesFilter, selectedColorsFilter]);
+  }, [products, searchQuery, selectedCategory, selectedSizesFilter, selectedColorsFilter, partnerCuratedProductIds, isShowingOnlyCurated]);
 
   // Handle open item details modal
   const handleOpenProduct = (product: Product) => {
@@ -3999,6 +4038,58 @@ export default function PublicCatalog({
 
       {/* Brand title block separator */}
       <span id="colecao-run-anchor" className="block h-1 scroll-mt-20" />
+
+      {/* Banner de Curadoria de Parceira / Cupom de Influenciadora */}
+      {(affiliateRefCode || partnerCuratedProductIds.length > 0) && (
+        <section className="max-w-7xl mx-auto px-4 md:px-8 mt-6">
+          <div className="bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600 text-white p-4 md:p-5 rounded-2xl shadow-md flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+                <Sparkles size={20} className="text-white" />
+              </div>
+              <div className="text-left">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-white/80 block">
+                  {partnerCuratedProductIds.length > 0 ? 'Seleção Especial de Parceira' : 'Cupom de Parceira Ativado'}
+                </span>
+                <p className="text-xs md:text-sm font-bold">
+                  {affiliateRefCode ? (
+                    <>Cupom <span className="bg-white text-pink-700 px-2.5 py-0.5 rounded-md font-extrabold font-mono uppercase">{affiliateRefCode}</span> ativado! Ganhe desconto exclusivo no seu pedido. 🌸</>
+                  ) : (
+                    <>Confira os produtos recomendados pela nossa parceira oficial!</>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {partnerCuratedProductIds.length > 0 && (
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsShowingOnlyCurated(true)}
+                  className={`px-3 py-1.5 rounded-full text-[11px] font-extrabold cursor-pointer border-none transition ${
+                    isShowingOnlyCurated
+                      ? 'bg-white text-pink-700 shadow-sm'
+                      : 'bg-white/20 hover:bg-white/30 text-white'
+                  }`}
+                >
+                  Ver Apenas Seleção ({partnerCuratedProductIds.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsShowingOnlyCurated(false)}
+                  className={`px-3 py-1.5 rounded-full text-[11px] font-extrabold cursor-pointer border-none transition ${
+                    !isShowingOnlyCurated
+                      ? 'bg-white text-pink-700 shadow-sm'
+                      : 'bg-white/20 hover:bg-white/30 text-white'
+                  }`}
+                >
+                  Ver Catálogo Completo
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* 6. Main Catalog grid blocks listing */}
       <main className="max-w-7xl mx-auto px-4 md:px-8 mt-4 md:mt-8 grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-8">
