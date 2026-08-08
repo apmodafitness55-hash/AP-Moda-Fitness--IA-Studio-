@@ -18,7 +18,9 @@ import {
   Sparkles,
   Ruler,
   Maximize,
-  Loader2
+  Loader2,
+  Share2,
+  Link2
 } from 'lucide-react';
 import { Product } from '../types';
 import ImageUploader from './ImageUploader';
@@ -1038,6 +1040,31 @@ export default function CatalogInventory({
                     {/* Restock action elements */}
                     <td className="p-4 text-center">
                       <div className="inline-flex gap-1 bg-slate-50 p-1 border border-slate-150 rounded-lg">
+                        <button 
+                          onClick={() => {
+                            const origin = typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost')
+                              ? window.location.origin
+                              : 'https://www.apmodafitness2.com.br';
+                            const shareUrl = `${origin}/?p=${p.id}`;
+                            if (navigator.clipboard) {
+                              navigator.clipboard.writeText(shareUrl);
+                            } else {
+                              const input = document.createElement('input');
+                              input.value = shareUrl;
+                              document.body.appendChild(input);
+                              input.select();
+                              document.execCommand('copy');
+                              document.body.removeChild(input);
+                            }
+                            alert(`Link direto de "${p.name}" copiado com sucesso!\n\n${shareUrl}`);
+                          }}
+                          title="Copiar Link para compartilhar com clientes"
+                          className="px-2 py-1 text-[10px] font-bold font-sans text-pink-700 bg-pink-50/80 hover:bg-pink-100 rounded transition-all cursor-pointer flex items-center gap-1"
+                        >
+                          <Link2 size={11} />
+                          <span>Link</span>
+                        </button>
+                        <span className="w-px bg-slate-150 self-stretch my-1" />
                         <button 
                           onClick={() => handleOpenEditModal(p)}
                           title="Editar peça"

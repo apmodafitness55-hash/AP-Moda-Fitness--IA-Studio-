@@ -47,7 +47,11 @@ import {
   Ruler,
   Clock,
   Package,
-  AlertCircle
+  AlertCircle,
+  Share2,
+  Link2,
+  Copy,
+  ExternalLink
 } from 'lucide-react';
 import { Product, Client } from '../types';
 import { pushSystemConfigToSupabase } from '../supabase';
@@ -605,6 +609,136 @@ export default function PublicCatalog({
   const [newsletterName, setNewsletterName] = useState('');
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [isNewsletterSubmitted, setIsNewsletterSubmitted] = useState(false);
+
+  // Product Sharing States & Toast
+  const [copiedProductId, setCopiedProductId] = useState<string | null>(null);
+  const [showCopiedToast, setShowCopiedToast] = useState(false);
+  const [copiedToastMessage, setCopiedToastMessage] = useState('Link do produto copiado com sucesso!');
+
+  // Generate share URL for direct deep-linking
+  const getProductShareUrl = (productId: string) => {
+    const origin = typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost')
+      ? window.location.origin
+      : 'https://www.apmodafitness2.com.br';
+    return `${origin}/?p=${productId}`;
+  };
+
+  const handleCopyProductLink = async (product: Product, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const shareUrl = getProductShareUrl(product.id);
+    
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        const input = document.createElement('input');
+        input.value = shareUrl;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+      }
+    } catch (err) {
+      const input = document.createElement('input');
+      input.value = shareUrl;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+    }
+
+    setCopiedProductId(product.id);
+    setCopiedToastMessage(`Link de "${product.name}" copiado!`);
+    setShowCopiedToast(true);
+    setTimeout(() => {
+      setCopiedProductId(null);
+      setShowCopiedToast(false);
+    }, 3200);
+  };
+
+  const handleShareWhatsApp = (product: Product, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const shareUrl = getProductShareUrl(product.id);
+    const message = `Confira *${product.name}* na AP2 Moda Fitness! 🛍️✨\n*Preço:* R$ ${product.price.toFixed(2).replace('.', ',')}\n\nVeja as fotos e garanta o seu aqui:\n${shareUrl}`;
+    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+    window.open(waUrl, '_blank');
+  };
+
+  const handleNativeShare = async (product: Product, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const shareUrl = getProductShareUrl(product.id);
+    const shareTitle = `${product.name} | AP2 Moda Fitness`;
+    const shareText = `Confira ${product.name} na AP2 Moda Fitness! 🛍️✨`;
+
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: shareUrl
+        });
+        return;
+      } catch (err) {
+        // user cancelled or share failed, fallback to copy
+      }
+    }
+    handleCopyProductLink(product, e);
+  };
+
+  // Auto-open product modal if URL contains ?p=ID, ?produto=ID or #p-ID
+  useEffect(() => {
+    if (!products || products.length === 0) return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramProductId = urlParams.get('p') || urlParams.get('produto') || urlParams.get('product') || urlParams.get('id');
+    
+    let targetId = paramProductId;
+    if (!targetId && window.location.hash) {
+      const hashMatch = window.location.hash.match(/^#(?:p|produto)-(.+)$/i);
+      if (hashMatch) {
+        targetId = hashMatch[1];
+      }
+    }
+
+    if (targetId) {
+      const foundProduct = products.find(p => 
+        String(p.id).toLowerCase() === String(targetId).toLowerCase() ||
+        (p.sku && String(p.sku).toLowerCase() === String(targetId).toLowerCase())
+      );
+
+      if (foundProduct) {
+        setSelectedProduct(foundProduct);
+        try {
+          window.scrollTo({ top: 350, behavior: 'smooth' });
+        } catch (e) {}
+      }
+    }
+  }, [products]);
+
+  // Keep URL search params updated when selecting or closing product modal
+  useEffect(() => {
+    if (selectedProduct) {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('p', selectedProduct.id);
+        window.history.replaceState(null, '', url.toString());
+      } catch (e) {}
+    } else {
+      try {
+        const url = new URL(window.location.href);
+        if (url.searchParams.has('p') || url.searchParams.has('produto') || url.searchParams.has('product') || url.searchParams.has('id')) {
+          url.searchParams.delete('p');
+          url.searchParams.delete('produto');
+          url.searchParams.delete('product');
+          url.searchParams.delete('id');
+          const newUrl = url.searchParams.toString() 
+            ? `${url.pathname}?${url.searchParams.toString()}${url.hash}`
+            : `${url.pathname}${url.hash}`;
+          window.history.replaceState(null, '', newUrl);
+        }
+      } catch (e) {}
+    }
+  }, [selectedProduct]);
 
   // UX Optimizations States
   const [selectedSizesFilter, setSelectedSizesFilter] = useState<string[]>([]);
@@ -4036,8 +4170,19 @@ export default function PublicCatalog({
                         }}
                         className={`absolute top-3.5 right-3.5 bg-white/90 backdrop-blur-xs p-2 rounded-full shadow-xs hover:scale-110 active:scale-95 transition
                           ${isItemLiked ? 'text-pink-600' : 'text-slate-400 hover:text-pink-600'}`}
+                        title="Favoritar"
                       >
                         <Heart size={14} className={isItemLiked ? 'fill-pink-600 text-pink-600' : ''} />
+                      </button>
+
+                      {/* Quick Share Link button overlay */}
+                      <button 
+                        type="button"
+                        onClick={(e) => handleNativeShare(prod, e)}
+                        className="absolute top-3.5 right-12 bg-white/90 backdrop-blur-xs p-2 rounded-full shadow-xs hover:scale-110 active:scale-95 transition text-slate-500 hover:text-[#1E3A42]"
+                        title="Compartilhar produto"
+                      >
+                        <Share2 size={14} />
                       </button>
 
                       {/* Video Play preview Overlay if product is recorded */}
@@ -4568,6 +4713,53 @@ export default function PublicCatalog({
                         </>
                       )}
                     </button>
+                  </div>
+
+                  {/* COMPARTILHAR PRODUTO COM CLIENTES / REDES SOCIAIS */}
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 space-y-2 text-left">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Share2 size={13} className="text-[#1E3A42]" />
+                        <span className="text-[10.5px] font-extrabold uppercase tracking-widest text-slate-800">
+                          Compartilhar este Produto
+                        </span>
+                      </div>
+                      <span className="text-[9px] bg-slate-200/80 text-slate-600 px-2 py-0.5 rounded-full font-bold">Link Direto</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-snug">
+                      Gere o link individual deste produto para enviar para suas clientes no WhatsApp ou publicar nas redes sociais.
+                    </p>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={(e) => handleCopyProductLink(selectedProduct, e)}
+                        className="flex-1 py-2 px-3 bg-white hover:bg-slate-100 text-slate-800 font-extrabold text-[10px] uppercase tracking-wider rounded-xl border border-slate-200 shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                      >
+                        <Link2 size={13} className="text-[#1E3A42]" />
+                        <span>{copiedProductId === selectedProduct.id ? 'Link Copiado! ✓' : 'Copiar Link'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => handleShareWhatsApp(selectedProduct, e)}
+                        className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl border-none shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                      >
+                        <MessageCircle size={13} />
+                        <span>WhatsApp</span>
+                      </button>
+
+                      {typeof navigator !== 'undefined' && navigator.share && (
+                        <button
+                          type="button"
+                          onClick={(e) => handleNativeShare(selectedProduct, e)}
+                          className="py-2 px-3 bg-[#1E3A42] hover:bg-[#1E3A42]/90 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl border-none shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                          title="Mais opções de compartilhamento (Instagram, redes)"
+                        >
+                          <Share2 size={13} />
+                          <span>Redes</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* ALERTA DE REPOSIÇÃO & URGÊNCIA DE ESTOQUE ESGOTADO */}
@@ -6260,6 +6452,19 @@ export default function PublicCatalog({
             <div className="p-4 border-t border-slate-100 bg-slate-50 text-[10px] text-slate-400 text-center">
               <span>{storeName} • Todos os direitos reservados.</span>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Share Toast Notification */}
+      {showCopiedToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[#1E3A42] text-white px-4 py-3 rounded-2xl shadow-2xl border border-white/20 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+            <Check size={16} />
+          </div>
+          <div>
+            <p className="text-xs font-bold leading-tight">{copiedToastMessage}</p>
+            <p className="text-[10px] text-slate-300 font-medium">Link pronto para colar e enviar para clientes ou redes!</p>
           </div>
         </div>
       )}
