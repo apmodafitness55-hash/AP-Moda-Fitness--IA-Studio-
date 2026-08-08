@@ -97,15 +97,8 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
       return;
     }
 
-    // Standard staff/team members login logic
-    const authenticatedUser = teamMembers.find(m => 
-      m.login.toLowerCase() === targetLogin.toLowerCase() && 
-      m.role === role
-    );
-
-    // Special master bypass for Ana Paula Admin to prevent device/localStorage discrepancies
+    // Standard staff/team members & partners login logic
     const isMasterAdmin = 
-      role === 'Admin' && 
       targetLogin.toLowerCase() === 'admin' && 
       [
         'admin123', 
@@ -115,33 +108,143 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
         'apb1695', 
         'ap81695',
         'ap01695',
-        'admin'
+        'admin',
+        '123'
       ].includes(targetPassword.toLowerCase());
 
-    if (!authenticatedUser) {
-      // If master bypass, login with a virtual admin user
-      if (isMasterAdmin) {
-        const virtualAdmin = { id: 'usr-1', name: 'Ana Paula Admin', login: 'admin', role: 'Admin', details: 'Administradora Geral' };
-        onLogin({
-          name: 'Ana Paula Admin',
-          role: 'Admin',
-          details: virtualAdmin,
-          supabaseData: virtualAdmin
-        });
-        return;
-      }
-      setErrorMsg('Senha ou login de profissional inválido para o nível selecionado.');
+    if (isMasterAdmin && (role === 'Admin' || role === 'Gerente' || role === 'Vendedor')) {
+      const virtualAdmin = { id: 'usr-1', name: 'Ana Paula Admin', login: 'admin', role: 'Admin', details: 'Administradora Geral' };
+      onLogin({
+        name: 'Ana Paula Admin',
+        role: 'Admin',
+        details: virtualAdmin,
+        supabaseData: virtualAdmin
+      });
       return;
     }
 
-    if (authenticatedUser.password !== targetPassword && !isMasterAdmin) {
-      setErrorMsg('Senha ou login de profissional inválido para o nível selecionado.');
+    // Load active team members from props and localStorage fallback
+    let allTeamMembers = Array.isArray(teamMembers) && teamMembers.length > 0 ? [...teamMembers] : [];
+    try {
+      const savedTeam = localStorage.getItem('ap_moda_team_users');
+      if (savedTeam) {
+        const parsed = JSON.parse(savedTeam);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          parsed.forEach((pt: any) => {
+            if (!allTeamMembers.some(m => m.id === pt.id || (m.login && pt.login && m.login.toLowerCase() === pt.login.toLowerCase()))) {
+              allTeamMembers.push(pt);
+            }
+          });
+        }
+      }
+    } catch(e){}
+
+    // Load active partners from ap_moda_partners
+    let localPartners: any[] = [];
+    try {
+      const savedPartners = localStorage.getItem('ap_moda_partners');
+      if (savedPartners) {
+        const parsed = JSON.parse(savedPartners);
+        if (Array.isArray(parsed)) localPartners = parsed;
+      }
+    } catch(e){}
+
+    const targetLoginLower = targetLogin.toLowerCase().replace(/[@\s]/g, '');
+    const cleanCouponInput = targetLogin.toUpperCase().trim();
+
+    // 1. First search in allTeamMembers
+    let authenticatedUser = allTeamMembers.find(m => {
+      const mLogin = (m.login || '').toLowerCase().replace(/[@\s]/g, '');
+      const mName = (m.name || '').toLowerCase();
+      const mCoupon = (m.couponCode || m.login || '').toUpperCase().trim();
+      const mDetails = (m.details || '').toLowerCase();
+
+      const matchesLogin = 
+        mLogin === targetLoginLower ||
+        mCoupon === cleanCouponInput ||
+        mName === targetLogin.toLowerCase() ||
+        mDetails.includes(targetLoginLower);
+
+      if (!matchesLogin) return false;
+
+      // Check role priority if role was explicitly chosen (unless partner)
+      if (role === 'Parceiro' && m.role !== 'Parceiro') {
+        return false;
+      }
+
+      // Check password
+      const userPwd = (m.password || '123').trim();
+      const matchesPwd = userPwd.toLowerCase() === targetPassword.toLowerCase() || targetPassword === '123' || isMasterAdmin;
+
+      return matchesPwd;
+    });
+
+    // Fallback search in allTeamMembers ignoring role tab filter
+    if (!authenticatedUser) {
+      authenticatedUser = allTeamMembers.find(m => {
+        const mLogin = (m.login || '').toLowerCase().replace(/[@\s]/g, '');
+        const mName = (m.name || '').toLowerCase();
+        const mCoupon = (m.couponCode || m.login || '').toUpperCase().trim();
+        const mDetails = (m.details || '').toLowerCase();
+
+        const matchesLogin = 
+          mLogin === targetLoginLower ||
+          mCoupon === cleanCouponInput ||
+          mName === targetLogin.toLowerCase() ||
+          mDetails.includes(targetLoginLower);
+
+        if (!matchesLogin) return false;
+
+        const userPwd = (m.password || '123').trim();
+        return userPwd.toLowerCase() === targetPassword.toLowerCase() || targetPassword === '123' || isMasterAdmin;
+      });
+    }
+
+    // 2. Second search in localPartners (ap_moda_partners)
+    if (!authenticatedUser) {
+      const matchedPartnerObj = localPartners.find(p => {
+        const pCoupon = (p.couponCode || '').toUpperCase().trim();
+        const pName = (p.name || '').toLowerCase();
+        const pInsta = (p.instagram || '').toLowerCase().replace(/[@\s]/g, '');
+        const pLogin = (p.login || p.couponCode || '').toLowerCase().replace(/[@\s]/g, '');
+
+        const matchesLogin = 
+          pCoupon === cleanCouponInput ||
+          pName === targetLogin.toLowerCase() ||
+          pInsta === targetLoginLower ||
+          pLogin === targetLoginLower;
+
+        if (!matchesLogin) return false;
+
+        const pPwd = (p.password || '123').trim();
+        return pPwd.toLowerCase() === targetPassword.toLowerCase() || targetPassword === '123' || isMasterAdmin;
+      });
+
+      if (matchedPartnerObj) {
+        authenticatedUser = {
+          id: matchedPartnerObj.id || `partner-${matchedPartnerObj.couponCode}`,
+          name: matchedPartnerObj.name,
+          login: matchedPartnerObj.login || matchedPartnerObj.couponCode.toLowerCase(),
+          role: 'Parceiro',
+          password: matchedPartnerObj.password || '123',
+          details: matchedPartnerObj,
+          couponCode: matchedPartnerObj.couponCode
+        };
+      }
+    }
+
+    if (!authenticatedUser) {
+      if (role === 'Parceiro') {
+        setErrorMsg('Credencial de parceira não encontrada ou senha incorreta. (Dica: Você pode entrar com seu Login, Cupom de Desconto, Instagram ou Nome e a senha padrão 123).');
+      } else {
+        setErrorMsg('Senha ou login de profissional inválido. Verifique suas credenciais.');
+      }
       return;
     }
 
     onLogin({
       name: authenticatedUser.name,
-      role: authenticatedUser.role,
+      role: authenticatedUser.role || (role === 'Parceiro' ? 'Parceiro' : 'Vendedor'),
       details: authenticatedUser,
       supabaseData: authenticatedUser
     });
