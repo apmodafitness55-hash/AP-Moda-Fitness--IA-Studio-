@@ -23,7 +23,7 @@ export function getStoreConfig(): StoreConfig {
   let state = (localStorage.getItem('ap_store_state') || 'RN').trim();
   let phone = (localStorage.getItem('ap_store_phone') || '(84) 99198-2963').trim();
   const pixKey = (localStorage.getItem('ap_pix_key') || '67.074.681/0001-03').trim();
-  const footer = (localStorage.getItem('ap_store_footer') || 'Obrigado por escolher a AP Moda Fitness! Peças lindas que elevam seu treino. Siga-nos no Instagram: @ap_moda_fitness2').trim();
+  const footer = (localStorage.getItem('ap_store_footer') || 'Obrigado por escolher a AP2 Moda Fitness! Peças lindas que elevam seu treino. Siga-nos no Instagram: @ap2_moda_fitness').trim();
   const logoUrl = (localStorage.getItem('ap_store_logo') || 'https://i.ibb.co/n8YXgr1x/1000584197-png.png').trim();
 
   // Clean out legacy mock data if present
@@ -59,6 +59,6 @@ export function getStoreConfig(): StoreConfig {
     pixKey,
     footer,
     logoUrl,
-    instagram: '@ap_moda_fitness2'
+    instagram: '@ap2_moda_fitness'
   };
 }
