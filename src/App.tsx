@@ -114,6 +114,16 @@ export default function App() {
             }
             return m;
           });
+
+          // Ensure Patricia Cardoso & core partners exist on all devices
+          const mandatoryUsers = [
+            { id: 'usr-14', name: 'Patricia Cardoso', login: 'patriciacardoso', role: 'Parceiro', password: 'Patricia123', couponCode: 'PATRICIA10', details: 'Parceira Influenciadora (@patriciacardoso)' }
+          ];
+          mandatoryUsers.forEach(mu => {
+            if (!parsed.some(m => m.login && m.login.toLowerCase() === mu.login.toLowerCase())) {
+              parsed.push(mu);
+            }
+          });
         }
       } catch (err) {
         parsed = null;
@@ -130,6 +140,7 @@ export default function App() {
       { id: 'usr-7', name: 'Marina Fitness Coach', login: 'marina', role: 'Parceiro', password: '123', details: 'Influenciadora Fitness (@marina_fit)', createdAt: '2026-06-15T12:15:00Z', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&auto=format&fit=crop&q=80' },
       { id: 'usr-8', name: 'Julia Rezende', login: 'jurezende', role: 'Parceiro', password: '123', details: 'Parceira de Estilo (@jurezendedm)', createdAt: '2026-06-15T12:17:00Z', avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80' },
       { id: 'usr-9', name: 'Amanda Runner', login: 'amanda', role: 'Parceiro', password: '123', details: 'Parceira Corrida (@amandarun)', createdAt: '2026-06-15T12:19:00Z', avatar: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=150&auto=format&fit=crop&q=80' },
+      { id: 'usr-14', name: 'Patricia Cardoso', login: 'patriciacardoso', role: 'Parceiro', password: 'Patricia123', couponCode: 'PATRICIA10', details: 'Parceira Influenciadora (@patriciacardoso)', createdAt: '2026-06-15T12:19:30Z', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' },
       { id: 'usr-10', name: 'Bruno Ramos (Moto 1)', login: 'bruno', role: 'Entregador', password: '123', details: 'Entregador Zona Sul', createdAt: '2026-06-15T12:20:00Z', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80' },
       { id: 'usr-11', name: 'Lucas Correia (Moto 2)', login: 'lucas', role: 'Entregador', password: '123', details: 'Entregador Zona Norte', createdAt: '2026-06-15T12:22:00Z', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80' },
       { id: 'usr-12', name: 'Thales Silva (Bike/Região Central)', login: 'thales', role: 'Entregador', password: '123', details: 'Entregador Centro', createdAt: '2026-06-15T12:24:00Z', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80' },
@@ -163,41 +174,65 @@ export default function App() {
     setMotoboys(extMotoboys);
     localStorage.setItem('ap_moda_motoboys', JSON.stringify(extMotoboys));
 
-    // Update partners (influencers list) in localStorage
+    // Update partners (influencers list) in localStorage safely without losing existing partners
     try {
+      const defaultPartnersList = [
+        { id: 'part-1', name: 'Marina Fitness Coach', login: 'marina', instagram: '@marina_fit', couponCode: 'MARINAFIT10', commissionRate: 10, salesCount: 15, totalGenerated: 4250.00, availableBalance: 425.00 },
+        { id: 'part-2', name: 'Julia Rezende', login: 'jurezende', instagram: '@jurezendedm', couponCode: 'JU10', commissionRate: 8, salesCount: 8, totalGenerated: 1890.00, availableBalance: 151.20 },
+        { id: 'part-3', name: 'Amanda Runner', login: 'amanda', instagram: '@amandarun', couponCode: 'AMANDAPRO', commissionRate: 12, salesCount: 22, totalGenerated: 6200.00, availableBalance: 744.00 },
+        { id: 'part-4', name: 'Patricia Cardoso', login: 'patriciacardoso', instagram: '@patriciacardoso', couponCode: 'PATRICIA10', password: 'Patricia123', commissionRate: 10, salesCount: 5, totalGenerated: 1200.00, availableBalance: 120.00 }
+      ];
+
       const savedPartners = localStorage.getItem('ap_moda_partners');
-      const currentPartnersList = savedPartners ? JSON.parse(savedPartners) : [];
+      let currentPartnersList: any[] = savedPartners ? JSON.parse(savedPartners) : [];
+
+      if (!Array.isArray(currentPartnersList) || currentPartnersList.length === 0) {
+        currentPartnersList = defaultPartnersList;
+      }
+
+      const updatedPartnersList = [...currentPartnersList];
       let changed = false;
 
-      const teamPartners = teamMembers.filter(m => m.role === 'Parceiro');
-      const updatedPartnersList = [...currentPartnersList];
+      // Always ensure default partners exist
+      defaultPartnersList.forEach(dp => {
+        if (!updatedPartnersList.some(p => p.id === dp.id || p.name.toLowerCase() === dp.name.toLowerCase() || p.couponCode.toUpperCase() === dp.couponCode.toUpperCase())) {
+          updatedPartnersList.push(dp);
+          changed = true;
+        }
+      });
 
+      // Merge teamMembers with role === 'Parceiro'
+      const teamPartners = teamMembers.filter(m => m.role === 'Parceiro');
       teamPartners.forEach(tp => {
-        const index = updatedPartnersList.findIndex(p => p.name === tp.name);
-        if (index === -1) {
+        const existing = updatedPartnersList.find(p => p.id === tp.id || p.name.toLowerCase() === tp.name.toLowerCase() || (tp.login && p.couponCode.toLowerCase() === tp.login.toLowerCase()));
+        if (!existing) {
           updatedPartnersList.push({
             id: tp.id,
             name: tp.name,
+            login: tp.login,
+            password: tp.password || '123',
             instagram: tp.details || '@' + tp.login,
-            couponCode: tp.login.toUpperCase() + '10',
+            couponCode: (tp.couponCode || tp.login).toUpperCase() + (tp.couponCode ? '' : '10'),
             commissionRate: 10,
             salesCount: 0,
             totalGenerated: 0,
             availableBalance: 0
           });
           changed = true;
+        } else {
+          if (tp.password && existing.password !== tp.password) {
+            existing.password = tp.password;
+            changed = true;
+          }
+          if (tp.login && existing.login !== tp.login) {
+            existing.login = tp.login;
+            changed = true;
+          }
         }
       });
 
-      // Prune partners that no longer exist in team
-      const activePartnerNames = teamPartners.map(tp => tp.name);
-      const filtered = updatedPartnersList.filter(p => activePartnerNames.includes(p.name));
-      if (filtered.length !== currentPartnersList.length) {
-        changed = true;
-      }
-
-      if (changed || currentPartnersList.length === 0) {
-        localStorage.setItem('ap_moda_partners', JSON.stringify(filtered));
+      if (changed || !savedPartners) {
+        localStorage.setItem('ap_moda_partners', JSON.stringify(updatedPartnersList));
       }
     } catch (e) {
       console.error(e);
@@ -250,7 +285,7 @@ export default function App() {
       if (match) {
         if (
           match.name !== currentUser.name ||
-          match.role !== currentUser.role ||
+          (match.role && match.role !== currentUser.role && currentUser.role !== 'Parceiro') ||
           match.avatar !== currentUser.avatar ||
           match.password !== currentUser.password
         ) {
@@ -260,7 +295,7 @@ export default function App() {
             id: match.id,
             login: match.login,
             name: match.name,
-            role: match.role,
+            role: currentUser.role === 'Parceiro' ? 'Parceiro' : (match.role || currentUser.role),
             avatar: match.avatar,
             password: match.password,
             details: match,
