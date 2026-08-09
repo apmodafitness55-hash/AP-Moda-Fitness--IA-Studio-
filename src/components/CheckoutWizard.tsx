@@ -1264,8 +1264,13 @@ export function CheckoutWizard({
                           <Tag size={14} className="text-emerald-600 flex-shrink-0" />
                           <div>
                             <span className="text-xs font-black text-emerald-800 uppercase font-mono">{appliedCoupon.code}</span>
-                            <span className="text-[9.5px] text-emerald-600 font-bold block">
-                              {appliedCoupon.discountPercent > 0 ? `${appliedCoupon.discountPercent}% OFF aplicado` : `R$ ${appliedCoupon.fixedDiscount.toFixed(2)} OFF aplicado`}
+                            <span className="text-[9.5px] text-emerald-600 font-bold block flex items-center gap-1.5 flex-wrap">
+                              <span>{appliedCoupon.discountPercent > 0 ? `${appliedCoupon.discountPercent}% OFF aplicado` : `R$ ${appliedCoupon.fixedDiscount.toFixed(2)} OFF aplicado`}</span>
+                              {appliedCoupon.category && !['todas', 'todas as categorias', 'livre', 'geral', ''].includes(appliedCoupon.category.toLowerCase()) && (
+                                <span className="bg-emerald-100 text-emerald-900 text-[8px] font-black px-1.5 py-0.5 rounded uppercase">
+                                  🎯 {appliedCoupon.category}
+                                </span>
+                              )}
                             </span>
                           </div>
                         </div>

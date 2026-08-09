@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { validateCouponForCpf, Coupon } from '../utils/couponUtils';
+import { validateCouponForCpf, calculateEligibleCouponDiscount, Coupon } from '../utils/couponUtils';
 import { 
   ShoppingBag, 
   Search, 
@@ -2584,7 +2584,7 @@ export default function PublicCatalog({
     setTimeout(() => {
       setIsApplyingCoupon(false);
 
-      const valResult = validateCouponForCpf(cleanCode, clientCpf, sales, onlineOrders);
+      const valResult = validateCouponForCpf(cleanCode, clientCpf, sales, onlineOrders, cart);
       if (!valResult.valid) {
         setCouponError(valResult.message || 'Cupom inválido para este CPF.');
         return;
@@ -2599,6 +2599,7 @@ export default function PublicCatalog({
           code: couponObj.code,
           discountPercent,
           fixedDiscount,
+          category: couponObj.category,
           maxPerCpf: couponObj.maxPerCpf ?? 1,
           isFirstPurchase: couponObj.isFirstPurchase ?? false
         });
@@ -2629,19 +2630,16 @@ export default function PublicCatalog({
     } catch (e) {}
   };
 
-  // Re-validate applied coupon whenever clientCpf, sales, or onlineOrders change
+  // Re-validate applied coupon whenever clientCpf, sales, onlineOrders, or cart change
   useEffect(() => {
     if (!appliedCoupon) return;
-    const cleanCpfDigits = (clientCpf || '').replace(/\D/g, '');
-    if (cleanCpfDigits.length === 11) {
-      const valResult = validateCouponForCpf(appliedCoupon.code, clientCpf, sales, onlineOrders);
-      if (!valResult.valid) {
-        setAppliedCoupon(null);
-        setCouponError(valResult.message || 'Cupom removido: inválido para o CPF informado.');
-        setCouponSuccess(null);
-      }
+    const valResult = validateCouponForCpf(appliedCoupon.code, clientCpf, sales, onlineOrders, cart);
+    if (!valResult.valid) {
+      setAppliedCoupon(null);
+      setCouponError(valResult.message || 'Cupom removido: requisitos de uso não atendidos.');
+      setCouponSuccess(null);
     }
-  }, [clientCpf, sales, onlineOrders]);
+  }, [clientCpf, sales, onlineOrders, cart]);
 
   // Computations
   const suggestedProduct = useMemo(() => {
@@ -2694,11 +2692,9 @@ export default function PublicCatalog({
 
   const cartDiscount = useMemo(() => {
     if (!appliedCoupon) return 0;
-    if (appliedCoupon.discountPercent > 0) {
-      return Number(((cartSubtotal * appliedCoupon.discountPercent) / 100).toFixed(2));
-    }
-    return Math.min(cartSubtotal, appliedCoupon.fixedDiscount);
-  }, [appliedCoupon, cartSubtotal]);
+    const { discountAmount } = calculateEligibleCouponDiscount(appliedCoupon, cart, suggestedProduct);
+    return discountAmount;
+  }, [appliedCoupon, cart, suggestedProduct]);
 
   // Load payment configs dynamically from local storage
   const paymentConfig = useMemo(() => {

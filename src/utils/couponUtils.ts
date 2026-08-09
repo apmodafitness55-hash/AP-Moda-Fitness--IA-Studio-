@@ -8,13 +8,16 @@ export interface Coupon {
   validUntil: string;
   maxPerCpf?: number; // 1 = Apenas 1 vez por CPF (default), 2 = No máximo 2 vezes por CPF, 0 = Sem limite por CPF
   isFirstPurchase?: boolean;
+  category?: string; // Ex: "Macacões", "Leggings", "Tops", "Shorts", "Conjuntos" ou "Todas" / undefined
 }
 
 export const DEFAULT_COUPONS: Coupon[] = [
-  { code: 'PRIMEIRACOMPRA', type: 'percent', value: 10, minPurchase: 0, limitUses: 1000, usedCount: 12, validUntil: '2026-12-31', maxPerCpf: 1, isFirstPurchase: true },
-  { code: 'FITNESS10', type: 'percent', value: 10, minPurchase: 150, limitUses: 100, usedCount: 32, validUntil: '2026-06-30', maxPerCpf: 1 },
-  { code: 'BEMVINDA50', type: 'fixed', value: 50, minPurchase: 300, limitUses: 50, usedCount: 15, validUntil: '2026-07-15', maxPerCpf: 1 },
-  { code: 'FRETEGRATIS', type: 'percent', value: 0, minPurchase: 399, limitUses: 500, usedCount: 88, validUntil: '2026-12-31', maxPerCpf: 0 }
+  { code: 'PRIMEIRACOMPRA', type: 'percent', value: 10, minPurchase: 0, limitUses: 1000, usedCount: 12, validUntil: '2026-12-31', maxPerCpf: 1, isFirstPurchase: true, category: 'Todas' },
+  { code: 'FITNESS10', type: 'percent', value: 10, minPurchase: 150, limitUses: 100, usedCount: 32, validUntil: '2026-06-30', maxPerCpf: 1, category: 'Todas' },
+  { code: 'BEMVINDA50', type: 'fixed', value: 50, minPurchase: 300, limitUses: 50, usedCount: 15, validUntil: '2026-07-15', maxPerCpf: 1, category: 'Todas' },
+  { code: 'FRETEGRATIS', type: 'percent', value: 0, minPurchase: 399, limitUses: 500, usedCount: 88, validUntil: '2026-12-31', maxPerCpf: 0, category: 'Todas' },
+  { code: 'MACACAO20', type: 'percent', value: 20, minPurchase: 0, limitUses: 100, usedCount: 5, validUntil: '2026-12-31', maxPerCpf: 1, category: 'Macacões' },
+  { code: 'LEGGING15', type: 'percent', value: 15, minPurchase: 0, limitUses: 100, usedCount: 8, validUntil: '2026-12-31', maxPerCpf: 1, category: 'Leggings' }
 ];
 
 export function getStoredCoupons(): Coupon[] {
@@ -46,7 +49,8 @@ export function validateCouponForCpf(
   code: string,
   rawCpf: string | undefined,
   sales: any[] = [],
-  onlineOrders: any[] = []
+  onlineOrders: any[] = [],
+  cartItems: any[] = []
 ): { valid: boolean; message?: string; couponObj?: Coupon } {
   const cleanCode = code.trim().toUpperCase();
   if (!cleanCode) {
@@ -72,7 +76,8 @@ export function validateCouponForCpf(
         usedCount: 0,
         validUntil: '2026-12-31',
         maxPerCpf: 1,
-        isFirstPurchase: true
+        isFirstPurchase: true,
+        category: 'Todas'
       };
     } else if (['CLIENTEVIP', 'FIDELIDADE5'].includes(cleanCode)) {
       matchedCoupon = {
@@ -83,7 +88,8 @@ export function validateCouponForCpf(
         limitUses: 1000,
         usedCount: 0,
         validUntil: '2026-12-31',
-        maxPerCpf: 1
+        maxPerCpf: 1,
+        category: 'Todas'
       };
     } else if (['FITNESS10', 'VERAO10', 'QUERO10'].includes(cleanCode)) {
       matchedCoupon = {
@@ -94,7 +100,8 @@ export function validateCouponForCpf(
         limitUses: 1000,
         usedCount: 0,
         validUntil: '2026-12-31',
-        maxPerCpf: 1
+        maxPerCpf: 1,
+        category: 'Todas'
       };
     } else if (['BEMVINDA50', 'MODAFIT50'].includes(cleanCode)) {
       matchedCoupon = {
@@ -105,7 +112,8 @@ export function validateCouponForCpf(
         limitUses: 1000,
         usedCount: 0,
         validUntil: '2026-12-31',
-        maxPerCpf: 1
+        maxPerCpf: 1,
+        category: 'Todas'
       };
     } else if (cleanCode === 'FRETEGRATIS') {
       matchedCoupon = {
@@ -116,7 +124,8 @@ export function validateCouponForCpf(
         limitUses: 1000,
         usedCount: 0,
         validUntil: '2026-12-31',
-        maxPerCpf: 0
+        maxPerCpf: 0,
+        category: 'Todas'
       };
     } else if (['APMODAFIT', 'APMODAFITNESS'].includes(cleanCode)) {
       matchedCoupon = {
@@ -127,13 +136,35 @@ export function validateCouponForCpf(
         limitUses: 1000,
         usedCount: 0,
         validUntil: '2026-12-31',
-        maxPerCpf: 1
+        maxPerCpf: 1,
+        category: 'Todas'
       };
     }
   }
 
   if (!matchedCoupon) {
     return { valid: false, message: `Este cupom promocional (${cleanCode}) é inválido ou expirou.` };
+  }
+
+  // Check Category Restriction if specified (and not 'Todas' / 'Livre')
+  const reqCategory = matchedCoupon.category?.trim();
+  if (reqCategory && !['todas', 'todas as categorias', 'livre', 'geral', ''].includes(reqCategory.toLowerCase())) {
+    if (cartItems && cartItems.length > 0) {
+      const targetCat = reqCategory.toLowerCase();
+      const hasMatchingItem = cartItems.some((item: any) => {
+        const itemCat = (item.product?.category || item.category || '').toString().trim().toLowerCase();
+        const itemName = (item.product?.name || item.name || '').toString().trim().toLowerCase();
+        return itemCat.includes(targetCat) || targetCat.includes(itemCat) || itemName.includes(targetCat);
+      });
+
+      if (!hasMatchingItem) {
+        return {
+          valid: false,
+          message: `⚠️ O cupom ${cleanCode} é exclusivo para a categoria "${reqCategory}". Adicione um produto desta categoria ao seu carrinho para aproveitar o desconto.`,
+          couponObj: matchedCoupon
+        };
+      }
+    }
   }
 
   const maxPerCpf = matchedCoupon.maxPerCpf ?? 1;
@@ -193,4 +224,69 @@ export function validateCouponForCpf(
   }
 
   return { valid: true, couponObj: matchedCoupon };
+}
+
+export function calculateEligibleCouponDiscount(
+  appliedCoupon: {
+    code: string;
+    discountPercent?: number;
+    fixedDiscount?: number;
+    category?: string;
+  } | null | undefined,
+  cartItems: any[] = [],
+  suggestedProduct?: any
+): { discountAmount: number; eligibleSubtotal: number; isCategoryRestricted: boolean; categoryName?: string } {
+  if (!appliedCoupon) {
+    return { discountAmount: 0, eligibleSubtotal: 0, isCategoryRestricted: false };
+  }
+
+  const reqCategory = appliedCoupon.category?.trim();
+  const categoryConstraint = reqCategory && !['todas', 'todas as categorias', 'livre', 'geral', ''].includes(reqCategory.toLowerCase())
+    ? reqCategory
+    : null;
+
+  let totalCartSubtotal = 0;
+  let eligibleSubtotal = 0;
+
+  cartItems.forEach((item: any) => {
+    const isUpsellItem = item.isUpsell || (suggestedProduct && item.product?.id === suggestedProduct?.id);
+    const itemPrice = isUpsellItem && item.product?.price
+      ? item.product.price * 0.9
+      : (item.priceAtTime ?? item.price ?? item.product?.price ?? 0);
+    const itemQty = item.quantity ?? item.qty ?? 1;
+    const itemTotal = itemPrice * itemQty;
+
+    totalCartSubtotal += itemTotal;
+
+    if (categoryConstraint) {
+      const targetCat = categoryConstraint.toLowerCase();
+      const itemCat = (item.product?.category || item.category || '').toString().trim().toLowerCase();
+      const itemName = (item.product?.name || item.name || '').toString().trim().toLowerCase();
+
+      if (itemCat.includes(targetCat) || targetCat.includes(itemCat) || itemName.includes(targetCat)) {
+        eligibleSubtotal += itemTotal;
+      }
+    } else {
+      eligibleSubtotal += itemTotal;
+    }
+  });
+
+  const baseForDiscount = categoryConstraint ? eligibleSubtotal : totalCartSubtotal;
+  let discountAmount = 0;
+
+  const percent = appliedCoupon.discountPercent ?? 0;
+  const fixed = appliedCoupon.fixedDiscount ?? 0;
+
+  if (percent > 0) {
+    discountAmount = Number(((baseForDiscount * percent) / 100).toFixed(2));
+  } else if (fixed > 0) {
+    discountAmount = Math.min(baseForDiscount, fixed);
+  }
+
+  return {
+    discountAmount,
+    eligibleSubtotal: baseForDiscount,
+    isCategoryRestricted: Boolean(categoryConstraint && eligibleSubtotal > 0),
+    categoryName: categoryConstraint || undefined
+  };
 }

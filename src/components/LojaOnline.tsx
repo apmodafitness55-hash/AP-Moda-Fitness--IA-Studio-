@@ -41,6 +41,7 @@ import AbandonedCarts from './AbandonedCarts';
 import { pushSystemConfigToSupabase } from '../supabase';
 import ImageUploader from './ImageUploader';
 import { MarketingSalesHub } from './MarketingSalesHub';
+import { Coupon, getStoredCoupons, saveStoredCoupons } from '../utils/couponUtils';
 
 interface LojaOnlineProps {
   products: Product[];
@@ -280,7 +281,73 @@ export default function LojaOnline({
   const [newProdColors, setNewProdColors] = useState<string[]>(['Preto', 'Bordô']);
 
   const [isSavingConfigs, setIsSavingConfigs] = useState(false);
-  const [activeConfigTab, setActiveConfigTab] = useState<'textos' | 'banners' | 'categorias' | 'cadastro' | 'estoque'>('textos');
+  const [activeConfigTab, setActiveConfigTab] = useState<'textos' | 'banners' | 'categorias' | 'cupons' | 'cadastro' | 'estoque'>('textos');
+
+  // Coupons Manager State
+  const [couponsList, setCouponsList] = useState<Coupon[]>(() => getStoredCoupons());
+  const [newCouponCode, setNewCouponCode] = useState('');
+  const [newCouponType, setNewCouponType] = useState<'percent' | 'fixed'>('percent');
+  const [newCouponValue, setNewCouponValue] = useState<string>('15');
+  const [newCouponCategory, setNewCouponCategory] = useState<string>('Macacões');
+  const [newCouponMinPurchase, setNewCouponMinPurchase] = useState<string>('0');
+  const [newCouponValidUntil, setNewCouponValidUntil] = useState<string>('2026-12-31');
+  const [newCouponIsFirstPurchase, setNewCouponIsFirstPurchase] = useState<boolean>(false);
+  const [newCouponMaxPerCpf, setNewCouponMaxPerCpf] = useState<number>(1);
+
+  const handleCreateCoupon = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanCode = newCouponCode.trim().toUpperCase();
+    if (!cleanCode) {
+      alert('Por favor, digite o código do cupom!');
+      return;
+    }
+    const val = parseFloat(newCouponValue);
+    if (isNaN(val) || val <= 0) {
+      alert('Por favor, digite um valor válido para o desconto!');
+      return;
+    }
+
+    const couponObj: Coupon = {
+      code: cleanCode,
+      type: newCouponType,
+      value: val,
+      minPurchase: parseFloat(newCouponMinPurchase) || 0,
+      limitUses: 1000,
+      usedCount: 0,
+      validUntil: newCouponValidUntil || '2026-12-31',
+      maxPerCpf: newCouponMaxPerCpf,
+      isFirstPurchase: newCouponIsFirstPurchase,
+      category: newCouponCategory
+    };
+
+    const existingIdx = couponsList.findIndex(c => c.code.toUpperCase() === cleanCode);
+    let updated: Coupon[];
+    if (existingIdx > -1) {
+      updated = [...couponsList];
+      updated[existingIdx] = couponObj;
+    } else {
+      updated = [couponObj, ...couponsList];
+    }
+
+    setCouponsList(updated);
+    saveStoredCoupons(updated);
+
+    const catText = newCouponCategory && newCouponCategory !== 'Todas' 
+      ? `exclusivo para a categoria "${newCouponCategory}"` 
+      : 'válido para todas as peças';
+
+    alert(`✓ Cupom "${cleanCode}" (${newCouponType === 'percent' ? `${val}% OFF` : `R$ ${val} OFF`}) ${catText} criado e ativado com sucesso!`);
+
+    setNewCouponCode('');
+  };
+
+  const handleDeleteCouponFromTab = (codeToDelete: string) => {
+    if (confirm(`Tem certeza que deseja remover o cupom ${codeToDelete}?`)) {
+      const updated = couponsList.filter(c => c.code.toUpperCase() !== codeToDelete.toUpperCase());
+      setCouponsList(updated);
+      saveStoredCoupons(updated);
+    }
+  };
 
   // Customer experience interactive states
   const [selectedDetailProduct, setSelectedDetailProduct] = useState<Product | null>(null);
@@ -1827,6 +1894,13 @@ export default function LojaOnline({
               </button>
               <button
                 type="button"
+                onClick={() => setActiveConfigTab('cupons')}
+                className={`px-3 py-1.5 text-[11px] font-extrabold rounded-lg transition-all cursor-pointer whitespace-nowrap border-none ${activeConfigTab === 'cupons' ? 'bg-white text-pink-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+              >
+                Cupons & Categorias 🏷️
+              </button>
+              <button
+                type="button"
                 onClick={() => setActiveConfigTab('cadastro')}
                 className={`px-3 py-1.5 text-[11px] font-extrabold rounded-lg transition-all cursor-pointer whitespace-nowrap border-none ${activeConfigTab === 'cadastro' ? 'bg-white text-pink-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
               >
@@ -2334,6 +2408,237 @@ export default function LojaOnline({
                 </button>
               </div>
             </form>
+          )}
+
+          {/* Config: Cupons & Categorias */}
+          {activeConfigTab === 'cupons' && (
+            <div className="space-y-6 text-left">
+              <div className="bg-pink-50/60 p-4 rounded-2xl border border-pink-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-xs font-bold text-pink-900 uppercase tracking-wide mb-1 flex items-center gap-1.5">
+                    <Tag size={16} className="text-pink-600" />
+                    <span>Gerenciador de Cupons & Restrição por Categoria</span>
+                  </h4>
+                  <p className="text-[10.5px] text-pink-700 font-medium leading-relaxed">
+                    Crie cupons de desconto direcionados para categorias específicas de roupas (ex: apenas Macacões, Leggings, Tops) ou para toda a loja.
+                  </p>
+                </div>
+                <div className="bg-white px-3 py-1.5 rounded-xl border border-pink-200/80 shadow-2xs text-[10px] text-pink-800 font-extrabold flex items-center gap-2 whitespace-nowrap self-start md:self-auto">
+                  <span>✨ 1 Cupom por Compra (Não cumulativo)</span>
+                </div>
+              </div>
+
+              {/* Form to Create New Coupon */}
+              <form onSubmit={handleCreateCoupon} className="bg-white border border-slate-200/90 rounded-2xl p-4 md:p-5 space-y-4 shadow-2xs">
+                <h5 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-2.5">
+                  <Plus size={14} className="text-pink-600" />
+                  <span>Cadastrar Novo Cupom Promocional</span>
+                </h5>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Código do Cupom *</label>
+                    <input
+                      type="text"
+                      required
+                      value={newCouponCode}
+                      onChange={(e) => setNewCouponCode(e.target.value.toUpperCase().replace(/\s+/g, ''))}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-mono font-black text-pink-600 uppercase focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 focus:outline-none"
+                      placeholder="Ex: MACACAO20"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Tipo de Desconto</label>
+                    <select
+                      value={newCouponType}
+                      onChange={(e) => setNewCouponType(e.target.value as 'percent' | 'fixed')}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 focus:outline-none"
+                    >
+                      <option value="percent">Porcentagem (%)</option>
+                      <option value="fixed">Valor Fixo em Reais (R$)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Valor do Desconto *</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">
+                        {newCouponType === 'percent' ? '%' : 'R$'}
+                      </span>
+                      <input
+                        type="number"
+                        required
+                        step="0.01"
+                        min="0.1"
+                        value={newCouponValue}
+                        onChange={(e) => setNewCouponValue(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-8 pr-3 text-xs font-extrabold text-slate-800 focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 focus:outline-none"
+                        placeholder={newCouponType === 'percent' ? '15' : '50.00'}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-pink-700 uppercase block flex items-center gap-1">
+                      <span>Categoria Direcionada 🎯</span>
+                    </label>
+                    <select
+                      value={newCouponCategory}
+                      onChange={(e) => setNewCouponCategory(e.target.value)}
+                      className="w-full bg-pink-50/50 border border-pink-200 rounded-xl p-2.5 text-xs font-extrabold text-pink-900 focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 focus:outline-none"
+                    >
+                      <option value="Todas">🌐 Todas as Peças (Sem restrição)</option>
+                      <option value="Macacões">🏷️ Apenas Macacões</option>
+                      <option value="Leggings">🏷️ Apenas Leggings / Calças</option>
+                      <option value="Tops">🏷️ Apenas Tops / Croppeds</option>
+                      <option value="Shorts">🏷️ Apenas Shorts / Bermudas</option>
+                      <option value="Conjuntos">🏷️ Apenas Conjuntos Fitness</option>
+                      <option value="Macaquinhos">🏷️ Apenas Macaquinhos</option>
+                      <option value="Blusa Dry-Fit">🏷️ Apenas Blusas Dry-Fit</option>
+                      <option value="Acessórios Fitness">🏷️ Apenas Acessórios</option>
+                      <option value="Moda Praia">🏷️ Apenas Moda Praia / Biquínis</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Compra Mínima (R$)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newCouponMinPurchase}
+                      onChange={(e) => setNewCouponMinPurchase(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 focus:outline-none"
+                      placeholder="0.00"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Data de Validade</label>
+                    <input
+                      type="date"
+                      value={newCouponValidUntil}
+                      onChange={(e) => setNewCouponValidUntil(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block">Limite de Usos por CPF</label>
+                    <select
+                      value={newCouponMaxPerCpf}
+                      onChange={(e) => setNewCouponMaxPerCpf(parseInt(e.target.value) || 1)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 focus:outline-none"
+                    >
+                      <option value={1}>1 uso por CPF (Padrão)</option>
+                      <option value={2}>Até 2 usos por CPF</option>
+                      <option value={3}>Até 3 usos por CPF</option>
+                      <option value={0}>Sem limite de CPF (Uso ilimitado)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                  <label className="flex items-center gap-2 text-xs font-extrabold text-slate-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={newCouponIsFirstPurchase}
+                      onChange={(e) => setNewCouponIsFirstPurchase(e.target.checked)}
+                      className="w-4 h-4 text-pink-600 rounded border-slate-300 focus:ring-pink-500"
+                    />
+                    <span>⭐ Exclusivo para PRIMEIRA COMPRA do cliente (validado via CPF)</span>
+                  </label>
+
+                  <button
+                    type="submit"
+                    className="bg-pink-600 hover:bg-pink-700 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl flex items-center gap-2 transition cursor-pointer shadow-sm border-none w-full sm:w-auto justify-center"
+                  >
+                    <Plus size={14} />
+                    <span>Cadastrar Cupom Promocional</span>
+                  </button>
+                </div>
+              </form>
+
+              {/* Active Coupons List */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <h5 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Tag size={14} className="text-pink-600" />
+                    <span>Cupons Ativos no Sistema ({couponsList.length})</span>
+                  </h5>
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    Sincronizado automaticamente com a Vitrine e Checkout
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {couponsList.map((cup) => {
+                    const isCategoryRestricted = cup.category && !['todas', 'todas as categorias', 'livre', 'geral', ''].includes(cup.category.toLowerCase());
+                    return (
+                      <div key={cup.code} className="bg-white border border-slate-200/90 rounded-2xl p-3.5 space-y-2.5 shadow-2xs hover:border-pink-300 transition relative group">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="text-xs font-black font-mono text-slate-800 uppercase tracking-wider bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg inline-block">
+                              {cup.code}
+                            </span>
+                            <span className="text-xs font-black text-emerald-600 block mt-1">
+                              {cup.type === 'percent' ? `${cup.value}% OFF` : `R$ ${cup.value.toFixed(2)} OFF`}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCouponFromTab(cup.code)}
+                            title="Remover este cupom"
+                            className="text-slate-400 hover:text-rose-600 p-1.5 hover:bg-rose-50 rounded-lg transition cursor-pointer border-none"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+
+                        {/* Category Badge */}
+                        <div className="pt-0.5">
+                          {isCategoryRestricted ? (
+                            <span className="inline-flex items-center gap-1 text-[9.5px] font-black text-pink-700 bg-pink-50 border border-pink-200/90 px-2 py-0.5 rounded-md">
+                              <span>🎯 Exclusivo:</span>
+                              <span className="underline">{cup.category}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-slate-500 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-md">
+                              <span>🌐 Válido para TODAS as peças</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Usage Rules */}
+                        <div className="text-[9.5px] text-slate-500 space-y-1 font-medium border-t border-slate-100 pt-2">
+                          {cup.minPurchase > 0 && (
+                            <div className="flex justify-between">
+                              <span>Mínimo em compras:</span>
+                              <strong className="text-slate-700">R$ {cup.minPurchase.toFixed(2)}</strong>
+                            </div>
+                          )}
+                          <div className="flex justify-between">
+                            <span>Limite por CPF:</span>
+                            <strong className="text-slate-700">{cup.maxPerCpf ? `${cup.maxPerCpf}x por CPF` : 'Ilimitado'}</strong>
+                          </div>
+                          {cup.isFirstPurchase && (
+                            <div className="text-amber-700 font-extrabold flex items-center gap-1">
+                              <span>⭐ Apenas 1ª Compra</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between text-[8.5px] text-slate-400 pt-0.5">
+                            <span>Validade: {cup.validUntil}</span>
+                            <span>Usos registrados: {cup.usedCount || 0}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Config: Cadastrar Nova Peça */}
