@@ -179,20 +179,20 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
       { id: 'part-4', name: 'Patricia Cardoso', login: 'patriciacardoso', instagram: '@patriciacardoso', couponCode: 'PATRICIA10', password: 'Patricia123' }
     ];
 
-    let localPartners: any[] = [...defaultPartnersList];
+    let localPartners: any[] = [];
     try {
       const savedPartners = localStorage.getItem('ap_moda_partners');
-      if (savedPartners) {
+      if (savedPartners !== null) {
         const parsed = JSON.parse(savedPartners);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          parsed.forEach((sp: any) => {
-            if (!localPartners.some(p => p.id === sp.id || p.name.toLowerCase() === sp.name.toLowerCase() || (sp.couponCode && p.couponCode.toUpperCase() === sp.couponCode.toUpperCase()))) {
-              localPartners.push(sp);
-            }
-          });
+        if (Array.isArray(parsed)) {
+          localPartners = parsed;
         }
+      } else {
+        localPartners = defaultPartnersList;
       }
-    } catch(e){}
+    } catch(e) {
+      localPartners = defaultPartnersList;
+    }
 
     const targetLoginLower = targetLogin.toLowerCase().trim().replace(/[@\s]/g, '');
     const cleanCouponInput = targetLogin.toUpperCase().trim();

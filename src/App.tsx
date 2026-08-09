@@ -205,6 +205,8 @@ export default function App() {
 
       if (changed || !savedPartners) {
         localStorage.setItem('ap_moda_partners', JSON.stringify(updatedPartnersList));
+        pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(updatedPartnersList));
+        window.dispatchEvent(new Event('ap-storage-synced'));
       }
     } catch (e) {
       console.error(e);
@@ -887,6 +889,30 @@ export default function App() {
           if (hasSeededKey) {
             isSeeded = true;
             localStorage.setItem('ap_system_seeded', 'true');
+          }
+
+          // Sync Coupons across devices via Supabase ap_system_configs
+          const couponsConfig = dbConfigs.find((config: any) => config.key === 'ap_coupons');
+          if (couponsConfig && couponsConfig.value) {
+            try {
+              const parsedCoupons = typeof couponsConfig.value === 'string' ? JSON.parse(couponsConfig.value) : couponsConfig.value;
+              if (Array.isArray(parsedCoupons)) {
+                localStorage.setItem('ap_coupons', JSON.stringify(parsedCoupons));
+                window.dispatchEvent(new Event('ap-coupons-updated'));
+              }
+            } catch(e) {}
+          }
+
+          // Sync Partners across devices via Supabase ap_system_configs
+          const partnersConfig = dbConfigs.find((config: any) => config.key === 'ap_moda_partners');
+          if (partnersConfig && partnersConfig.value) {
+            try {
+              const parsedPartners = typeof partnersConfig.value === 'string' ? JSON.parse(partnersConfig.value) : partnersConfig.value;
+              if (Array.isArray(parsedPartners)) {
+                localStorage.setItem('ap_moda_partners', JSON.stringify(parsedPartners));
+                window.dispatchEvent(new Event('ap-storage-synced'));
+              }
+            } catch(e) {}
           }
         }
       } catch (e) {

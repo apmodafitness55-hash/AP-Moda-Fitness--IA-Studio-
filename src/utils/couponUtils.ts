@@ -1,3 +1,5 @@
+import { pushSystemConfigToSupabase } from '../supabase';
+
 export interface Coupon {
   code: string;
   type: 'percent' | 'fixed';
@@ -26,15 +28,16 @@ export const DEFAULT_COUPONS: Coupon[] = [
 export function getStoredCoupons(): Coupon[] {
   try {
     const saved = localStorage.getItem('ap_coupons');
-    if (saved) {
+    if (saved !== null) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {
     console.error('Error reading coupons from localStorage:', e);
   }
   try {
     localStorage.setItem('ap_coupons', JSON.stringify(DEFAULT_COUPONS));
+    pushSystemConfigToSupabase('ap_coupons', JSON.stringify(DEFAULT_COUPONS));
   } catch (e) {}
   return DEFAULT_COUPONS;
 }
@@ -42,6 +45,7 @@ export function getStoredCoupons(): Coupon[] {
 export function saveStoredCoupons(coupons: Coupon[]): void {
   try {
     localStorage.setItem('ap_coupons', JSON.stringify(coupons));
+    pushSystemConfigToSupabase('ap_coupons', JSON.stringify(coupons));
     window.dispatchEvent(new Event('ap-coupons-updated'));
   } catch (e) {
     console.error('Error saving coupons to localStorage:', e);

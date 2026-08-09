@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { saveStoredPartners } from '../utils/partnerUtils';
 import { getAppUrl } from '../config';
 import { 
   Award, 
@@ -74,7 +75,10 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
   const [partners, setPartners] = useState<Partner[]>(() => {
     try {
       const saved = localStorage.getItem('ap_moda_partners');
-      if (saved) return JSON.parse(saved);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
     } catch(e) {}
     return [
       { id: 'part-1', name: 'Marina Fitness Coach', instagram: '@marina_fit', couponCode: 'MARINAFIT10', commissionRate: 10, salesCount: 0, totalGenerated: 0, availableBalance: 0 },
