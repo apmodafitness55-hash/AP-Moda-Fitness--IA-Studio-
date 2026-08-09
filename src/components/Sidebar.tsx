@@ -181,7 +181,8 @@ export default function Sidebar({
     {
       group: 'VITRINE ONLINE',
       items: [
-        { id: 'LOJA_ONLINE', label: 'Loja Online (Vitrine)', icon: ShoppingBag, keywords: 'site e-commerce vitrine loja online', tab: ActiveTab.LOJA_ONLINE }
+        { id: 'LOJA_ONLINE', label: 'Loja Online (Vitrine)', icon: ShoppingBag, keywords: 'site e-commerce vitrine loja online', tab: ActiveTab.LOJA_ONLINE },
+        { id: 'LOJA_CUPONS', label: 'Cupons & Categorias', icon: Tag, keywords: 'cupons categorias desconto cupom promocional loja online', tab: ActiveTab.LOJA_ONLINE, subTab: 'cupons' }
       ]
     },
     {
@@ -293,7 +294,7 @@ export default function Sidebar({
           tab: ActiveTab.LOJA_ONLINE,
           subLinks: [
             { label: 'Compartilhar Bio & Link', subTab: 'compartilhar' },
-            { label: 'Cupons de Desconto', subTab: 'cupons' },
+            { label: 'Cupons & Categorias', subTab: 'cupons' },
             { label: 'Vitrine Mobile & Campanhas', subTab: 'vitrine' },
             { label: 'Carrinhos Abandonados (IA)', subTab: 'recuperacao' },
             { label: 'Central de Marketing & Vendas', subTab: 'marketing' }
