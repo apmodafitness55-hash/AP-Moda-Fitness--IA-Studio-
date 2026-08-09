@@ -114,16 +114,6 @@ export default function App() {
             }
             return m;
           });
-
-          // Ensure Patricia Cardoso & core partners exist on all devices
-          const mandatoryUsers = [
-            { id: 'usr-14', name: 'Patricia Cardoso', login: 'patriciacardoso', role: 'Parceiro', password: 'Patricia123', couponCode: 'PATRICIA10', details: 'Parceira Influenciadora (@patriciacardoso)' }
-          ];
-          mandatoryUsers.forEach(mu => {
-            if (!parsed.some(m => m.login && m.login.toLowerCase() === mu.login.toLowerCase())) {
-              parsed.push(mu);
-            }
-          });
         }
       } catch (err) {
         parsed = null;
@@ -131,33 +121,20 @@ export default function App() {
     }
     if (parsed) return parsed;
     return [
-      { id: 'usr-1', name: 'Ana Paula Admin', login: 'admin', role: 'Admin', password: 'Ap01695*', details: 'Administradora Geral', createdAt: '2026-06-15T12:00:00Z', avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80' },
-      { id: 'usr-2', name: 'Juliana Cardoso', login: 'juliana', role: 'Gerente', password: '123', details: 'Gerente de Vendas', createdAt: '2026-06-15T12:05:00Z', avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80' },
-      { id: 'usr-3', name: 'Ana Carolina', login: 'ana', role: 'Vendedor', password: '123', details: 'Vendedora Sênior', createdAt: '2026-06-15T12:10:00Z', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' },
-      { id: 'usr-4', name: 'Beatriz Rocha', login: 'beatriz', role: 'Vendedor', password: '123', details: 'Vendedora Diamante', createdAt: '2026-06-15T12:12:00Z', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80' },
-      { id: 'usr-5', name: 'Juliana Costa', login: 'julianacost', role: 'Vendedor', password: '123', details: 'Vendedora Prata', createdAt: '2026-06-15T12:13:00Z', avatar: 'https://images.unsplash.com/photo-1554151228-14d9def656e4?w=150&auto=format&fit=crop&q=80' },
-      { id: 'usr-6', name: 'Bruna Oliveira', login: 'bruna', role: 'Vendedor', password: '123', details: 'Vendedora Bronze', createdAt: '2026-06-15T12:14:00Z', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80' },
-      { id: 'usr-7', name: 'Marina Fitness Coach', login: 'marina', role: 'Parceiro', password: '123', details: 'Influenciadora Fitness (@marina_fit)', createdAt: '2026-06-15T12:15:00Z', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&auto=format&fit=crop&q=80' },
-      { id: 'usr-8', name: 'Julia Rezende', login: 'jurezende', role: 'Parceiro', password: '123', details: 'Parceira de Estilo (@jurezendedm)', createdAt: '2026-06-15T12:17:00Z', avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80' },
-      { id: 'usr-9', name: 'Amanda Runner', login: 'amanda', role: 'Parceiro', password: '123', details: 'Parceira Corrida (@amandarun)', createdAt: '2026-06-15T12:19:00Z', avatar: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=150&auto=format&fit=crop&q=80' },
-      { id: 'usr-14', name: 'Patricia Cardoso', login: 'patriciacardoso', role: 'Parceiro', password: 'Patricia123', couponCode: 'PATRICIA10', details: 'Parceira Influenciadora (@patriciacardoso)', createdAt: '2026-06-15T12:19:30Z', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' },
-      { id: 'usr-10', name: 'Bruno Ramos (Moto 1)', login: 'bruno', role: 'Entregador', password: '123', details: 'Entregador Zona Sul', createdAt: '2026-06-15T12:20:00Z', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80' },
-      { id: 'usr-11', name: 'Lucas Correia (Moto 2)', login: 'lucas', role: 'Entregador', password: '123', details: 'Entregador Zona Norte', createdAt: '2026-06-15T12:22:00Z', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80' },
-      { id: 'usr-12', name: 'Thales Silva (Bike/Região Central)', login: 'thales', role: 'Entregador', password: '123', details: 'Entregador Centro', createdAt: '2026-06-15T12:24:00Z', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80' },
-      { id: 'usr-13', name: 'Cláudio Santos (Parceiro Envio Rápido)', login: 'claudio', role: 'Entregador', password: '123', details: 'Entregador Parcerias', createdAt: '2026-06-15T12:26:00Z', avatar: 'https://images.unsplash.com/photo-1628157582853-a796fa650a6a?w=150&auto=format&fit=crop&q=80' }
+      { id: 'usr-1', name: 'Ana Paula Admin', login: 'admin', role: 'Admin', password: 'Ap01695*', details: 'Administradora Geral', createdAt: new Date().toISOString(), avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80' }
     ];
   });
 
   // Vendedores dinâmicos
   const [sellers, setSellers] = useState<string[]>(() => {
     const saved = localStorage.getItem('ap_moda_sellers');
-    return saved ? JSON.parse(saved) : ['Ana Carolina', 'Beatriz Rocha', 'Juliana Costa', 'Bruna Oliveira'];
+    return saved ? JSON.parse(saved) : [];
   });
 
   // Motoboys dinâmicos
   const [motoboys, setMotoboys] = useState<string[]>(() => {
     const saved = localStorage.getItem('ap_moda_motoboys');
-    return saved ? JSON.parse(saved) : ['Bruno Ramos (Moto 1)', 'Lucas Correia (Moto 2)', 'Thales Silva (Bike/Região Central)', 'Cláudio Santos (Parceiro Envio Rápido)'];
+    return saved ? JSON.parse(saved) : [];
   });
 
   // Keep sellers, motoboys, and partners in robust real-time synchrony with teamMembers
@@ -174,32 +151,14 @@ export default function App() {
     setMotoboys(extMotoboys);
     localStorage.setItem('ap_moda_motoboys', JSON.stringify(extMotoboys));
 
-    // Update partners (influencers list) in localStorage safely without losing existing partners
+    // Update partners (influencers list) in localStorage safely based on actual registered partners
     try {
-      const defaultPartnersList = [
-        { id: 'part-1', name: 'Marina Fitness Coach', login: 'marina', instagram: '@marina_fit', couponCode: 'MARINAFIT10', commissionRate: 10, salesCount: 0, totalGenerated: 0, availableBalance: 0 },
-        { id: 'part-2', name: 'Julia Rezende', login: 'jurezende', instagram: '@jurezendedm', couponCode: 'JU10', commissionRate: 8, salesCount: 0, totalGenerated: 0, availableBalance: 0 },
-        { id: 'part-3', name: 'Amanda Runner', login: 'amanda', instagram: '@amandarun', couponCode: 'AMANDAPRO', commissionRate: 12, salesCount: 0, totalGenerated: 0, availableBalance: 0 },
-        { id: 'part-4', name: 'Patricia Cardoso', login: 'patriciacardoso', instagram: '@patriciacardoso', couponCode: 'PATRICIA10', password: 'Patricia123', commissionRate: 10, salesCount: 0, totalGenerated: 0, availableBalance: 0 }
-      ];
-
       const savedPartners = localStorage.getItem('ap_moda_partners');
       let currentPartnersList: any[] = savedPartners ? JSON.parse(savedPartners) : [];
-
-      if (!Array.isArray(currentPartnersList) || currentPartnersList.length === 0) {
-        currentPartnersList = defaultPartnersList;
-      }
+      if (!Array.isArray(currentPartnersList)) currentPartnersList = [];
 
       const updatedPartnersList = [...currentPartnersList];
       let changed = false;
-
-      // Always ensure default partners exist
-      defaultPartnersList.forEach(dp => {
-        if (!updatedPartnersList.some(p => p.id === dp.id || p.name.toLowerCase() === dp.name.toLowerCase() || p.couponCode.toUpperCase() === dp.couponCode.toUpperCase())) {
-          updatedPartnersList.push(dp);
-          changed = true;
-        }
-      });
 
       // Merge teamMembers with role === 'Parceiro'
       const teamPartners = teamMembers.filter(m => m.role === 'Parceiro');
