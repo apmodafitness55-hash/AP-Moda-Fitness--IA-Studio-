@@ -37,8 +37,37 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   };
 
   private handleClearAndReload = () => {
-    if (window.confirm('Isso limpará as configurações locais temporárias para resolver o travamento e recarregará a página. Deseja continuar?')) {
+    if (window.confirm('Isso redefinirá apenas o cache visual temporário mantendo seus cadastros e logins seguros. Deseja continuar?')) {
+      // Preserve critical database tables and remove only temporary UI caches
+      const keysToKeep = [
+        'ap_moda_team_users',
+        'ap_moda_team_users_backup',
+        'ap_moda_current_user',
+        'ap_moda_products',
+        'ap_moda_clients',
+        'ap_moda_sales',
+        'ap_moda_transactions',
+        'ap_moda_online_orders',
+        'ap_moda_checkouts',
+        'ap_moda_sellers',
+        'ap_moda_motoboys',
+        'ap_moda_partners'
+      ];
+      
+      const backupMap: Record<string, string> = {};
+      keysToKeep.forEach(key => {
+        const val = localStorage.getItem(key);
+        if (val) backupMap[key] = val;
+      });
+
+      // Clear non-essential items
       localStorage.clear();
+
+      // Immediately restore critical data
+      Object.entries(backupMap).forEach(([k, v]) => {
+        localStorage.setItem(k, v);
+      });
+
       window.location.href = '/painel';
     }
   };

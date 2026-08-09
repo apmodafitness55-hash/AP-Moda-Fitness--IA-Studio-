@@ -9,6 +9,8 @@ export interface Coupon {
   maxPerCpf?: number; // 1 = Apenas 1 vez por CPF (default), 2 = No máximo 2 vezes por CPF, 0 = Sem limite por CPF
   isFirstPurchase?: boolean;
   category?: string; // Ex: "Macacões", "Leggings", "Tops", "Shorts", "Conjuntos" ou "Todas" / undefined
+  partnerName?: string; // Nome do parceiro/influenciador vinculado
+  partnerId?: string; // ID do parceiro no sistema
 }
 
 export const DEFAULT_COUPONS: Coupon[] = [
@@ -17,7 +19,8 @@ export const DEFAULT_COUPONS: Coupon[] = [
   { code: 'BEMVINDA50', type: 'fixed', value: 50, minPurchase: 300, limitUses: 50, usedCount: 15, validUntil: '2026-07-15', maxPerCpf: 1, category: 'Todas' },
   { code: 'FRETEGRATIS', type: 'percent', value: 0, minPurchase: 399, limitUses: 500, usedCount: 88, validUntil: '2026-12-31', maxPerCpf: 0, category: 'Todas' },
   { code: 'MACACAO20', type: 'percent', value: 20, minPurchase: 0, limitUses: 100, usedCount: 5, validUntil: '2026-12-31', maxPerCpf: 1, category: 'Macacões' },
-  { code: 'LEGGING15', type: 'percent', value: 15, minPurchase: 0, limitUses: 100, usedCount: 8, validUntil: '2026-12-31', maxPerCpf: 1, category: 'Leggings' }
+  { code: 'LEGGING15', type: 'percent', value: 15, minPurchase: 0, limitUses: 100, usedCount: 8, validUntil: '2026-12-31', maxPerCpf: 1, category: 'Leggings' },
+  { code: 'CAMILA10', type: 'percent', value: 10, minPurchase: 0, limitUses: 500, usedCount: 14, validUntil: '2026-12-31', maxPerCpf: 1, category: 'Todas', partnerName: 'Camila Parceira' }
 ];
 
 export function getStoredCoupons(): Coupon[] {

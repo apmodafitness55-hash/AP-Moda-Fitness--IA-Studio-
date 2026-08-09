@@ -33,7 +33,8 @@ import {
   Search,
   X,
   ChevronLeft,
-  Megaphone
+  Megaphone,
+  Users
 } from 'lucide-react';
 import { Product } from '../types';
 import { getCatalogUrl } from '../config';
@@ -281,16 +282,47 @@ export default function LojaOnline({
   const [isSavingConfigs, setIsSavingConfigs] = useState(false);
   const [activeConfigTab, setActiveConfigTab] = useState<'textos' | 'banners' | 'categorias' | 'cupons' | 'cadastro' | 'estoque'>('textos');
 
+  // Registered Partners / Influencers for Coupon Linking
+  const [registeredPartners, setRegisteredPartners] = useState<{ id?: string; name: string; couponCode?: string }[]>(() => {
+    try {
+      const list: { id?: string; name: string; couponCode?: string }[] = [];
+      const savedPartners = localStorage.getItem('ap_moda_partners');
+      if (savedPartners) {
+        const parsed = JSON.parse(savedPartners);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((p: any) => {
+            if (p.name) list.push({ id: p.id, name: p.name, couponCode: p.couponCode });
+          });
+        }
+      }
+      const savedTeam = localStorage.getItem('ap_moda_team_users');
+      if (savedTeam) {
+        const parsedTeam = JSON.parse(savedTeam);
+        if (Array.isArray(parsedTeam)) {
+          parsedTeam.filter((m: any) => m.role === 'Parceiro').forEach((m: any) => {
+            if (m.name && !list.some(p => p.name.toLowerCase() === m.name.toLowerCase())) {
+              list.push({ id: m.id, name: m.name, couponCode: m.couponCode || m.login });
+            }
+          });
+        }
+      }
+      return list;
+    } catch (e) {
+      return [];
+    }
+  });
+
   // Coupons Manager State
   const [couponsList, setCouponsList] = useState<Coupon[]>(() => getStoredCoupons());
   const [newCouponCode, setNewCouponCode] = useState('');
   const [newCouponType, setNewCouponType] = useState<'percent' | 'fixed'>('percent');
   const [newCouponValue, setNewCouponValue] = useState<string>('15');
-  const [newCouponCategory, setNewCouponCategory] = useState<string>('Macacões');
+  const [newCouponCategory, setNewCouponCategory] = useState<string>('Todas');
   const [newCouponMinPurchase, setNewCouponMinPurchase] = useState<string>('0');
   const [newCouponValidUntil, setNewCouponValidUntil] = useState<string>('2026-12-31');
   const [newCouponIsFirstPurchase, setNewCouponIsFirstPurchase] = useState<boolean>(false);
   const [newCouponMaxPerCpf, setNewCouponMaxPerCpf] = useState<number>(1);
+  const [newCouponPartnerName, setNewCouponPartnerName] = useState<string>('');
 
   const handleCreateCoupon = (e: React.FormEvent) => {
     e.preventDefault();
@@ -305,6 +337,8 @@ export default function LojaOnline({
       return;
     }
 
+    const cleanPartnerName = newCouponPartnerName.trim();
+
     const couponObj: Coupon = {
       code: cleanCode,
       type: newCouponType,
@@ -315,7 +349,8 @@ export default function LojaOnline({
       validUntil: newCouponValidUntil || '2026-12-31',
       maxPerCpf: newCouponMaxPerCpf,
       isFirstPurchase: newCouponIsFirstPurchase,
-      category: newCouponCategory
+      category: newCouponCategory,
+      partnerName: cleanPartnerName || undefined
     };
 
     const existingIdx = couponsList.findIndex(c => c.code.toUpperCase() === cleanCode);
@@ -330,13 +365,38 @@ export default function LojaOnline({
     setCouponsList(updated);
     saveStoredCoupons(updated);
 
+    // Sync back with ap_moda_partners if partner linked
+    if (cleanPartnerName) {
+      try {
+        const savedPartners = localStorage.getItem('ap_moda_partners');
+        let pList: any[] = savedPartners ? JSON.parse(savedPartners) : [];
+        if (!Array.isArray(pList)) pList = [];
+        const partnerIdx = pList.findIndex(p => p.name.toLowerCase() === cleanPartnerName.toLowerCase() || p.id === cleanPartnerName);
+        if (partnerIdx > -1) {
+          pList[partnerIdx].couponCode = cleanCode;
+          if (newCouponType === 'percent') {
+            pList[partnerIdx].discountPercent = val;
+          } else {
+            pList[partnerIdx].fixedDiscount = val;
+          }
+          localStorage.setItem('ap_moda_partners', JSON.stringify(pList));
+          window.dispatchEvent(new Event('ap-storage-synced'));
+        }
+      } catch (e) {
+        console.error('Erro ao atualizar cupom no parceiro:', e);
+      }
+    }
+
     const catText = newCouponCategory && newCouponCategory !== 'Todas' 
       ? `exclusivo para a categoria "${newCouponCategory}"` 
       : 'válido para todas as peças';
 
-    alert(`✓ Cupom "${cleanCode}" (${newCouponType === 'percent' ? `${val}% OFF` : `R$ ${val} OFF`}) ${catText} criado e ativado com sucesso!`);
+    const partnerText = cleanPartnerName ? ` 🤝 Vinculado ao Parceiro "${cleanPartnerName}"` : '';
+
+    alert(`✓ Cupom "${cleanCode}" (${newCouponType === 'percent' ? `${val}% OFF` : `R$ ${val} OFF`}) ${catText}${partnerText} cadastrado com sucesso!`);
 
     setNewCouponCode('');
+    setNewCouponPartnerName('');
   };
 
   const handleDeleteCouponFromTab = (codeToDelete: string) => {
@@ -1221,6 +1281,49 @@ export default function LojaOnline({
               </div>
             </div>
 
+            {/* Vinculação de Parceiro / Influenciador */}
+            <div className="bg-indigo-50/40 p-3 rounded-xl border border-indigo-100 space-y-2">
+              <label className="text-[10px] font-extrabold text-indigo-900 uppercase block flex items-center gap-1.5">
+                <Users size={13} className="text-indigo-600" />
+                <span>Vincular a Parceiro / Influenciador (Opcional) 🤝</span>
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <select
+                    value={newCouponPartnerName}
+                    onChange={(e) => {
+                      const selectedVal = e.target.value;
+                      setNewCouponPartnerName(selectedVal);
+                      if (selectedVal && !newCouponCode) {
+                        const codePrefix = selectedVal.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                        setNewCouponCode(codePrefix + '10');
+                      }
+                    }}
+                    className="w-full bg-white border border-indigo-200 rounded-xl p-2.5 text-xs font-bold text-indigo-950 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none"
+                  >
+                    <option value="">🌐 Nenhum (Cupom Geral da Loja)</option>
+                    {registeredPartners.map((p) => (
+                      <option key={p.id || p.name} value={p.name}>
+                        🤝 {p.name} {p.couponCode ? `(Cupom atual: ${p.couponCode})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Ou digite o nome de outro parceiro..."
+                    value={newCouponPartnerName}
+                    onChange={(e) => setNewCouponPartnerName(e.target.value)}
+                    className="w-full bg-white border border-indigo-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+              <p className="text-[9.5px] text-indigo-700/80 font-medium leading-tight">
+                💡 Ao vincular a um parceiro, quando o cliente usar o cupom ou acessar pelo link de indicação, o valor/porcentagem configurado aqui será aplicado e a venda será contabilizada para o parceiro.
+              </p>
+            </div>
+
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-slate-100">
               <label className="flex items-center gap-2 text-xs font-extrabold text-slate-700 cursor-pointer select-none">
                 <input
@@ -1278,16 +1381,24 @@ export default function LojaOnline({
                       </button>
                     </div>
 
-                    {/* Category Badge */}
-                    <div className="pt-0.5">
-                      {isCategoryRestricted ? (
-                        <span className="inline-flex items-center gap-1 text-[9.5px] font-black text-pink-700 bg-pink-50 border border-pink-200/90 px-2 py-0.5 rounded-md">
-                          <span>🎯 Exclusivo:</span>
-                          <span className="underline">{cup.category}</span>
+                    {/* Category & Partner Badges */}
+                    <div className="pt-0.5 flex flex-wrap gap-1">
+                      {cup.partnerName ? (
+                        <span className="inline-flex items-center gap-1 text-[9.5px] font-black text-indigo-900 bg-indigo-50 border border-indigo-200/90 px-2 py-0.5 rounded-md">
+                          <Users size={10} className="text-indigo-600" />
+                          <span>Parceiro:</span>
+                          <span className="underline">{cup.partnerName}</span>
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-slate-500 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-md">
-                          <span>🌐 Válido para TODAS as peças</span>
+                          🌐 Geral (Loja)
+                        </span>
+                      )}
+
+                      {isCategoryRestricted && (
+                        <span className="inline-flex items-center gap-1 text-[9.5px] font-black text-pink-700 bg-pink-50 border border-pink-200/90 px-2 py-0.5 rounded-md">
+                          <span>🎯 Exclusivo:</span>
+                          <span className="underline">{cup.category}</span>
                         </span>
                       )}
                     </div>

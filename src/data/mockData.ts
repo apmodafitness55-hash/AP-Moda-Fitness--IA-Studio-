@@ -114,3 +114,67 @@ export const INITIAL_SALES: Sale[] = [];
 
 export const INITIAL_TRANSACTIONS: Transaction[] = [];
 
+export const INITIAL_TEAM_MEMBERS = [
+  { 
+    id: 'usr-1', 
+    name: 'Ana Paula Admin', 
+    login: 'admin', 
+    role: 'Admin', 
+    password: 'Ap01695*', 
+    details: 'Administradora Geral', 
+    createdAt: '2026-01-01T00:00:00.000Z', 
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80' 
+  },
+  { 
+    id: 'usr-2', 
+    name: 'Carla Oliveira', 
+    login: 'carla', 
+    role: 'Vendedor', 
+    password: '123456', 
+    details: 'Vendedora Sênior', 
+    createdAt: '2026-01-02T00:00:00.000Z', 
+    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80' 
+  },
+  { 
+    id: 'usr-3', 
+    name: 'Mariana Santos', 
+    login: 'mariana', 
+    role: 'Vendedor', 
+    password: '123456', 
+    details: 'Vendedora WhatsApp e Loja', 
+    createdAt: '2026-01-03T00:00:00.000Z', 
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' 
+  },
+  { 
+    id: 'usr-4', 
+    name: 'Lucas Silva', 
+    login: 'lucas', 
+    role: 'Entregador', 
+    password: '123456', 
+    details: 'Entregador / Motoboy Express', 
+    createdAt: '2026-01-04T00:00:00.000Z', 
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80' 
+  },
+  { 
+    id: 'usr-5', 
+    name: 'Juliana Costa', 
+    login: 'juliana', 
+    role: 'Gerente', 
+    password: '123456', 
+    details: 'Gerente Comercial', 
+    createdAt: '2026-01-05T00:00:00.000Z', 
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80' 
+  },
+  { 
+    id: 'usr-6', 
+    name: 'Camila Parceira', 
+    login: 'camila', 
+    role: 'Parceiro', 
+    password: '123456', 
+    details: 'Influenciadora @camila_fit', 
+    couponCode: 'CAMILA10', 
+    createdAt: '2026-01-06T00:00:00.000Z', 
+    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80' 
+  }
+];
+

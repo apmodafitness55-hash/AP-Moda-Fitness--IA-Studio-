@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 import { ActiveTab, Product, Sale, Client, Transaction } from './types';
-import { INITIAL_PRODUCTS, INITIAL_CLIENTS, INITIAL_SALES, INITIAL_TRANSACTIONS } from './data/mockData';
+import { INITIAL_PRODUCTS, INITIAL_CLIENTS, INITIAL_SALES, INITIAL_TRANSACTIONS, INITIAL_TEAM_MEMBERS } from './data/mockData';
 import { playSaleSuccessSound, playNotificationSound } from './lib/audioFeedback';
 
 import Sidebar from './components/Sidebar';
@@ -101,28 +101,38 @@ export default function App() {
 
   // Controle de Usuários e Acessos (Equipe)
   const [teamMembers, setTeamMembers] = useState<any[]>(() => {
-    const saved = localStorage.getItem('ap_moda_team_users');
-    let parsed = null;
+    const saved = localStorage.getItem('ap_moda_team_users') || localStorage.getItem('ap_moda_team_users_backup');
+    let parsed: any[] | null = null;
     if (saved) {
       try {
         parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           // Auto-heal admin password on load to prevent cached localStorage mismatches
           parsed = parsed.map(m => {
-            if (m.role === 'Admin' && m.login.toLowerCase() === 'admin') {
+            if (m.role === 'Admin' && m.login?.toLowerCase() === 'admin') {
               return { ...m, password: 'Ap01695*' };
             }
             return m;
           });
+
+          // Merge default team members if any initial members are missing
+          const merged = [...parsed];
+          INITIAL_TEAM_MEMBERS.forEach(initMember => {
+            const exists = merged.some(m => 
+              m.id === initMember.id || 
+              (m.login && initMember.login && m.login.toLowerCase() === initMember.login.toLowerCase())
+            );
+            if (!exists) {
+              merged.push(initMember);
+            }
+          });
+          return merged;
         }
       } catch (err) {
         parsed = null;
       }
     }
-    if (parsed) return parsed;
-    return [
-      { id: 'usr-1', name: 'Ana Paula Admin', login: 'admin', role: 'Admin', password: 'Ap01695*', details: 'Administradora Geral', createdAt: new Date().toISOString(), avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80' }
-    ];
+    return INITIAL_TEAM_MEMBERS;
   });
 
   // Vendedores dinâmicos
@@ -139,7 +149,10 @@ export default function App() {
 
   // Keep sellers, motoboys, and partners in robust real-time synchrony with teamMembers
   useEffect(() => {
-    localStorage.setItem('ap_moda_team_users', JSON.stringify(teamMembers));
+    if (teamMembers && teamMembers.length > 0) {
+      localStorage.setItem('ap_moda_team_users', JSON.stringify(teamMembers));
+      localStorage.setItem('ap_moda_team_users_backup', JSON.stringify(teamMembers));
+    }
 
     // Update sellers
     const extSellers = teamMembers.filter(m => m.role === 'Vendedor').map(m => m.name);
@@ -882,16 +895,22 @@ export default function App() {
 
       // 2. Sincroniza logins da Equipe
       const dbMembers = await fetchTeamMembersFromSupabase();
-      if (dbMembers && dbMembers.length > 0) {
-        setTeamMembers(dbMembers);
-        localStorage.setItem('ap_moda_team_users', JSON.stringify(dbMembers));
-      } else {
-        // Banco vazio? Faz o upload dos logins locais atuais
-        const localMembers = lastTeamMembersRef.current && lastTeamMembersRef.current.length > 0 ? lastTeamMembersRef.current : teamMembers;
-        if (localMembers && localMembers.length > 0) {
-          console.log('[Supabase Sync] Semeando equipe/logins locais no Supabase vazio:', localMembers.length);
-          await syncBulkTeamMembersToSupabase(localMembers);
+      let mergedMembers = (dbMembers && dbMembers.length > 0) ? [...dbMembers] : [...teamMembers];
+      
+      // Ensure all default logins exist
+      INITIAL_TEAM_MEMBERS.forEach(initMember => {
+        if (!mergedMembers.some(m => m.id === initMember.id || (m.login && initMember.login && m.login.toLowerCase() === initMember.login.toLowerCase()))) {
+          mergedMembers.push(initMember);
         }
+      });
+
+      setTeamMembers(mergedMembers);
+      localStorage.setItem('ap_moda_team_users', JSON.stringify(mergedMembers));
+      localStorage.setItem('ap_moda_team_users_backup', JSON.stringify(mergedMembers));
+
+      if (!dbMembers || dbMembers.length === 0) {
+        console.log('[Supabase Sync] Semeando equipe/logins locais no Supabase vazio:', mergedMembers.length);
+        await syncBulkTeamMembersToSupabase(mergedMembers);
       }
 
       setSyncProgress(prev => ({

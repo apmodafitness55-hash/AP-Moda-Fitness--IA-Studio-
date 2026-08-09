@@ -1158,7 +1158,7 @@ export default function PublicCatalog({
       return '';
     }
   });
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercent: number; fixedDiscount: number; category?: string; maxPerCpf?: number; isFirstPurchase?: boolean } | null>(() => {
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercent: number; fixedDiscount: number; category?: string; maxPerCpf?: number; isFirstPurchase?: boolean; partnerName?: string } | null>(() => {
     try {
       const saved = localStorage.getItem('ap_applied_coupon');
       if (saved) return JSON.parse(saved);
@@ -2601,7 +2601,8 @@ export default function PublicCatalog({
           fixedDiscount,
           category: couponObj.category,
           maxPerCpf: couponObj.maxPerCpf ?? 1,
-          isFirstPurchase: couponObj.isFirstPurchase ?? false
+          isFirstPurchase: couponObj.isFirstPurchase ?? false,
+          partnerName: couponObj.partnerName
         });
 
         const replaceNotice = previousCouponCode && previousCouponCode.toUpperCase() !== couponObj.code.toUpperCase()
@@ -3117,7 +3118,7 @@ export default function PublicCatalog({
       return `• *${item.quantity}x* ${item.product.name}\n  [Cor: ${item.color} | Tam: ${item.size}] (R$ ${price.toFixed(2)} un.)${tag}`;
     }).join('\n\n');
 
-    const couponInfo = appliedCoupon ? `\n🏷️ Cupom: *${appliedCoupon.code}* (-R$ ${cartDiscount.toFixed(2)})` : '';
+    const couponInfo = appliedCoupon ? `\n🏷️ Cupom: *${appliedCoupon.code}*${appliedCoupon.partnerName ? ` (Indicação de ${appliedCoupon.partnerName})` : ''} (-R$ ${cartDiscount.toFixed(2)})` : '';
     const vipDiscountInfoText = vipDiscount > 0 ? `\n👑 Desconto Clube VIP (10% OFF): -R$ ${vipDiscount.toFixed(2)}` : '';
     const pixDiscountInfo = paymentMethod === 'pix' ? `\n⚡ Desconto Pix (${pixDiscountPercent}% OFF Extra): -R$ ${pixDiscount.toFixed(2)}` : '';
     const cashbackDiscountInfo = useCashback && cashbackDiscount > 0 ? `\n✨ Desconto Cashback Clube VIP: -R$ ${cashbackDiscount.toFixed(2)}` : '';
@@ -3196,7 +3197,7 @@ export default function PublicCatalog({
         pickupDate: deliveryMethod === 'retirada' ? pickupDate : undefined,
         pickupTime: deliveryMethod === 'retirada' ? pickupTime : undefined,
         paymentMethod: paymentMethod,
-        notes: `Cor: ${cart.map(c=>c.color).join(', ')} | CPF: ${clientCpf.trim()} | Pg: ${paymentMethod === 'pix' ? 'PIX' : `Cartão (${cardInstallments}x)`} | Obs: ${clientNotes.trim()}`
+        notes: `Cor: ${cart.map(c=>c.color).join(', ')} | CPF: ${clientCpf.trim()} | Pg: ${paymentMethod === 'pix' ? 'PIX' : `Cartão (${cardInstallments}x)`}${appliedCoupon?.partnerName ? ` | Parceiro: ${appliedCoupon.partnerName}` : ''} | Obs: ${clientNotes.trim()}`
       };
       
       onAddOnlineOrder(orderData);
