@@ -177,10 +177,10 @@ export default function App() {
     // Update partners (influencers list) in localStorage safely without losing existing partners
     try {
       const defaultPartnersList = [
-        { id: 'part-1', name: 'Marina Fitness Coach', login: 'marina', instagram: '@marina_fit', couponCode: 'MARINAFIT10', commissionRate: 10, salesCount: 15, totalGenerated: 4250.00, availableBalance: 425.00 },
-        { id: 'part-2', name: 'Julia Rezende', login: 'jurezende', instagram: '@jurezendedm', couponCode: 'JU10', commissionRate: 8, salesCount: 8, totalGenerated: 1890.00, availableBalance: 151.20 },
-        { id: 'part-3', name: 'Amanda Runner', login: 'amanda', instagram: '@amandarun', couponCode: 'AMANDAPRO', commissionRate: 12, salesCount: 22, totalGenerated: 6200.00, availableBalance: 744.00 },
-        { id: 'part-4', name: 'Patricia Cardoso', login: 'patriciacardoso', instagram: '@patriciacardoso', couponCode: 'PATRICIA10', password: 'Patricia123', commissionRate: 10, salesCount: 5, totalGenerated: 1200.00, availableBalance: 120.00 }
+        { id: 'part-1', name: 'Marina Fitness Coach', login: 'marina', instagram: '@marina_fit', couponCode: 'MARINAFIT10', commissionRate: 10, salesCount: 0, totalGenerated: 0, availableBalance: 0 },
+        { id: 'part-2', name: 'Julia Rezende', login: 'jurezende', instagram: '@jurezendedm', couponCode: 'JU10', commissionRate: 8, salesCount: 0, totalGenerated: 0, availableBalance: 0 },
+        { id: 'part-3', name: 'Amanda Runner', login: 'amanda', instagram: '@amandarun', couponCode: 'AMANDAPRO', commissionRate: 12, salesCount: 0, totalGenerated: 0, availableBalance: 0 },
+        { id: 'part-4', name: 'Patricia Cardoso', login: 'patriciacardoso', instagram: '@patriciacardoso', couponCode: 'PATRICIA10', password: 'Patricia123', commissionRate: 10, salesCount: 0, totalGenerated: 0, availableBalance: 0 }
       ];
 
       const savedPartners = localStorage.getItem('ap_moda_partners');

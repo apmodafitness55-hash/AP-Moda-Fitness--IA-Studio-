@@ -76,55 +76,109 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
       if (saved) return JSON.parse(saved);
     } catch(e) {}
     return [
-      { id: 'part-1', name: 'Marina Fitness Coach', instagram: '@marina_fit', couponCode: 'MARINAFIT10', commissionRate: 10, salesCount: 15, totalGenerated: 4250.00, availableBalance: 425.00 },
-      { id: 'part-2', name: 'Julia Rezende', instagram: '@jurezendedm', couponCode: 'JU10', commissionRate: 8, salesCount: 8, totalGenerated: 1890.00, availableBalance: 151.20 },
-      { id: 'part-3', name: 'Amanda Runner', instagram: '@amandarun', couponCode: 'AMANDAPRO', commissionRate: 12, salesCount: 22, totalGenerated: 6200.00, availableBalance: 744.00 }
+      { id: 'part-1', name: 'Marina Fitness Coach', instagram: '@marina_fit', couponCode: 'MARINAFIT10', commissionRate: 10, salesCount: 0, totalGenerated: 0, availableBalance: 0 },
+      { id: 'part-2', name: 'Julia Rezende', instagram: '@jurezendedm', couponCode: 'JU10', commissionRate: 8, salesCount: 0, totalGenerated: 0, availableBalance: 0 },
+      { id: 'part-3', name: 'Amanda Runner', instagram: '@amandarun', couponCode: 'AMANDAPRO', commissionRate: 12, salesCount: 0, totalGenerated: 0, availableBalance: 0 },
+      { id: 'part-4', name: 'Patricia Cardoso', instagram: '@patriciacardoso', couponCode: 'PATRICIA10', commissionRate: 10, salesCount: 0, totalGenerated: 0, availableBalance: 0 }
     ];
   });
 
   // Find the exact partner match for this logged user
   const currentPartner = useMemo(() => {
-    // If userName starts or contains name from partner
-    const match = partners.find(p => p.name.toLowerCase().includes(currentUser.name.toLowerCase()) || currentUser.name.toLowerCase().includes(p.name.toLowerCase()));
+    const match = partners.find(p => p.name.toLowerCase().includes(currentUser.name.toLowerCase()) || currentUser.name.toLowerCase().includes(p.name.toLowerCase()) || (p.couponCode && currentUser.couponCode && p.couponCode.toUpperCase() === currentUser.couponCode.toUpperCase()));
     if (match) return match;
     
-    // Fallback if none matches exactly
     return {
-      id: 'part-temp',
+      id: currentUser.id || 'part-temp',
       name: currentUser.name || 'Parceiro Master',
-      instagram: '@apmodafit_parceira',
-      couponCode: 'APMODAFIT5',
+      instagram: '@' + (currentUser.login || 'apmodafit_parceira'),
+      couponCode: currentUser.couponCode || currentUser.details?.couponCode || (currentUser.login ? currentUser.login.toUpperCase() + '10' : 'APMODAFIT10'),
       commissionRate: 10,
-      salesCount: 12,
-      totalGenerated: 3400.00,
-      availableBalance: 340.00
+      salesCount: 0,
+      totalGenerated: 0,
+      availableBalance: 0
     };
   }, [partners, currentUser]);
 
-  // Read mock or actual sales dynamic calculations to make it real
-  // Let's filter sales that used this partner's coupon
+  // Compute REAL sales matching this partner's couponCode / ID / name
   const partnerSales = useMemo(() => {
-    // Generates static or filtered sales list
-    const list = [
-      { id: 'VND-3950', clientName: 'Carolina Melo', total: 420.00, date: '2026-06-15', status: 'Concluída', commission: (420.00 * currentPartner.commissionRate) / 100 },
-      { id: 'VND-3941', clientName: 'Patrícia Albuquerque', total: 189.90, date: '2026-06-14', status: 'Concluída', commission: (189.90 * currentPartner.commissionRate) / 100 },
-      { id: 'VND-3922', clientName: 'Gabriela Vasconcellos', total: 350.00, date: '2026-06-12', status: 'Concluída', commission: (350.00 * currentPartner.commissionRate) / 100 },
-      { id: 'VND-3910', clientName: 'Renata Guimarães', total: 540.00, date: '2026-06-10', status: 'Concluída', commission: (540.00 * currentPartner.commissionRate) / 100 },
-      { id: 'VND-3895', clientName: 'Camila Linhares', total: 290.00, date: '2026-06-08', status: 'Concluída', commission: (290.00 * currentPartner.commissionRate) / 100 }
-    ];
-    return list;
-  }, [currentPartner]);
+    const couponUpper = (currentPartner.couponCode || '').toUpperCase().trim();
+    const nameLower = (currentPartner.name || '').toLowerCase().trim();
+    const partnerId = currentPartner.id;
 
-  // Withdraw requests history
+    const matched: any[] = [];
+
+    // 1. From POS sales
+    if (Array.isArray(sales)) {
+      sales.forEach(s => {
+        const cCode = (s.couponCode || s.coupon || s.partnerCoupon || '').toUpperCase().trim();
+        const pName = (s.partner || s.partnerName || s.seller || '').toLowerCase().trim();
+        const pId = s.partnerId;
+        const notes = (s.notes || s.observation || '').toUpperCase();
+
+        const matchesCoupon = couponUpper && (cCode === couponUpper || notes.includes(couponUpper));
+        const matchesName = nameLower && (pName === nameLower);
+        const matchesId = partnerId && (pId === partnerId);
+
+        if (matchesCoupon || matchesName || matchesId) {
+          const totalVal = Number(s.total || s.value || s.amount || 0);
+          const commRate = currentPartner.commissionRate || 10;
+          const commVal = (totalVal * commRate) / 100;
+          matched.push({
+            id: s.id || `VND-${s.number || Math.floor(1000 + Math.random() * 9000)}`,
+            clientName: s.clientName || s.customerName || s.client || 'Cliente',
+            total: totalVal,
+            date: s.date ? s.date.split('T')[0] : new Date().toISOString().split('T')[0],
+            status: s.status || 'Concluída',
+            commission: commVal,
+            type: 'Venda Loja'
+          });
+        }
+      });
+    }
+
+    // 2. From onlineOrders
+    if (Array.isArray(onlineOrders)) {
+      onlineOrders.forEach(o => {
+        const cCode = (o.couponCode || o.coupon || o.ref || '').toUpperCase().trim();
+        const notes = (o.notes || o.observation || '').toUpperCase();
+        const pId = o.partnerId;
+
+        const matchesCoupon = couponUpper && (cCode === couponUpper || notes.includes(couponUpper));
+        const matchesId = partnerId && (pId === partnerId);
+
+        if (matchesCoupon || matchesId) {
+          if (!matched.some(m => m.id === o.id)) {
+            const totalVal = Number(o.total || o.value || o.amount || 0);
+            const commRate = currentPartner.commissionRate || 10;
+            const commVal = (totalVal * commRate) / 100;
+            matched.push({
+              id: o.id || `PED-${o.number || Math.floor(1000 + Math.random() * 9000)}`,
+              clientName: o.clientName || o.customerName || o.client || 'Cliente Site',
+              total: totalVal,
+              date: o.date ? o.date.split('T')[0] : new Date().toISOString().split('T')[0],
+              status: o.status || 'Concluído',
+              commission: commVal,
+              type: 'Pedido Online'
+            });
+          }
+        }
+      });
+    }
+
+    return matched;
+  }, [sales, onlineOrders, currentPartner]);
+
+  // Withdraw requests history loaded from localStorage (no ghost defaults)
   const [withdrawRequests, setWithdrawRequests] = useState<WithdrawRequest[]>(() => {
     try {
       const saved = localStorage.getItem(`ap_withdraw_requests_${currentPartner.id}`);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
     } catch(e){}
-    return [
-      { id: 'REQ-101', amount: 150.00, pixKeyType: 'Chave Aleatória', pixKey: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', status: 'Aprovado', date: '2026-06-01' },
-      { id: 'REQ-105', amount: 100.00, pixKeyType: 'Celular', pixKey: '(11) 98765-4321', status: 'Aprovado', date: '2026-06-08' }
-    ];
+    return [];
   });
 
   const [withdrawAmount, setWithdrawAmount] = useState<string>('');
@@ -132,6 +186,16 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
   const [pixKey, setPixKey] = useState<string>('');
   const [withdrawSucessMsg, setWithdrawSucessMsg] = useState<string>('');
   const [withdrawErrorMsg, setWithdrawErrorMsg] = useState<string>('');
+
+  // Dynamic real metrics
+  const realSalesCount = partnerSales.length;
+  const realTotalGenerated = partnerSales.reduce((acc, curr) => acc + (curr.total || 0), 0);
+  const realEarnedCommission = partnerSales.reduce((acc, curr) => acc + (curr.commission || 0), 0);
+  const totalWithdrawn = withdrawRequests
+    .filter(r => r.status === 'Aprovado' || r.status === 'Pendente')
+    .reduce((acc, curr) => acc + (curr.amount || 0), 0);
+
+  const currentAvailableBalance = Math.max(0, realEarnedCommission - totalWithdrawn);
 
   // Curated product selection for Partner's Custom Promotion List
   const allProductsList = useMemo(() => {
@@ -216,8 +280,6 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
     setPartners(updated);
     localStorage.setItem('ap_moda_partners', JSON.stringify(updated));
   };
-
-  const currentAvailableBalance = currentPartner.availableBalance !== undefined ? currentPartner.availableBalance : 340.00;
 
   // Handle request Pix Withdraw
   const handleRequestWithdraw = (e: React.FormEvent) => {
@@ -402,9 +464,9 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
                 </div>
                 <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Histórico de Vendas</p>
                 <h3 className="text-white text-xl font-black mt-2 font-mono">
-                  {currentPartner.salesCount} Pedidos
+                  {realSalesCount} {realSalesCount === 1 ? 'Pedido' : 'Pedidos'}
                 </h3>
-                <p className="text-[10px] text-emerald-400 mt-2 font-semibold">Uso frequente do seu cupom de afiliada</p>
+                <p className="text-[10px] text-emerald-400 mt-2 font-semibold">Vendas associadas ao seu cupom</p>
               </div>
 
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-left relative overflow-hidden">
@@ -413,9 +475,9 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
                 </div>
                 <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Faturamento Gerado</p>
                 <h3 className="text-white text-xl font-black mt-2 font-mono">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentPartner.totalGenerated)}
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(realTotalGenerated)}
                 </h3>
-                <p className="text-[10px] text-slate-500 mt-2">Volume bruto vendido em varejo e atacado</p>
+                <p className="text-[10px] text-slate-500 mt-2">Volume bruto gerado com seu cupom</p>
               </div>
 
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-left relative overflow-hidden">
@@ -424,9 +486,9 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
                 </div>
                 <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Sua Comissão Total</p>
                 <h3 className="text-white text-xl font-black mt-2 font-mono">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(accumGains)}
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(realEarnedCommission)}
                 </h3>
-                <p className="text-[10px] text-purple-400 mt-2 font-semibold">Comissão correspondente calculada</p>
+                <p className="text-[10px] text-purple-400 mt-2 font-semibold">Comissão de {currentPartner.commissionRate}% calculada</p>
               </div>
 
             </div>
@@ -444,34 +506,43 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-[11px] font-sans">
-                    <thead>
-                      <tr className="text-slate-450 font-bold border-b border-slate-800 p-2">
-                        <th className="pb-2 text-left">ID Pedido</th>
-                        <th className="pb-2 text-left">Cliente Integrado</th>
-                        <th className="pb-2 text-left">Data</th>
-                        <th className="pb-2 text-center">Status Venda</th>
-                        <th className="pb-2 text-right">Total Carrinho</th>
-                        <th className="pb-2 text-right text-pink-400">Comissão ({currentPartner.commissionRate}%)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/50">
-                      {partnerSales.map((sale) => (
-                        <tr key={sale.id} className="text-slate-300 hover:bg-slate-850/30 transition-colors">
-                          <td className="py-2.5 font-mono text-[10px] font-bold text-pink-400">#{sale.id}</td>
-                          <td className="py-2.5 font-bold">{sale.clientName}</td>
-                          <td className="py-2.5 text-slate-400 font-medium">{sale.date}</td>
-                          <td className="py-2.5 text-center">
-                            <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-extrabold text-[9px] px-2 py-0.5 rounded">
-                              {sale.status}
-                            </span>
-                          </td>
-                          <td className="py-2.5 text-right font-mono font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.total)}</td>
-                          <td className="py-2.5 text-right text-emerald-400 font-bold font-mono">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.commission)}</td>
+                  {partnerSales.length === 0 ? (
+                    <div className="py-12 text-center text-slate-400 space-y-2">
+                      <p className="text-xs font-bold text-slate-300">Nenhuma venda registrada com o seu cupom ainda.</p>
+                      <p className="text-[10px] text-slate-500 max-w-sm mx-auto">
+                        Divulgue seu cupom <strong className="text-pink-400 font-mono">{currentPartner.couponCode}</strong> ou seu link exclusivo para seus seguidores e comece a acumular comissões!
+                      </p>
+                    </div>
+                  ) : (
+                    <table className="w-full text-[11px] font-sans">
+                      <thead>
+                        <tr className="text-slate-450 font-bold border-b border-slate-800 p-2">
+                          <th className="pb-2 text-left">ID Pedido</th>
+                          <th className="pb-2 text-left">Cliente Integrado</th>
+                          <th className="pb-2 text-left">Data</th>
+                          <th className="pb-2 text-center">Status Venda</th>
+                          <th className="pb-2 text-right">Total Carrinho</th>
+                          <th className="pb-2 text-right text-pink-400">Comissão ({currentPartner.commissionRate}%)</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/50">
+                        {partnerSales.map((sale) => (
+                          <tr key={sale.id} className="text-slate-300 hover:bg-slate-850/30 transition-colors">
+                            <td className="py-2.5 font-mono text-[10px] font-bold text-pink-400">#{sale.id}</td>
+                            <td className="py-2.5 font-bold">{sale.clientName}</td>
+                            <td className="py-2.5 text-slate-400 font-medium">{sale.date}</td>
+                            <td className="py-2.5 text-center">
+                              <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-extrabold text-[9px] px-2 py-0.5 rounded">
+                                {sale.status}
+                              </span>
+                            </td>
+                            <td className="py-2.5 text-right font-mono font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.total)}</td>
+                            <td className="py-2.5 text-right text-emerald-400 font-bold font-mono">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.commission)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               </div>
 
