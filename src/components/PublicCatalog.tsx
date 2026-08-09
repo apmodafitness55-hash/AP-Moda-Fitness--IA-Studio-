@@ -2569,10 +2569,16 @@ export default function PublicCatalog({
     const cleanCode = couponCode.trim().toUpperCase();
     if (!cleanCode) return;
 
+    if (appliedCoupon && appliedCoupon.code.toUpperCase() === cleanCode) {
+      setCouponSuccess(`✓ O cupom ${cleanCode} já está ativo nesta compra.`);
+      return;
+    }
+
     setCouponError(null);
     setCouponSuccess(null);
     setIsApplyingCoupon(true);
 
+    const previousCouponCode = appliedCoupon?.code;
     const campaignCoupon = extractCampaignCoupon().toUpperCase();
 
     setTimeout(() => {
@@ -2581,7 +2587,6 @@ export default function PublicCatalog({
       const valResult = validateCouponForCpf(cleanCode, clientCpf, sales, onlineOrders);
       if (!valResult.valid) {
         setCouponError(valResult.message || 'Cupom inválido para este CPF.');
-        setAppliedCoupon(null);
         return;
       }
 
@@ -2598,17 +2603,30 @@ export default function PublicCatalog({
           isFirstPurchase: couponObj.isFirstPurchase ?? false
         });
 
+        const replaceNotice = previousCouponCode && previousCouponCode.toUpperCase() !== couponObj.code.toUpperCase()
+          ? ` (O cupom ${previousCouponCode} foi substituído por ${couponObj.code}. Os cupons não são cumulativos — apenas 1 por compra)`
+          : '';
+
         const cleanCpfDigits = (clientCpf || '').replace(/\D/g, '');
         if (cleanCpfDigits.length === 11) {
-          setCouponSuccess(`✓ Cupom ${couponObj.code} aplicado com sucesso!`);
+          setCouponSuccess(`✓ Cupom ${couponObj.code} aplicado com sucesso!${replaceNotice}`);
         } else {
-          setCouponSuccess(`✓ Cupom ${couponObj.code} ativado! A regra de uso por CPF será confirmada na etapa de identificação.`);
+          setCouponSuccess(`✓ Cupom ${couponObj.code} ativado!${replaceNotice}`);
         }
       } else {
         setCouponError(`Este cupom promocional expirou ou é inválido. Tente ${campaignCoupon} ou FITNESS10.`);
-        setAppliedCoupon(null);
       }
     }, 400);
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode('');
+    setCouponSuccess(null);
+    setCouponError(null);
+    try {
+      localStorage.removeItem('ap_applied_coupon');
+    } catch (e) {}
   };
 
   // Re-validate applied coupon whenever clientCpf, sales, or onlineOrders change
@@ -5569,6 +5587,7 @@ export default function PublicCatalog({
               setCouponCode={setCouponCode}
               isApplyingCoupon={isApplyingCoupon}
               handleApplyCoupon={handleApplyCoupon}
+              handleRemoveCoupon={handleRemoveCoupon}
               couponError={couponError}
               couponSuccess={couponSuccess}
               appliedCoupon={appliedCoupon}

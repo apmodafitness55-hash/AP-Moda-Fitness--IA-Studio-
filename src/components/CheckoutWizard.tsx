@@ -76,6 +76,7 @@ interface CheckoutWizardProps {
   setCouponCode: (val: string) => void;
   isApplyingCoupon: boolean;
   handleApplyCoupon: () => void;
+  handleRemoveCoupon?: () => void;
   couponError: string | null;
   couponSuccess: string | null;
   appliedCoupon: any;
@@ -164,6 +165,7 @@ export function CheckoutWizard({
   setCouponCode,
   isApplyingCoupon,
   handleApplyCoupon,
+  handleRemoveCoupon,
   couponError,
   couponSuccess,
   appliedCoupon,
@@ -1249,33 +1251,69 @@ export function CheckoutWizard({
 
                   {/* Coupon Component */}
                   <div className="text-left bg-slate-50 p-3.5 rounded-2xl border border-slate-100 space-y-2">
-                    <label className="text-slate-500 font-bold text-[9px] uppercase tracking-wider block">Possui Cupom Promocional?</label>
-                    <div className="flex gap-1.5 mt-0.5">
-                      <input 
-                        type="text"
-                        placeholder="Ex: FITNESS10"
-                        value={couponCode}
-                        onChange={(e) => setCouponCode(e.target.value)}
-                        disabled={isApplyingCoupon}
-                        className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs uppercase font-mono font-bold text-rose-600 disabled:opacity-50 focus:outline-none focus:border-pink-550"
-                      />
-                      <button 
-                        type="button" 
-                        onClick={handleApplyCoupon}
-                        disabled={isApplyingCoupon}
-                        className="px-3.5 bg-slate-800 hover:bg-slate-900 font-bold text-white h-[30px] rounded-lg transition text-[10px] cursor-pointer flex items-center justify-center gap-1.5 disabled:bg-slate-400 disabled:cursor-not-allowed border-none"
-                      >
-                        {isApplyingCoupon ? (
-                          <>
-                            <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
-                            <span>...</span>
-                          </>
-                        ) : (
-                          <span>Aplicar</span>
-                        )}
-                      </button>
+                    <div className="flex justify-between items-center">
+                      <label className="text-slate-500 font-bold text-[9px] uppercase tracking-wider block">Possui Cupom Promocional?</label>
+                      <span className="text-[8px] font-extrabold text-[#1E3A42] bg-pink-50 border border-pink-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        1 Cupom por Compra
+                      </span>
                     </div>
-                    <span className="text-[8px] text-slate-450 block leading-tight">Dica: Use <strong>FITNESS10</strong> (10% OFF), <strong>BEMVINDA50</strong> (R$ 50 OFF) ou <strong>FRETEGRATIS</strong> para testar.</span>
+
+                    {appliedCoupon ? (
+                      <div className="bg-emerald-50 border border-emerald-200/80 p-2.5 rounded-xl flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Tag size={14} className="text-emerald-600 flex-shrink-0" />
+                          <div>
+                            <span className="text-xs font-black text-emerald-800 uppercase font-mono">{appliedCoupon.code}</span>
+                            <span className="text-[9.5px] text-emerald-600 font-bold block">
+                              {appliedCoupon.discountPercent > 0 ? `${appliedCoupon.discountPercent}% OFF aplicado` : `R$ ${appliedCoupon.fixedDiscount.toFixed(2)} OFF aplicado`}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (handleRemoveCoupon) {
+                              handleRemoveCoupon();
+                            }
+                          }}
+                          className="text-[9px] font-extrabold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded-lg border border-rose-200/60 transition cursor-pointer"
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-1.5 mt-0.5">
+                        <input 
+                          type="text"
+                          placeholder="Ex: FITNESS10"
+                          value={couponCode}
+                          onChange={(e) => setCouponCode(e.target.value)}
+                          disabled={isApplyingCoupon}
+                          className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs uppercase font-mono font-bold text-rose-600 disabled:opacity-50 focus:outline-none focus:border-pink-550"
+                        />
+                        <button 
+                          type="button" 
+                          onClick={handleApplyCoupon}
+                          disabled={isApplyingCoupon}
+                          className="px-3.5 bg-slate-800 hover:bg-slate-900 font-bold text-white h-[30px] rounded-lg transition text-[10px] cursor-pointer flex items-center justify-center gap-1.5 disabled:bg-slate-400 disabled:cursor-not-allowed border-none"
+                        >
+                          {isApplyingCoupon ? (
+                            <>
+                              <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+                              <span>...</span>
+                            </>
+                          ) : (
+                            <span>Aplicar</span>
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between items-center text-[8px] text-slate-450 pt-0.5">
+                      <span>Dica: <strong>FITNESS10</strong> (10% OFF), <strong>BEMVINDA50</strong> (R$ 50 OFF)</span>
+                      <span className="font-semibold text-slate-400">Cupons não-cumulativos</span>
+                    </div>
+
                     {couponError && (
                       <span className="text-[9.5px] text-rose-600 font-bold block">⚠️ {couponError}</span>
                     )}
@@ -1299,9 +1337,21 @@ export function CheckoutWizard({
                     )}
                     
                     {appliedCoupon && (
-                      <div className="flex justify-between text-rose-600 font-bold">
-                        <span>Desconto Especial ({appliedCoupon.code}):</span>
-                        <span>-R$ {cartDiscount.toFixed(2)}</span>
+                      <div className="flex justify-between items-center text-rose-600 font-bold">
+                        <span>Desconto Cupom ({appliedCoupon.code}):</span>
+                        <div className="flex items-center gap-2">
+                          <span>-R$ {cartDiscount.toFixed(2)}</span>
+                          {handleRemoveCoupon && (
+                            <button
+                              type="button"
+                              onClick={handleRemoveCoupon}
+                              title="Remover este cupom"
+                              className="text-[9px] text-rose-400 hover:text-rose-700 underline cursor-pointer border-none bg-transparent p-0"
+                            >
+                              remover
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
 

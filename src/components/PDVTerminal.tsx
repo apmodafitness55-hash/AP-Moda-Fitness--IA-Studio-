@@ -772,13 +772,23 @@ export default function PDVTerminal({
   const handleApplyCoupon = () => {
     if (!couponCode.trim()) return;
     const codeUpper = couponCode.trim().toUpperCase();
+
+    if (appliedCoupon && appliedCoupon.code.toUpperCase() === codeUpper) {
+      alert(`O cupom ${codeUpper} já está aplicado nesta venda.`);
+      return;
+    }
+
+    const previousCoupon = appliedCoupon?.code;
     const partners = getPartners();
     const partnerWithCoupon = partners.find(p => p.couponCode.toUpperCase() === codeUpper);
     
     if (partnerWithCoupon) {
       const disc = codeUpper.includes('20') ? 20 : codeUpper.includes('15') ? 15 : 10;
       setAppliedCoupon({ code: codeUpper, percent: disc });
-      alert(`Cupom ${codeUpper} de ${partnerWithCoupon.name} aplicado com sucesso! Desconto de ${disc}% concedido.`);
+      const replaceNotice = previousCoupon && previousCoupon !== codeUpper
+        ? `\n\n(O cupom ${previousCoupon} foi substituído pelo cupom ${codeUpper}. Os cupons não são cumulativos — apenas 1 por venda)`
+        : '';
+      alert(`✓ Cupom ${codeUpper} de ${partnerWithCoupon.name} aplicado com sucesso! Desconto de ${disc}% concedido.${replaceNotice}`);
     } else {
       alert('Cupom de parceiro não encontrado ou expirado.');
     }
