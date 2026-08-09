@@ -30,7 +30,18 @@ import {
   Zap,
   Save,
   Check,
-  X
+  X,
+  RotateCcw,
+  ShieldCheck,
+  Ticket,
+  Sliders,
+  Crown,
+  Percent,
+  Trophy,
+  ToggleLeft,
+  ToggleRight,
+  Settings,
+  RefreshCw
 } from 'lucide-react';
 import { Client, Sale, SalesChannel } from '../types';
 
@@ -95,6 +106,15 @@ interface Partner {
   commissionRate: number; // percentage, e.g. 10 (%)
   salesCount: number;
   totalGenerated: number;
+}
+
+export interface ScratchPrize {
+  id: string;
+  title: string;
+  type: 'cashback' | 'cupom' | 'frete' | 'brinde';
+  cashbackValue?: number;
+  couponCode?: string;
+  active: boolean;
 }
 
 export interface VipRulesConfig {
@@ -279,8 +299,8 @@ export default function CustomersCRM({
     }
   };
 
-  // Birthday Automation States
-  const [fidelidadeSubSection, setFidelidadeSubSection] = useState<'cashback' | 'aniversarios'>(() => {
+  // Birthday & Fidelidade Sub-section States
+  const [fidelidadeSubSection, setFidelidadeSubSection] = useState<'cashback' | 'raspadinhas' | 'aniversarios'>(() => {
     try {
       const saved = localStorage.getItem('ap_fidelidade_subsection');
       return (saved as any) || 'cashback';
@@ -288,6 +308,121 @@ export default function CustomersCRM({
       return 'cashback';
     }
   });
+
+  // Scratchcard Prizes and Config states
+  const [scratchPrizes, setScratchPrizes] = useState<ScratchPrize[]>(() => {
+    try {
+      const saved = localStorage.getItem('ap_moda_scratch_prizes');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [
+      { id: 'p1', title: 'R$ 15,00 de Cashback Extra!', type: 'cashback', cashbackValue: 15, active: true },
+      { id: 'p2', title: 'Cupom de R$ 25,00 OFF [FITBRILHO25]', type: 'cupom', couponCode: 'FITBRILHO25', active: true },
+      { id: 'p3', title: 'R$ 10,00 de Cashback Extra!', type: 'cashback', cashbackValue: 10, active: true },
+      { id: 'p4', title: 'Frete Grátis na Próxima Compra [VIPFRETE]', type: 'frete', couponCode: 'VIPFRETE', active: true },
+      { id: 'p5', title: 'R$ 20,00 de Cashback Extra!', type: 'cashback', cashbackValue: 20, active: true },
+    ];
+  });
+
+  const [scratchConfig, setScratchConfig] = useState<{ enabled: boolean; vipDiscountPercent: number }>(() => {
+    try {
+      const saved = localStorage.getItem('ap_moda_scratch_config');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return { enabled: true, vipDiscountPercent: 10 };
+  });
+
+  const [newPrizeTitle, setNewPrizeTitle] = useState('');
+  const [newPrizeType, setNewPrizeType] = useState<'cashback' | 'cupom' | 'frete' | 'brinde'>('cashback');
+  const [newPrizeVal, setNewPrizeVal] = useState('15');
+  const [newPrizeCode, setNewPrizeCode] = useState('');
+
+  const [vipClientSearch, setVipClientSearch] = useState('');
+  const [vipOnlyFilter, setVipOnlyFilter] = useState<'todos' | 'vips' | 'nao_vips'>('vips');
+  const [scratchSyncCounter, setScratchSyncCounter] = useState(0);
+
+  const saveScratchPrizes = (prizes: ScratchPrize[]) => {
+    setScratchPrizes(prizes);
+    try {
+      localStorage.setItem('ap_moda_scratch_prizes', JSON.stringify(prizes));
+      window.dispatchEvent(new Event('ap-storage-synced'));
+    } catch (e) {}
+  };
+
+  const saveScratchConfig = (cfg: { enabled: boolean; vipDiscountPercent: number }) => {
+    setScratchConfig(cfg);
+    try {
+      localStorage.setItem('ap_moda_scratch_config', JSON.stringify(cfg));
+      window.dispatchEvent(new Event('ap-storage-synced'));
+    } catch (e) {}
+  };
+
+  const handleToggleVipStatus = (clientId: string) => {
+    const updated = clients.map(c => c.id === clientId ? { ...c, vip: !c.vip } : c);
+    if (onUpdateClients) {
+      onUpdateClients(updated);
+    }
+  };
+
+  const handleResetClientScratch = (clientId: string) => {
+    localStorage.removeItem(`ap_moda_scratch_state_${clientId}`);
+    localStorage.removeItem(`ap_moda_scratch_reward_${clientId}`);
+    localStorage.removeItem(`ap_moda_scratch_assigned_${clientId}`);
+    setScratchSyncCounter(prev => prev + 1);
+    window.dispatchEvent(new Event('ap-storage-synced'));
+    alert('Raspadinha do cliente liberada novamente com sucesso!');
+  };
+
+  const handleResetAllVipScratchs = () => {
+    if (!confirm('Deseja realmente liberar a raspadinha para TODOS os membros da Ala VIP?')) return;
+    clients.filter(c => c.vip).forEach(c => {
+      localStorage.removeItem(`ap_moda_scratch_state_${c.id}`);
+      localStorage.removeItem(`ap_moda_scratch_reward_${c.id}`);
+      localStorage.removeItem(`ap_moda_scratch_assigned_${c.id}`);
+    });
+    setScratchSyncCounter(prev => prev + 1);
+    window.dispatchEvent(new Event('ap-storage-synced'));
+    alert('Raspadinhas de todos os membros VIP liberadas com sucesso!');
+  };
+
+  const handleAssignPrizeToClient = (clientId: string, prizeId: string) => {
+    if (!prizeId) {
+      localStorage.removeItem(`ap_moda_scratch_assigned_${clientId}`);
+    } else {
+      localStorage.setItem(`ap_moda_scratch_assigned_${clientId}`, prizeId);
+    }
+    setScratchSyncCounter(prev => prev + 1);
+    window.dispatchEvent(new Event('ap-storage-synced'));
+  };
+
+  const handleAddPrize = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPrizeTitle.trim()) {
+      alert('Preencha o título do prêmio!');
+      return;
+    }
+    const newPrize: ScratchPrize = {
+      id: `prize_${Date.now()}`,
+      title: newPrizeTitle.trim(),
+      type: newPrizeType,
+      cashbackValue: newPrizeType === 'cashback' ? parseFloat(newPrizeVal) || 0 : undefined,
+      couponCode: (newPrizeType === 'cupom' || newPrizeType === 'frete') ? newPrizeCode.trim().toUpperCase() : undefined,
+      active: true,
+    };
+    saveScratchPrizes([...scratchPrizes, newPrize]);
+    setNewPrizeTitle('');
+    setNewPrizeCode('');
+    setNewPrizeVal('15');
+  };
+
+  const handleDeletePrize = (id: string) => {
+    if (!confirm('Deseja excluir este prêmio da raspadinha?')) return;
+    saveScratchPrizes(scratchPrizes.filter(p => p.id !== id));
+  };
+
+  const handleTogglePrizeActive = (id: string) => {
+    saveScratchPrizes(scratchPrizes.map(p => p.id === id ? { ...p, active: !p.active } : p));
+  };
 
   const [birthdayCouponDiscount, setBirthdayCouponDiscount] = useState<number>(() => {
     try {
@@ -344,7 +479,7 @@ export default function CustomersCRM({
     }
   });
 
-  const saveFidelidadeSubSection = (sub: 'cashback' | 'aniversarios') => {
+  const saveFidelidadeSubSection = (sub: 'cashback' | 'raspadinhas' | 'aniversarios') => {
     setFidelidadeSubSection(sub);
     try {
       localStorage.setItem('ap_fidelidade_subsection', sub);
@@ -1694,11 +1829,11 @@ export default function CustomersCRM({
           <div className="space-y-6 font-sans">
             
             {/* Elegant Sub-navigation */}
-            <div className="flex border-b border-slate-100 gap-3 pb-0">
+            <div className="flex border-b border-slate-100 gap-3 pb-0 overflow-x-auto scrollbar-none">
               <button
                 type="button"
                 onClick={() => saveFidelidadeSubSection('cashback')}
-                className={`pb-3 px-4 font-bold text-xs uppercase tracking-wider transition duration-150 border-b-2 flex items-center gap-2 cursor-pointer border-none bg-transparent ${
+                className={`pb-3 px-4 font-bold text-xs uppercase tracking-wider transition duration-150 border-b-2 flex items-center gap-2 cursor-pointer border-none bg-transparent whitespace-nowrap ${
                   fidelidadeSubSection === 'cashback'
                     ? 'border-pink-500 text-pink-650 font-extrabold'
                     : 'border-transparent text-slate-400 hover:text-slate-650'
@@ -1707,10 +1842,27 @@ export default function CustomersCRM({
                 <Coins size={14} />
                 <span>Programa Cashback & Saldo</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => saveFidelidadeSubSection('raspadinhas')}
+                className={`pb-3 px-4 font-bold text-xs uppercase tracking-wider transition duration-150 border-b-2 flex items-center gap-2 cursor-pointer border-none bg-transparent whitespace-nowrap ${
+                  fidelidadeSubSection === 'raspadinhas'
+                    ? 'border-pink-500 text-pink-650 font-extrabold'
+                    : 'border-transparent text-slate-400 hover:text-slate-650'
+                }`}
+              >
+                <Crown size={15} className="text-amber-500" />
+                <span>Ala VIP & Raspadinhas 🎰</span>
+                <span className="bg-amber-100 text-amber-800 font-mono text-[9px] px-1.5 py-0.5 rounded-full font-black">
+                  {clients.filter(c => c.vip).length} VIPs
+                </span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => saveFidelidadeSubSection('aniversarios')}
-                className={`pb-3 px-4 font-bold text-xs uppercase tracking-wider transition duration-150 border-b-2 flex items-center gap-2 cursor-pointer border-none bg-transparent ${
+                className={`pb-3 px-4 font-bold text-xs uppercase tracking-wider transition duration-150 border-b-2 flex items-center gap-2 cursor-pointer border-none bg-transparent whitespace-nowrap ${
                   fidelidadeSubSection === 'aniversarios'
                     ? 'border-pink-500 text-pink-650 font-extrabold'
                     : 'border-transparent text-slate-400 hover:text-slate-650'
@@ -2033,6 +2185,367 @@ export default function CustomersCRM({
                   </div>
                 </div>
               </>
+            ) : fidelidadeSubSection === 'raspadinhas' ? (
+              /* ALA VIP & RASPADINHAS VIEW */
+              <div className="space-y-6 font-sans animate-fade-in animate-duration-300">
+                {/* Header & Global Config Banner */}
+                <div className="bg-gradient-to-r from-amber-500/10 via-pink-500/10 to-purple-500/10 border border-amber-200/60 p-5 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Crown className="text-amber-500 fill-amber-500" size={20} />
+                      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Gestão da Ala VIP & Raspadinhas da Sorte</h3>
+                      <span className="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-amber-300 font-mono">
+                        {clients.filter(c => c.vip).length} Membros VIPs Ativos
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600">
+                      Controle total sobre quem pertence à Ala VIP, configure os prêmios da Raspadinha da Sorte e libere jogadas individuais ou em lote.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Toggle Master Raspadinha switch */}
+                    <button
+                      type="button"
+                      onClick={() => saveScratchConfig({ ...scratchConfig, enabled: !scratchConfig.enabled })}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer border ${
+                        scratchConfig.enabled 
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100' 
+                          : 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100'
+                      }`}
+                    >
+                      {scratchConfig.enabled ? <ToggleRight size={18} className="text-emerald-600" /> : <ToggleLeft size={18} className="text-rose-600" />}
+                      <span>Raspadinha no Portal: <strong>{scratchConfig.enabled ? 'ATIVADA' : 'PAUSADA'}</strong></span>
+                    </button>
+
+                    {/* Global Reset Button */}
+                    <button
+                      type="button"
+                      onClick={handleResetAllVipScratchs}
+                      className="px-3.5 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs border-none"
+                    >
+                      <RotateCcw size={14} />
+                      <span>Liberar Nova Raspada para Todos os VIPs</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Section 1: Criar e Gerenciar Prêmios da Raspadinha */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  
+                  {/* Form Criar Prêmio */}
+                  <div className="lg:col-span-5 bg-white border border-slate-100 rounded-2xl p-5 shadow-xs space-y-4">
+                    <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                        <Plus size={15} className="text-pink-600" />
+                        Cadastrar Novo Prêmio p/ Raspadinha
+                      </h4>
+                      <span className="text-[10px] font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                        {scratchPrizes.length} Prêmios
+                      </span>
+                    </div>
+
+                    <form onSubmit={handleAddPrize} className="space-y-3">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Título / Descrição do Prêmio</label>
+                        <input 
+                          type="text"
+                          placeholder="Ex: R$ 30,00 de Cashback Extra ou Cupom VIP20"
+                          value={newPrizeTitle}
+                          onChange={(e) => setNewPrizeTitle(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-hidden focus:border-pink-500"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Tipo de Recompensa</label>
+                          <select
+                            value={newPrizeType}
+                            onChange={(e) => setNewPrizeType(e.target.value as any)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-hidden"
+                          >
+                            <option value="cashback">💰 Cashback Direto (R$)</option>
+                            <option value="cupom">🎟️ Cupom de Desconto</option>
+                            <option value="frete">🚚 Frete Grátis</option>
+                            <option value="brinde">🎁 Brinde / Mimo Físico</option>
+                          </select>
+                        </div>
+
+                        {newPrizeType === 'cashback' ? (
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Valor do Cashback (R$)</label>
+                            <input 
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={newPrizeVal}
+                              onChange={(e) => setNewPrizeVal(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 font-mono focus:outline-hidden"
+                            />
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Código do Cupom (Opção)</label>
+                            <input 
+                              type="text"
+                              placeholder="Ex: VIPFRETE"
+                              value={newPrizeCode}
+                              onChange={(e) => setNewPrizeCode(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 font-mono uppercase focus:outline-hidden"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full py-2.5 bg-pink-600 hover:bg-pink-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 border-none shadow-xs"
+                      >
+                        <Plus size={14} />
+                        <span>Adicionar Prêmio à Raspadinha</span>
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Tabela de Prêmios Ativos */}
+                  <div className="lg:col-span-7 bg-white border border-slate-100 rounded-2xl p-5 shadow-xs space-y-4">
+                    <div className="border-b border-slate-100 pb-3 flex justify-between items-center">
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide">Prêmios Configurados para Sorteio</h4>
+                        <p className="text-[10px] text-slate-400">Prêmios ativos serão sorteados aleatoriamente quando os clientes VIP rasparem no portal.</p>
+                      </div>
+                      <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono font-bold text-[10px] px-2 py-0.5 rounded-full">
+                        {scratchPrizes.filter(p => p.active).length} Ativos
+                      </span>
+                    </div>
+
+                    <div className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1">
+                      {scratchPrizes.length === 0 ? (
+                        <p className="text-xs text-slate-400 text-center py-6">Nenhum prêmio cadastrado ainda.</p>
+                      ) : (
+                        scratchPrizes.map((p) => (
+                          <div 
+                            key={p.id}
+                            className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-colors ${
+                              p.active ? 'bg-slate-50/70 border-slate-200' : 'bg-slate-100/50 border-slate-200 opacity-60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-extrabold ${
+                                p.type === 'cashback' ? 'bg-emerald-100 text-emerald-700' :
+                                p.type === 'cupom' ? 'bg-pink-100 text-pink-700' :
+                                p.type === 'frete' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                              }`}>
+                                {p.type === 'cashback' ? '💰' : p.type === 'cupom' ? '🎟️' : p.type === 'frete' ? '🚚' : '🎁'}
+                              </div>
+                              <div>
+                                <span className="text-xs font-bold text-slate-800 block">{p.title}</span>
+                                <div className="flex items-center gap-2 mt-0.5 text-[9.5px] font-mono">
+                                  <span className="text-slate-500 uppercase font-bold">{p.type}</span>
+                                  {p.cashbackValue && (
+                                    <span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                                      +R$ {p.cashbackValue.toFixed(2)} Cashback
+                                    </span>
+                                  )}
+                                  {p.couponCode && (
+                                    <span className="text-pink-700 font-bold bg-pink-50 px-1.5 py-0.2 rounded border border-pink-200 uppercase">
+                                      Código: {p.couponCode}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleTogglePrizeActive(p.id)}
+                                className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition cursor-pointer border ${
+                                  p.active 
+                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                                    : 'bg-slate-200 text-slate-600 border-slate-300'
+                                }`}
+                              >
+                                {p.active ? 'Ativo' : 'Inativo'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePrize(p.id)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition cursor-pointer border-none bg-transparent"
+                                title="Excluir prêmio"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Painel de Controle por Cliente da Ala VIP */}
+                <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs space-y-4">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-slate-100 pb-3">
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-2">
+                        <Crown size={16} className="text-amber-500" />
+                        Controle de Clientes da Ala VIP & Liberação de Raspadinhas
+                      </h4>
+                      <p className="text-[10px] text-slate-400">Gerencie quem é VIP e resete individualmente ou atribua prêmios para qualquer cliente.</p>
+                    </div>
+
+                    {/* Filters */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="relative">
+                        <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+                        <input 
+                          type="text"
+                          placeholder="Buscar cliente..."
+                          value={vipClientSearch}
+                          onChange={(e) => setVipClientSearch(e.target.value)}
+                          className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-hidden"
+                        />
+                      </div>
+
+                      <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-[10px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setVipOnlyFilter('vips')}
+                          className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                            vipOnlyFilter === 'vips' ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          👑 Apenas VIPs ({clients.filter(c => c.vip).length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setVipOnlyFilter('todos')}
+                          className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                            vipOnlyFilter === 'todos' ? 'bg-slate-800 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          Todos os Clientes ({clients.length})
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs font-sans">
+                      <thead>
+                        <tr className="bg-slate-50/70 border-b border-slate-100 text-slate-400 font-bold uppercase text-[9px] tracking-wider select-none">
+                          <th className="p-3">Cliente</th>
+                          <th className="p-3 text-center">Ala VIP</th>
+                          <th className="p-3 text-center">Status da Raspadinha</th>
+                          <th className="p-3">Atribuir Prêmio Específico</th>
+                          <th className="p-3 text-right">Ação / Liberação</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium text-slate-650">
+                        {clients
+                          .filter(c => {
+                            if (vipOnlyFilter === 'vips' && !c.vip) return false;
+                            if (vipOnlyFilter === 'nao_vips' && c.vip) return false;
+                            if (vipClientSearch) {
+                              const q = vipClientSearch.toLowerCase();
+                              return c.name.toLowerCase().includes(q) || c.phone.includes(q) || c.email.toLowerCase().includes(q);
+                            }
+                            return true;
+                          })
+                          .map(c => {
+                            const scratchState = localStorage.getItem(`ap_moda_scratch_state_${c.id}`) || 'unscratched';
+                            const rewardWon = localStorage.getItem(`ap_moda_scratch_reward_${c.id}`);
+                            const assignedPrizeId = localStorage.getItem(`ap_moda_scratch_assigned_${c.id}`) || '';
+
+                            return (
+                              <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
+                                <td className="p-3">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-7 h-7 rounded-full bg-pink-50 text-pink-600 font-bold flex items-center justify-center text-[10px]">
+                                      {c.name[0]}
+                                    </div>
+                                    <div>
+                                      <span className="font-semibold text-slate-800 text-xs block leading-tight">{c.name}</span>
+                                      <span className="text-[9.5px] text-slate-400 font-mono">{c.phone}</span>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <td className="p-3 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleVipStatus(c.id)}
+                                    className={`px-2.5 py-1 rounded-lg text-[9.5px] font-extrabold uppercase tracking-wider inline-flex items-center gap-1 transition cursor-pointer border ${
+                                      c.vip 
+                                        ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200' 
+                                        : 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-amber-50 hover:text-amber-700'
+                                    }`}
+                                    title={c.vip ? 'Remover da Ala VIP' : 'Promover para Ala VIP'}
+                                  >
+                                    <Crown size={12} className={c.vip ? 'text-amber-600 fill-amber-600' : 'text-slate-400'} />
+                                    <span>{c.vip ? 'Ala VIP (Ativo)' : '+ Tornar VIP'}</span>
+                                  </button>
+                                </td>
+
+                                <td className="p-3 text-center">
+                                  {scratchState === 'scratched' ? (
+                                    <div className="inline-flex flex-col items-center">
+                                      <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded text-[9.5px] font-bold font-mono">
+                                        🎁 Raspado!
+                                      </span>
+                                      {rewardWon && (
+                                        <span className="text-[9px] text-slate-500 font-sans mt-0.5 font-semibold max-w-[150px] truncate">
+                                          {rewardWon}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : scratchState === 'scratching' ? (
+                                    <span className="bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded text-[9.5px] font-bold font-mono animate-pulse">
+                                      ⏳ Raspando...
+                                    </span>
+                                  ) : (
+                                    <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[9.5px] font-bold font-mono">
+                                      🎰 Aguardando Raspada
+                                    </span>
+                                  )}
+                                </td>
+
+                                <td className="p-3">
+                                  <select
+                                    value={assignedPrizeId}
+                                    onChange={(e) => handleAssignPrizeToClient(c.id, e.target.value)}
+                                    className="bg-slate-50 border border-slate-200 rounded-lg p-1.5 text-[10.5px] text-slate-700 focus:outline-hidden w-full max-w-[200px]"
+                                  >
+                                    <option value="">Aleatório (Sorteio)</option>
+                                    {scratchPrizes.map(p => (
+                                      <option key={p.id} value={p.id}>
+                                        Prêmio Fixo: {p.title}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </td>
+
+                                <td className="p-3 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleResetClientScratch(c.id)}
+                                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[10px] font-bold font-sans uppercase tracking-wide transition cursor-pointer inline-flex items-center gap-1 border-none shadow-xs"
+                                    title="Liberar uma nova raspadinha para este cliente"
+                                  >
+                                    <RotateCcw size={12} className="text-pink-400" />
+                                    <span>Liberar Novamente</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
             ) : (
               /* ANNIVERSARIES AUTOMATION VIEW */
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in animate-duration-300">

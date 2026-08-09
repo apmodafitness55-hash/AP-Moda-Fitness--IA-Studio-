@@ -128,30 +128,74 @@ export default function CustomerPortal({
   // Handle Scratch logic
   const handleScratch = () => {
     if (scratchState !== 'unscratched') return;
+
+    // Check if scratchcard is enabled globally
+    try {
+      const cfgSaved = localStorage.getItem('ap_moda_scratch_config');
+      if (cfgSaved) {
+        const cfg = JSON.parse(cfgSaved);
+        if (cfg.enabled === false) {
+          alert('A Raspadinha da Sorte está temporariamente indisponível no momento.');
+          return;
+        }
+      }
+    } catch (e) {}
+
     setScratchState('scratching');
     localStorage.setItem(`ap_moda_scratch_state_${clientData.id}`, 'scratching');
 
     // Simulate scratching reveal
     setTimeout(() => {
-      const rewards = [
-        { text: 'R$ 15,00 de Cashback Extra!', value: 15 },
-        { text: 'Cupom de R$ 25,00 de Desconto! [FITBRILHO25]', value: 0 },
-        { text: 'R$ 10,00 de Cashback Extra!', value: 10 },
-        { text: 'Frete Grátis na Próxima Compra! [VIPFRETE]', value: 0 },
-        { text: 'R$ 20,00 de Cashback Extra!', value: 20 },
-      ];
+      let selectedTitle = '';
+      let cashbackVal = 0;
+
+      // 1. Check if admin assigned a specific prize to this client
+      const assignedPrizeId = localStorage.getItem(`ap_moda_scratch_assigned_${clientData.id}`);
       
-      const selected = rewards[Math.floor(Math.random() * rewards.length)];
-      setScratchReward(selected.text);
-      localStorage.setItem(`ap_moda_scratch_reward_${clientData.id}`, selected.text);
+      // 2. Read configured prizes from localStorage
+      let prizes: Array<{ id: string; title: string; type: string; cashbackValue?: number; couponCode?: string; active: boolean }> = [];
+      try {
+        const savedPrizes = localStorage.getItem('ap_moda_scratch_prizes');
+        if (savedPrizes) prizes = JSON.parse(savedPrizes);
+      } catch (e) {}
+
+      if (prizes.length === 0) {
+        prizes = [
+          { id: 'p1', title: 'R$ 15,00 de Cashback Extra!', type: 'cashback', cashbackValue: 15, active: true },
+          { id: 'p2', title: 'Cupom de R$ 25,00 OFF [FITBRILHO25]', type: 'cupom', couponCode: 'FITBRILHO25', active: true },
+          { id: 'p3', title: 'R$ 10,00 de Cashback Extra!', type: 'cashback', cashbackValue: 10, active: true },
+          { id: 'p4', title: 'Frete Grátis na Próxima Compra [VIPFRETE]', type: 'frete', couponCode: 'VIPFRETE', active: true },
+          { id: 'p5', title: 'R$ 20,00 de Cashback Extra!', type: 'cashback', cashbackValue: 20, active: true },
+        ];
+      }
+
+      const activePrizes = prizes.filter(p => p.active);
+
+      if (assignedPrizeId) {
+        const foundAssigned = prizes.find(p => p.id === assignedPrizeId);
+        if (foundAssigned) {
+          selectedTitle = foundAssigned.title;
+          cashbackVal = foundAssigned.cashbackValue || 0;
+        }
+      }
+
+      if (!selectedTitle) {
+        const pool = activePrizes.length > 0 ? activePrizes : prizes;
+        const picked = pool[Math.floor(Math.random() * pool.length)];
+        selectedTitle = picked.title;
+        cashbackVal = picked.cashbackValue || 0;
+      }
+
+      setScratchReward(selectedTitle);
+      localStorage.setItem(`ap_moda_scratch_reward_${clientData.id}`, selectedTitle);
       setScratchState('scratched');
       localStorage.setItem(`ap_moda_scratch_state_${clientData.id}`, 'scratched');
 
       // If reward has instant cashback value, wire it in CRM
-      if (selected.value > 0) {
+      if (cashbackVal > 0) {
         const updatedClient: Client = {
           ...clientData,
-          cashbackBalance: (clientData.cashbackBalance || 0) + selected.value,
+          cashbackBalance: (clientData.cashbackBalance || 0) + cashbackVal,
         };
         const nextClients = clients.map(c => c.id === clientData.id ? updatedClient : c);
         onUpdateClients(nextClients);
