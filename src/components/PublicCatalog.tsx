@@ -54,6 +54,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { Product, Client } from '../types';
+import { getAppUrl } from '../config';
 import { pushSystemConfigToSupabase } from '../supabase';
 import { CheckoutWizard } from './CheckoutWizard';
 
@@ -617,10 +618,7 @@ export default function PublicCatalog({
 
   // Generate share URL for direct deep-linking
   const getProductShareUrl = (productId: string) => {
-    const origin = typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost')
-      ? window.location.origin
-      : 'https://www.apmodafitness2.com.br';
-    return `${origin}/?p=${productId}`;
+    return `${getAppUrl()}/?p=${productId}`;
   };
 
   const handleCopyProductLink = async (product: Product, e?: React.MouseEvent) => {

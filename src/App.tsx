@@ -3530,7 +3530,7 @@ export default function App() {
     );
   }
 
-  if (isDriverPortalOpen) {
+  if (currentUser?.role === 'Entregador' || isDriverPortalOpen) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
         <DriverAppPortal 
@@ -3539,6 +3539,7 @@ export default function App() {
           onExitPortal={() => setIsDriverPortalOpen(false)}
           currentUser={currentUser}
           onLogout={() => setCurrentUser(null)}
+          motoboys={motoboys}
         />
       </div>
     );

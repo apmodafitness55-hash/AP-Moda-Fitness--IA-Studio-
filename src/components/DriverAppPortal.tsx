@@ -34,23 +34,30 @@ interface DriverAppPortalProps {
   onExitPortal: () => void;
   currentUser?: any;
   onLogout?: () => void;
+  motoboys?: string[];
 }
 
-export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onExitPortal, currentUser, onLogout }: DriverAppPortalProps) {
-  // Current logged riders
-  const riders = ['Bruno Ramos', 'Lucas Correia', 'Thales Silva'];
+export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onExitPortal, currentUser, onLogout, motoboys }: DriverAppPortalProps) {
+  // Current logged riders - dynamic list from system settings or defaults
+  const riders = useMemo(() => {
+    if (Array.isArray(motoboys) && motoboys.length > 0) {
+      return motoboys;
+    }
+    return ['Bruno Ramos (Moto 1)', 'Lucas Correia (Moto 2)', 'Thales Silva (Bike/Região Central)', 'Cláudio Santos (Parceiro Envio Rápido)'];
+  }, [motoboys]);
+
   const [selectedRider, setSelectedRider] = useState<string>('Bruno Ramos');
   const [activeStep, setActiveStep] = useState<'login' | 'feed' | 'delivery_detail' | 'signature'>('login');
 
   // Automatically adapt to logged deliveries driver
   useEffect(() => {
     if (currentUser && currentUser.role === 'Entregador') {
-      // Find matching rider
-      const matched = riders.find(r => r.toLowerCase().includes(currentUser.name.toLowerCase()) || currentUser.name.toLowerCase().includes(r.toLowerCase()));
+      const cName = (currentUser.name || '').toLowerCase();
+      const matched = riders.find(r => r.toLowerCase().includes(cName) || cName.includes(r.toLowerCase().split(' ')[0]));
       setSelectedRider(matched || currentUser.name);
       setActiveStep('feed');
     }
-  }, [currentUser]);
+  }, [currentUser, riders]);
   
   // Active delivery selected inside the smartphone
   const [activeOrder, setActiveOrder] = useState<any | null>(null);

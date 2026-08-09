@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { getAppUrl } from '../config';
 import { 
   Award, 
   DollarSign, 
@@ -232,9 +233,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
   };
 
   const curatedSelectionLink = useMemo(() => {
-    const origin = typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost')
-      ? window.location.origin
-      : 'https://www.apmodafitness2.com.br';
+    const origin = getAppUrl();
     
     if (partnerCuratedIds.length > 0) {
       return `${origin}/?ref=${currentPartner.couponCode}&produtos=${partnerCuratedIds.join(',')}`;
@@ -347,7 +346,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
     setTimeout(() => setCopiedCoupon(false), 2000);
   };
 
-  const invitationLink = `https://apmodafit.com.br/vitrine?ref=${currentPartner.couponCode}`;
+  const invitationLink = `${getAppUrl()}/?ref=${currentPartner.couponCode}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(invitationLink);

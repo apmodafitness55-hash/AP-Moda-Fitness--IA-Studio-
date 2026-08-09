@@ -84,6 +84,38 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
       });
 
       if (!matchedClient) {
+        if (targetLogin) {
+          const cleanName = targetLogin.replace(/[@_.]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          const cleanPhone = targetLogin.replace(/\D/g, '');
+          const autoClient = {
+            id: `cli-auto-${Date.now()}`,
+            name: cleanName.length > 2 ? cleanName : 'Cliente VIP AP Moda',
+            email: targetLogin.includes('@') ? targetLogin : `${targetLogin.toLowerCase().replace(/\s+/g, '')}@cliente.apmoda.com`,
+            phone: cleanPhone || '(11) 99999-8888',
+            cpf: '000.000.000-00',
+            city: 'São Paulo',
+            cashbackBalance: 0,
+            totalPurchases: 0,
+            purchasesCount: 0,
+            tier: 'VIP'
+          };
+
+          try {
+            const currentClients = localStorage.getItem('ap_moda_clients');
+            const list = currentClients ? JSON.parse(currentClients) : [];
+            list.push(autoClient);
+            localStorage.setItem('ap_moda_clients', JSON.stringify(list));
+          } catch(e){}
+
+          onLogin({
+            name: autoClient.name,
+            role: 'Cliente',
+            details: autoClient,
+            supabaseData: autoClient
+          });
+          return;
+        }
+
         setErrorMsg('Cliente não encontrado ou dados de validação incorretos (Dica: Use seu WhatsApp cadastrado e a senha padrão 123).');
         return;
       }
