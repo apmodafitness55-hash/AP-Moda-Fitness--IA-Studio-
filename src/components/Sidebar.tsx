@@ -38,7 +38,8 @@ import {
   Sun,
   LogOut,
   Building2,
-  CreditCard
+  CreditCard,
+  Tag
 } from 'lucide-react';
 import { ActiveTab } from '../types';
 

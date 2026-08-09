@@ -55,8 +55,6 @@ interface LojaOnlineProps {
   onUpdateProduct?: (product: Product) => void;
 }
 
-import { Coupon, getStoredCoupons, saveStoredCoupons } from '../utils/couponUtils';
-
 export type { Coupon };
 
 export default function LojaOnline({ 

@@ -20,7 +20,8 @@ import {
   CheckCircle2,
   Copy,
   Check,
-  ExternalLink
+  ExternalLink,
+  Tag
 } from 'lucide-react';
 import { validateCPF } from './PublicCatalog'; // Import CPF validation helper if exported, or define it locally
 import { validateCouponForCpf } from '../utils/couponUtils';

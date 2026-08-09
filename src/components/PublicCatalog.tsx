@@ -1158,7 +1158,7 @@ export default function PublicCatalog({
       return '';
     }
   });
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercent: number; fixedDiscount: number; maxPerCpf?: number; isFirstPurchase?: boolean } | null>(() => {
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercent: number; fixedDiscount: number; category?: string; maxPerCpf?: number; isFirstPurchase?: boolean } | null>(() => {
     try {
       const saved = localStorage.getItem('ap_applied_coupon');
       if (saved) return JSON.parse(saved);
