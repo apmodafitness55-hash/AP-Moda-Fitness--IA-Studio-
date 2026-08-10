@@ -73,15 +73,25 @@ export function validateCouponForCpf(
       const savedP = localStorage.getItem('ap_moda_partners');
       if (savedP) {
         const partnersList: any[] = JSON.parse(savedP);
-        const foundPartner = partnersList.find(p => 
-          (p.couponCode && p.couponCode.toUpperCase() === cleanCode) || 
-          (p.login && (p.login.toUpperCase() + '10' === cleanCode || p.login.toUpperCase() === cleanCode))
-        );
+        const foundPartner = partnersList.find(p => {
+          const pCoupon = (p.couponCode || '').toUpperCase().trim();
+          const pName = (p.name || '').toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+          const pLogin = (p.login || '').toUpperCase().trim();
+          const clean = cleanCode.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+          const firstName = pName.split(' ')[0] || '';
+
+          return (
+            (pCoupon && (pCoupon === clean || pCoupon.startsWith(clean) || clean.startsWith(pCoupon.replace(/10$/, '')))) ||
+            (pLogin && (pLogin === clean || (pLogin + '10') === clean || clean.startsWith(pLogin))) ||
+            (pName && (pName === clean || pName.includes(clean) || (firstName.length >= 3 && clean.includes(firstName))))
+          );
+        });
         if (foundPartner) {
           matchedCoupon = {
             code: cleanCode,
             type: 'percent',
-            value: foundPartner.discountPercent || 10,
+            value: foundPartner.discountPercent || foundPartner.commissionRate || 10,
             minPurchase: 0,
             limitUses: 1000,
             usedCount: 0,
@@ -99,7 +109,13 @@ export function validateCouponForCpf(
       const savedP = localStorage.getItem('ap_moda_partners');
       if (savedP) {
         const partnersList: any[] = JSON.parse(savedP);
-        const foundPartner = partnersList.find(p => p.couponCode && p.couponCode.toUpperCase() === cleanCode);
+        const foundPartner = partnersList.find(p => {
+          const pCoupon = (p.couponCode || '').toUpperCase().trim();
+          const pName = (p.name || '').toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+          const clean = cleanCode.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+          const firstName = pName.split(' ')[0] || '';
+          return pCoupon === clean || (firstName.length >= 3 && clean.includes(firstName));
+        });
         if (foundPartner) {
           matchedCoupon.partnerName = foundPartner.name;
         }

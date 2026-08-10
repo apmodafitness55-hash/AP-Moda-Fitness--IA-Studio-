@@ -34,7 +34,11 @@ import {
   Link2,
   Filter,
   CheckSquare,
-  Square
+  Square,
+  Plus,
+  X,
+  Tag,
+  Calendar
 } from 'lucide-react';
 
 interface PartnerPortalProps {
@@ -105,34 +109,98 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
     };
   }, [partners, currentUser]);
 
-  // Compute REAL sales matching this partner's couponCode / ID / name / login
+  // Manual retroactive sales state
+  const [manualSales, setManualSales] = useState<any[]>(() => {
+    try {
+      const savedLocal = localStorage.getItem(`ap_manual_partner_sales_${currentPartner.id}`);
+      let list: any[] = [];
+      if (savedLocal) {
+        const parsed = JSON.parse(savedLocal);
+        if (Array.isArray(parsed)) list = parsed;
+      }
+      const savedGlobal = localStorage.getItem('ap_manual_partner_sales');
+      if (savedGlobal) {
+        const parsedGlobal = JSON.parse(savedGlobal);
+        if (Array.isArray(parsedGlobal)) {
+          parsedGlobal.forEach(gItem => {
+            const isForThisPartner = gItem.partnerId === currentPartner.id ||
+              (gItem.partnerName && currentPartner.name && gItem.partnerName.toLowerCase().includes(currentPartner.name.toLowerCase()));
+            if (isForThisPartner && !list.some(l => l.id === gItem.id)) {
+              list.push(gItem);
+            }
+          });
+        }
+      }
+      return list;
+    } catch(e) {}
+    return [];
+  });
+
+  // Extract all token variations for currentPartner to ensure 100% failproof auto-matching
+  const partnerTokens = useMemo(() => {
+    const tokens = new Set<string>();
+    const sanitize = (str: string) => (str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+
+    const rawName = currentPartner.name || '';
+    const rawCoupon = currentPartner.couponCode || '';
+    const rawLogin = ((currentPartner as any).login || currentUser?.login || '');
+    const rawId = currentPartner.id || '';
+
+    const cleanName = sanitize(rawName);
+    const cleanCoupon = sanitize(rawCoupon);
+    const cleanLogin = sanitize(rawLogin);
+    const cleanId = sanitize(rawId);
+
+    if (cleanCoupon) {
+      tokens.add(cleanCoupon);
+      const alpha = cleanCoupon.replace(/[^A-Z]/g, '');
+      if (alpha.length >= 3) tokens.add(alpha);
+    }
+
+    if (cleanLogin) {
+      tokens.add(cleanLogin);
+      const alpha = cleanLogin.replace(/[^A-Z]/g, '');
+      if (alpha.length >= 3) tokens.add(alpha);
+    }
+
+    if (cleanName) {
+      tokens.add(cleanName);
+      cleanName.split(/\s+/).forEach(part => {
+        const p = part.trim();
+        if (p.length >= 3 && !['DOS', 'DAS', 'DA', 'DE', 'DO', 'MODA', 'FITNESS'].includes(p)) {
+          tokens.add(p);
+        }
+      });
+    }
+
+    if (cleanId) tokens.add(cleanId);
+
+    return Array.from(tokens);
+  }, [currentPartner, currentUser]);
+
+  // Compute REAL sales matching this partner's couponCode / ID / name / login / tokens + manual sales
   const partnerSales = useMemo(() => {
-    const couponUpper = (currentPartner.couponCode || '').toUpperCase().trim();
-    const loginUpper = ((currentPartner as any).login || '').toUpperCase().trim();
-    const nameLower = (currentPartner.name || '').toLowerCase().trim();
-    const nameUpper = (currentPartner.name || '').toUpperCase().trim();
-    const partnerId = currentPartner.id;
-
     const matched: any[] = [];
+    const sanitize = (str: string) => (str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
 
-    // Helper matcher
-    const isPartnerMatch = (cCode: string, pName: string, pId: string, notes: string) => {
-      const cUpper = cCode.toUpperCase().trim();
-      const pLower = pName.toLowerCase().trim();
-      const nUpper = notes.toUpperCase().trim();
-      const nLower = notes.toLowerCase().trim();
+    const isPartnerMatch = (cCode: string, pName: string, pId: string, notes: string, extraFields: string = '') => {
+      const cleanCCode = sanitize(cCode);
+      const cleanPName = sanitize(pName);
+      const cleanPId = sanitize(pId);
+      const cleanNotes = sanitize(notes);
+      const cleanExtra = sanitize(extraFields);
+      const cleanAll = `${cleanCCode} ${cleanPName} ${cleanPId} ${cleanNotes} ${cleanExtra}`;
 
-      const matchByCoupon =
-        (couponUpper && (cUpper === couponUpper || nUpper.includes(couponUpper))) ||
-        (loginUpper && (cUpper === loginUpper || cUpper === loginUpper + '10' || nUpper.includes(loginUpper)));
-
-      const matchByName =
-        (nameLower && (pLower === nameLower || nLower.includes(nameLower))) ||
-        (nameUpper && nUpper.includes(nameUpper));
-
-      const matchById = partnerId && (pId === partnerId || pLower === partnerId.toLowerCase());
-
-      return matchByCoupon || matchByName || matchById;
+      for (const token of partnerTokens) {
+        if (!token) continue;
+        if (cleanCCode === token || (cleanCCode && (cleanCCode.includes(token) || token.includes(cleanCCode)))) {
+          return true;
+        }
+        if (cleanPName.includes(token) || cleanPId === token || cleanNotes.includes(token) || cleanAll.includes(token)) {
+          return true;
+        }
+      }
+      return false;
     };
 
     // 1. From POS sales
@@ -140,11 +208,11 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
       sales.forEach(s => {
         if (s.status === 'Cancelada') return;
         const cCode = s.couponCode || s.coupon || s.partnerCoupon || (s.appliedCoupon?.code) || '';
-        const pName = s.partner || s.partnerName || s.seller || '';
+        const pName = s.partner || s.partnerName || s.seller || s.salesperson || '';
         const pId = s.partnerId || '';
         const notes = `${s.notes || ''} ${s.observation || ''} ${s.clientName || ''}`;
 
-        if (isPartnerMatch(cCode, pName, pId, notes)) {
+        if (isPartnerMatch(cCode, pName, pId, notes, JSON.stringify(s))) {
           const totalVal = Number(s.total || s.value || s.amount || 0);
           const commRate = currentPartner.commissionRate || 10;
           const commVal = (totalVal * commRate) / 100;
@@ -170,7 +238,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
         const pId = o.partnerId || '';
         const notes = `${o.notes || ''} ${o.observation || ''} ${o.clientName || ''} ${o.customerName || ''}`;
 
-        if (isPartnerMatch(cCode, pName, pId, notes)) {
+        if (isPartnerMatch(cCode, pName, pId, notes, JSON.stringify(o))) {
           if (!matched.some(m => m.id === o.id)) {
             const totalVal = Number(o.total || o.value || o.amount || 0);
             const commRate = currentPartner.commissionRate || 10;
@@ -189,8 +257,164 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
       });
     }
 
+    // 3. From manual retroactive sales
+    if (Array.isArray(manualSales)) {
+      manualSales.forEach(m => {
+        if (!matched.some(item => item.id === m.id)) {
+          const totalVal = Number(m.total || m.amount || 0);
+          const commRate = m.commissionRate || currentPartner.commissionRate || 10;
+          const commVal = m.commission ?? ((totalVal * commRate) / 100);
+          matched.push({
+            id: m.id || `RET-${Math.floor(1000 + Math.random() * 9000)}`,
+            clientName: m.clientName || 'Cliente Retroativo',
+            total: totalVal,
+            date: m.date ? m.date.split('T')[0] : new Date().toISOString().split('T')[0],
+            status: m.status || 'Concluída',
+            commission: commVal,
+            type: m.type || 'Lançamento Retroativo',
+            notes: m.notes || ''
+          });
+        }
+      });
+    }
+
     return matched;
-  }, [sales, onlineOrders, currentPartner]);
+  }, [sales, onlineOrders, manualSales, partnerTokens, currentPartner]);
+
+  // Retroactive sale modal state
+  const [isRetroModalOpen, setIsRetroModalOpen] = useState(false);
+  const [retroTab, setRetroTab] = useState<'system' | 'manual'>('system');
+  const [retroSearch, setRetroSearch] = useState('');
+
+  // Manual entry form state
+  const [manualClientName, setManualClientName] = useState('');
+  const [manualTotal, setManualTotal] = useState('');
+  const [manualDate, setManualDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [manualOrderNum, setManualOrderNum] = useState('');
+  const [manualChannel, setManualChannel] = useState('Cupom / Link de Afiliado');
+  const [manualNotes, setManualNotes] = useState('');
+  const [retroSuccessMsg, setRetroSuccessMsg] = useState('');
+
+  // Handler to link existing sale/order from system
+  const handleLinkExistingSale = (item: any, isOnlineOrder: boolean) => {
+    const saleId = item.id;
+    const clientName = item.clientName || item.customerName || 'Cliente';
+    const totalVal = Number(item.total || item.amount || 0);
+    const commRate = currentPartner.commissionRate || 10;
+    const commVal = (totalVal * commRate) / 100;
+
+    const newManualItem = {
+      id: saleId,
+      partnerId: currentPartner.id,
+      partnerName: currentPartner.name,
+      clientName,
+      total: totalVal,
+      date: item.date ? item.date.split('T')[0] : (item.createdAt ? item.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]),
+      status: 'Concluída',
+      commissionRate: commRate,
+      commission: commVal,
+      type: isOnlineOrder ? 'Pedido Online' : 'Venda Loja',
+      notes: `Vencimento pós-fechado vinculado a ${currentPartner.name}`
+    };
+
+    const updatedLocal = [newManualItem, ...manualSales.filter(m => m.id !== saleId)];
+    setManualSales(updatedLocal);
+    localStorage.setItem(`ap_manual_partner_sales_${currentPartner.id}`, JSON.stringify(updatedLocal));
+
+    try {
+      const savedGlobal = localStorage.getItem('ap_manual_partner_sales');
+      const parsedGlobal = savedGlobal ? JSON.parse(savedGlobal) : [];
+      const updatedGlobal = [newManualItem, ...parsedGlobal.filter((g: any) => g.id !== saleId)];
+      localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
+    } catch(e) {}
+
+    if (isOnlineOrder) {
+      try {
+        const savedOrders = localStorage.getItem('ap_online_orders');
+        if (savedOrders) {
+          const parsedOrders = JSON.parse(savedOrders);
+          const updated = parsedOrders.map((o: any) => {
+            if (o.id === saleId) {
+              return { ...o, partnerName: currentPartner.name, partnerId: currentPartner.id, couponCode: currentPartner.couponCode };
+            }
+            return o;
+          });
+          localStorage.setItem('ap_online_orders', JSON.stringify(updated));
+        }
+      } catch(e) {}
+    } else {
+      try {
+        const savedSales = localStorage.getItem('ap_moda_sales');
+        if (savedSales) {
+          const parsedSales = JSON.parse(savedSales);
+          const updated = parsedSales.map((s: any) => {
+            if (s.id === saleId) {
+              return { ...s, partner: currentPartner.name, partnerId: currentPartner.id, couponCode: currentPartner.couponCode };
+            }
+            return s;
+          });
+          localStorage.setItem('ap_moda_sales', JSON.stringify(updated));
+        }
+      } catch(e) {}
+    }
+
+    window.dispatchEvent(new Event('storage'));
+
+    setRetroSuccessMsg(`Venda #${saleId} de ${clientName} (R$ ${totalVal.toFixed(2)}) vinculada com sucesso a ${currentPartner.name}!`);
+    setTimeout(() => setRetroSuccessMsg(''), 4000);
+  };
+
+  // Handler to submit manual direct sale
+  const handleSaveManualSale = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualClientName.trim()) {
+      alert('Por favor, informe o nome do cliente.');
+      return;
+    }
+    const totalVal = parseFloat(manualTotal);
+    if (isNaN(totalVal) || totalVal <= 0) {
+      alert('Por favor, informe um valor total válido maior que R$ 0,00.');
+      return;
+    }
+
+    const saleId = manualOrderNum.trim() ? manualOrderNum.trim().toUpperCase() : `RET-${Math.floor(10000 + Math.random() * 90000)}`;
+    const commRate = currentPartner.commissionRate || 10;
+    const commVal = (totalVal * commRate) / 100;
+
+    const newItem = {
+      id: saleId,
+      partnerId: currentPartner.id,
+      partnerName: currentPartner.name,
+      clientName: manualClientName.trim(),
+      total: totalVal,
+      date: manualDate || new Date().toISOString().split('T')[0],
+      status: 'Concluída',
+      commissionRate: commRate,
+      commission: commVal,
+      type: manualChannel,
+      notes: manualNotes.trim()
+    };
+
+    const updatedLocal = [newItem, ...manualSales.filter(m => m.id !== saleId)];
+    setManualSales(updatedLocal);
+    localStorage.setItem(`ap_manual_partner_sales_${currentPartner.id}`, JSON.stringify(updatedLocal));
+
+    try {
+      const savedGlobal = localStorage.getItem('ap_manual_partner_sales');
+      const parsedGlobal = savedGlobal ? JSON.parse(savedGlobal) : [];
+      const updatedGlobal = [newItem, ...parsedGlobal.filter((g: any) => g.id !== saleId)];
+      localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
+    } catch(e) {}
+
+    window.dispatchEvent(new Event('storage'));
+
+    setManualClientName('');
+    setManualTotal('');
+    setManualOrderNum('');
+    setManualNotes('');
+    setRetroSuccessMsg(`Lançamento manual registrado! Venda de R$ ${totalVal.toFixed(2)} contabilizada no perfil de ${currentPartner.name}.`);
+    setTimeout(() => setRetroSuccessMsg(''), 4000);
+  };
 
   // Withdraw requests history loaded from localStorage (no ghost defaults)
   const [withdrawRequests, setWithdrawRequests] = useState<WithdrawRequest[]>(() => {
@@ -518,12 +742,23 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               
               <div className="lg:col-span-8 bg-slate-900 border border-slate-800 rounded-3xl p-5 text-left">
-                <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-800/60">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                    <Clock size={15} className="text-pink-500" />
-                    <span>Últimas Vendas Associadas ao seu Cupom</span>
-                  </h3>
-                  <span className="text-[10px] font-bold text-slate-450 bg-slate-950 px-2 py-0.5 rounded">Sincronizado Instantâneo</span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-800/60">
+                  <div className="space-y-0.5">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+                      <Clock size={15} className="text-pink-500" />
+                      <span>Últimas Vendas Associadas ao seu Perfil</span>
+                    </h3>
+                    <p className="text-[10px] text-slate-400">Contabiliza vendas de cupom, link, balcão e lançamentos pós-fechados</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setIsRetroModalOpen(true)}
+                      className="bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-bold text-[11px] px-3 py-1.5 rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer transition-all border border-pink-500/30"
+                    >
+                      <Plus size={14} />
+                      <span>➕ Lançar Venda Pós-Fechada</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -1026,6 +1261,249 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
 
           </div>
         )}
+
+      {/* Retroactive / Posthumous Sale Addition Modal */}
+      {isRetroModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-3xl p-6 text-slate-100 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-pink-600/20 text-pink-400 rounded-2xl border border-pink-500/30">
+                  <Tag size={20} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-white text-base">Lançar / Vincular Venda Pós-Fechada</h3>
+                  <p className="text-xs text-slate-400">Adicione ou vincule vendas retroativas para <strong className="text-pink-400">{currentPartner.name}</strong></p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setIsRetroModalOpen(false); setRetroSuccessMsg(''); }}
+                className="p-1.5 text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-xl transition-all cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Notification alert */}
+            {retroSuccessMsg && (
+              <div className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-2xl text-xs font-bold flex items-center gap-2">
+                <CheckCircle size={16} className="shrink-0" />
+                <span>{retroSuccessMsg}</span>
+              </div>
+            )}
+
+            {/* Tabs */}
+            <div className="flex bg-slate-950 p-1 rounded-2xl mt-4 border border-slate-800 text-xs font-bold">
+              <button
+                onClick={() => setRetroTab('system')}
+                className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${retroTab === 'system' ? 'bg-pink-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                <Search size={13} />
+                <span>Buscar em Vendas do Sistema</span>
+              </button>
+              <button
+                onClick={() => setRetroTab('manual')}
+                className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${retroTab === 'manual' ? 'bg-pink-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                <Plus size={13} />
+                <span>Cadastrar Lançamento Direto</span>
+              </button>
+            </div>
+
+            {/* Tab 1: System Sales Search */}
+            {retroTab === 'system' && (
+              <div className="mt-4 space-y-3">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-3 text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por nome do cliente, número do pedido ou valor..."
+                    value={retroSearch}
+                    onChange={(e) => setRetroSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-pink-500"
+                  />
+                </div>
+
+                <div className="max-h-64 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                  {(() => {
+                    const allCandidates: { item: any; isOnline: boolean }[] = [];
+                    if (Array.isArray(sales)) {
+                      sales.forEach(s => {
+                        if (s.status !== 'Cancelada') allCandidates.push({ item: s, isOnline: false });
+                      });
+                    }
+                    if (Array.isArray(onlineOrders)) {
+                      onlineOrders.forEach(o => {
+                        if (o.status !== 'Cancelado') allCandidates.push({ item: o, isOnline: true });
+                      });
+                    }
+
+                    const query = retroSearch.toLowerCase().trim();
+                    const filtered = allCandidates.filter(({ item }) => {
+                      if (!query) return true;
+                      const cName = (item.clientName || item.customerName || '').toLowerCase();
+                      const sId = (item.id || '').toLowerCase();
+                      const totalStr = (item.total || item.amount || '').toString();
+                      return cName.includes(query) || sId.includes(query) || totalStr.includes(query);
+                    });
+
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="py-8 text-center text-slate-500 text-xs italic">
+                          Nenhuma venda do sistema encontrada com os termos informados.
+                        </div>
+                      );
+                    }
+
+                    return filtered.slice(0, 15).map(({ item, isOnline }) => {
+                      const isAlreadyPartner = partnerSales.some(ps => ps.id === item.id);
+                      const totalVal = Number(item.total || item.amount || 0);
+                      const dateStr = item.date ? item.date.split('T')[0] : (item.createdAt ? item.createdAt.split('T')[0] : '');
+
+                      return (
+                        <div key={item.id} className="p-3 bg-slate-950 border border-slate-800/80 rounded-2xl flex items-center justify-between hover:border-slate-700 transition-all">
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[10px] font-bold text-pink-400 bg-pink-500/10 px-1.5 py-0.5 rounded">
+                                #{item.id}
+                              </span>
+                              <span className="text-[10px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded font-semibold">
+                                {isOnline ? 'Site / Online' : 'Loja Física'}
+                              </span>
+                              <span className="text-[10px] text-slate-500">{dateStr}</span>
+                            </div>
+                            <p className="text-xs font-bold text-slate-200">{item.clientName || item.customerName || 'Cliente'}</p>
+                            <p className="text-[11px] font-mono text-emerald-400 font-bold">
+                              R$ {totalVal.toFixed(2)}
+                            </p>
+                          </div>
+
+                          <div>
+                            {isAlreadyPartner ? (
+                              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-xl flex items-center gap-1">
+                                <CheckCircle size={12} />
+                                Já Vinculado
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => handleLinkExistingSale(item, isOnline)}
+                                className="bg-pink-600 hover:bg-pink-500 text-white font-bold text-[11px] px-3 py-1.5 rounded-xl flex items-center gap-1 cursor-pointer transition-all"
+                              >
+                                <Plus size={12} />
+                                Vincular
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {/* Tab 2: Manual Direct Entry */}
+            {retroTab === 'manual' && (
+              <form onSubmit={handleSaveManualSale} className="mt-4 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-1">Nome do Cliente *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: Patrícia Cardoso ou Cliente Indicação"
+                      value={manualClientName}
+                      onChange={(e) => setManualClientName(e.target.value)}
+                      className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-pink-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-1">Valor Total da Venda (R$) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      placeholder="Ex: 299.90"
+                      value={manualTotal}
+                      onChange={(e) => setManualTotal(e.target.value)}
+                      className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-pink-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-1">Data da Venda</label>
+                    <input
+                      type="date"
+                      value={manualDate}
+                      onChange={(e) => setManualDate(e.target.value)}
+                      className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-pink-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-1">Nº do Pedido / Identificador (Opcional)</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: PED-9821 ou Comprovante Pix"
+                      value={manualOrderNum}
+                      onChange={(e) => setManualOrderNum(e.target.value)}
+                      className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-pink-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-1">Canal de Origem</label>
+                    <select
+                      value={manualChannel}
+                      onChange={(e) => setManualChannel(e.target.value)}
+                      className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-pink-500"
+                    >
+                      <option value="Cupom / Link de Afiliado">Cupom / Link de Afiliado</option>
+                      <option value="Indicação Direta WhatsApp">Indicação Direta WhatsApp</option>
+                      <option value="Venda Presencial Balcão">Venda Presencial Balcão</option>
+                      <option value="Instagram Direct">Instagram Direct</option>
+                      <option value="Outro Canal">Outro Canal</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-1">Observações / Detalhes</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Pedido fechado pós-atendimento via link"
+                      value={manualNotes}
+                      onChange={(e) => setManualNotes(e.target.value)}
+                      className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-pink-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsRetroModalOpen(false)}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl cursor-pointer transition-all"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-bold text-xs rounded-xl cursor-pointer shadow-lg transition-all"
+                  >
+                    💾 Salvar Lançamento Retroativo
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       </div>
 
