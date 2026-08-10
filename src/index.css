@@ -437,6 +437,13 @@ body.theme-rosa {
     margin: 0;
   }
 
+  * {
+    transform: none !important;
+    transition: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+  }
+
   html, body {
     background: #ffffff !important;
     background-color: #ffffff !important;
@@ -496,7 +503,7 @@ body.theme-rosa {
     visibility: visible !important;
   }
 
-  /* Position printable targets fixed at top-left (0,0) of page 1 with natural auto-height flow to prevent vertical displacement */
+  /* Position printable targets at top-left (0,0) of page 1 with natural auto-height flow */
   #printable-thermal-receipt,
   #printable-shipping-label,
   #printable-invoice-sheet,
@@ -504,7 +511,7 @@ body.theme-rosa {
   #replenishment-report-modal,
   .printable-area {
     display: block !important;
-    position: fixed !important;
+    position: absolute !important;
     left: 0 !important;
     top: 0 !important;
     margin: 0 !important;

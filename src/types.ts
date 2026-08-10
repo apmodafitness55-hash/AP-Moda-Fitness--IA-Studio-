@@ -83,6 +83,13 @@ export interface Sale {
   valor_liquido?: number;
   tipo_envio?: string;
   status_logistico?: string;
+  couponCode?: string;
+  coupon?: string;
+  partnerCoupon?: string;
+  partnerName?: string;
+  partnerId?: string;
+  partner?: string;
+  notes?: string;
 }
 
 export interface Client {

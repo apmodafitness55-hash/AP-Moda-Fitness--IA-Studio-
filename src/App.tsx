@@ -2639,6 +2639,50 @@ export default function App() {
       return newList;
     });
 
+    // Update Partner statistics if coupon or partner associated
+    const couponCodeForPartner = (newSale.couponCode || newSale.coupon || newSale.partnerCoupon || '').trim().toUpperCase();
+    const partnerNameForSale = (newSale.partnerName || newSale.partner || '').trim().toLowerCase();
+    if (couponCodeForPartner || partnerNameForSale) {
+      try {
+        const savedP = localStorage.getItem('ap_moda_partners');
+        let partnersList: any[] = savedP ? JSON.parse(savedP) : [];
+        if (Array.isArray(partnersList) && partnersList.length > 0) {
+          let updated = false;
+          partnersList = partnersList.map(p => {
+            const pCoupon = (p.couponCode || '').trim().toUpperCase();
+            const pLogin = (p.login || '').trim().toUpperCase();
+            const pName = (p.name || '').trim().toLowerCase();
+            const pId = p.id;
+
+            const matchesCoupon = couponCodeForPartner && (pCoupon === couponCodeForPartner || pLogin === couponCodeForPartner || (pLogin && pLogin + '10' === couponCodeForPartner));
+            const matchesName = partnerNameForSale && (pName === partnerNameForSale || pId === partnerNameForSale);
+
+            if (matchesCoupon || matchesName) {
+              updated = true;
+              const commRate = p.commissionRate || 10;
+              const saleAmount = Number(newSale.total || 0);
+              const commVal = (saleAmount * commRate) / 100;
+              return {
+                ...p,
+                salesCount: (p.salesCount || 0) + 1,
+                totalGenerated: Number(((p.totalGenerated || 0) + saleAmount).toFixed(2)),
+                availableBalance: Number(((p.availableBalance || 0) + commVal).toFixed(2))
+              };
+            }
+            return p;
+          });
+
+          if (updated) {
+            localStorage.setItem('ap_moda_partners', JSON.stringify(partnersList));
+            pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(partnersList));
+            window.dispatchEvent(new Event('ap-storage-synced'));
+          }
+        }
+      } catch (e) {
+        console.error('Error updating partner metrics in handleAddSale:', e);
+      }
+    }
+
     // Mark entities as dirty initially, so if anything fails or we are offline, they will be retried in background sync!
     saveDirtyIds('ap_dirty_sales', Array.from(new Set([...getDirtyIds('ap_dirty_sales'), newSale.id])));
     saveDirtyIds('ap_dirty_transactions', Array.from(new Set([...getDirtyIds('ap_dirty_transactions'), newTx.id])));
@@ -3231,6 +3275,50 @@ export default function App() {
             }
           }).catch(e => console.error(e));
         }
+      }
+    }
+
+    // Update Partner statistics if coupon or partner associated
+    const couponCodeForPartner = (newOrder.couponCode || newOrder.coupon || newOrder.partnerCoupon || '').trim().toUpperCase();
+    const partnerNameForSale = (newOrder.partnerName || newOrder.partner || '').trim().toLowerCase();
+    if (couponCodeForPartner || partnerNameForSale) {
+      try {
+        const savedP = localStorage.getItem('ap_moda_partners');
+        let partnersList: any[] = savedP ? JSON.parse(savedP) : [];
+        if (Array.isArray(partnersList) && partnersList.length > 0) {
+          let updated = false;
+          partnersList = partnersList.map(p => {
+            const pCoupon = (p.couponCode || '').trim().toUpperCase();
+            const pLogin = (p.login || '').trim().toUpperCase();
+            const pName = (p.name || '').trim().toLowerCase();
+            const pId = p.id;
+
+            const matchesCoupon = couponCodeForPartner && (pCoupon === couponCodeForPartner || pLogin === couponCodeForPartner || (pLogin && pLogin + '10' === couponCodeForPartner));
+            const matchesName = partnerNameForSale && (pName === partnerNameForSale || pId === partnerNameForSale);
+
+            if (matchesCoupon || matchesName) {
+              updated = true;
+              const commRate = p.commissionRate || 10;
+              const saleAmount = Number(newOrder.total || 0);
+              const commVal = (saleAmount * commRate) / 100;
+              return {
+                ...p,
+                salesCount: (p.salesCount || 0) + 1,
+                totalGenerated: Number(((p.totalGenerated || 0) + saleAmount).toFixed(2)),
+                availableBalance: Number(((p.availableBalance || 0) + commVal).toFixed(2))
+              };
+            }
+            return p;
+          });
+
+          if (updated) {
+            localStorage.setItem('ap_moda_partners', JSON.stringify(partnersList));
+            pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(partnersList));
+            window.dispatchEvent(new Event('ap-storage-synced'));
+          }
+        }
+      } catch (e) {
+        console.error('Error updating partner metrics in handleAddOnlineOrder:', e);
       }
     }
 

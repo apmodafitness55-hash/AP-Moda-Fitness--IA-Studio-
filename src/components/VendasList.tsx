@@ -724,6 +724,12 @@ export default function VendasList({
                     size: A4 portrait;
                     margin: 15mm 10mm 15mm 10mm;
                   }
+                  * {
+                    transform: none !important;
+                    transition: none !important;
+                    filter: none !important;
+                    backdrop-filter: none !important;
+                  }
                   html, body, #root, #main-app-container {
                     visibility: visible !important;
                     height: auto !important;

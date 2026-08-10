@@ -3197,7 +3197,11 @@ export default function PublicCatalog({
         pickupDate: deliveryMethod === 'retirada' ? pickupDate : undefined,
         pickupTime: deliveryMethod === 'retirada' ? pickupTime : undefined,
         paymentMethod: paymentMethod,
-        notes: `Cor: ${cart.map(c=>c.color).join(', ')} | CPF: ${clientCpf.trim()} | Pg: ${paymentMethod === 'pix' ? 'PIX' : `Cartão (${cardInstallments}x)`}${appliedCoupon?.partnerName ? ` | Parceiro: ${appliedCoupon.partnerName}` : ''} | Obs: ${clientNotes.trim()}`
+        couponCode: appliedCoupon?.code || couponCode.trim().toUpperCase() || undefined,
+        coupon: appliedCoupon?.code || couponCode.trim().toUpperCase() || undefined,
+        partnerCoupon: appliedCoupon?.code || couponCode.trim().toUpperCase() || undefined,
+        partnerName: appliedCoupon?.partnerName || undefined,
+        notes: `Cor: ${cart.map(c=>c.color).join(', ')} | CPF: ${clientCpf.trim()} | Pg: ${paymentMethod === 'pix' ? 'PIX' : `Cartão (${cardInstallments}x)`}${appliedCoupon?.code ? ` | Cupom: ${appliedCoupon.code}` : ''}${appliedCoupon?.partnerName ? ` | Parceiro: ${appliedCoupon.partnerName}` : ''} | Obs: ${clientNotes.trim()}`
       };
       
       onAddOnlineOrder(orderData);

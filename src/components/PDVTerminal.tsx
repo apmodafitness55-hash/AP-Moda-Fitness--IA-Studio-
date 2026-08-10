@@ -1286,6 +1286,18 @@ export default function PDVTerminal({
     const cardPaymentWithTerminal = payments.find(p => (p.method === 'Cartão de Crédito' || p.method === 'Cartão de Débito') && p.terminalId);
     const terminalIdForSale = cardPaymentWithTerminal ? cardPaymentWithTerminal.terminalId : undefined;
 
+    const activeCouponCode = appliedCoupon?.code || couponCode.trim().toUpperCase() || undefined;
+    let partnerForSale: any = undefined;
+    if (activeCouponCode) {
+      const allPartners = getPartners();
+      partnerForSale = allPartners.find(p => 
+        (p.couponCode && p.couponCode.toUpperCase() === activeCouponCode) ||
+        (p.login && p.login.toUpperCase() === activeCouponCode)
+      );
+    }
+    const partnerNameForSale = (appliedCoupon as any)?.partnerName || partnerForSale?.name || undefined;
+    const partnerIdForSale = partnerForSale?.id || undefined;
+
     const newSale: Sale = {
       id: `v-00${Date.now().toString().slice(-3)}`,
       clientName: finalClientName,
@@ -1300,7 +1312,14 @@ export default function PDVTerminal({
       deliveryMethod: deliveryMethod !== 'retirada' ? (deliveryMethod === 'correios_pac' ? 'Correios PAC' : deliveryMethod === 'correios_sedex' ? 'Correios SEDEX' : 'Motoboy') : undefined,
       address: deliveryMethod !== 'retirada' ? shippingAddress : undefined,
       trackingCode: generatedTracking,
-      terminalId: terminalIdForSale
+      terminalId: terminalIdForSale,
+      couponCode: activeCouponCode,
+      coupon: activeCouponCode,
+      partnerCoupon: activeCouponCode,
+      partnerName: partnerNameForSale,
+      partnerId: partnerIdForSale,
+      partner: partnerNameForSale,
+      notes: activeCouponCode ? `Cupom: ${activeCouponCode}${partnerNameForSale ? ` | Parceira: ${partnerNameForSale}` : ''}` : undefined
     };
 
     onAddSale(newSale);

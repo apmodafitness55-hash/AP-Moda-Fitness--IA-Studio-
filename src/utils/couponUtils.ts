@@ -67,6 +67,46 @@ export function validateCouponForCpf(
   const coupons = getStoredCoupons();
   let matchedCoupon = coupons.find(c => c.code.toUpperCase() === cleanCode);
 
+  // If coupon not found in ap_coupons, search in ap_moda_partners
+  if (!matchedCoupon) {
+    try {
+      const savedP = localStorage.getItem('ap_moda_partners');
+      if (savedP) {
+        const partnersList: any[] = JSON.parse(savedP);
+        const foundPartner = partnersList.find(p => 
+          (p.couponCode && p.couponCode.toUpperCase() === cleanCode) || 
+          (p.login && (p.login.toUpperCase() + '10' === cleanCode || p.login.toUpperCase() === cleanCode))
+        );
+        if (foundPartner) {
+          matchedCoupon = {
+            code: cleanCode,
+            type: 'percent',
+            value: foundPartner.discountPercent || 10,
+            minPurchase: 0,
+            limitUses: 1000,
+            usedCount: 0,
+            validUntil: '2026-12-31',
+            maxPerCpf: 0,
+            category: 'Todas',
+            partnerName: foundPartner.name
+          };
+        }
+      }
+    } catch(e) {}
+  } else if (!matchedCoupon.partnerName) {
+    // Check if matchedCoupon belongs to a partner in ap_moda_partners
+    try {
+      const savedP = localStorage.getItem('ap_moda_partners');
+      if (savedP) {
+        const partnersList: any[] = JSON.parse(savedP);
+        const foundPartner = partnersList.find(p => p.couponCode && p.couponCode.toUpperCase() === cleanCode);
+        if (foundPartner) {
+          matchedCoupon.partnerName = foundPartner.name;
+        }
+      }
+    } catch(e) {}
+  }
+
   const isFirstPurchaseCode =
     ['PRIMEIRACOMPRA', 'PRIMEIRA10', 'PRIMEIRAPEDIDO'].includes(cleanCode) ||
     matchedCoupon?.isFirstPurchase === true;
