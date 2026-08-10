@@ -109,6 +109,11 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
     };
   }, [partners, currentUser]);
 
+  // Check if current user is Admin / Manager
+  const isAdmin = useMemo(() => {
+    return currentUser?.role === 'Admin' || currentUser?.role === 'Gerente' || currentUser?.isSuperUser === true || currentUser?.id === 'admin' || currentUser?.id === '1';
+  }, [currentUser]);
+
   // Manual retroactive sales state
   const [manualSales, setManualSales] = useState<any[]>(() => {
     try {
@@ -750,15 +755,17 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
                     </h3>
                     <p className="text-[10px] text-slate-400">Contabiliza vendas de cupom, link, balcão e lançamentos pós-fechados</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setIsRetroModalOpen(true)}
-                      className="bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-bold text-[11px] px-3 py-1.5 rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer transition-all border border-pink-500/30"
-                    >
-                      <Plus size={14} />
-                      <span>➕ Lançar Venda Pós-Fechada</span>
-                    </button>
-                  </div>
+                  {isAdmin && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setIsRetroModalOpen(true)}
+                        className="bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-bold text-[11px] px-3 py-1.5 rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer transition-all border border-pink-500/30"
+                      >
+                        <Plus size={14} />
+                        <span>➕ Lançar Venda (Admin)</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="overflow-x-auto">
@@ -1263,7 +1270,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
         )}
 
       {/* Retroactive / Posthumous Sale Addition Modal */}
-      {isRetroModalOpen && (
+      {isAdmin && isRetroModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-3xl p-6 text-slate-100 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in duration-200">
             {/* Header */}

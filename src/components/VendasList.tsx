@@ -20,7 +20,11 @@ import {
   AlertTriangle,
   ChevronDown,
   ArrowRight,
-  Trash2
+  Trash2,
+  Plus,
+  Edit,
+  X,
+  Tag
 } from 'lucide-react';
 import { Sale, Product, Transaction } from '../types';
 import ThermalReceipt from './ThermalReceipt';
@@ -57,6 +61,81 @@ export default function VendasList({
   // Selected sale for receipt rendering
   const [selectedSaleForReceipt, setSelectedSaleForReceipt] = useState<Sale | null>(null);
   const [selectedSaleForInvoice, setSelectedSaleForInvoice] = useState<Sale | null>(null);
+
+  // Registered partners for linking
+  const registeredPartners = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('ap_moda_partners');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [
+      { id: 'part-1', name: 'Marina Fitness Coach', couponCode: 'MARINAFIT10', commissionRate: 10 },
+      { id: 'part-2', name: 'Julia Rezende', couponCode: 'JU10', commissionRate: 8 },
+      { id: 'part-3', name: 'Amanda Runner', couponCode: 'AMANDAPRO', commissionRate: 12 },
+      { id: 'part-4', name: 'Patricia Cardoso', couponCode: 'PATRICIA10', commissionRate: 10 }
+    ];
+  }, []);
+
+  const [selectedSaleForPartnerLinking, setSelectedSaleForPartnerLinking] = useState<Sale | null>(null);
+  const [linkingPartnerId, setLinkingPartnerId] = useState<string>('');
+
+  const handleConfirmPartnerLinkInVendasList = () => {
+    if (!selectedSaleForPartnerLinking) return;
+    const saleId = selectedSaleForPartnerLinking.id;
+    const chosenPartner = registeredPartners.find((p: any) => p.id === linkingPartnerId);
+
+    const updatedPartnerName = chosenPartner ? chosenPartner.name : '';
+    const updatedPartnerId = chosenPartner ? chosenPartner.id : '';
+    const updatedCouponCode = chosenPartner ? chosenPartner.couponCode : '';
+
+    // 1. Update sales state
+    setSales(prev => {
+      const updated = prev.map(s => {
+        if (s.id === saleId) {
+          return {
+            ...s,
+            partner: updatedPartnerName,
+            partnerName: updatedPartnerName,
+            partnerId: updatedPartnerId,
+            couponCode: updatedCouponCode,
+            partnerCoupon: updatedCouponCode
+          };
+        }
+        return s;
+      });
+      try {
+        localStorage.setItem('ap_moda_sales', JSON.stringify(updated));
+      } catch(e) {}
+      return updated;
+    });
+
+    // 2. Add to manual partner sales if partner chosen
+    if (chosenPartner) {
+      try {
+        const savedGlobal = localStorage.getItem('ap_manual_partner_sales');
+        const parsedGlobal = savedGlobal ? JSON.parse(savedGlobal) : [];
+        const newItem = {
+          id: saleId,
+          partnerId: chosenPartner.id,
+          partnerName: chosenPartner.name,
+          clientName: selectedSaleForPartnerLinking.clientName,
+          total: selectedSaleForPartnerLinking.total,
+          date: new Date(selectedSaleForPartnerLinking.createdAt).toISOString().split('T')[0],
+          status: 'Concluída',
+          commissionRate: chosenPartner.commissionRate || 10,
+          commission: (selectedSaleForPartnerLinking.total * (chosenPartner.commissionRate || 10)) / 100,
+          type: 'Venda Loja Vinculada',
+          notes: `Vinculado por Administrador em VendasList`
+        };
+        const updatedGlobal = [newItem, ...parsedGlobal.filter((g: any) => g.id !== saleId)];
+        localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
+        localStorage.setItem(`ap_manual_partner_sales_${chosenPartner.id}`, JSON.stringify(updatedGlobal));
+      } catch(e) {}
+    }
+
+    window.dispatchEvent(new Event('storage'));
+    setSelectedSaleForPartnerLinking(null);
+  };
 
   const handlePrintInvoice = () => {
     const sheetEl = document.getElementById('printable-invoice-sheet');
@@ -633,6 +712,7 @@ export default function VendasList({
                 <th className="p-3">Cliente</th>
                 <th className="p-3">Canal</th>
                 <th className="p-3">Vendedor</th>
+                <th className="p-3">Parceira / Cupom</th>
                 <th className="p-3">Itens Comprados</th>
                 <th className="p-3">Total Pago</th>
                 <th className="p-3">Formas Pgto</th>
@@ -686,6 +766,42 @@ export default function VendasList({
                         </span>
                       ) : (
                         <span className="text-slate-400 italic font-normal">Nenhum</span>
+                      )}
+                    </td>
+
+                    {/* Parceira / Cupom */}
+                    <td className="p-3 font-medium whitespace-nowrap">
+                      {(sale.partner || (sale as any).partnerName || sale.couponCode || (sale as any).partnerCoupon) ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] font-bold text-pink-700 bg-pink-50 border border-pink-200 px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                            <span>🏷️ {sale.partner || (sale as any).partnerName || sale.couponCode}</span>
+                          </span>
+                          <button
+                            onClick={() => {
+                              setSelectedSaleForPartnerLinking(sale);
+                              const matchP = registeredPartners.find((p: any) => 
+                                (sale.partner && p.name.toLowerCase() === sale.partner.toLowerCase()) || 
+                                (sale.couponCode && p.couponCode === sale.couponCode)
+                              );
+                              setLinkingPartnerId(matchP ? matchP.id : '');
+                            }}
+                            className="p-1 text-slate-400 hover:text-pink-600 transition cursor-pointer"
+                            title="Alterar Parceiro da Venda"
+                          >
+                            <Edit size={11} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setSelectedSaleForPartnerLinking(sale);
+                            setLinkingPartnerId('');
+                          }}
+                          className="text-[10px] font-bold text-slate-500 hover:text-pink-600 bg-slate-100 hover:bg-pink-50 border border-slate-200 hover:border-pink-200 px-2 py-0.5 rounded-md flex items-center gap-1 transition cursor-pointer"
+                        >
+                          <Plus size={11} />
+                          <span>+ Vincular Parceiro</span>
+                        </button>
                       )}
                     </td>
 
@@ -1008,6 +1124,67 @@ export default function VendasList({
                   <p>podem ser feitas em até 30 dias contados desta emissão, obrigatoriamente com a etiqueta original anexada.</p>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal for Admin Partner Linking */}
+      {selectedSaleForPartnerLinking && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-150 p-6 w-full max-w-md shadow-2xl space-y-4 font-sans text-slate-800">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div className="space-y-0.5">
+                <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                  <Tag size={16} className="text-pink-600" />
+                  <span>Vincular Parceira / Influenciadora</span>
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Venda <strong className="font-mono text-slate-700">#{selectedSaleForPartnerLinking.id.replace('v-', '').toUpperCase()}</strong> • {selectedSaleForPartnerLinking.clientName} (R$ {selectedSaleForPartnerLinking.total.toFixed(2)})
+                </p>
+              </div>
+              <button onClick={() => setSelectedSaleForPartnerLinking(null)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition cursor-pointer">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Selecione a Parceira Responsável</label>
+                <select
+                  value={linkingPartnerId}
+                  onChange={(e) => setLinkingPartnerId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:border-pink-500 cursor-pointer"
+                >
+                  <option value="">-- Nenhuma / Sem Parceira Vincular --</option>
+                  {registeredPartners.map((p: any) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} (Cupom: {p.couponCode || 'Sem Cupom'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <p className="text-[11px] text-slate-500 bg-pink-50/50 p-2.5 rounded-xl border border-pink-100/60 leading-relaxed">
+                ℹ️ Ao confirmar a vinculação, a comissão correspondente será contabilizada no perfil da influenciadora selecionada no Portal do Parceiro e no CRM.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setSelectedSaleForPartnerLinking(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmPartnerLinkInVendasList}
+                className="px-5 py-2 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-bold text-xs rounded-xl shadow-md transition cursor-pointer"
+              >
+                💾 Salvar Vinculação
+              </button>
             </div>
           </div>
         </div>

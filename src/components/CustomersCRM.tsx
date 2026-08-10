@@ -627,6 +627,134 @@ export default function CustomersCRM({
     localStorage.setItem('ap_moda_partners', JSON.stringify(partners));
   }, [partners]);
 
+  // Admin Retroactive Partner Linking State in CRM
+  const [selectedPartnerForLinkingCRM, setSelectedPartnerForLinkingCRM] = useState<Partner | null>(null);
+  const [crmLinkTab, setCrmLinkTab] = useState<'system' | 'manual'>('system');
+  const [crmLinkSearch, setCrmLinkSearch] = useState('');
+
+  // Manual entry states
+  const [crmClientName, setCrmClientName] = useState('');
+  const [crmTotalVal, setCrmTotalVal] = useState('');
+  const [crmSaleDate, setCrmSaleDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [crmOrderNum, setCrmOrderNum] = useState('');
+  const [crmNotes, setCrmNotes] = useState('');
+  const [crmSuccessMsg, setCrmSuccessMsg] = useState('');
+
+  const handleLinkExistingSaleCRM = (item: any, isOnlineOrder: boolean) => {
+    if (!selectedPartnerForLinkingCRM) return;
+    const partner = selectedPartnerForLinkingCRM;
+    const saleId = item.id;
+    const clientName = item.clientName || item.customerName || 'Cliente';
+    const totalVal = Number(item.total || item.amount || 0);
+    const commRate = partner.commissionRate || 10;
+    const commVal = (totalVal * commRate) / 100;
+
+    const newItem = {
+      id: saleId,
+      partnerId: partner.id,
+      partnerName: partner.name,
+      clientName,
+      total: totalVal,
+      date: item.date ? item.date.split('T')[0] : (item.createdAt ? item.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]),
+      status: 'Concluída',
+      commissionRate: commRate,
+      commission: commVal,
+      type: isOnlineOrder ? 'Pedido Online' : 'Venda Loja',
+      notes: `Venda vinculada via CRM por Administrador`
+    };
+
+    try {
+      const savedGlobal = localStorage.getItem('ap_manual_partner_sales');
+      const parsedGlobal = savedGlobal ? JSON.parse(savedGlobal) : [];
+      const updatedGlobal = [newItem, ...parsedGlobal.filter((g: any) => g.id !== saleId)];
+      localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
+      localStorage.setItem(`ap_manual_partner_sales_${partner.id}`, JSON.stringify(updatedGlobal));
+    } catch(e) {}
+
+    if (!isOnlineOrder) {
+      try {
+        const savedSales = localStorage.getItem('ap_moda_sales');
+        if (savedSales) {
+          const parsedSales = JSON.parse(savedSales);
+          const updated = parsedSales.map((s: any) => {
+            if (s.id === saleId) {
+              return { ...s, partner: partner.name, partnerName: partner.name, partnerId: partner.id, couponCode: partner.couponCode };
+            }
+            return s;
+          });
+          localStorage.setItem('ap_moda_sales', JSON.stringify(updated));
+        }
+      } catch(e) {}
+    } else {
+      try {
+        const savedOrders = localStorage.getItem('ap_online_orders');
+        if (savedOrders) {
+          const parsedOrders = JSON.parse(savedOrders);
+          const updated = parsedOrders.map((o: any) => {
+            if (o.id === saleId) {
+              return { ...o, partnerName: partner.name, partnerId: partner.id, couponCode: partner.couponCode };
+            }
+            return o;
+          });
+          localStorage.setItem('ap_online_orders', JSON.stringify(updated));
+        }
+      } catch(e) {}
+    }
+
+    window.dispatchEvent(new Event('storage'));
+    setCrmSuccessMsg(`Venda #${saleId} de ${clientName} vinculada com sucesso a ${partner.name}!`);
+    setTimeout(() => setCrmSuccessMsg(''), 4000);
+  };
+
+  const handleCreateManualSaleCRM = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPartnerForLinkingCRM) return;
+    if (!crmClientName.trim()) {
+      alert('Por favor, informe o nome do cliente.');
+      return;
+    }
+    const totalVal = parseFloat(crmTotalVal);
+    if (isNaN(totalVal) || totalVal <= 0) {
+      alert('Por favor, informe um valor total válido.');
+      return;
+    }
+
+    const partner = selectedPartnerForLinkingCRM;
+    const saleId = crmOrderNum.trim() ? crmOrderNum.trim().toUpperCase() : `RET-${Math.floor(10000 + Math.random() * 90000)}`;
+    const commRate = partner.commissionRate || 10;
+    const commVal = (totalVal * commRate) / 100;
+
+    const newItem = {
+      id: saleId,
+      partnerId: partner.id,
+      partnerName: partner.name,
+      clientName: crmClientName.trim(),
+      total: totalVal,
+      date: crmSaleDate || new Date().toISOString().split('T')[0],
+      status: 'Concluída',
+      commissionRate: commRate,
+      commission: commVal,
+      type: 'Lançamento Manual Admin',
+      notes: crmNotes.trim()
+    };
+
+    try {
+      const savedGlobal = localStorage.getItem('ap_manual_partner_sales');
+      const parsedGlobal = savedGlobal ? JSON.parse(savedGlobal) : [];
+      const updatedGlobal = [newItem, ...parsedGlobal.filter((g: any) => g.id !== saleId)];
+      localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
+      localStorage.setItem(`ap_manual_partner_sales_${partner.id}`, JSON.stringify(updatedGlobal));
+    } catch(e) {}
+
+    window.dispatchEvent(new Event('storage'));
+    setCrmClientName('');
+    setCrmTotalVal('');
+    setCrmOrderNum('');
+    setCrmNotes('');
+    setCrmSuccessMsg(`Lançamento de R$ ${totalVal.toFixed(2)} registrado com sucesso para ${partner.name}!`);
+    setTimeout(() => setCrmSuccessMsg(''), 4000);
+  };
+
   // Form states for new Opportunity
   const [opClient, setOpClient] = useState('');
   const [opVal, setOpVal] = useState(150);
@@ -1670,7 +1798,21 @@ export default function CustomersCRM({
                       <div>
                         <h4 className="font-bold text-slate-800 text-xs">{part.name}</h4>
                         <span className="text-slate-400 text-[10px] font-medium block">{part.instagram}</span>
-                        <span className="text-rose-600 font-mono font-bold text-[10px] bg-rose-50 px-1.5 py-0.5 rounded mt-1.5 inline-block">Cupom: {part.couponCode}</span>
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          <span className="text-rose-600 font-mono font-bold text-[10px] bg-rose-50 px-1.5 py-0.5 rounded">Cupom: {part.couponCode}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedPartnerForLinkingCRM(part);
+                              setCrmLinkTab('system');
+                              setCrmSuccessMsg('');
+                            }}
+                            className="bg-pink-50 hover:bg-pink-100 text-pink-700 font-bold text-[10px] px-2 py-0.5 rounded-lg border border-pink-200 transition flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus size={11} />
+                            <span>➕ Vincular Venda Pós-Fechada</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -3399,6 +3541,213 @@ export default function CustomersCRM({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Retroactive Sale Modal for Admin in CRM */}
+      {selectedPartnerForLinkingCRM && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-150 rounded-2xl p-6 w-full max-w-xl shadow-2xl relative space-y-4 font-sans text-slate-800">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div className="space-y-0.5">
+                <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                  <Tag size={16} className="text-pink-600" />
+                  <span>Vincular / Lançar Venda para {selectedPartnerForLinkingCRM.name}</span>
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Cupom: <strong className="font-mono text-rose-600">{selectedPartnerForLinkingCRM.couponCode}</strong> • Comissão: {selectedPartnerForLinkingCRM.commissionRate}%
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedPartnerForLinkingCRM(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {crmSuccessMsg && (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold p-3 rounded-xl flex items-center gap-2">
+                <Check size={16} className="text-emerald-600 shrink-0" />
+                <span>{crmSuccessMsg}</span>
+              </div>
+            )}
+
+            {/* Tabs */}
+            <div className="flex bg-slate-100 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setCrmLinkTab('system')}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                  crmLinkTab === 'system' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                🔍 Buscar Vendas no Sistema
+              </button>
+              <button
+                type="button"
+                onClick={() => setCrmLinkTab('manual')}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                  crmLinkTab === 'manual' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                ✍️ Lançamento Manual Direto
+              </button>
+            </div>
+
+            {crmLinkTab === 'system' ? (
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por cliente, ID do pedido ou valor..."
+                    value={crmLinkSearch}
+                    onChange={(e) => setCrmLinkSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-pink-500"
+                  />
+                </div>
+
+                <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 border border-slate-100 rounded-xl bg-slate-50/50">
+                  {(() => {
+                    const savedSales = (() => {
+                      try {
+                        const s = localStorage.getItem('ap_moda_sales');
+                        return s ? JSON.parse(s) : sales;
+                      } catch(e) { return sales; }
+                    })();
+
+                    const filteredSystemSales = savedSales.filter((s: any) => {
+                      if (!crmLinkSearch.trim()) return true;
+                      const q = crmLinkSearch.toLowerCase();
+                      return (
+                        (s.clientName && s.clientName.toLowerCase().includes(q)) ||
+                        (s.id && s.id.toLowerCase().includes(q)) ||
+                        (s.total && s.total.toString().includes(q))
+                      );
+                    });
+
+                    if (filteredSystemSales.length === 0) {
+                      return (
+                        <div className="p-6 text-center text-slate-400 text-xs italic">
+                          Nenhuma venda encontrada no sistema com o termo informado.
+                        </div>
+                      );
+                    }
+
+                    return filteredSystemSales.slice(0, 15).map((saleItem: any) => {
+                      const isLinkedToThis = (saleItem.partner && saleItem.partner.toLowerCase().includes(selectedPartnerForLinkingCRM.name.toLowerCase())) || saleItem.couponCode === selectedPartnerForLinkingCRM.couponCode;
+
+                      return (
+                        <div key={saleItem.id} className="p-3 flex items-center justify-between gap-3 hover:bg-white transition">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold font-mono text-[11px] text-slate-800 bg-slate-200/80 px-1.5 py-0.5 rounded">
+                                #{saleItem.id.replace('v-', '').toUpperCase()}
+                              </span>
+                              <span className="font-bold text-xs text-slate-800">{saleItem.clientName}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 block mt-0.5">
+                              {new Date(saleItem.createdAt).toLocaleDateString('pt-BR')} • {saleItem.channel}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-3 text-right">
+                            <span className="font-bold font-mono text-xs text-slate-800">
+                              R$ {Number(saleItem.total).toFixed(2)}
+                            </span>
+                            {isLinkedToThis ? (
+                              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200">
+                                ✓ Vinculado
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleLinkExistingSaleCRM(saleItem, false)}
+                                className="px-2.5 py-1 bg-pink-600 hover:bg-pink-700 text-white font-bold text-[10px] rounded-lg shadow-xs transition cursor-pointer"
+                              >
+                                Vincular
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleCreateManualSaleCRM} className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Nome da Cliente *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: Patricia Silva"
+                      value={crmClientName}
+                      onChange={(e) => setCrmClientName(e.target.value)}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-pink-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Valor Total (R$) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      placeholder="Ex: 250.00"
+                      value={crmTotalVal}
+                      onChange={(e) => setCrmTotalVal(e.target.value)}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold focus:outline-none focus:border-pink-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Data da Venda</label>
+                    <input
+                      type="date"
+                      value={crmSaleDate}
+                      onChange={(e) => setCrmSaleDate(e.target.value)}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-pink-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Nº do Pedido / Recibo (Opcional)</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: PED-1092"
+                      value={crmOrderNum}
+                      onChange={(e) => setCrmOrderNum(e.target.value)}
+                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:border-pink-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Observações internas</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Venda efetuada no e-commerce com cupom Patrícia Cardoso"
+                    value={crmNotes}
+                    onChange={(e) => setCrmNotes(e.target.value)}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-pink-500"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-bold text-xs rounded-xl shadow-md transition cursor-pointer"
+                  >
+                    💾 Cadastrar Venda e Vincular Comissão
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
