@@ -29,6 +29,7 @@ import {
 import { Sale, Product, Transaction } from '../types';
 import ThermalReceipt from './ThermalReceipt';
 import { getStoreConfig } from '../utils/storeConfig';
+import { pushSystemConfigToSupabase, syncBulkSalesToSupabase } from '../supabase';
 
 interface VendasListProps {
   sales: Sale[];
@@ -89,10 +90,11 @@ export default function VendasList({
     const updatedCouponCode = chosenPartner ? chosenPartner.couponCode : '';
 
     // 1. Update sales state
+    let targetSaleObj: any = null;
     setSales(prev => {
       const updated = prev.map(s => {
         if (s.id === saleId) {
-          return {
+          targetSaleObj = {
             ...s,
             partner: updatedPartnerName,
             partnerName: updatedPartnerName,
@@ -100,11 +102,15 @@ export default function VendasList({
             couponCode: updatedCouponCode,
             partnerCoupon: updatedCouponCode
           };
+          return targetSaleObj;
         }
         return s;
       });
       try {
         localStorage.setItem('ap_moda_sales', JSON.stringify(updated));
+        if (targetSaleObj) {
+          syncBulkSalesToSupabase([targetSaleObj]);
+        }
       } catch(e) {}
       return updated;
     });
@@ -130,10 +136,12 @@ export default function VendasList({
         const updatedGlobal = [newItem, ...parsedGlobal.filter((g: any) => g.id !== saleId)];
         localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
         localStorage.setItem(`ap_manual_partner_sales_${chosenPartner.id}`, JSON.stringify(updatedGlobal));
+        pushSystemConfigToSupabase('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
       } catch(e) {}
     }
 
     window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new Event('ap-storage-synced'));
     setSelectedSaleForPartnerLinking(null);
   };
 

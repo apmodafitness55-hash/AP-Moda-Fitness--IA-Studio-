@@ -909,6 +909,18 @@ export default function App() {
               }
             } catch(e) {}
           }
+
+          // Sync Manual Partner Sales across devices via Supabase ap_system_configs
+          const manualPartnerSalesConfig = dbConfigs.find((config: any) => config.key === 'ap_manual_partner_sales');
+          if (manualPartnerSalesConfig && manualPartnerSalesConfig.value) {
+            try {
+              const parsedManual = typeof manualPartnerSalesConfig.value === 'string' ? JSON.parse(manualPartnerSalesConfig.value) : manualPartnerSalesConfig.value;
+              if (Array.isArray(parsedManual)) {
+                localStorage.setItem('ap_manual_partner_sales', JSON.stringify(parsedManual));
+                window.dispatchEvent(new Event('ap-storage-synced'));
+              }
+            } catch(e) {}
+          }
         }
       } catch (e) {
         console.warn('[Sync] Failed to verify ap_system_seeded config:', e);

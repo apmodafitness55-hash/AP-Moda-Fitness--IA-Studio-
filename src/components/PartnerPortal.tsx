@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { saveStoredPartners } from '../utils/partnerUtils';
 import { getAppUrl } from '../config';
+import { pushSystemConfigToSupabase, syncBulkSalesToSupabase, syncBulkOnlineOrdersToSupabase, fetchSystemConfigsFromSupabase } from '../supabase';
 import { 
   Award, 
   DollarSign, 
@@ -300,6 +301,84 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
   const [manualNotes, setManualNotes] = useState('');
   const [retroSuccessMsg, setRetroSuccessMsg] = useState('');
 
+  // Real-time synchronization function for partners & manual partner sales
+  const reloadPartnerData = useCallback(() => {
+    try {
+      // Reload partners
+      const savedP = localStorage.getItem('ap_moda_partners');
+      if (savedP) {
+        const parsed = JSON.parse(savedP);
+        if (Array.isArray(parsed)) setPartners(parsed);
+      }
+
+      // Reload manual sales
+      const savedLocal = localStorage.getItem(`ap_manual_partner_sales_${currentPartner.id}`);
+      let list: any[] = [];
+      if (savedLocal) {
+        const parsed = JSON.parse(savedLocal);
+        if (Array.isArray(parsed)) list = parsed;
+      }
+      const savedGlobal = localStorage.getItem('ap_manual_partner_sales');
+      if (savedGlobal) {
+        const parsedGlobal = JSON.parse(savedGlobal);
+        if (Array.isArray(parsedGlobal)) {
+          parsedGlobal.forEach(gItem => {
+            const isForThisPartner = gItem.partnerId === currentPartner.id ||
+              (gItem.partnerName && currentPartner.name && gItem.partnerName.toLowerCase().includes(currentPartner.name.toLowerCase()));
+            if (isForThisPartner && !list.some(l => l.id === gItem.id)) {
+              list.push(gItem);
+            }
+          });
+        }
+      }
+      setManualSales(list);
+    } catch(e) {}
+  }, [currentPartner]);
+
+  // Effect to listen for storage updates and pull directly from Supabase
+  useEffect(() => {
+    reloadPartnerData();
+
+    // 1. Listen for storage & custom events
+    const handleStorageChange = () => reloadPartnerData();
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('ap-storage-synced', handleStorageChange);
+
+    // 2. Fetch directly from Supabase on mount and poll every 4 seconds
+    const fetchRemote = async () => {
+      try {
+        const configs = await fetchSystemConfigsFromSupabase();
+        if (Array.isArray(configs)) {
+          const manualCfg = configs.find((c: any) => c.key === 'ap_manual_partner_sales');
+          if (manualCfg && manualCfg.value) {
+            const parsed = typeof manualCfg.value === 'string' ? JSON.parse(manualCfg.value) : manualCfg.value;
+            if (Array.isArray(parsed)) {
+              localStorage.setItem('ap_manual_partner_sales', JSON.stringify(parsed));
+              reloadPartnerData();
+            }
+          }
+          const partnersCfg = configs.find((c: any) => c.key === 'ap_moda_partners');
+          if (partnersCfg && partnersCfg.value) {
+            const parsedP = typeof partnersCfg.value === 'string' ? JSON.parse(partnersCfg.value) : partnersCfg.value;
+            if (Array.isArray(parsedP)) {
+              localStorage.setItem('ap_moda_partners', JSON.stringify(parsedP));
+              reloadPartnerData();
+            }
+          }
+        }
+      } catch(e) {}
+    };
+
+    fetchRemote();
+    const interval = setInterval(fetchRemote, 4000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('ap-storage-synced', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [reloadPartnerData]);
+
   // Handler to link existing sale/order from system
   const handleLinkExistingSale = (item: any, isOnlineOrder: boolean) => {
     const saleId = item.id;
@@ -331,6 +410,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
       const parsedGlobal = savedGlobal ? JSON.parse(savedGlobal) : [];
       const updatedGlobal = [newManualItem, ...parsedGlobal.filter((g: any) => g.id !== saleId)];
       localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
+      pushSystemConfigToSupabase('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
     } catch(e) {}
 
     if (isOnlineOrder) {
@@ -338,13 +418,18 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
         const savedOrders = localStorage.getItem('ap_online_orders');
         if (savedOrders) {
           const parsedOrders = JSON.parse(savedOrders);
+          let targetObj: any = null;
           const updated = parsedOrders.map((o: any) => {
             if (o.id === saleId) {
-              return { ...o, partnerName: currentPartner.name, partnerId: currentPartner.id, couponCode: currentPartner.couponCode };
+              targetObj = { ...o, partnerName: currentPartner.name, partnerId: currentPartner.id, couponCode: currentPartner.couponCode };
+              return targetObj;
             }
             return o;
           });
           localStorage.setItem('ap_online_orders', JSON.stringify(updated));
+          if (targetObj) {
+            syncBulkOnlineOrdersToSupabase([targetObj]);
+          }
         }
       } catch(e) {}
     } else {
@@ -352,18 +437,24 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
         const savedSales = localStorage.getItem('ap_moda_sales');
         if (savedSales) {
           const parsedSales = JSON.parse(savedSales);
+          let targetObj: any = null;
           const updated = parsedSales.map((s: any) => {
             if (s.id === saleId) {
-              return { ...s, partner: currentPartner.name, partnerId: currentPartner.id, couponCode: currentPartner.couponCode };
+              targetObj = { ...s, partner: currentPartner.name, partnerName: currentPartner.name, partnerId: currentPartner.id, couponCode: currentPartner.couponCode };
+              return targetObj;
             }
             return s;
           });
           localStorage.setItem('ap_moda_sales', JSON.stringify(updated));
+          if (targetObj) {
+            syncBulkSalesToSupabase([targetObj]);
+          }
         }
       } catch(e) {}
     }
 
     window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new Event('ap-storage-synced'));
 
     setRetroSuccessMsg(`Venda #${saleId} de ${clientName} (R$ ${totalVal.toFixed(2)}) vinculada com sucesso a ${currentPartner.name}!`);
     setTimeout(() => setRetroSuccessMsg(''), 4000);
@@ -409,9 +500,11 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
       const parsedGlobal = savedGlobal ? JSON.parse(savedGlobal) : [];
       const updatedGlobal = [newItem, ...parsedGlobal.filter((g: any) => g.id !== saleId)];
       localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
+      pushSystemConfigToSupabase('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
     } catch(e) {}
 
     window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new Event('ap-storage-synced'));
 
     setManualClientName('');
     setManualTotal('');

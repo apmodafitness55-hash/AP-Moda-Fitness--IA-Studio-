@@ -45,6 +45,7 @@ import {
   Tag
 } from 'lucide-react';
 import { Client, Sale, SalesChannel } from '../types';
+import { pushSystemConfigToSupabase, syncBulkSalesToSupabase, syncBulkOnlineOrdersToSupabase } from '../supabase';
 
 export function validateCPF(cpf: string): boolean {
   const cleanCPF = cpf.replace(/\D/g, '');
@@ -670,6 +671,7 @@ export default function CustomersCRM({
       const updatedGlobal = [newItem, ...parsedGlobal.filter((g: any) => g.id !== saleId)];
       localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
       localStorage.setItem(`ap_manual_partner_sales_${partner.id}`, JSON.stringify(updatedGlobal));
+      pushSystemConfigToSupabase('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
     } catch(e) {}
 
     if (!isOnlineOrder) {
@@ -677,13 +679,18 @@ export default function CustomersCRM({
         const savedSales = localStorage.getItem('ap_moda_sales');
         if (savedSales) {
           const parsedSales = JSON.parse(savedSales);
+          let targetSaleObj: any = null;
           const updated = parsedSales.map((s: any) => {
             if (s.id === saleId) {
-              return { ...s, partner: partner.name, partnerName: partner.name, partnerId: partner.id, couponCode: partner.couponCode };
+              targetSaleObj = { ...s, partner: partner.name, partnerName: partner.name, partnerId: partner.id, couponCode: partner.couponCode };
+              return targetSaleObj;
             }
             return s;
           });
           localStorage.setItem('ap_moda_sales', JSON.stringify(updated));
+          if (targetSaleObj) {
+            syncBulkSalesToSupabase([targetSaleObj]);
+          }
         }
       } catch(e) {}
     } else {
@@ -691,18 +698,24 @@ export default function CustomersCRM({
         const savedOrders = localStorage.getItem('ap_online_orders');
         if (savedOrders) {
           const parsedOrders = JSON.parse(savedOrders);
+          let targetOrderObj: any = null;
           const updated = parsedOrders.map((o: any) => {
             if (o.id === saleId) {
-              return { ...o, partnerName: partner.name, partnerId: partner.id, couponCode: partner.couponCode };
+              targetOrderObj = { ...o, partnerName: partner.name, partnerId: partner.id, couponCode: partner.couponCode };
+              return targetOrderObj;
             }
             return o;
           });
           localStorage.setItem('ap_online_orders', JSON.stringify(updated));
+          if (targetOrderObj) {
+            syncBulkOnlineOrdersToSupabase([targetOrderObj]);
+          }
         }
       } catch(e) {}
     }
 
     window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new Event('ap-storage-synced'));
     setCrmSuccessMsg(`Venda #${saleId} de ${clientName} vinculada com sucesso a ${partner.name}!`);
     setTimeout(() => setCrmSuccessMsg(''), 4000);
   };
@@ -745,9 +758,11 @@ export default function CustomersCRM({
       const updatedGlobal = [newItem, ...parsedGlobal.filter((g: any) => g.id !== saleId)];
       localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
       localStorage.setItem(`ap_manual_partner_sales_${partner.id}`, JSON.stringify(updatedGlobal));
+      pushSystemConfigToSupabase('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
     } catch(e) {}
 
     window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new Event('ap-storage-synced'));
     setCrmClientName('');
     setCrmTotalVal('');
     setCrmOrderNum('');
