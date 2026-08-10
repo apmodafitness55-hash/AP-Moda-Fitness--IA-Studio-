@@ -469,6 +469,14 @@ body.theme-rosa {
   /* When printing via direct portal, hide all other root elements completely so they take 0 space */
   body > *:not(#ap-direct-print-portal):not(.printable-standalone) {
     display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+    position: absolute !important;
+    top: -9999px !important;
+    left: -9999px !important;
+    opacity: 0 !important;
   }
 
   /* Explicitly hide non-printable UI controls */
@@ -504,8 +512,28 @@ body.theme-rosa {
     opacity: 1 !important;
   }
 
-  /* Position printable targets at top-left of page 1 with natural relative auto-height flow */
-  #ap-direct-print-portal,
+  #ap-direct-print-portal {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    z-index: 99999999 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border: none !important;
+    opacity: 1 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    page-break-before: avoid !important;
+    break-before: avoid !important;
+  }
+
+  /* Position printable targets inside top-left of page 1 */
   #printable-thermal-receipt,
   #printable-shipping-label,
   #printable-invoice-sheet,

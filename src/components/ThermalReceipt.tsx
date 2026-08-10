@@ -470,14 +470,23 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
         /* HIDE everything on body except our direct print portal to prevent blank background pages */
         body > *:not(#ap-direct-print-portal) {
           display: none !important;
+          visibility: hidden !important;
+          height: 0 !important;
+          max-height: 0 !important;
+          overflow: hidden !important;
+          position: absolute !important;
+          top: -9999px !important;
+          left: -9999px !important;
+          opacity: 0 !important;
         }
 
         #ap-direct-print-portal {
           display: block !important;
-          position: relative !important;
+          position: absolute !important;
           left: 0 !important;
           top: 0 !important;
-          margin: 0 auto !important;
+          width: 100% !important;
+          margin: 0 !important;
           padding: 0 !important;
           background: #ffffff !important;
           color: #000000 !important;
@@ -499,6 +508,8 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
         #ap-direct-print-portal #printable-thermal-receipt {
           display: block !important;
           position: relative !important;
+          top: 0 !important;
+          left: 0 !important;
           margin: 0 auto !important;
           background: #ffffff !important;
           color: #000000 !important;
