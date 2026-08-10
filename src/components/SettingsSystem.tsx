@@ -63,6 +63,7 @@ import {
   pushSystemConfigToSupabase, 
   saveSupabaseConfigToServer,
   syncBulkTeamMembersToSupabase,
+  deleteTeamMemberFromSupabase,
   syncBulkProductsToSupabase,
   syncBulkClientsToSupabase,
   syncBulkSalesToSupabase,
@@ -1005,6 +1006,11 @@ export default function SettingsSystem({
     if (confirm(`Atenção Administrador: Tem certeza que deseja excluir o cadastro de "${m.name}" (${m.role})?\nEsta perda desativará o login e senha e o removerá do sistema.`)) {
       const updatedList = teamMembers.filter(item => item.id !== m.id);
       onUpdateTeamMembers?.(updatedList);
+      deleteTeamMemberFromSupabase(m.id).catch(err => {
+        console.warn('Falha ao remover integrante no Supabase:', err);
+      });
+      localStorage.setItem('ap_moda_team_users', JSON.stringify(updatedList));
+      localStorage.setItem('ap_moda_team_users_backup', JSON.stringify(updatedList));
       registerAuditLog('Colaborador Deletado', `Removido funcionário: ${m.name} (${m.role})`);
       
       if (editingMemberId === m.id) {

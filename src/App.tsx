@@ -106,7 +106,7 @@ export default function App() {
     if (saved) {
       try {
         parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           // Auto-heal admin password on load to prevent cached localStorage mismatches
           parsed = parsed.map(m => {
             if (m.role === 'Admin' && m.login?.toLowerCase() === 'admin') {
@@ -115,18 +115,13 @@ export default function App() {
             return m;
           });
 
-          // Merge default team members if any initial members are missing
-          const merged = [...parsed];
-          INITIAL_TEAM_MEMBERS.forEach(initMember => {
-            const exists = merged.some(m => 
-              m.id === initMember.id || 
-              (m.login && initMember.login && m.login.toLowerCase() === initMember.login.toLowerCase())
-            );
-            if (!exists) {
-              merged.push(initMember);
-            }
-          });
-          return merged;
+          // Ensure at least Admin exists if all users were cleared
+          const hasAdmin = parsed.some(m => m.role === 'Admin');
+          if (!hasAdmin && INITIAL_TEAM_MEMBERS.length > 0) {
+            parsed.unshift(INITIAL_TEAM_MEMBERS[0]);
+          }
+
+          return parsed;
         }
       } catch (err) {
         parsed = null;
@@ -921,14 +916,14 @@ export default function App() {
 
       // 2. Sincroniza logins da Equipe
       const dbMembers = await fetchTeamMembersFromSupabase();
-      let mergedMembers = (dbMembers && dbMembers.length > 0) ? [...dbMembers] : [...teamMembers];
-      
-      // Ensure all default logins exist
-      INITIAL_TEAM_MEMBERS.forEach(initMember => {
-        if (!mergedMembers.some(m => m.id === initMember.id || (m.login && initMember.login && m.login.toLowerCase() === initMember.login.toLowerCase()))) {
-          mergedMembers.push(initMember);
-        }
-      });
+      let mergedMembers: any[] = [];
+      if (Array.isArray(dbMembers) && dbMembers.length > 0) {
+        mergedMembers = [...dbMembers];
+      } else if (Array.isArray(teamMembers) && teamMembers.length > 0) {
+        mergedMembers = [...teamMembers];
+      } else {
+        mergedMembers = [...INITIAL_TEAM_MEMBERS];
+      }
 
       setTeamMembers(mergedMembers);
       localStorage.setItem('ap_moda_team_users', JSON.stringify(mergedMembers));

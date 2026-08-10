@@ -105,27 +105,46 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
     };
   }, [partners, currentUser]);
 
-  // Compute REAL sales matching this partner's couponCode / ID / name
+  // Compute REAL sales matching this partner's couponCode / ID / name / login
   const partnerSales = useMemo(() => {
     const couponUpper = (currentPartner.couponCode || '').toUpperCase().trim();
+    const loginUpper = ((currentPartner as any).login || '').toUpperCase().trim();
     const nameLower = (currentPartner.name || '').toLowerCase().trim();
+    const nameUpper = (currentPartner.name || '').toUpperCase().trim();
     const partnerId = currentPartner.id;
 
     const matched: any[] = [];
 
+    // Helper matcher
+    const isPartnerMatch = (cCode: string, pName: string, pId: string, notes: string) => {
+      const cUpper = cCode.toUpperCase().trim();
+      const pLower = pName.toLowerCase().trim();
+      const nUpper = notes.toUpperCase().trim();
+      const nLower = notes.toLowerCase().trim();
+
+      const matchByCoupon =
+        (couponUpper && (cUpper === couponUpper || nUpper.includes(couponUpper))) ||
+        (loginUpper && (cUpper === loginUpper || cUpper === loginUpper + '10' || nUpper.includes(loginUpper)));
+
+      const matchByName =
+        (nameLower && (pLower === nameLower || nLower.includes(nameLower))) ||
+        (nameUpper && nUpper.includes(nameUpper));
+
+      const matchById = partnerId && (pId === partnerId || pLower === partnerId.toLowerCase());
+
+      return matchByCoupon || matchByName || matchById;
+    };
+
     // 1. From POS sales
     if (Array.isArray(sales)) {
       sales.forEach(s => {
-        const cCode = (s.couponCode || s.coupon || s.partnerCoupon || '').toUpperCase().trim();
-        const pName = (s.partner || s.partnerName || s.seller || '').toLowerCase().trim();
-        const pId = s.partnerId;
-        const notes = (s.notes || s.observation || '').toUpperCase();
+        if (s.status === 'Cancelada') return;
+        const cCode = s.couponCode || s.coupon || s.partnerCoupon || (s.appliedCoupon?.code) || '';
+        const pName = s.partner || s.partnerName || s.seller || '';
+        const pId = s.partnerId || '';
+        const notes = `${s.notes || ''} ${s.observation || ''} ${s.clientName || ''}`;
 
-        const matchesCoupon = couponUpper && (cCode === couponUpper || notes.includes(couponUpper));
-        const matchesName = nameLower && (pName === nameLower);
-        const matchesId = partnerId && (pId === partnerId);
-
-        if (matchesCoupon || matchesName || matchesId) {
+        if (isPartnerMatch(cCode, pName, pId, notes)) {
           const totalVal = Number(s.total || s.value || s.amount || 0);
           const commRate = currentPartner.commissionRate || 10;
           const commVal = (totalVal * commRate) / 100;
@@ -133,7 +152,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
             id: s.id || `VND-${s.number || Math.floor(1000 + Math.random() * 9000)}`,
             clientName: s.clientName || s.customerName || s.client || 'Cliente',
             total: totalVal,
-            date: s.date ? s.date.split('T')[0] : new Date().toISOString().split('T')[0],
+            date: s.date ? s.date.split('T')[0] : (s.createdAt ? s.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]),
             status: s.status || 'Concluída',
             commission: commVal,
             type: 'Venda Loja'
@@ -145,14 +164,13 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
     // 2. From onlineOrders
     if (Array.isArray(onlineOrders)) {
       onlineOrders.forEach(o => {
-        const cCode = (o.couponCode || o.coupon || o.ref || '').toUpperCase().trim();
-        const notes = (o.notes || o.observation || '').toUpperCase();
-        const pId = o.partnerId;
+        if (o.status === 'Cancelado') return;
+        const cCode = o.couponCode || o.coupon || o.ref || o.partnerCoupon || (o.appliedCoupon?.code) || '';
+        const pName = o.partnerName || o.partner || o.partnerId || '';
+        const pId = o.partnerId || '';
+        const notes = `${o.notes || ''} ${o.observation || ''} ${o.clientName || ''} ${o.customerName || ''}`;
 
-        const matchesCoupon = couponUpper && (cCode === couponUpper || notes.includes(couponUpper));
-        const matchesId = partnerId && (pId === partnerId);
-
-        if (matchesCoupon || matchesId) {
+        if (isPartnerMatch(cCode, pName, pId, notes)) {
           if (!matched.some(m => m.id === o.id)) {
             const totalVal = Number(o.total || o.value || o.amount || 0);
             const commRate = currentPartner.commissionRate || 10;
@@ -161,7 +179,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
               id: o.id || `PED-${o.number || Math.floor(1000 + Math.random() * 9000)}`,
               clientName: o.clientName || o.customerName || o.client || 'Cliente Site',
               total: totalVal,
-              date: o.date ? o.date.split('T')[0] : new Date().toISOString().split('T')[0],
+              date: o.date ? o.date.split('T')[0] : (o.createdAt ? o.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]),
               status: o.status || 'Concluído',
               commission: commVal,
               type: 'Pedido Online'

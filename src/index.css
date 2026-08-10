@@ -494,6 +494,7 @@ body.theme-rosa {
   }
 
   /* Make ONLY our printable targets and their descendants visible */
+  #ap-direct-print-portal, #ap-direct-print-portal *,
   #printable-thermal-receipt, #printable-thermal-receipt *,
   #printable-shipping-label, #printable-shipping-label *,
   #printable-invoice-sheet, #printable-invoice-sheet *,
@@ -501,6 +502,7 @@ body.theme-rosa {
   #replenishment-report-modal, #replenishment-report-modal *,
   .printable-area, .printable-area * {
     visibility: visible !important;
+    opacity: 1 !important;
   }
 
   /* Position printable targets at top-left (0,0) of page 1 with natural auto-height flow */

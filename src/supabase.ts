@@ -300,7 +300,7 @@ export async function saveSupabaseConfigToServer(url: string, key: string) {
 }
 
 function mapTableToEndpoint(table: string): string {
-  const tableSuffix = table.replace(/^ap_/, '');
+  const tableSuffix = table.replace(/^ap_/, '').replace(/_/g, '-');
   return `/api/proxy/${tableSuffix}`;
 }
 

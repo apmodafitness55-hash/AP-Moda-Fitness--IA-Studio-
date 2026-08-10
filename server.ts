@@ -2441,7 +2441,7 @@ app.post('/api/proxy/transactions', async (req, res) => {
 });
 
 // Proxy for Online Orders
-app.get('/api/proxy/online-orders', async (req, res) => {
+app.get(['/api/proxy/online-orders', '/api/proxy/online_orders'], async (req, res) => {
   try {
     const db = getFirebaseServerDb();
     const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
@@ -2465,7 +2465,7 @@ app.get('/api/proxy/online-orders', async (req, res) => {
   }
 });
 
-app.post('/api/proxy/online-orders', async (req, res) => {
+app.post(['/api/proxy/online-orders', '/api/proxy/online_orders'], async (req, res) => {
   try {
     const db = getFirebaseServerDb();
     const payloads = req.body;
@@ -2548,7 +2548,7 @@ app.post('/api/proxy/checkouts', async (req, res) => {
 });
 
 // Proxy for Team Members
-app.get('/api/proxy/team-members', async (req, res) => {
+app.get(['/api/proxy/team-members', '/api/proxy/team_members'], async (req, res) => {
   try {
     const db = getFirebaseServerDb();
     const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
@@ -2571,7 +2571,7 @@ app.get('/api/proxy/team-members', async (req, res) => {
   }
 });
 
-app.post('/api/proxy/team-members', async (req, res) => {
+app.post(['/api/proxy/team-members', '/api/proxy/team_members'], async (req, res) => {
   try {
     const db = getFirebaseServerDb();
     let payloads = req.body;
@@ -2626,7 +2626,7 @@ app.post('/api/proxy/team-members', async (req, res) => {
   }
 });
 
-app.delete('/api/proxy/team-members/:id', async (req, res) => {
+app.delete(['/api/proxy/team-members/:id', '/api/proxy/team_members/:id'], async (req, res) => {
   try {
     const db = getFirebaseServerDb();
     const { error } = await db.from('ap_team_members').delete().eq('id', req.params.id);
@@ -2639,7 +2639,7 @@ app.delete('/api/proxy/team-members/:id', async (req, res) => {
 });
 
 // Proxy for Card Terminals
-app.get('/api/proxy/card-terminals', async (req, res) => {
+app.get(['/api/proxy/card-terminals', '/api/proxy/card_terminals'], async (req, res) => {
   try {
     const db = getFirebaseServerDb();
     const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
@@ -2662,7 +2662,7 @@ app.get('/api/proxy/card-terminals', async (req, res) => {
   }
 });
 
-app.post('/api/proxy/card-terminals', async (req, res) => {
+app.post(['/api/proxy/card-terminals', '/api/proxy/card_terminals'], async (req, res) => {
   try {
     const db = getFirebaseServerDb();
     const payloads = req.body;
@@ -2675,7 +2675,7 @@ app.post('/api/proxy/card-terminals', async (req, res) => {
   }
 });
 
-app.delete('/api/proxy/card-terminals/:id', async (req, res) => {
+app.delete(['/api/proxy/card-terminals/:id', '/api/proxy/card_terminals/:id'], async (req, res) => {
   try {
     const db = getFirebaseServerDb();
     const { error } = await db.from('card_terminals').delete().eq('id', req.params.id);
@@ -3070,7 +3070,7 @@ app.post('/api/google/gmail/send', async (req, res) => {
 });
 
 // Proxy for System Configs
-app.get('/api/proxy/system-configs', async (req, res) => {
+app.get(['/api/proxy/system-configs', '/api/proxy/system_configs'], async (req, res) => {
   try {
     const db = getFirebaseServerDb();
     const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
@@ -3116,7 +3116,7 @@ app.get('/api/proxy/system-configs', async (req, res) => {
   }
 });
 
-app.post('/api/proxy/system-configs', async (req, res) => {
+app.post(['/api/proxy/system-configs', '/api/proxy/system_configs'], async (req, res) => {
   try {
     const db = getFirebaseServerDb();
     let payloads = req.body;

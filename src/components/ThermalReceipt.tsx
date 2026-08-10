@@ -367,13 +367,25 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
   };
 
   const handlePrint = () => {
-    // Add print trigger styles dynamically to avoid affecting other screens permanently
-    const existing = document.getElementById('thermal-receipt-print-styles');
-    if (existing) existing.remove();
+    const receiptEl = document.getElementById('printable-thermal-receipt');
+    if (!receiptEl) {
+      window.print();
+      return;
+    }
 
-    const style = document.createElement('style');
-    style.id = 'thermal-receipt-print-styles';
-    
+    // Clean up any existing print portal or print styles
+    const existingStyle = document.getElementById('thermal-receipt-print-styles');
+    if (existingStyle) existingStyle.remove();
+
+    const existingPortal = document.getElementById('ap-direct-print-portal');
+    if (existingPortal) existingPortal.remove();
+
+    // Create a clean direct body portal container
+    const portal = document.createElement('div');
+    portal.id = 'ap-direct-print-portal';
+    portal.innerHTML = receiptEl.outerHTML;
+    document.body.appendChild(portal);
+
     const fontSelector = {
       'xs': '8.5px',
       'sm': '10px',
@@ -387,72 +399,54 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
     if (selectedPrinter === '100x150') {
       pageCss = `@page { size: 100mm auto; margin: 0; }`;
       targetCss = `
-        #printable-thermal-receipt {
+        #ap-direct-print-portal, #ap-direct-print-portal #printable-thermal-receipt {
           width: 96mm !important;
           max-width: 96mm !important;
           min-height: 140mm !important;
-          height: auto !important;
-          max-height: none !important;
           padding: 3mm !important;
-          overflow: visible !important;
-          box-sizing: border-box !important;
         }
       `;
     } else if (selectedPrinter === '80mm') {
       pageCss = `@page { size: 80mm auto; margin: 0; }`;
       targetCss = `
-        #printable-thermal-receipt {
+        #ap-direct-print-portal, #ap-direct-print-portal #printable-thermal-receipt {
           width: 76mm !important;
           max-width: 76mm !important;
-          height: auto !important;
-          max-height: none !important;
           padding: 2mm !important;
-          overflow: visible !important;
-          box-sizing: border-box !important;
         }
       `;
     } else if (selectedPrinter === '58mm') {
       pageCss = `@page { size: 58mm auto; margin: 0; }`;
       targetCss = `
-        #printable-thermal-receipt {
+        #ap-direct-print-portal, #ap-direct-print-portal #printable-thermal-receipt {
           width: 52mm !important;
           max-width: 52mm !important;
-          height: auto !important;
-          max-height: none !important;
           padding: 1.5mm !important;
-          overflow: visible !important;
-          box-sizing: border-box !important;
         }
       `;
     } else if (selectedPrinter === 'label') {
       pageCss = `@page { size: 50mm auto; margin: 0; }`;
       targetCss = `
-        #printable-thermal-receipt {
+        #ap-direct-print-portal, #ap-direct-print-portal #printable-thermal-receipt {
           width: 46mm !important;
           max-width: 46mm !important;
-          height: auto !important;
-          max-height: none !important;
           padding: 1mm !important;
-          overflow: visible !important;
-          box-sizing: border-box !important;
         }
       `;
     } else {
       // A4
       pageCss = `@page { size: A4 portrait; margin: 8mm; }`;
       targetCss = `
-        #printable-thermal-receipt {
+        #ap-direct-print-portal, #ap-direct-print-portal #printable-thermal-receipt {
           width: 100% !important;
           max-width: 190mm !important;
-          height: auto !important;
-          max-height: none !important;
           padding: 0 !important;
-          overflow: visible !important;
-          box-sizing: border-box !important;
         }
       `;
     }
 
+    const style = document.createElement('style');
+    style.id = 'thermal-receipt-print-styles';
     style.innerHTML = `
       @media print {
         ${pageCss}
@@ -464,33 +458,21 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
           backdrop-filter: none !important;
         }
 
-        html, body, #root, #main-app-container, .modal-overlay-thermal, .modal-overlay-thermal div {
-          visibility: visible !important;
-          height: auto !important;
-          max-height: none !important;
-          min-height: 100% !important;
-          overflow: visible !important;
+        html, body {
+          background: #ffffff !important;
           margin: 0 !important;
           padding: 0 !important;
-          background: #ffffff !important;
-          opacity: 1 !important;
+          height: auto !important;
+          min-height: 100% !important;
+          overflow: visible !important;
         }
 
-        body * {
-          visibility: hidden !important;
-        }
-
-        .no-print, .print-hidden, header, aside, nav, footer, button {
+        /* HIDE everything on body except our direct print portal to prevent 3-4 blank background pages */
+        body > *:not(#ap-direct-print-portal) {
           display: none !important;
-          visibility: hidden !important;
         }
 
-        #printable-thermal-receipt, #printable-thermal-receipt * {
-          visibility: visible !important;
-          opacity: 1 !important;
-        }
-
-        #printable-thermal-receipt {
+        #ap-direct-print-portal {
           display: block !important;
           position: absolute !important;
           left: 0 !important;
@@ -499,7 +481,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
           background: #ffffff !important;
           color: #000000 !important;
           font-family: ${selectedPrinter === 'A4' ? "'Inter', system-ui, sans-serif" : "'JetBrains Mono', Courier, monospace"} !important;
-          font-size: ${fontSelector[fontSize]} !important;
+          font-size: ${fontSelector[fontSize] || '10px'} !important;
           box-shadow: none !important;
           height: auto !important;
           max-height: none !important;
@@ -507,17 +489,37 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
           border: none !important;
           z-index: 99999999 !important;
           opacity: 1 !important;
+          visibility: visible !important;
+          box-sizing: border-box !important;
+        }
+
+        #ap-direct-print-portal #printable-thermal-receipt {
+          display: block !important;
+          position: static !important;
+          margin: 0 !important;
+          background: #ffffff !important;
+          color: #000000 !important;
+          box-shadow: none !important;
+          height: auto !important;
+          max-height: none !important;
+          overflow: visible !important;
+          border: none !important;
+          opacity: 1 !important;
+          visibility: visible !important;
+          box-sizing: border-box !important;
         }
 
         ${targetCss}
 
-        #printable-thermal-receipt * {
+        #ap-direct-print-portal * {
+          visibility: visible !important;
+          opacity: 1 !important;
           color: #000000 !important;
           background: transparent !important;
         }
 
         ${selectedPrinter === 'label' || selectedPrinter === '100x150' ? `
-          #printable-thermal-receipt * {
+          #ap-direct-print-portal * {
             line-height: 1.15 !important;
           }
         ` : ''}
@@ -529,14 +531,19 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
       try {
         const addedStyle = document.getElementById('thermal-receipt-print-styles');
         if (addedStyle) addedStyle.remove();
+        const addedPortal = document.getElementById('ap-direct-print-portal');
+        if (addedPortal) addedPortal.remove();
       } catch (e) {}
     };
 
     window.addEventListener('afterprint', cleanup, { once: true });
-    window.print();
+    
+    setTimeout(() => {
+      window.print();
+    }, 50);
 
-    // Safety timeout (30 seconds)
-    setTimeout(cleanup, 30000);
+    // Safety timeout cleanup
+    setTimeout(cleanup, 15000);
   };
 
   return (

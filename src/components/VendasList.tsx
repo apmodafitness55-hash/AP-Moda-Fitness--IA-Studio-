@@ -58,6 +58,108 @@ export default function VendasList({
   const [selectedSaleForReceipt, setSelectedSaleForReceipt] = useState<Sale | null>(null);
   const [selectedSaleForInvoice, setSelectedSaleForInvoice] = useState<Sale | null>(null);
 
+  const handlePrintInvoice = () => {
+    const sheetEl = document.getElementById('printable-invoice-sheet');
+    if (!sheetEl) {
+      window.print();
+      return;
+    }
+
+    const existingStyle = document.getElementById('invoice-sheet-print-styles');
+    if (existingStyle) existingStyle.remove();
+
+    const existingPortal = document.getElementById('ap-direct-print-portal');
+    if (existingPortal) existingPortal.remove();
+
+    const portal = document.createElement('div');
+    portal.id = 'ap-direct-print-portal';
+    portal.innerHTML = sheetEl.outerHTML;
+    document.body.appendChild(portal);
+
+    const style = document.createElement('style');
+    style.id = 'invoice-sheet-print-styles';
+    style.innerHTML = `
+      @media print {
+        @page {
+          size: A4 portrait;
+          margin: 10mm;
+        }
+
+        * {
+          transform: none !important;
+          transition: none !important;
+          filter: none !important;
+          backdrop-filter: none !important;
+        }
+
+        html, body {
+          background: #ffffff !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          height: auto !important;
+          min-height: 100% !important;
+          overflow: visible !important;
+        }
+
+        body > *:not(#ap-direct-print-portal) {
+          display: none !important;
+        }
+
+        #ap-direct-print-portal {
+          display: block !important;
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #ffffff !important;
+          color: #000000 !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+          z-index: 99999999 !important;
+        }
+
+        #ap-direct-print-portal #printable-invoice-sheet {
+          display: block !important;
+          position: static !important;
+          width: 100% !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          background: #ffffff !important;
+          color: #000000 !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+        }
+
+        #ap-direct-print-portal * {
+          visibility: visible !important;
+          opacity: 1 !important;
+          color: #000000 !important;
+          background: transparent !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    const cleanup = () => {
+      try {
+        const addedStyle = document.getElementById('invoice-sheet-print-styles');
+        if (addedStyle) addedStyle.remove();
+        const addedPortal = document.getElementById('ap-direct-print-portal');
+        if (addedPortal) addedPortal.remove();
+      } catch (e) {}
+    };
+
+    window.addEventListener('afterprint', cleanup, { once: true });
+
+    setTimeout(() => {
+      window.print();
+    }, 50);
+
+    setTimeout(cleanup, 15000);
+  };
+
   // List of salespeople dynamically extracted from sales
   const salespeople = useMemo(() => {
     const list = new Set<string>();
@@ -701,7 +803,7 @@ export default function VendasList({
               </span>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => window.print()}
+                  onClick={handlePrintInvoice}
                   className="px-3 py-1.5 bg-pink-600 hover:bg-pink-700 text-white text-[11px] font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 border-none"
                 >
                   <Printer size={13} />
