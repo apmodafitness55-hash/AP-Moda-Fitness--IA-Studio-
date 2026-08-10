@@ -463,50 +463,55 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
           margin: 0 !important;
           padding: 0 !important;
           height: auto !important;
-          min-height: 100% !important;
+          min-height: 0 !important;
           overflow: visible !important;
         }
 
-        /* HIDE everything on body except our direct print portal to prevent 3-4 blank background pages */
+        /* HIDE everything on body except our direct print portal to prevent blank background pages */
         body > *:not(#ap-direct-print-portal) {
           display: none !important;
         }
 
         #ap-direct-print-portal {
           display: block !important;
-          position: absolute !important;
+          position: relative !important;
           left: 0 !important;
           top: 0 !important;
-          margin: 0 !important;
+          margin: 0 auto !important;
+          padding: 0 !important;
           background: #ffffff !important;
           color: #000000 !important;
           font-family: ${selectedPrinter === 'A4' ? "'Inter', system-ui, sans-serif" : "'JetBrains Mono', Courier, monospace"} !important;
           font-size: ${fontSelector[fontSize] || '10px'} !important;
           box-shadow: none !important;
           height: auto !important;
-          max-height: none !important;
+          min-height: 0 !important;
           overflow: visible !important;
           border: none !important;
           z-index: 99999999 !important;
           opacity: 1 !important;
           visibility: visible !important;
           box-sizing: border-box !important;
+          page-break-before: avoid !important;
+          break-before: avoid !important;
         }
 
         #ap-direct-print-portal #printable-thermal-receipt {
           display: block !important;
-          position: static !important;
-          margin: 0 !important;
+          position: relative !important;
+          margin: 0 auto !important;
           background: #ffffff !important;
           color: #000000 !important;
           box-shadow: none !important;
           height: auto !important;
-          max-height: none !important;
+          min-height: 0 !important;
           overflow: visible !important;
           border: none !important;
           opacity: 1 !important;
           visibility: visible !important;
           box-sizing: border-box !important;
+          page-break-before: avoid !important;
+          break-before: avoid !important;
         }
 
         ${targetCss}

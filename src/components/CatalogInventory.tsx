@@ -1691,30 +1691,27 @@ export default function CatalogInventory({
               @media print {
                 @page {
                   size: A4 portrait;
-                  margin: 15mm 10mm 15mm 10mm;
+                  margin: 10mm;
                 }
-                html, body, #root, #main-app-container {
+                html, body {
                   visibility: visible !important;
                   height: auto !important;
-                  min-height: 100% !important;
+                  min-height: 0 !important;
                   overflow: visible !important;
                   margin: 0 !important;
                   padding: 0 !important;
                   background: #ffffff !important;
                 }
-                body * {
-                  visibility: hidden !important;
-                }
                 .no-print, .print-hidden, header, aside, nav, footer, button {
                   display: none !important;
-                  visibility: hidden !important;
                 }
                 #replenishment-report-modal, #replenishment-report-modal * {
                   visibility: visible !important;
+                  opacity: 1 !important;
                 }
                 #replenishment-report-modal {
                   display: block !important;
-                  position: absolute !important;
+                  position: relative !important;
                   left: 0 !important;
                   top: 0 !important;
                   width: 100% !important;
@@ -1722,11 +1719,13 @@ export default function CatalogInventory({
                   overflow: visible !important;
                   border: none !important;
                   box-shadow: none !important;
-                  margin: 0 !important;
+                  margin: 0 auto !important;
                   padding: 0 !important;
                   background: #ffffff !important;
                   color: #000000 !important;
                   z-index: 99999999 !important;
+                  page-break-before: avoid !important;
+                  break-before: avoid !important;
                 }
                 #replenishment-report-modal * {
                   color: #000000 !important;

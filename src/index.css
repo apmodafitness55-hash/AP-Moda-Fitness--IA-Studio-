@@ -453,7 +453,7 @@ body.theme-rosa {
     padding: 0 !important;
     width: 100% !important;
     height: auto !important;
-    min-height: 100% !important;
+    min-height: 0 !important;
     overflow: visible !important;
   }
 
@@ -461,21 +461,20 @@ body.theme-rosa {
     background: #ffffff !important;
     background-color: #ffffff !important;
     height: auto !important;
-    min-height: 100% !important;
+    min-height: 0 !important;
     overflow: visible !important;
     position: static !important;
   }
 
-  /* Hide all elements on the page by default when printing */
-  body * {
-    visibility: hidden !important;
+  /* When printing via direct portal, hide all other root elements completely so they take 0 space */
+  body > *:not(#ap-direct-print-portal):not(.printable-standalone) {
+    display: none !important;
   }
 
   /* Explicitly hide non-printable UI controls */
   aside, header, footer, nav, button, input, select, textarea,
   #sidebar-menu, .no-print, .print-hidden, .print\:hidden {
     display: none !important;
-    visibility: hidden !important;
   }
 
   /* Strip background overlays, transforms, flex offsets & scroll constraints from modal containers when printing */
@@ -505,7 +504,8 @@ body.theme-rosa {
     opacity: 1 !important;
   }
 
-  /* Position printable targets at top-left (0,0) of page 1 with natural auto-height flow */
+  /* Position printable targets at top-left of page 1 with natural relative auto-height flow */
+  #ap-direct-print-portal,
   #printable-thermal-receipt,
   #printable-shipping-label,
   #printable-invoice-sheet,
@@ -513,10 +513,11 @@ body.theme-rosa {
   #replenishment-report-modal,
   .printable-area {
     display: block !important;
-    position: absolute !important;
+    position: relative !important;
     left: 0 !important;
     top: 0 !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
     z-index: 99999999 !important;
     background: #ffffff !important;
     color: #000000 !important;
@@ -524,8 +525,10 @@ body.theme-rosa {
     border: none !important;
     opacity: 1 !important;
     height: auto !important;
-    max-height: none !important;
+    min-height: 0 !important;
     overflow: visible !important;
+    page-break-before: avoid !important;
+    break-before: avoid !important;
   }
 
   /* Specific Paper Format Classes to ensure 100% complete data without cropping */
@@ -546,7 +549,7 @@ body.theme-rosa {
   .print-format-100x150, .print-format-label {
     width: 100mm !important;
     max-width: 100mm !important;
-    min-height: 150mm !important;
+    min-height: 140mm !important;
     height: auto !important;
     padding: 4mm !important;
     box-sizing: border-box !important;

@@ -41,7 +41,8 @@ import {
   ToggleLeft,
   ToggleRight,
   Settings,
-  RefreshCw
+  RefreshCw,
+  Tag
 } from 'lucide-react';
 import { Client, Sale, SalesChannel } from '../types';
 

@@ -176,7 +176,7 @@ export default function VendasList({
           margin: 0 !important;
           padding: 0 !important;
           height: auto !important;
-          min-height: 100% !important;
+          min-height: 0 !important;
           overflow: visible !important;
         }
 
@@ -186,17 +186,19 @@ export default function VendasList({
 
         #ap-direct-print-portal {
           display: block !important;
-          position: absolute !important;
+          position: relative !important;
           left: 0 !important;
           top: 0 !important;
           width: 100% !important;
-          margin: 0 !important;
+          margin: 0 auto !important;
           padding: 0 !important;
           background: #ffffff !important;
           color: #000000 !important;
           visibility: visible !important;
           opacity: 1 !important;
           z-index: 99999999 !important;
+          page-break-before: avoid !important;
+          break-before: avoid !important;
         }
 
         #ap-direct-print-portal #printable-invoice-sheet {

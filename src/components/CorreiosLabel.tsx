@@ -224,10 +224,24 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
   // Print execution targeting the exact thermal paper size (handling orientation dynamically)
   const handlePrint = () => {
     const printWindowStyleId = 'correios-print-layout';
-    
-    // Remove existing print layouts
-    const existing = document.getElementById(printWindowStyleId);
-    if (existing) existing.remove();
+    const labelEl = document.getElementById('printable-shipping-label');
+    if (!labelEl) {
+      window.print();
+      return;
+    }
+
+    // Remove existing print layouts and portals
+    const existingStyle = document.getElementById(printWindowStyleId);
+    if (existingStyle) existingStyle.remove();
+
+    const existingPortal = document.getElementById('ap-direct-print-portal');
+    if (existingPortal) existingPortal.remove();
+
+    // Create direct portal on body
+    const portal = document.createElement('div');
+    portal.id = 'ap-direct-print-portal';
+    portal.innerHTML = labelEl.outerHTML;
+    document.body.appendChild(portal);
 
     const style = document.createElement('style');
     style.id = printWindowStyleId;
@@ -247,7 +261,7 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
       `
       : `
         width: 100mm !important;
-        min-height: 150mm !important;
+        min-height: 140mm !important;
         height: auto !important;
         max-width: 100mm !important;
         max-height: none !important;
@@ -258,66 +272,85 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
       @media print {
         ${pageCss}
 
-        html, body, #root, #main-app-container {
-          visibility: visible !important;
-          height: auto !important;
-          min-height: 100% !important;
-          overflow: visible !important;
+        * {
+          transform: none !important;
+          transition: none !important;
+          filter: none !important;
+          backdrop-filter: none !important;
+        }
+
+        html, body {
+          background: #ffffff !important;
           margin: 0 !important;
           padding: 0 !important;
-          background: #ffffff !important;
+          height: auto !important;
+          min-height: 0 !important;
+          overflow: visible !important;
         }
 
-        body * {
-          visibility: hidden !important;
-        }
-
-        .no-print, .print-hidden, header, aside, nav, footer, button {
+        body > *:not(#ap-direct-print-portal) {
           display: none !important;
-          visibility: hidden !important;
         }
 
-        #printable-shipping-label, #printable-shipping-label * {
-          visibility: visible !important;
-        }
-
-        #printable-shipping-label {
+        #ap-direct-print-portal {
           display: block !important;
-          position: absolute !important;
+          position: relative !important;
           left: 0 !important;
           top: 0 !important;
           ${dimsCss}
-          margin: 0 !important;
+          margin: 0 auto !important;
           padding: 3.5mm !important;
           background: #ffffff !important;
           color: #000000 !important;
           font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
           box-sizing: border-box !important;
           z-index: 99999999 !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+          page-break-before: avoid !important;
+          break-before: avoid !important;
         }
 
-        #printable-shipping-label * {
+        #ap-direct-print-portal #printable-shipping-label {
+          display: block !important;
+          position: relative !important;
+          width: 100% !important;
+          height: auto !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #ffffff !important;
+          color: #000000 !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+        }
+
+        #ap-direct-print-portal * {
           color: #000000 !important;
           background: transparent !important;
+          visibility: visible !important;
+          opacity: 1 !important;
         }
       }
     `;
 
     document.head.appendChild(style);
     
-    // Listen for afterprint event so styles persist until print dialog closes
     const cleanup = () => {
       try {
         const el = document.getElementById(printWindowStyleId);
         if (el) el.remove();
+        const addedPortal = document.getElementById('ap-direct-print-portal');
+        if (addedPortal) addedPortal.remove();
       } catch (e) {}
     };
 
     window.addEventListener('afterprint', cleanup, { once: true });
-    window.print();
+    
+    setTimeout(() => {
+      window.print();
+    }, 50);
 
-    // Fallback safety timeout (30 seconds) in case afterprint does not fire
-    setTimeout(cleanup, 30000);
+    setTimeout(cleanup, 15000);
   };
 
   return (
