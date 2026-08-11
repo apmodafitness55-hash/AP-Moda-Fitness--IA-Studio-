@@ -415,16 +415,24 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
     styleTag.textContent = `
       ${pageCss}
       @media print {
-        #root, #root *, body > *:not(#ap-direct-print-portal), body > *:not(#ap-direct-print-portal) * {
+        body > *:not(#ap-direct-print-portal),
+        body > *:not(#ap-direct-print-portal) *,
+        #root,
+        #root * {
           display: none !important;
           visibility: hidden !important;
           height: 0 !important;
           max-height: 0 !important;
+          width: 0 !important;
+          max-width: 0 !important;
           overflow: hidden !important;
           opacity: 0 !important;
           position: absolute !important;
           top: -9999px !important;
           left: -9999px !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          border: none !important;
         }
         #ap-direct-print-portal {
           display: block !important;
@@ -483,8 +491,8 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
     window.addEventListener('afterprint', cleanup, { once: true });
     setTimeout(() => {
       window.print();
-    }, 50);
-    setTimeout(cleanup, 4000);
+    }, 150);
+    setTimeout(cleanup, 60000);
   };
 
   return (
