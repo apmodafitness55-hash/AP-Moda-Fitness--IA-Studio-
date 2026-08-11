@@ -467,7 +467,8 @@ body.theme-rosa {
   }
 
   /* When printing via direct portal, hide all other root elements completely so they take 0 space */
-  body > *:not(#ap-direct-print-portal):not(.printable-standalone) {
+  body.is-printing-portal > *:not(#ap-direct-print-portal),
+  body:has(#ap-direct-print-portal) > *:not(#ap-direct-print-portal) {
     display: none !important;
     visibility: hidden !important;
     height: 0 !important;

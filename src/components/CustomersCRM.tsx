@@ -674,46 +674,44 @@ export default function CustomersCRM({
       pushSystemConfigToSupabase('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
     } catch(e) {}
 
-    if (!isOnlineOrder) {
-      try {
-        const savedSales = localStorage.getItem('ap_moda_sales');
-        if (savedSales) {
-          const parsedSales = JSON.parse(savedSales);
-          let targetSaleObj: any = null;
-          const updated = parsedSales.map((s: any) => {
-            if (s.id === saleId) {
-              targetSaleObj = { ...s, partner: partner.name, partnerName: partner.name, partnerId: partner.id, couponCode: partner.couponCode };
-              return targetSaleObj;
-            }
-            return s;
-          });
-          localStorage.setItem('ap_moda_sales', JSON.stringify(updated));
-          if (targetSaleObj) {
-            syncBulkSalesToSupabase([targetSaleObj]);
+    try {
+      const savedSales = localStorage.getItem('ap_moda_sales');
+      if (savedSales) {
+        const parsedSales = JSON.parse(savedSales);
+        let targetSaleObj: any = null;
+        const updated = parsedSales.map((s: any) => {
+          if (s.id === saleId) {
+            targetSaleObj = { ...s, partner: partner.name, partnerName: partner.name, partnerId: partner.id, couponCode: partner.couponCode, partnerCoupon: partner.couponCode };
+            return targetSaleObj;
           }
+          return s;
+        });
+        localStorage.setItem('ap_moda_sales', JSON.stringify(updated));
+        if (targetSaleObj) {
+          syncBulkSalesToSupabase([targetSaleObj]);
         }
-      } catch(e) {}
-    } else {
-      try {
-        const savedOrders = localStorage.getItem('ap_moda_online_orders') || localStorage.getItem('ap_online_orders');
-        if (savedOrders) {
-          const parsedOrders = JSON.parse(savedOrders);
-          let targetOrderObj: any = null;
-          const updated = parsedOrders.map((o: any) => {
-            if (o.id === saleId) {
-              targetOrderObj = { ...o, partnerName: partner.name, partnerId: partner.id, couponCode: partner.couponCode };
-              return targetOrderObj;
-            }
-            return o;
-          });
-          localStorage.setItem('ap_moda_online_orders', JSON.stringify(updated));
-          localStorage.setItem('ap_online_orders', JSON.stringify(updated));
-          if (targetOrderObj) {
-            syncBulkOnlineOrdersToSupabase([targetOrderObj]);
+      }
+    } catch(e) {}
+
+    try {
+      const savedOrders = localStorage.getItem('ap_moda_online_orders') || localStorage.getItem('ap_online_orders');
+      if (savedOrders) {
+        const parsedOrders = JSON.parse(savedOrders);
+        let targetOrderObj: any = null;
+        const updated = parsedOrders.map((o: any) => {
+          if (o.id === saleId) {
+            targetOrderObj = { ...o, partnerName: partner.name, partnerId: partner.id, couponCode: partner.couponCode, partnerCoupon: partner.couponCode };
+            return targetOrderObj;
           }
+          return o;
+        });
+        localStorage.setItem('ap_moda_online_orders', JSON.stringify(updated));
+        localStorage.setItem('ap_online_orders', JSON.stringify(updated));
+        if (targetOrderObj) {
+          syncBulkOnlineOrdersToSupabase([targetOrderObj]);
         }
-      } catch(e) {}
-    }
+      }
+    } catch(e) {}
 
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new Event('ap-storage-synced'));

@@ -167,7 +167,12 @@ export default function OrdersLogistics({
         costTotal: 0,
         status: 'Concluída',
         createdAt: new Date().toISOString(),
-        address: order.address || undefined
+        address: order.address || undefined,
+        partner: order.partnerName || order.partner || undefined,
+        partnerName: order.partnerName || order.partner || undefined,
+        partnerId: order.partnerId || undefined,
+        couponCode: order.partnerCoupon || order.couponCode || undefined,
+        partnerCoupon: order.partnerCoupon || order.couponCode || undefined
       };
 
       onAddSale(newSale);

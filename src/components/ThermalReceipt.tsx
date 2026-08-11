@@ -373,31 +373,17 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
       return;
     }
 
-    // Clean up any existing iframe or portal
+    // Clean up any existing portal or iframe
     const existingIframe = document.getElementById('ap-thermal-print-iframe');
     if (existingIframe) existingIframe.remove();
     const existingPortal = document.getElementById('ap-direct-print-portal');
     if (existingPortal) existingPortal.remove();
 
-    // Create an isolated hidden iframe
-    const iframe = document.createElement('iframe');
-    iframe.id = 'ap-thermal-print-iframe';
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    iframe.style.visibility = 'hidden';
-    document.body.appendChild(iframe);
+    // Create the direct portal container attached directly to document.body
+    const portal = document.createElement('div');
+    portal.id = 'ap-direct-print-portal';
 
-    const doc = iframe.contentWindow?.document;
-    if (!doc) {
-      window.print();
-      return;
-    }
-
-    const fontSelector = {
+    const fontSelector: Record<string, string> = {
       'xs': '8.5px',
       'sm': '10px',
       'md': '11.5px',
@@ -425,99 +411,69 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
       printWidthCss = `width: 100%; max-width: 190mm; padding: 0; margin: 0 auto;`;
     }
 
-    const stylesHead = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-      .map(node => node.outerHTML)
-      .join('\n');
+    const styleTag = document.createElement('style');
+    styleTag.textContent = `
+      ${pageCss}
+      @media print {
+        #ap-direct-print-portal {
+          display: block !important;
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
+          background: #ffffff !important;
+          color: #000000 !important;
+        }
+        #ap-direct-print-portal #printable-thermal-receipt {
+          display: block !important;
+          position: relative !important;
+          top: 0 !important;
+          left: 0 !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+          background: #ffffff !important;
+          color: #000000 !important;
+          box-shadow: none !important;
+          border: none !important;
+          font-family: ${selectedPrinter === 'A4' ? "'Inter', system-ui, sans-serif" : "'JetBrains Mono', Courier, monospace"} !important;
+          font-size: ${fontSelector[fontSize] || '10px'} !important;
+          ${printWidthCss}
+        }
+        #ap-direct-print-portal #printable-thermal-receipt * {
+          visibility: visible !important;
+          opacity: 1 !important;
+          color: #000000 !important;
+        }
+        ${selectedPrinter === 'label' || selectedPrinter === '100x150' ? `
+          #ap-direct-print-portal #printable-thermal-receipt * {
+            line-height: 1.15 !important;
+          }
+        ` : ''}
+        #ap-direct-print-portal .no-print {
+          display: none !important;
+        }
+      }
+    `;
 
     const clonedReceipt = receiptEl.cloneNode(true) as HTMLElement;
     clonedReceipt.querySelectorAll('.no-print').forEach(el => el.remove());
 
-    doc.open();
-    doc.write(`
-      <!DOCTYPE html>
-      <html lang="pt-BR">
-        <head>
-          <meta charset="utf-8" />
-          <title>Cupom #${(sale as any).number || sale.id}</title>
-          ${stylesHead}
-          <style>
-            ${pageCss}
+    portal.appendChild(styleTag);
+    portal.appendChild(clonedReceipt);
+    document.body.appendChild(portal);
+    document.body.classList.add('is-printing-portal');
 
-            *, *::before, *::after {
-              box-sizing: border-box !important;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-              transform: none !important;
-              transition: none !important;
-              animation: none !important;
-            }
+    const cleanup = () => {
+      document.body.classList.remove('is-printing-portal');
+      const p = document.getElementById('ap-direct-print-portal');
+      if (p) p.remove();
+    };
 
-            html, body {
-              margin: 0 !important;
-              padding: 0 !important;
-              background: #ffffff !important;
-              color: #000000 !important;
-              width: 100% !important;
-              height: auto !important;
-              min-height: 0 !important;
-              overflow: visible !important;
-              font-family: ${selectedPrinter === 'A4' ? "'Inter', system-ui, sans-serif" : "'JetBrains Mono', Courier, monospace"} !important;
-              font-size: ${fontSelector[fontSize] || '10px'} !important;
-            }
-
-            #printable-thermal-receipt {
-              display: block !important;
-              position: relative !important;
-              top: 0 !important;
-              left: 0 !important;
-              background: #ffffff !important;
-              color: #000000 !important;
-              box-shadow: none !important;
-              border: none !important;
-              overflow: visible !important;
-              opacity: 1 !important;
-              visibility: visible !important;
-              ${printWidthCss}
-            }
-
-            #printable-thermal-receipt * {
-              visibility: visible !important;
-              opacity: 1 !important;
-              color: #000000 !important;
-            }
-
-            ${selectedPrinter === 'label' || selectedPrinter === '100x150' ? `
-              #printable-thermal-receipt * {
-                line-height: 1.15 !important;
-              }
-            ` : ''}
-
-            .no-print {
-              display: none !important;
-            }
-          </style>
-        </head>
-        <body>
-          ${clonedReceipt.outerHTML}
-        </body>
-      </html>
-    `);
-    doc.close();
-
+    window.addEventListener('afterprint', cleanup, { once: true });
     setTimeout(() => {
-      try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-      } catch (e) {
-        window.print();
-      }
-    }, 250);
-
-    setTimeout(() => {
-      try {
-        iframe.remove();
-      } catch (e) {}
-    }, 15000);
+      window.print();
+    }, 50);
+    setTimeout(cleanup, 4000);
   };
 
   return (

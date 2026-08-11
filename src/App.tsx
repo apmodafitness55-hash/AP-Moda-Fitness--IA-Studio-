@@ -710,6 +710,7 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem('ap_moda_online_orders', JSON.stringify(onlineOrders));
+    localStorage.setItem('ap_online_orders', JSON.stringify(onlineOrders));
     if (!isUpdatingFromSyncRef.current) {
       const prevList = prevOnlineOrdersRef.current || [];
       const prevMap = new Map(prevList.map(o => [o.id, o]));
@@ -1362,7 +1363,7 @@ export default function App() {
           const parsed = JSON.parse(savedSales);
           if (Array.isArray(parsed)) setSales(parsed);
         }
-        const savedOrders = localStorage.getItem('ap_online_orders');
+        const savedOrders = localStorage.getItem('ap_moda_online_orders') || localStorage.getItem('ap_online_orders');
         if (savedOrders) {
           const parsed = JSON.parse(savedOrders);
           if (Array.isArray(parsed)) setOnlineOrders(parsed);
@@ -3443,6 +3444,8 @@ export default function App() {
             setProducts={handleUpdateProductsList}
             sales={sales}
             setSales={handleUpdateSalesList}
+            onlineOrders={onlineOrders}
+            setOnlineOrders={handleUpdateOnlineOrdersList}
             onDeleteSale={handleDeleteSale}
             setActiveTab={setActiveTab}
             onAddTransaction={handleAddTransaction}

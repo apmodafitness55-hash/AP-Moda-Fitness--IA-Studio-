@@ -29,13 +29,15 @@ import {
 import { Sale, Product, Transaction } from '../types';
 import ThermalReceipt from './ThermalReceipt';
 import { getStoreConfig } from '../utils/storeConfig';
-import { pushSystemConfigToSupabase, syncBulkSalesToSupabase } from '../supabase';
+import { pushSystemConfigToSupabase, syncBulkSalesToSupabase, syncBulkOnlineOrdersToSupabase } from '../supabase';
 
 interface VendasListProps {
   sales: Sale[];
   setSales: React.Dispatch<React.SetStateAction<Sale[]>>;
   products: Product[];
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
+  onlineOrders?: any[];
+  setOnlineOrders?: (orders: any[] | ((prev: any[]) => any[])) => void;
   setActiveTab: (tab: any) => void;
   onAddTransaction?: (tx: Transaction) => void;
   onDeleteSale?: (saleId: string) => void;
@@ -46,6 +48,8 @@ export default function VendasList({
   setSales, 
   products, 
   setProducts, 
+  onlineOrders = [],
+  setOnlineOrders,
   setActiveTab, 
   onAddTransaction,
   onDeleteSale
@@ -89,53 +93,113 @@ export default function VendasList({
     const updatedPartnerId = chosenPartner ? chosenPartner.id : '';
     const updatedCouponCode = chosenPartner ? chosenPartner.couponCode : '';
 
-    // 1. Update sales state
+    // 1. Update sales state & storage & Supabase
     let targetSaleObj: any = null;
-    setSales(prev => {
-      const updated = prev.map(s => {
-        if (s.id === saleId) {
-          targetSaleObj = {
-            ...s,
-            partner: updatedPartnerName,
-            partnerName: updatedPartnerName,
-            partnerId: updatedPartnerId,
-            couponCode: updatedCouponCode,
-            partnerCoupon: updatedCouponCode
-          };
-          return targetSaleObj;
-        }
-        return s;
-      });
-      try {
-        localStorage.setItem('ap_moda_sales', JSON.stringify(updated));
-        if (targetSaleObj) {
-          syncBulkSalesToSupabase([targetSaleObj]);
-        }
-      } catch(e) {}
-      return updated;
+    const updatedSales = sales.map(s => {
+      if (s.id === saleId) {
+        targetSaleObj = {
+          ...s,
+          partner: updatedPartnerName,
+          partnerName: updatedPartnerName,
+          partnerId: updatedPartnerId,
+          couponCode: updatedCouponCode,
+          partnerCoupon: updatedCouponCode
+        };
+        return targetSaleObj;
+      }
+      return s;
     });
 
-    // 2. Add to manual partner sales if partner chosen
+    setSales(updatedSales);
+    try {
+      localStorage.setItem('ap_moda_sales', JSON.stringify(updatedSales));
+      if (targetSaleObj) {
+        syncBulkSalesToSupabase([targetSaleObj]);
+      }
+    } catch(e) {}
+
+    // 2. Update onlineOrders state & storage & Supabase (if order exists in onlineOrders)
+    let targetOrderObj: any = null;
+    const currentOrders = Array.isArray(onlineOrders) ? onlineOrders : [];
+    const updatedOrders = currentOrders.map((o: any) => {
+      if (o.id === saleId) {
+        targetOrderObj = {
+          ...o,
+          partnerName: updatedPartnerName,
+          partnerId: updatedPartnerId,
+          couponCode: updatedCouponCode,
+          partnerCoupon: updatedCouponCode
+        };
+        return targetOrderObj;
+      }
+      return o;
+    });
+
+    if (setOnlineOrders) {
+      setOnlineOrders(updatedOrders);
+    }
+    try {
+      localStorage.setItem('ap_moda_online_orders', JSON.stringify(updatedOrders));
+      localStorage.setItem('ap_online_orders', JSON.stringify(updatedOrders));
+      if (targetOrderObj) {
+        syncBulkOnlineOrdersToSupabase([targetOrderObj]);
+      }
+    } catch(e) {}
+
+    // 3. Update manual partner sales for Partner Portal history
     if (chosenPartner) {
       try {
         const savedGlobal = localStorage.getItem('ap_manual_partner_sales');
         const parsedGlobal = savedGlobal ? JSON.parse(savedGlobal) : [];
+        const saleDateStr = selectedSaleForPartnerLinking.createdAt 
+          ? new Date(selectedSaleForPartnerLinking.createdAt).toISOString().split('T')[0]
+          : new Date().toISOString().split('T')[0];
+
         const newItem = {
           id: saleId,
           partnerId: chosenPartner.id,
           partnerName: chosenPartner.name,
-          clientName: selectedSaleForPartnerLinking.clientName,
-          total: selectedSaleForPartnerLinking.total,
-          date: new Date(selectedSaleForPartnerLinking.createdAt).toISOString().split('T')[0],
+          clientName: selectedSaleForPartnerLinking.clientName || 'Cliente',
+          total: selectedSaleForPartnerLinking.total || 0,
+          date: saleDateStr,
           status: 'Concluída',
           commissionRate: chosenPartner.commissionRate || 10,
-          commission: (selectedSaleForPartnerLinking.total * (chosenPartner.commissionRate || 10)) / 100,
+          commission: ((selectedSaleForPartnerLinking.total || 0) * (chosenPartner.commissionRate || 10)) / 100,
           type: 'Venda Loja Vinculada',
           notes: `Vinculado por Administrador em VendasList`
         };
         const updatedGlobal = [newItem, ...parsedGlobal.filter((g: any) => g.id !== saleId)];
         localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
         localStorage.setItem(`ap_manual_partner_sales_${chosenPartner.id}`, JSON.stringify(updatedGlobal));
+        pushSystemConfigToSupabase('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
+
+        // Update partner metrics in ap_moda_partners
+        const savedP = localStorage.getItem('ap_moda_partners');
+        let partnersList: any[] = savedP ? JSON.parse(savedP) : [];
+        if (Array.isArray(partnersList) && partnersList.length > 0) {
+          const commVal = ((selectedSaleForPartnerLinking.total || 0) * (chosenPartner.commissionRate || 10)) / 100;
+          partnersList = partnersList.map(p => {
+            if (p.id === chosenPartner.id) {
+              return {
+                ...p,
+                salesCount: (p.salesCount || 0) + 1,
+                totalGenerated: Number(((p.totalGenerated || 0) + (selectedSaleForPartnerLinking.total || 0)).toFixed(2)),
+                availableBalance: Number(((p.availableBalance || 0) + commVal).toFixed(2))
+              };
+            }
+            return p;
+          });
+          localStorage.setItem('ap_moda_partners', JSON.stringify(partnersList));
+          pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(partnersList));
+        }
+      } catch(e) {}
+    } else {
+      // Unlink partner
+      try {
+        const savedGlobal = localStorage.getItem('ap_manual_partner_sales');
+        const parsedGlobal = savedGlobal ? JSON.parse(savedGlobal) : [];
+        const updatedGlobal = parsedGlobal.filter((g: any) => g.id !== saleId);
+        localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
         pushSystemConfigToSupabase('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
       } catch(e) {}
     }
@@ -158,116 +222,73 @@ export default function VendasList({
     const existingPortal = document.getElementById('ap-direct-print-portal');
     if (existingPortal) existingPortal.remove();
 
-    // Create an isolated hidden iframe
-    const iframe = document.createElement('iframe');
-    iframe.id = 'ap-invoice-print-iframe';
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    iframe.style.visibility = 'hidden';
-    document.body.appendChild(iframe);
+    // Create direct portal container attached to document.body
+    const portal = document.createElement('div');
+    portal.id = 'ap-direct-print-portal';
 
-    const doc = iframe.contentWindow?.document;
-    if (!doc) {
-      window.print();
-      return;
-    }
-
-    const stylesHead = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-      .map(node => node.outerHTML)
-      .join('\n');
+    const styleTag = document.createElement('style');
+    styleTag.textContent = `
+      @page {
+        size: A4 portrait;
+        margin: 8mm;
+      }
+      @media print {
+        #ap-direct-print-portal {
+          display: block !important;
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
+          background: #ffffff !important;
+          color: #000000 !important;
+        }
+        #ap-direct-print-portal #printable-invoice-sheet {
+          display: block !important;
+          position: relative !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100% !important;
+          max-width: 190mm !important;
+          margin: 0 auto !important;
+          padding: 0 !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+          background: #ffffff !important;
+          color: #000000 !important;
+          box-shadow: none !important;
+          border: none !important;
+          font-family: system-ui, -apple-system, sans-serif !important;
+        }
+        #ap-direct-print-portal #printable-invoice-sheet * {
+          visibility: visible !important;
+          opacity: 1 !important;
+          color: #000000 !important;
+        }
+        #ap-direct-print-portal .no-print {
+          display: none !important;
+        }
+      }
+    `;
 
     const clonedSheet = sheetEl.cloneNode(true) as HTMLElement;
     clonedSheet.querySelectorAll('.no-print').forEach(el => el.remove());
 
-    doc.open();
-    doc.write(`
-      <!DOCTYPE html>
-      <html lang="pt-BR">
-        <head>
-          <meta charset="utf-8" />
-          <title>Declaração de Conteúdo</title>
-          ${stylesHead}
-          <style>
-            @page {
-              size: A4 portrait;
-              margin: 10mm;
-            }
+    portal.appendChild(styleTag);
+    portal.appendChild(clonedSheet);
+    document.body.appendChild(portal);
+    document.body.classList.add('is-printing-portal');
 
-            *, *::before, *::after {
-              box-sizing: border-box !important;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-              transform: none !important;
-              transition: none !important;
-              animation: none !important;
-            }
+    const cleanup = () => {
+      document.body.classList.remove('is-printing-portal');
+      const p = document.getElementById('ap-direct-print-portal');
+      if (p) p.remove();
+    };
 
-            html, body {
-              margin: 0 !important;
-              padding: 0 !important;
-              background: #ffffff !important;
-              color: #000000 !important;
-              width: 100% !important;
-              height: auto !important;
-              min-height: 0 !important;
-              overflow: visible !important;
-              font-family: system-ui, -apple-system, sans-serif !important;
-            }
-
-            #printable-invoice-sheet {
-              display: block !important;
-              position: relative !important;
-              top: 0 !important;
-              left: 0 !important;
-              width: 100% !important;
-              max-width: 190mm !important;
-              margin: 0 auto !important;
-              padding: 0 !important;
-              background: #ffffff !important;
-              color: #000000 !important;
-              box-shadow: none !important;
-              border: none !important;
-              overflow: visible !important;
-              opacity: 1 !important;
-              visibility: visible !important;
-            }
-
-            #printable-invoice-sheet * {
-              visibility: visible !important;
-              opacity: 1 !important;
-              color: #000000 !important;
-            }
-
-            .no-print {
-              display: none !important;
-            }
-          </style>
-        </head>
-        <body>
-          ${clonedSheet.outerHTML}
-        </body>
-      </html>
-    `);
-    doc.close();
-
+    window.addEventListener('afterprint', cleanup, { once: true });
     setTimeout(() => {
-      try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-      } catch (e) {
-        window.print();
-      }
-    }, 250);
-
-    setTimeout(() => {
-      try {
-        iframe.remove();
-      } catch (e) {}
-    }, 15000);
+      window.print();
+    }, 50);
+    setTimeout(cleanup, 4000);
   };
 
   // List of salespeople dynamically extracted from sales
