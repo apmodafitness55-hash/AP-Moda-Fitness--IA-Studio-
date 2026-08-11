@@ -429,6 +429,11 @@ body.theme-rosa {
   animation: border-glow 2s ease-in-out infinite;
 }
 
+/* Direct Portal Container - hidden on screen, visible only during print */
+#ap-direct-print-portal {
+  display: none !important;
+}
+
 /* ==========================================================================
    MASTER SYSTEM-WIDE PRINT FIX (Anti-Blank Page & Clean Single-Element Print)
    ========================================================================== */

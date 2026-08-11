@@ -478,39 +478,23 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
     portal.appendChild(clonedReceipt);
     document.body.appendChild(portal);
 
-    // CRITICAL FIX: Explicitly hide #root element in inline DOM style before opening print dialog
-    const rootEl = document.getElementById('root');
-    const prevDisplay = rootEl ? rootEl.style.display : '';
-    if (rootEl) {
-      rootEl.style.setProperty('display', 'none', 'important');
-    }
     document.body.classList.add('is-printing-portal');
-
-    // Force browser DOM layout recalculation so #root display:none takes effect immediately
-    void document.body.offsetHeight;
 
     let cleanedUp = false;
     const cleanup = () => {
       if (cleanedUp) return;
       cleanedUp = true;
       window.removeEventListener('afterprint', cleanup);
-      window.removeEventListener('focus', cleanup);
-      if (rootEl) {
-        rootEl.style.display = prevDisplay;
-      }
       document.body.classList.remove('is-printing-portal');
       const p = document.getElementById('ap-direct-print-portal');
       if (p) p.remove();
     };
 
     window.addEventListener('afterprint', cleanup, { once: true });
-    window.addEventListener('focus', cleanup, { once: true });
 
     setTimeout(() => {
       window.print();
-    }, 80);
-
-    setTimeout(cleanup, 15000);
+    }, 100);
   };
 
   return (
