@@ -251,6 +251,17 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
     styleTag.textContent = `
       ${pageCss}
       @media print {
+        #root, #root *, body > *:not(#ap-direct-print-portal), body > *:not(#ap-direct-print-portal) * {
+          display: none !important;
+          visibility: hidden !important;
+          height: 0 !important;
+          max-height: 0 !important;
+          overflow: hidden !important;
+          opacity: 0 !important;
+          position: absolute !important;
+          top: -9999px !important;
+          left: -9999px !important;
+        }
         #ap-direct-print-portal {
           display: block !important;
           position: absolute !important;
