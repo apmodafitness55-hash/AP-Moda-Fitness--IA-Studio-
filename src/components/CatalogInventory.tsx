@@ -187,6 +187,120 @@ export default function CatalogInventory({
 
   const [isReplenishmentModalOpen, setIsReplenishmentModalOpen] = useState(false);
 
+  const handlePrintReplenishmentReport = () => {
+    const reportEl = document.getElementById('replenishment-report-modal');
+    if (!reportEl) {
+      window.print();
+      return;
+    }
+
+    const existingPortal = document.getElementById('ap-direct-print-portal');
+    if (existingPortal) existingPortal.remove();
+
+    const portal = document.createElement('div');
+    portal.id = 'ap-direct-print-portal';
+
+    const styleTag = document.createElement('style');
+    styleTag.textContent = `
+      @page {
+        size: A4 portrait;
+        margin: 10mm;
+      }
+      @media print {
+        #root, #root * {
+          display: none !important;
+          visibility: hidden !important;
+          height: 0 !important;
+          max-height: 0 !important;
+          width: 0 !important;
+          max-width: 0 !important;
+          overflow: hidden !important;
+          opacity: 0 !important;
+          position: absolute !important;
+          top: -9999px !important;
+          left: -9999px !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          border: none !important;
+        }
+        #ap-direct-print-portal {
+          display: block !important;
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
+          background: #ffffff !important;
+          color: #000000 !important;
+        }
+        #ap-direct-print-portal #replenishment-report-modal {
+          display: block !important;
+          position: relative !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100% !important;
+          max-width: 190mm !important;
+          margin: 0 auto !important;
+          padding: 0 !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+          background: #ffffff !important;
+          color: #000000 !important;
+          box-shadow: none !important;
+          border: none !important;
+          max-height: none !important;
+          overflow: visible !important;
+        }
+        #ap-direct-print-portal #replenishment-report-modal * {
+          visibility: visible !important;
+          opacity: 1 !important;
+          color: #000000 !important;
+        }
+        #ap-direct-print-portal .no-print {
+          display: none !important;
+        }
+      }
+    `;
+
+    const clonedReport = reportEl.cloneNode(true) as HTMLElement;
+    clonedReport.querySelectorAll('.no-print, button').forEach(el => el.remove());
+
+    portal.appendChild(styleTag);
+    portal.appendChild(clonedReport);
+    document.body.appendChild(portal);
+
+    const rootEl = document.getElementById('root');
+    const prevDisplay = rootEl ? rootEl.style.display : '';
+    if (rootEl) {
+      rootEl.style.setProperty('display', 'none', 'important');
+    }
+    document.body.classList.add('is-printing-portal');
+
+    void document.body.offsetHeight;
+
+    let cleanedUp = false;
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      window.removeEventListener('afterprint', cleanup);
+      window.removeEventListener('focus', cleanup);
+      if (rootEl) {
+        rootEl.style.display = prevDisplay;
+      }
+      document.body.classList.remove('is-printing-portal');
+      const p = document.getElementById('ap-direct-print-portal');
+      if (p) p.remove();
+    };
+
+    window.addEventListener('afterprint', cleanup, { once: true });
+    window.addEventListener('focus', cleanup, { once: true });
+
+    setTimeout(() => {
+      window.print();
+    }, 80);
+
+    setTimeout(cleanup, 15000);
+  };
+
   const criticalVariations = useMemo(() => {
     const list: Array<{
       productId: string;
@@ -1836,7 +1950,7 @@ export default function CatalogInventory({
                 Fechar Relatório
               </button>
               <button
-                onClick={() => window.print()}
+                onClick={handlePrintReplenishmentReport}
                 className="px-4 py-2 bg-pink-600 text-white rounded-xl text-xs font-bold hover:bg-pink-700 transition-all cursor-pointer flex items-center gap-1.5 border-none"
               >
                 Imprimir
