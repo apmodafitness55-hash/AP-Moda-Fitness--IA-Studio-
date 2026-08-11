@@ -695,7 +695,7 @@ export default function CustomersCRM({
       } catch(e) {}
     } else {
       try {
-        const savedOrders = localStorage.getItem('ap_online_orders');
+        const savedOrders = localStorage.getItem('ap_moda_online_orders') || localStorage.getItem('ap_online_orders');
         if (savedOrders) {
           const parsedOrders = JSON.parse(savedOrders);
           let targetOrderObj: any = null;
@@ -706,6 +706,7 @@ export default function CustomersCRM({
             }
             return o;
           });
+          localStorage.setItem('ap_moda_online_orders', JSON.stringify(updated));
           localStorage.setItem('ap_online_orders', JSON.stringify(updated));
           if (targetOrderObj) {
             syncBulkOnlineOrdersToSupabase([targetOrderObj]);

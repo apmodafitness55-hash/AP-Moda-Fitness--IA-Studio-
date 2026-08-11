@@ -438,7 +438,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
       <html lang="pt-BR">
         <head>
           <meta charset="utf-8" />
-          <title>Cupom #${sale.number || sale.id}</title>
+          <title>Cupom #${(sale as any).number || sale.id}</title>
           ${stylesHead}
           <style>
             ${pageCss}

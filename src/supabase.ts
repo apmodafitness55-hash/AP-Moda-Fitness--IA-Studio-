@@ -690,7 +690,53 @@ export async function fetchSystemConfigsFromSupabase() {
 }
 
 export async function syncSystemConfigsWithSupabase(...args: any[]) {
-  // Configs are synced on the server automatically, so returning false indicates no local modifications needed
+  try {
+    const configs = await fetchSystemConfigsFromSupabase();
+    if (Array.isArray(configs) && configs.length > 0) {
+      let localModified = false;
+
+      // Sync ap_moda_partners
+      const partnersCfg = configs.find((c: any) => c.key === 'ap_moda_partners');
+      if (partnersCfg && partnersCfg.value) {
+        const remoteVal = typeof partnersCfg.value === 'string' ? partnersCfg.value : JSON.stringify(partnersCfg.value);
+        const localVal = localStorage.getItem('ap_moda_partners');
+        if (remoteVal !== localVal) {
+          localStorage.setItem('ap_moda_partners', remoteVal);
+          localModified = true;
+        }
+      }
+
+      // Sync ap_manual_partner_sales
+      const manualCfg = configs.find((c: any) => c.key === 'ap_manual_partner_sales');
+      if (manualCfg && manualCfg.value) {
+        const remoteVal = typeof manualCfg.value === 'string' ? manualCfg.value : JSON.stringify(manualCfg.value);
+        const localVal = localStorage.getItem('ap_manual_partner_sales');
+        if (remoteVal !== localVal) {
+          localStorage.setItem('ap_manual_partner_sales', remoteVal);
+          localModified = true;
+        }
+      }
+
+      // Sync ap_coupons
+      const couponsCfg = configs.find((c: any) => c.key === 'ap_coupons');
+      if (couponsCfg && couponsCfg.value) {
+        const remoteVal = typeof couponsCfg.value === 'string' ? couponsCfg.value : JSON.stringify(couponsCfg.value);
+        const localVal = localStorage.getItem('ap_coupons');
+        if (remoteVal !== localVal) {
+          localStorage.setItem('ap_coupons', remoteVal);
+          window.dispatchEvent(new Event('ap-coupons-updated'));
+          localModified = true;
+        }
+      }
+
+      if (localModified) {
+        window.dispatchEvent(new Event('ap-storage-synced'));
+      }
+      return localModified;
+    }
+  } catch (e) {
+    console.warn('[Sync Configs] Error syncing system configs:', e);
+  }
   return false;
 }
 

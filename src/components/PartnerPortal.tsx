@@ -48,6 +48,8 @@ interface PartnerPortalProps {
   onlineOrders?: any[];
   sales?: any[];
   products?: any[];
+  onUpdateSales?: (updatedSales: any[] | ((prev: any[]) => any[])) => void;
+  onUpdateOnlineOrders?: (updatedOrders: any[] | ((prev: any[]) => any[])) => void;
 }
 
 interface Partner {
@@ -70,7 +72,7 @@ interface WithdrawRequest {
   date: string;
 }
 
-export default function PartnerPortal({ currentUser, onLogout, onlineOrders = [], sales = [], products = [] }: PartnerPortalProps) {
+export default function PartnerPortal({ currentUser, onLogout, onlineOrders = [], sales = [], products = [], onUpdateSales, onUpdateOnlineOrders }: PartnerPortalProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'links' | 'financeiro'>('dashboard');
   const [copiedCoupon, setCopiedCoupon] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -345,7 +347,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
       }
 
       // Reload online orders
-      const savedOrders = localStorage.getItem('ap_online_orders');
+      const savedOrders = localStorage.getItem('ap_moda_online_orders') || localStorage.getItem('ap_online_orders');
       if (savedOrders) {
         const parsedO = JSON.parse(savedOrders);
         if (Array.isArray(parsedO)) setActiveOrders(parsedO);
@@ -455,7 +457,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
 
     if (isOnlineOrder) {
       try {
-        const savedOrders = localStorage.getItem('ap_online_orders');
+        const savedOrders = localStorage.getItem('ap_moda_online_orders') || localStorage.getItem('ap_online_orders');
         if (savedOrders) {
           const parsedOrders = JSON.parse(savedOrders);
           let targetObj: any = null;
@@ -466,10 +468,14 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
             }
             return o;
           });
+          localStorage.setItem('ap_moda_online_orders', JSON.stringify(updated));
           localStorage.setItem('ap_online_orders', JSON.stringify(updated));
           if (targetObj) {
             syncBulkOnlineOrdersToSupabase([targetObj]);
           }
+        }
+        if (onUpdateOnlineOrders) {
+          onUpdateOnlineOrders(prev => prev.map(o => o.id === saleId ? { ...o, partnerName: currentPartner.name, partnerId: currentPartner.id, couponCode: currentPartner.couponCode } : o));
         }
       } catch(e) {}
     } else {
@@ -489,6 +495,9 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
           if (targetObj) {
             syncBulkSalesToSupabase([targetObj]);
           }
+        }
+        if (onUpdateSales) {
+          onUpdateSales(prev => prev.map(s => s.id === saleId ? { ...s, partner: currentPartner.name, partnerName: currentPartner.name, partnerId: currentPartner.id, couponCode: currentPartner.couponCode } : s));
         }
       } catch(e) {}
     }

@@ -274,7 +274,7 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
       <html lang="pt-BR">
         <head>
           <meta charset="utf-8" />
-          <title>Etiqueta de Envio - Pedido #${sale.number || sale.id}</title>
+          <title>Etiqueta de Envio - Pedido #${(sale as any).number || sale.id}</title>
           ${stylesHead}
           <style>
             ${pageCss}

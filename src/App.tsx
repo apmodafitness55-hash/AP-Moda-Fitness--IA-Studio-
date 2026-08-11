@@ -1477,6 +1477,30 @@ export default function App() {
     });
   }, [systemOffline, getDirtyIds, saveDirtyIds]);
 
+  const handleUpdateOnlineOrdersList = useCallback(async (updatedList: any[] | ((prev: any[]) => any[])) => {
+    setOnlineOrders(prev => {
+      const newList = typeof updatedList === 'function' ? updatedList(prev) : updatedList;
+      const prevMap = new Map(prev.map(o => [o.id, o]));
+      const changedOrders = newList.filter(o => {
+        const prevO = prevMap.get(o.id);
+        return !prevO || JSON.stringify(prevO) !== JSON.stringify(o);
+      });
+
+      if (changedOrders.length > 0) {
+        const config = getSupabaseConfig();
+        if (config && !systemOffline) {
+          syncBulkOnlineOrdersToSupabase(changedOrders).then(success => {
+            if (success) {
+              const remaining = getDirtyIds('ap_dirty_online_orders').filter(id => !changedOrders.some(co => co.id === id));
+              saveDirtyIds('ap_dirty_online_orders', remaining);
+            }
+          }).catch(e => console.warn('Immediate online orders update sync failed:', e));
+        }
+      }
+      return newList;
+    });
+  }, [systemOffline, getDirtyIds, saveDirtyIds]);
+
   const handleUpdateTeamMembers = useCallback(async (updatedList: any[] | ((prev: any[]) => any[])) => {
     setTeamMembers(prev => {
       const newList = typeof updatedList === 'function' ? updatedList(prev) : updatedList;
@@ -1628,6 +1652,7 @@ export default function App() {
         }
 
         if (localModified) {
+          prevTeamMembersRef.current = merged;
           setTeamMembers(merged);
           localStateModified = true;
         }
@@ -1690,6 +1715,7 @@ export default function App() {
         }
 
         if (localModified) {
+          prevProductsRef.current = merged;
           setProducts(merged);
           localStateModified = true;
         }
@@ -1738,6 +1764,7 @@ export default function App() {
         }
 
         if (localModified) {
+          prevClientsRef.current = merged;
           setClients(merged);
           localStateModified = true;
         }
@@ -1782,6 +1809,7 @@ export default function App() {
         }
 
         if (localModified) {
+          prevSalesRef.current = merged;
           setSales(merged);
           localStateModified = true;
         }
@@ -1826,6 +1854,7 @@ export default function App() {
         }
 
         if (localModified) {
+          prevTransactionsRef.current = merged;
           setTransactions(merged);
           localStateModified = true;
         }
@@ -1870,6 +1899,7 @@ export default function App() {
         }
 
         if (localModified) {
+          prevOnlineOrdersRef.current = merged;
           setOnlineOrders(merged);
           localStateModified = true;
         }
@@ -1913,6 +1943,7 @@ export default function App() {
         }
 
         if (localModified) {
+          prevCheckoutsRef.current = merged;
           setCheckouts(merged);
           localStateModified = true;
         }
@@ -3647,6 +3678,8 @@ export default function App() {
         onlineOrders={onlineOrders}
         sales={sales}
         products={products}
+        onUpdateSales={handleUpdateSalesList}
+        onUpdateOnlineOrders={handleUpdateOnlineOrdersList}
       />
     );
   }
