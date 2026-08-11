@@ -209,29 +209,37 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
       const cleanPName = sanitize(pName);
       const cleanPId = sanitize(pId);
       const cleanNotes = sanitize(notes);
-      const cleanExtra = sanitize(extraFields);
 
-      // Direct ID check
-      if (cleanPId && currentPId && cleanPId === currentPId) {
-        return true;
+      // Explicit Partner ID assignment takes top precedence
+      if (cleanPId) {
+        return cleanPId === currentPId;
       }
 
-      // Direct Name check
-      if (cleanPName && currentPName && (cleanPName === currentPName || cleanPName.includes(currentPName) || currentPName.includes(cleanPName))) {
-        return true;
+      // Explicit Partner Name assignment takes second precedence
+      if (cleanPName) {
+        return currentPName ? (cleanPName === currentPName || cleanPName.includes(currentPName) || currentPName.includes(cleanPName)) : false;
       }
 
-      // Tokens / Coupons check
-      const cleanAll = `${cleanCCode} ${cleanPName} ${cleanPId} ${cleanNotes} ${cleanExtra}`;
-      for (const token of partnerTokens) {
-        if (!token) continue;
-        if (cleanCCode === token || (cleanCCode && (cleanCCode.includes(token) || token.includes(cleanCCode)))) {
-          return true;
-        }
-        if (cleanPName.includes(token) || cleanPId === token || cleanNotes.includes(token) || cleanAll.includes(token)) {
-          return true;
+      // Check coupon code matching against tokens
+      if (cleanCCode) {
+        for (const token of partnerTokens) {
+          if (!token) continue;
+          if (cleanCCode === token || cleanCCode.includes(token) || token.includes(cleanCCode)) {
+            return true;
+          }
         }
       }
+
+      // Check notes matching against partner tokens
+      if (cleanNotes) {
+        for (const token of partnerTokens) {
+          if (!token) continue;
+          if (cleanNotes.includes(token)) {
+            return true;
+          }
+        }
+      }
+
       return false;
     };
 

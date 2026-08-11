@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   Search, 
   Filter, 
@@ -67,11 +67,14 @@ export default function VendasList({
   const [selectedSaleForReceipt, setSelectedSaleForReceipt] = useState<Sale | null>(null);
   const [selectedSaleForInvoice, setSelectedSaleForInvoice] = useState<Sale | null>(null);
 
-  // Registered partners for linking
-  const registeredPartners = useMemo(() => {
+  // Registered partners helper for linking
+  const getRegisteredPartners = useCallback(() => {
     try {
       const saved = localStorage.getItem('ap_moda_partners');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
     } catch (e) {}
     return [
       { id: 'part-1', name: 'Marina Fitness Coach', couponCode: 'MARINAFIT10', commissionRate: 10 },
@@ -81,13 +84,28 @@ export default function VendasList({
     ];
   }, []);
 
+  const [registeredPartners, setRegisteredPartners] = useState<any[]>(getRegisteredPartners);
+
+  useEffect(() => {
+    const handleSync = () => {
+      setRegisteredPartners(getRegisteredPartners());
+    };
+    window.addEventListener('ap-storage-synced', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('ap-storage-synced', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, [getRegisteredPartners]);
+
   const [selectedSaleForPartnerLinking, setSelectedSaleForPartnerLinking] = useState<Sale | null>(null);
   const [linkingPartnerId, setLinkingPartnerId] = useState<string>('');
 
   const handleConfirmPartnerLinkInVendasList = () => {
     if (!selectedSaleForPartnerLinking) return;
     const saleId = selectedSaleForPartnerLinking.id;
-    const chosenPartner = registeredPartners.find((p: any) => p.id === linkingPartnerId);
+    const currentPList = getRegisteredPartners();
+    const chosenPartner = currentPList.find((p: any) => p.id === linkingPartnerId);
 
     const updatedPartnerName = chosenPartner ? chosenPartner.name : '';
     const updatedPartnerId = chosenPartner ? chosenPartner.id : '';
@@ -103,7 +121,8 @@ export default function VendasList({
           partnerName: updatedPartnerName,
           partnerId: updatedPartnerId,
           couponCode: updatedCouponCode,
-          partnerCoupon: updatedCouponCode
+          partnerCoupon: updatedCouponCode,
+          coupon: updatedCouponCode
         };
         return targetSaleObj;
       }
@@ -126,9 +145,11 @@ export default function VendasList({
         targetOrderObj = {
           ...o,
           partnerName: updatedPartnerName,
+          partner: updatedPartnerName,
           partnerId: updatedPartnerId,
           couponCode: updatedCouponCode,
-          partnerCoupon: updatedCouponCode
+          partnerCoupon: updatedCouponCode,
+          coupon: updatedCouponCode
         };
         return targetOrderObj;
       }
@@ -147,10 +168,12 @@ export default function VendasList({
     } catch(e) {}
 
     // 3. Update manual partner sales for Partner Portal history
-    if (chosenPartner) {
-      try {
-        const savedGlobal = localStorage.getItem('ap_manual_partner_sales');
-        const parsedGlobal = savedGlobal ? JSON.parse(savedGlobal) : [];
+    try {
+      const savedGlobal = localStorage.getItem('ap_manual_partner_sales');
+      const parsedGlobal: any[] = savedGlobal ? JSON.parse(savedGlobal) : [];
+      let updatedGlobal = parsedGlobal.filter((g: any) => g.id !== saleId);
+
+      if (chosenPartner) {
         const saleDateStr = selectedSaleForPartnerLinking.createdAt 
           ? new Date(selectedSaleForPartnerLinking.createdAt).toISOString().split('T')[0]
           : new Date().toISOString().split('T')[0];
@@ -168,41 +191,53 @@ export default function VendasList({
           type: 'Venda Loja Vinculada',
           notes: `Vinculado por Administrador em VendasList`
         };
-        const updatedGlobal = [newItem, ...parsedGlobal.filter((g: any) => g.id !== saleId)];
-        localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
+        updatedGlobal = [newItem, ...updatedGlobal];
         localStorage.setItem(`ap_manual_partner_sales_${chosenPartner.id}`, JSON.stringify(updatedGlobal));
-        pushSystemConfigToSupabase('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
+      }
 
-        // Update partner metrics in ap_moda_partners
-        const savedP = localStorage.getItem('ap_moda_partners');
-        let partnersList: any[] = savedP ? JSON.parse(savedP) : [];
-        if (Array.isArray(partnersList) && partnersList.length > 0) {
-          const commVal = ((selectedSaleForPartnerLinking.total || 0) * (chosenPartner.commissionRate || 10)) / 100;
-          partnersList = partnersList.map(p => {
-            if (p.id === chosenPartner.id) {
-              return {
-                ...p,
-                salesCount: (p.salesCount || 0) + 1,
-                totalGenerated: Number(((p.totalGenerated || 0) + (selectedSaleForPartnerLinking.total || 0)).toFixed(2)),
-                availableBalance: Number(((p.availableBalance || 0) + commVal).toFixed(2))
-              };
-            }
-            return p;
+      localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
+      pushSystemConfigToSupabase('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
+    } catch(e) {}
+
+    // 4. Recalculate partner metrics in ap_moda_partners
+    try {
+      let partnersList = [...currentPList];
+      if (partnersList.length > 0) {
+        partnersList = partnersList.map(p => {
+          const pNameLower = (p.name || '').toLowerCase().trim();
+          const pCouponUpper = (p.couponCode || '').toUpperCase().trim();
+          const pId = p.id;
+
+          const matchedSales = updatedSales.filter(s => {
+            if (s.status === 'Cancelada') return false;
+            const sPId = (s.partnerId || '').trim();
+            const sPName = (s.partner || (s as any).partnerName || '').toLowerCase().trim();
+            const sCoupon = (s.couponCode || (s as any).partnerCoupon || (s as any).appliedCoupon?.code || '').toUpperCase().trim();
+
+            if (sPId) return sPId === pId;
+            if (sPName) return sPName === pNameLower || sPName.includes(pNameLower);
+            if (sCoupon && pCouponUpper) return sCoupon === pCouponUpper;
+            return false;
           });
-          localStorage.setItem('ap_moda_partners', JSON.stringify(partnersList));
-          pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(partnersList));
-        }
-      } catch(e) {}
-    } else {
-      // Unlink partner
-      try {
-        const savedGlobal = localStorage.getItem('ap_manual_partner_sales');
-        const parsedGlobal = savedGlobal ? JSON.parse(savedGlobal) : [];
-        const updatedGlobal = parsedGlobal.filter((g: any) => g.id !== saleId);
-        localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
-        pushSystemConfigToSupabase('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
-      } catch(e) {}
-    }
+
+          const salesCount = matchedSales.length;
+          const totalGenerated = matchedSales.reduce((acc, s) => acc + (s.total || 0), 0);
+          const commRate = p.commissionRate || 10;
+          const availableBalance = (totalGenerated * commRate) / 100;
+
+          return {
+            ...p,
+            salesCount,
+            totalGenerated: Number(totalGenerated.toFixed(2)),
+            availableBalance: Number(availableBalance.toFixed(2))
+          };
+        });
+
+        localStorage.setItem('ap_moda_partners', JSON.stringify(partnersList));
+        pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(partnersList));
+        setRegisteredPartners(partnersList);
+      }
+    } catch(e) {}
 
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new Event('ap-storage-synced'));
@@ -1012,56 +1047,6 @@ export default function VendasList({
 
             {/* Document Body (Printable Area) */}
             <div className="p-8 overflow-y-auto flex-1 bg-white print:p-0 print:overflow-visible" id="printable-invoice-sheet">
-              <style>{`
-                @media print {
-                  @page {
-                    size: A4 portrait;
-                    margin: 15mm 10mm 15mm 10mm;
-                  }
-                  * {
-                    transform: none !important;
-                    transition: none !important;
-                    filter: none !important;
-                    backdrop-filter: none !important;
-                  }
-                  html, body, #root, #main-app-container {
-                    visibility: visible !important;
-                    height: auto !important;
-                    min-height: 100% !important;
-                    overflow: visible !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    background: #ffffff !important;
-                  }
-                  body * {
-                    visibility: hidden !important;
-                  }
-                  .no-print, .print-hidden, header, aside, nav, footer, button {
-                    display: none !important;
-                    visibility: hidden !important;
-                  }
-                  #printable-invoice-sheet, #printable-invoice-sheet * {
-                    visibility: visible !important;
-                  }
-                  #printable-invoice-sheet {
-                    display: block !important;
-                    position: absolute !important;
-                    left: 0 !important;
-                    top: 0 !important;
-                    width: 100% !important;
-                    padding: 0 !important;
-                    margin: 0 !important;
-                    background: #ffffff !important;
-                    color: #000000 !important;
-                    z-index: 99999999 !important;
-                  }
-                  #printable-invoice-sheet * {
-                    color: #000000 !important;
-                    background: transparent !important;
-                  }
-                }
-              `}</style>
-              
               <div className="space-y-6">
                 {/* Brand Header */}
                 {(() => {
