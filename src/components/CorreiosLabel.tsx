@@ -223,142 +223,130 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
 
   // Print execution targeting the exact thermal paper size (handling orientation dynamically)
   const handlePrint = () => {
-    const printWindowStyleId = 'correios-print-layout';
     const labelEl = document.getElementById('printable-shipping-label');
     if (!labelEl) {
       window.print();
       return;
     }
 
-    // Remove existing print layouts and portals
-    const existingStyle = document.getElementById(printWindowStyleId);
-    if (existingStyle) existingStyle.remove();
-
+    // Remove existing print iframe or portals
+    const existingIframe = document.getElementById('ap-correios-print-iframe');
+    if (existingIframe) existingIframe.remove();
     const existingPortal = document.getElementById('ap-direct-print-portal');
     if (existingPortal) existingPortal.remove();
 
-    // Create direct portal on body
-    const portal = document.createElement('div');
-    portal.id = 'ap-direct-print-portal';
-    portal.innerHTML = labelEl.outerHTML;
-    document.body.appendChild(portal);
+    // Create an isolated hidden iframe
+    const iframe = document.createElement('iframe');
+    iframe.id = 'ap-correios-print-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.visibility = 'hidden';
+    document.body.appendChild(iframe);
 
-    const style = document.createElement('style');
-    style.id = printWindowStyleId;
-    
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      window.print();
+      return;
+    }
+
+    const stylesHead = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map(node => node.outerHTML)
+      .join('\n');
+
+    const clonedLabel = labelEl.cloneNode(true) as HTMLElement;
+    clonedLabel.querySelectorAll('.no-print').forEach(el => el.remove());
+
     const pageCss = isLandscapePrint
       ? `@page { size: 150mm 100mm landscape; margin: 0; }`
       : `@page { size: 100mm 150mm portrait; margin: 0; }`;
 
-    const dimsCss = isLandscapePrint
-      ? `
-        width: 150mm !important;
-        min-height: 100mm !important;
-        height: auto !important;
-        max-width: 150mm !important;
-        max-height: none !important;
-        overflow: visible !important;
-      `
-      : `
-        width: 100mm !important;
-        min-height: 140mm !important;
-        height: auto !important;
-        max-width: 100mm !important;
-        max-height: none !important;
-        overflow: visible !important;
-      `;
+    const printWidthCss = isLandscapePrint
+      ? `width: 144mm; max-width: 144mm; min-height: 94mm; padding: 3mm; margin: 0 auto;`
+      : `width: 94mm; max-width: 94mm; min-height: 140mm; padding: 3mm; margin: 0 auto;`;
 
-    style.innerHTML = `
-      @media print {
-        ${pageCss}
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="utf-8" />
+          <title>Etiqueta de Envio - Pedido #${sale.number || sale.id}</title>
+          ${stylesHead}
+          <style>
+            ${pageCss}
 
-        * {
-          transform: none !important;
-          transition: none !important;
-          filter: none !important;
-          backdrop-filter: none !important;
-        }
+            *, *::before, *::after {
+              box-sizing: border-box !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              transform: none !important;
+              transition: none !important;
+              animation: none !important;
+            }
 
-        html, body {
-          background: #ffffff !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          height: auto !important;
-          min-height: 0 !important;
-          overflow: visible !important;
-        }
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              color: #000000 !important;
+              width: 100% !important;
+              height: auto !important;
+              min-height: 0 !important;
+              overflow: visible !important;
+              font-family: 'Inter', system-ui, sans-serif !important;
+            }
 
-        body > *:not(#ap-direct-print-portal) {
-          display: none !important;
-          visibility: hidden !important;
-          height: 0 !important;
-          max-height: 0 !important;
-          overflow: hidden !important;
-          position: absolute !important;
-          top: -9999px !important;
-          left: -9999px !important;
-          opacity: 0 !important;
-        }
+            #printable-shipping-label {
+              display: block !important;
+              position: relative !important;
+              top: 0 !important;
+              left: 0 !important;
+              background: #ffffff !important;
+              color: #000000 !important;
+              box-shadow: none !important;
+              border: none !important;
+              overflow: visible !important;
+              opacity: 1 !important;
+              visibility: visible !important;
+              ${printWidthCss}
+            }
 
-        #ap-direct-print-portal {
-          display: block !important;
-          position: absolute !important;
-          left: 0 !important;
-          top: 0 !important;
-          ${dimsCss}
-          margin: 0 !important;
-          padding: 3.5mm !important;
-          background: #ffffff !important;
-          color: #000000 !important;
-          font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
-          box-sizing: border-box !important;
-          z-index: 99999999 !important;
-          visibility: visible !important;
-          opacity: 1 !important;
-          page-break-before: avoid !important;
-          break-before: avoid !important;
-        }
+            #printable-shipping-label * {
+              visibility: visible !important;
+              opacity: 1 !important;
+              color: #000000 !important;
+            }
 
-        #ap-direct-print-portal #printable-shipping-label {
-          display: block !important;
-          position: relative !important;
-          width: 100% !important;
-          height: auto !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          background: #ffffff !important;
-          color: #000000 !important;
-          visibility: visible !important;
-          opacity: 1 !important;
-        }
+            .no-print {
+              display: none !important;
+            }
+          </style>
+        </head>
+        <body>
+          ${clonedLabel.outerHTML}
+        </body>
+      </html>
+    `);
+    doc.close();
 
-        #ap-direct-print-portal * {
-          color: #000000 !important;
-          background: transparent !important;
-          visibility: visible !important;
-          opacity: 1 !important;
-        }
-      }
-    `;
-
-    document.head.appendChild(style);
-    
-    const cleanup = () => {
-      try {
-        const el = document.getElementById(printWindowStyleId);
-        if (el) el.remove();
-        const addedPortal = document.getElementById('ap-direct-print-portal');
-        if (addedPortal) addedPortal.remove();
-      } catch (e) {}
-    };
-
-    window.addEventListener('afterprint', cleanup, { once: true });
-    
     setTimeout(() => {
-      window.print();
-    }, 50);
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (e) {
+        window.print();
+      }
+    }, 250);
 
-    setTimeout(cleanup, 15000);
+    setTimeout(() => {
+      try {
+        iframe.remove();
+      } catch (e) {}
+    }, 15000);
   };
 
   return (

@@ -142,6 +142,17 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
     return [];
   });
 
+  const [activeSales, setActiveSales] = useState<any[]>(sales);
+  const [activeOrders, setActiveOrders] = useState<any[]>(onlineOrders);
+
+  useEffect(() => {
+    if (Array.isArray(sales)) setActiveSales(sales);
+  }, [sales]);
+
+  useEffect(() => {
+    if (Array.isArray(onlineOrders)) setActiveOrders(onlineOrders);
+  }, [onlineOrders]);
+
   // Extract all token variations for currentPartner to ensure 100% failproof auto-matching
   const partnerTokens = useMemo(() => {
     const tokens = new Set<string>();
@@ -183,11 +194,13 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
 
     return Array.from(tokens);
   }, [currentPartner, currentUser]);
-
   // Compute REAL sales matching this partner's couponCode / ID / name / login / tokens + manual sales
   const partnerSales = useMemo(() => {
     const matched: any[] = [];
     const sanitize = (str: string) => (str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+
+    const currentPId = sanitize(currentPartner.id || '');
+    const currentPName = sanitize(currentPartner.name || '');
 
     const isPartnerMatch = (cCode: string, pName: string, pId: string, notes: string, extraFields: string = '') => {
       const cleanCCode = sanitize(cCode);
@@ -195,8 +208,19 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
       const cleanPId = sanitize(pId);
       const cleanNotes = sanitize(notes);
       const cleanExtra = sanitize(extraFields);
-      const cleanAll = `${cleanCCode} ${cleanPName} ${cleanPId} ${cleanNotes} ${cleanExtra}`;
 
+      // Direct ID check
+      if (cleanPId && currentPId && cleanPId === currentPId) {
+        return true;
+      }
+
+      // Direct Name check
+      if (cleanPName && currentPName && (cleanPName === currentPName || cleanPName.includes(currentPName) || currentPName.includes(cleanPName))) {
+        return true;
+      }
+
+      // Tokens / Coupons check
+      const cleanAll = `${cleanCCode} ${cleanPName} ${cleanPId} ${cleanNotes} ${cleanExtra}`;
       for (const token of partnerTokens) {
         if (!token) continue;
         if (cleanCCode === token || (cleanCCode && (cleanCCode.includes(token) || token.includes(cleanCCode)))) {
@@ -210,8 +234,9 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
     };
 
     // 1. From POS sales
-    if (Array.isArray(sales)) {
-      sales.forEach(s => {
+    const salesList = Array.isArray(activeSales) && activeSales.length > 0 ? activeSales : sales;
+    if (Array.isArray(salesList)) {
+      salesList.forEach(s => {
         if (s.status === 'Cancelada') return;
         const cCode = s.couponCode || s.coupon || s.partnerCoupon || (s.appliedCoupon?.code) || '';
         const pName = s.partner || s.partnerName || s.seller || s.salesperson || '';
@@ -236,8 +261,9 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
     }
 
     // 2. From onlineOrders
-    if (Array.isArray(onlineOrders)) {
-      onlineOrders.forEach(o => {
+    const ordersList = Array.isArray(activeOrders) && activeOrders.length > 0 ? activeOrders : onlineOrders;
+    if (Array.isArray(ordersList)) {
+      ordersList.forEach(o => {
         if (o.status === 'Cancelado') return;
         const cCode = o.couponCode || o.coupon || o.ref || o.partnerCoupon || (o.appliedCoupon?.code) || '';
         const pName = o.partnerName || o.partner || o.partnerId || '';
@@ -285,7 +311,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
     }
 
     return matched;
-  }, [sales, onlineOrders, manualSales, partnerTokens, currentPartner]);
+  }, [sales, onlineOrders, activeSales, activeOrders, manualSales, partnerTokens, currentPartner]);
 
   // Retroactive sale modal state
   const [isRetroModalOpen, setIsRetroModalOpen] = useState(false);
@@ -309,6 +335,20 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
       if (savedP) {
         const parsed = JSON.parse(savedP);
         if (Array.isArray(parsed)) setPartners(parsed);
+      }
+
+      // Reload sales
+      const savedSales = localStorage.getItem('ap_moda_sales');
+      if (savedSales) {
+        const parsedS = JSON.parse(savedSales);
+        if (Array.isArray(parsedS)) setActiveSales(parsedS);
+      }
+
+      // Reload online orders
+      const savedOrders = localStorage.getItem('ap_online_orders');
+      if (savedOrders) {
+        const parsedO = JSON.parse(savedOrders);
+        if (Array.isArray(parsedO)) setActiveOrders(parsedO);
       }
 
       // Reload manual sales

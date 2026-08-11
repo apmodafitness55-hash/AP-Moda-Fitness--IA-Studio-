@@ -373,18 +373,29 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
       return;
     }
 
-    // Clean up any existing print portal or print styles
-    const existingStyle = document.getElementById('thermal-receipt-print-styles');
-    if (existingStyle) existingStyle.remove();
-
+    // Clean up any existing iframe or portal
+    const existingIframe = document.getElementById('ap-thermal-print-iframe');
+    if (existingIframe) existingIframe.remove();
     const existingPortal = document.getElementById('ap-direct-print-portal');
     if (existingPortal) existingPortal.remove();
 
-    // Create a clean direct body portal container
-    const portal = document.createElement('div');
-    portal.id = 'ap-direct-print-portal';
-    portal.innerHTML = receiptEl.outerHTML;
-    document.body.appendChild(portal);
+    // Create an isolated hidden iframe
+    const iframe = document.createElement('iframe');
+    iframe.id = 'ap-thermal-print-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.visibility = 'hidden';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      window.print();
+      return;
+    }
 
     const fontSelector = {
       'xs': '8.5px',
@@ -394,172 +405,119 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
     };
 
     let pageCss = '';
-    let targetCss = '';
+    let printWidthCss = '';
 
     if (selectedPrinter === '100x150') {
       pageCss = `@page { size: 100mm auto; margin: 0; }`;
-      targetCss = `
-        #ap-direct-print-portal, #ap-direct-print-portal #printable-thermal-receipt {
-          width: 96mm !important;
-          max-width: 96mm !important;
-          min-height: 140mm !important;
-          padding: 3mm !important;
-        }
-      `;
+      printWidthCss = `width: 96mm; max-width: 96mm; min-height: 140mm; padding: 3mm; margin: 0 auto;`;
     } else if (selectedPrinter === '80mm') {
       pageCss = `@page { size: 80mm auto; margin: 0; }`;
-      targetCss = `
-        #ap-direct-print-portal, #ap-direct-print-portal #printable-thermal-receipt {
-          width: 76mm !important;
-          max-width: 76mm !important;
-          padding: 2mm !important;
-        }
-      `;
+      printWidthCss = `width: 76mm; max-width: 76mm; padding: 2mm; margin: 0 auto;`;
     } else if (selectedPrinter === '58mm') {
       pageCss = `@page { size: 58mm auto; margin: 0; }`;
-      targetCss = `
-        #ap-direct-print-portal, #ap-direct-print-portal #printable-thermal-receipt {
-          width: 52mm !important;
-          max-width: 52mm !important;
-          padding: 1.5mm !important;
-        }
-      `;
+      printWidthCss = `width: 52mm; max-width: 52mm; padding: 1.5mm; margin: 0 auto;`;
     } else if (selectedPrinter === 'label') {
       pageCss = `@page { size: 50mm auto; margin: 0; }`;
-      targetCss = `
-        #ap-direct-print-portal, #ap-direct-print-portal #printable-thermal-receipt {
-          width: 46mm !important;
-          max-width: 46mm !important;
-          padding: 1mm !important;
-        }
-      `;
+      printWidthCss = `width: 46mm; max-width: 46mm; padding: 1mm; margin: 0 auto;`;
     } else {
       // A4
       pageCss = `@page { size: A4 portrait; margin: 8mm; }`;
-      targetCss = `
-        #ap-direct-print-portal, #ap-direct-print-portal #printable-thermal-receipt {
-          width: 100% !important;
-          max-width: 190mm !important;
-          padding: 0 !important;
-        }
-      `;
+      printWidthCss = `width: 100%; max-width: 190mm; padding: 0; margin: 0 auto;`;
     }
 
-    const style = document.createElement('style');
-    style.id = 'thermal-receipt-print-styles';
-    style.innerHTML = `
-      @media print {
-        ${pageCss}
+    const stylesHead = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map(node => node.outerHTML)
+      .join('\n');
 
-        * {
-          transform: none !important;
-          transition: none !important;
-          filter: none !important;
-          backdrop-filter: none !important;
-        }
+    const clonedReceipt = receiptEl.cloneNode(true) as HTMLElement;
+    clonedReceipt.querySelectorAll('.no-print').forEach(el => el.remove());
 
-        html, body {
-          background: #ffffff !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          height: auto !important;
-          min-height: 0 !important;
-          overflow: visible !important;
-        }
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="utf-8" />
+          <title>Cupom #${sale.number || sale.id}</title>
+          ${stylesHead}
+          <style>
+            ${pageCss}
 
-        /* HIDE everything on body except our direct print portal to prevent blank background pages */
-        body > *:not(#ap-direct-print-portal) {
-          display: none !important;
-          visibility: hidden !important;
-          height: 0 !important;
-          max-height: 0 !important;
-          overflow: hidden !important;
-          position: absolute !important;
-          top: -9999px !important;
-          left: -9999px !important;
-          opacity: 0 !important;
-        }
+            *, *::before, *::after {
+              box-sizing: border-box !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              transform: none !important;
+              transition: none !important;
+              animation: none !important;
+            }
 
-        #ap-direct-print-portal {
-          display: block !important;
-          position: absolute !important;
-          left: 0 !important;
-          top: 0 !important;
-          width: 100% !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          background: #ffffff !important;
-          color: #000000 !important;
-          font-family: ${selectedPrinter === 'A4' ? "'Inter', system-ui, sans-serif" : "'JetBrains Mono', Courier, monospace"} !important;
-          font-size: ${fontSelector[fontSize] || '10px'} !important;
-          box-shadow: none !important;
-          height: auto !important;
-          min-height: 0 !important;
-          overflow: visible !important;
-          border: none !important;
-          z-index: 99999999 !important;
-          opacity: 1 !important;
-          visibility: visible !important;
-          box-sizing: border-box !important;
-          page-break-before: avoid !important;
-          break-before: avoid !important;
-        }
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              color: #000000 !important;
+              width: 100% !important;
+              height: auto !important;
+              min-height: 0 !important;
+              overflow: visible !important;
+              font-family: ${selectedPrinter === 'A4' ? "'Inter', system-ui, sans-serif" : "'JetBrains Mono', Courier, monospace"} !important;
+              font-size: ${fontSelector[fontSize] || '10px'} !important;
+            }
 
-        #ap-direct-print-portal #printable-thermal-receipt {
-          display: block !important;
-          position: relative !important;
-          top: 0 !important;
-          left: 0 !important;
-          margin: 0 auto !important;
-          background: #ffffff !important;
-          color: #000000 !important;
-          box-shadow: none !important;
-          height: auto !important;
-          min-height: 0 !important;
-          overflow: visible !important;
-          border: none !important;
-          opacity: 1 !important;
-          visibility: visible !important;
-          box-sizing: border-box !important;
-          page-break-before: avoid !important;
-          break-before: avoid !important;
-        }
+            #printable-thermal-receipt {
+              display: block !important;
+              position: relative !important;
+              top: 0 !important;
+              left: 0 !important;
+              background: #ffffff !important;
+              color: #000000 !important;
+              box-shadow: none !important;
+              border: none !important;
+              overflow: visible !important;
+              opacity: 1 !important;
+              visibility: visible !important;
+              ${printWidthCss}
+            }
 
-        ${targetCss}
+            #printable-thermal-receipt * {
+              visibility: visible !important;
+              opacity: 1 !important;
+              color: #000000 !important;
+            }
 
-        #ap-direct-print-portal * {
-          visibility: visible !important;
-          opacity: 1 !important;
-          color: #000000 !important;
-          background: transparent !important;
-        }
+            ${selectedPrinter === 'label' || selectedPrinter === '100x150' ? `
+              #printable-thermal-receipt * {
+                line-height: 1.15 !important;
+              }
+            ` : ''}
 
-        ${selectedPrinter === 'label' || selectedPrinter === '100x150' ? `
-          #ap-direct-print-portal * {
-            line-height: 1.15 !important;
-          }
-        ` : ''}
-      }
-    `;
-    document.head.appendChild(style);
+            .no-print {
+              display: none !important;
+            }
+          </style>
+        </head>
+        <body>
+          ${clonedReceipt.outerHTML}
+        </body>
+      </html>
+    `);
+    doc.close();
 
-    const cleanup = () => {
-      try {
-        const addedStyle = document.getElementById('thermal-receipt-print-styles');
-        if (addedStyle) addedStyle.remove();
-        const addedPortal = document.getElementById('ap-direct-print-portal');
-        if (addedPortal) addedPortal.remove();
-      } catch (e) {}
-    };
-
-    window.addEventListener('afterprint', cleanup, { once: true });
-    
     setTimeout(() => {
-      window.print();
-    }, 50);
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (e) {
+        window.print();
+      }
+    }, 250);
 
-    // Safety timeout cleanup
-    setTimeout(cleanup, 15000);
+    setTimeout(() => {
+      try {
+        iframe.remove();
+      } catch (e) {}
+    }, 15000);
   };
 
   return (

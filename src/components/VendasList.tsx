@@ -152,109 +152,122 @@ export default function VendasList({
       return;
     }
 
-    const existingStyle = document.getElementById('invoice-sheet-print-styles');
-    if (existingStyle) existingStyle.remove();
-
+    // Remove existing print iframe or portals
+    const existingIframe = document.getElementById('ap-invoice-print-iframe');
+    if (existingIframe) existingIframe.remove();
     const existingPortal = document.getElementById('ap-direct-print-portal');
     if (existingPortal) existingPortal.remove();
 
-    const portal = document.createElement('div');
-    portal.id = 'ap-direct-print-portal';
-    portal.innerHTML = sheetEl.outerHTML;
-    document.body.appendChild(portal);
+    // Create an isolated hidden iframe
+    const iframe = document.createElement('iframe');
+    iframe.id = 'ap-invoice-print-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.visibility = 'hidden';
+    document.body.appendChild(iframe);
 
-    const style = document.createElement('style');
-    style.id = 'invoice-sheet-print-styles';
-    style.innerHTML = `
-      @media print {
-        @page {
-          size: A4 portrait;
-          margin: 10mm;
-        }
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      window.print();
+      return;
+    }
 
-        * {
-          transform: none !important;
-          transition: none !important;
-          filter: none !important;
-          backdrop-filter: none !important;
-        }
+    const stylesHead = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map(node => node.outerHTML)
+      .join('\n');
 
-        html, body {
-          background: #ffffff !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          height: auto !important;
-          min-height: 0 !important;
-          overflow: visible !important;
-        }
+    const clonedSheet = sheetEl.cloneNode(true) as HTMLElement;
+    clonedSheet.querySelectorAll('.no-print').forEach(el => el.remove());
 
-        body > *:not(#ap-direct-print-portal) {
-          display: none !important;
-          visibility: hidden !important;
-          height: 0 !important;
-          max-height: 0 !important;
-          overflow: hidden !important;
-          position: absolute !important;
-          top: -9999px !important;
-          left: -9999px !important;
-          opacity: 0 !important;
-        }
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="utf-8" />
+          <title>Declaração de Conteúdo</title>
+          ${stylesHead}
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 10mm;
+            }
 
-        #ap-direct-print-portal {
-          display: block !important;
-          position: absolute !important;
-          left: 0 !important;
-          top: 0 !important;
-          width: 100% !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          background: #ffffff !important;
-          color: #000000 !important;
-          visibility: visible !important;
-          opacity: 1 !important;
-          z-index: 99999999 !important;
-          page-break-before: avoid !important;
-          break-before: avoid !important;
-        }
+            *, *::before, *::after {
+              box-sizing: border-box !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              transform: none !important;
+              transition: none !important;
+              animation: none !important;
+            }
 
-        #ap-direct-print-portal #printable-invoice-sheet {
-          display: block !important;
-          position: static !important;
-          width: 100% !important;
-          padding: 0 !important;
-          margin: 0 !important;
-          background: #ffffff !important;
-          color: #000000 !important;
-          visibility: visible !important;
-          opacity: 1 !important;
-        }
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              color: #000000 !important;
+              width: 100% !important;
+              height: auto !important;
+              min-height: 0 !important;
+              overflow: visible !important;
+              font-family: system-ui, -apple-system, sans-serif !important;
+            }
 
-        #ap-direct-print-portal * {
-          visibility: visible !important;
-          opacity: 1 !important;
-          color: #000000 !important;
-          background: transparent !important;
-        }
-      }
-    `;
-    document.head.appendChild(style);
+            #printable-invoice-sheet {
+              display: block !important;
+              position: relative !important;
+              top: 0 !important;
+              left: 0 !important;
+              width: 100% !important;
+              max-width: 190mm !important;
+              margin: 0 auto !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              color: #000000 !important;
+              box-shadow: none !important;
+              border: none !important;
+              overflow: visible !important;
+              opacity: 1 !important;
+              visibility: visible !important;
+            }
 
-    const cleanup = () => {
-      try {
-        const addedStyle = document.getElementById('invoice-sheet-print-styles');
-        if (addedStyle) addedStyle.remove();
-        const addedPortal = document.getElementById('ap-direct-print-portal');
-        if (addedPortal) addedPortal.remove();
-      } catch (e) {}
-    };
+            #printable-invoice-sheet * {
+              visibility: visible !important;
+              opacity: 1 !important;
+              color: #000000 !important;
+            }
 
-    window.addEventListener('afterprint', cleanup, { once: true });
+            .no-print {
+              display: none !important;
+            }
+          </style>
+        </head>
+        <body>
+          ${clonedSheet.outerHTML}
+        </body>
+      </html>
+    `);
+    doc.close();
 
     setTimeout(() => {
-      window.print();
-    }, 50);
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (e) {
+        window.print();
+      }
+    }, 250);
 
-    setTimeout(cleanup, 15000);
+    setTimeout(() => {
+      try {
+        iframe.remove();
+      } catch (e) {}
+    }, 15000);
   };
 
   // List of salespeople dynamically extracted from sales

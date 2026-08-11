@@ -1342,7 +1342,7 @@ export default function App() {
     };
   }, []);
 
-  // Escuta alterações de localStorage em outras abas para sincronização imediata do estoque entre Painel e Site
+  // Escuta alterações de localStorage para sincronização imediata do estoque, vendas e pedidos
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'ap_moda_products' && e.newValue) {
@@ -1354,8 +1354,30 @@ export default function App() {
         } catch (err) {}
       }
     };
+
+    const handleStorageSync = () => {
+      try {
+        const savedSales = localStorage.getItem('ap_moda_sales');
+        if (savedSales) {
+          const parsed = JSON.parse(savedSales);
+          if (Array.isArray(parsed)) setSales(parsed);
+        }
+        const savedOrders = localStorage.getItem('ap_online_orders');
+        if (savedOrders) {
+          const parsed = JSON.parse(savedOrders);
+          if (Array.isArray(parsed)) setOnlineOrders(parsed);
+        }
+      } catch (err) {}
+    };
+
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    window.addEventListener('storage', handleStorageSync);
+    window.addEventListener('ap-storage-synced', handleStorageSync);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('storage', handleStorageSync);
+      window.removeEventListener('ap-storage-synced', handleStorageSync);
+    };
   }, []);
 
   // Intercepting and immediate-upload list wrappers for children components
