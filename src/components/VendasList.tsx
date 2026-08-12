@@ -131,6 +131,11 @@ export default function VendasList({
 
     setSales(updatedSales);
     try {
+      const dirtySales = JSON.parse(localStorage.getItem('ap_dirty_sales') || '[]');
+      if (!dirtySales.includes(saleId)) {
+        dirtySales.push(saleId);
+        localStorage.setItem('ap_dirty_sales', JSON.stringify(dirtySales));
+      }
       localStorage.setItem('ap_moda_sales', JSON.stringify(updatedSales));
       if (targetSaleObj) {
         syncBulkSalesToSupabase([targetSaleObj]);
@@ -160,6 +165,11 @@ export default function VendasList({
       setOnlineOrders(updatedOrders);
     }
     try {
+      const dirtyOrders = JSON.parse(localStorage.getItem('ap_dirty_online_orders') || '[]');
+      if (!dirtyOrders.includes(saleId)) {
+        dirtyOrders.push(saleId);
+        localStorage.setItem('ap_dirty_online_orders', JSON.stringify(dirtyOrders));
+      }
       localStorage.setItem('ap_moda_online_orders', JSON.stringify(updatedOrders));
       localStorage.setItem('ap_online_orders', JSON.stringify(updatedOrders));
       if (targetOrderObj) {

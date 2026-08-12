@@ -281,7 +281,7 @@ export default function SettingsSystem({
   const [storePhone, setStorePhone] = useState(() => localStorage.getItem('ap_store_phone') || '(84) 99198-2963');
   const [storePixKey, setStorePixKey] = useState(() => localStorage.getItem('ap_pix_key') || '67.074.681/0001-03');
   const [storeFooter, setStoreFooter] = useState(() => localStorage.getItem('ap_store_footer') || 'Obrigado por escolher a AP Moda Fitness! Peças lindas que elevam seu treino. Siga-nos no Instagram: @ap_moda_fitness2');
-  const [storeLogoUrl, setStoreLogoUrl] = useState(() => localStorage.getItem('ap_store_logo') || 'https://i.ibb.co/n8YXgr1x/1000584197-png.png');
+  const [storeLogoUrl, setStoreLogoUrl] = useState(() => localStorage.getItem('ap_store_logo') || '/logo.png');
 
   // Motoboy dynamic pricing state
   const [motoboyRegions, setMotoboyRegions] = useState<any[]>(() => {
@@ -385,7 +385,7 @@ export default function SettingsSystem({
       setStorePhone(localStorage.getItem('ap_store_phone') || '(84) 99198-2963');
       setStorePixKey(localStorage.getItem('ap_pix_key') || '67.074.681/0001-03');
       setStoreFooter(localStorage.getItem('ap_store_footer') || 'Obrigado por escolher a AP Moda Fitness! Peças lindas que elevam seu treino. Siga-nos no Instagram: @ap_moda_fitness2');
-      setStoreLogoUrl(localStorage.getItem('ap_store_logo') || 'https://i.ibb.co/n8YXgr1x/1000584197-png.png');
+      setStoreLogoUrl(localStorage.getItem('ap_store_logo') || '/logo.png');
       setWhatsappToken(localStorage.getItem('ap_whatsapp_token') || '');
       setWhatsappPhoneId(localStorage.getItem('ap_whatsapp_phone_id') || '');
       setWhatsappRecipient(localStorage.getItem('ap_whatsapp_recipient') || '');

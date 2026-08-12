@@ -24,7 +24,7 @@ export function getStoreConfig(): StoreConfig {
   let phone = (localStorage.getItem('ap_store_phone') || '(84) 99198-2963').trim();
   const pixKey = (localStorage.getItem('ap_pix_key') || '67.074.681/0001-03').trim();
   const footer = (localStorage.getItem('ap_store_footer') || 'Obrigado por escolher a AP2 Moda Fitness! Peças lindas que elevam seu treino. Siga-nos no Instagram: @ap2_moda_fitness').trim();
-  const logoUrl = (localStorage.getItem('ap_store_logo') || 'https://i.ibb.co/n8YXgr1x/1000584197-png.png').trim();
+  const logoUrl = (localStorage.getItem('ap_store_logo') || '/logo.png').trim();
 
   // Clean out legacy mock data if present
   if (cnpj.includes('12.345.678') || cnpj.includes('45.678.901')) {

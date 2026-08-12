@@ -1440,6 +1440,10 @@ export default function App() {
       });
 
       if (changedSales.length > 0) {
+        const changedIds = changedSales.map(cs => cs.id);
+        const currentDirty = getDirtyIds('ap_dirty_sales');
+        saveDirtyIds('ap_dirty_sales', Array.from(new Set([...currentDirty, ...changedIds])));
+
         const config = getSupabaseConfig();
         if (config && !systemOffline) {
           syncBulkSalesToSupabase(changedSales).then(success => {
@@ -1488,6 +1492,10 @@ export default function App() {
       });
 
       if (changedOrders.length > 0) {
+        const changedIds = changedOrders.map(co => co.id);
+        const currentDirty = getDirtyIds('ap_dirty_online_orders');
+        saveDirtyIds('ap_dirty_online_orders', Array.from(new Set([...currentDirty, ...changedIds])));
+
         const config = getSupabaseConfig();
         if (config && !systemOffline) {
           syncBulkOnlineOrdersToSupabase(changedOrders).then(success => {
@@ -1775,14 +1783,23 @@ export default function App() {
       }
 
       // 4. Sincronização de Vendas Realizadas (PDV e Canais)
+      const dirtySales = getDirtyIds('ap_dirty_sales');
+      const currentSales = lastSalesRef.current;
+
+      const toUploadSales = currentSales.filter(ls => dirtySales.includes(ls.id));
+      if (toUploadSales.length > 0) {
+        const success = await syncBulkSalesToSupabase(toUploadSales);
+        if (success) {
+          const remaining = getDirtyIds('ap_dirty_sales').filter(id => !toUploadSales.some(u => u.id === id));
+          saveDirtyIds('ap_dirty_sales', remaining);
+        }
+      }
+
       const dbSales = await fetchSalesFromSupabase();
       if (dbSales) {
-        const dirtySales = getDirtyIds('ap_dirty_sales');
-        const currentSales = lastSalesRef.current;
+        const remainingDirty = getDirtyIds('ap_dirty_sales');
         const localMap = new Map(currentSales.map(s => [s.id, s]));
-        const dbMap = new Map(dbSales.map(s => [s.id, s]));
         let localModified = false;
-        let remoteModified = false;
         const merged = [...currentSales];
 
         for (const dbS of dbSales) {
@@ -1790,22 +1807,28 @@ export default function App() {
           if (!localS) {
             merged.push(dbS);
             localModified = true;
-          } else if (!dirtySales.includes(dbS.id)) {
-            if (JSON.stringify(localS) !== JSON.stringify(dbS)) {
+          } else if (!remainingDirty.includes(dbS.id)) {
+            // Preserve local partner data if remote record lacks it
+            const localHasPartner = !!(localS.partner || localS.partnerId || localS.partnerName);
+            const remoteHasPartner = !!(dbS.partner || dbS.partnerId || dbS.partnerName);
+
+            const effectiveDbS = (localHasPartner && !remoteHasPartner)
+              ? {
+                  ...dbS,
+                  partner: localS.partner || (localS as any).partnerName,
+                  partnerName: (localS as any).partnerName || localS.partner,
+                  partnerId: localS.partnerId,
+                  couponCode: localS.couponCode || (localS as any).partnerCoupon,
+                  partnerCoupon: (localS as any).partnerCoupon || localS.couponCode,
+                  coupon: (localS as any).coupon || localS.couponCode
+                }
+              : dbS;
+
+            if (JSON.stringify(localS) !== JSON.stringify(effectiveDbS)) {
               const idx = merged.findIndex(x => x.id === dbS.id);
-              if (idx >= 0) merged[idx] = dbS;
+              if (idx >= 0) merged[idx] = effectiveDbS;
               localModified = true;
             }
-          }
-        }
-
-        const toUpload = currentSales.filter(ls => dirtySales.includes(ls.id));
-        if (toUpload.length > 0) {
-          const success = await syncBulkSalesToSupabase(toUpload);
-          if (success) {
-            const remaining = getDirtyIds('ap_dirty_sales').filter(id => !toUpload.some(u => u.id === id));
-            saveDirtyIds('ap_dirty_sales', remaining);
-            remoteModified = true;
           }
         }
 
@@ -1813,9 +1836,6 @@ export default function App() {
           prevSalesRef.current = merged;
           setSales(merged);
           localStateModified = true;
-        }
-        if (remoteModified || localModified) {
-          remoteStateModified = true;
         }
       }
 
