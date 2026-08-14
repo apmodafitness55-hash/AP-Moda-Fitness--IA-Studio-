@@ -4508,7 +4508,7 @@ export default function PublicCatalog({
 
               {/* Instagram Card - Whole card is directly clickable */}
               <a
-                href={storeBrandConfig.instagramUrl || (storeBrandConfig.instagram ? `https://www.instagram.com/${storeBrandConfig.instagram.replace(/^@/, '')}/` : 'https://www.instagram.com/')}
+                href={storeBrandConfig.instagramUrl || `https://www.instagram.com/${(storeBrandConfig.instagram || '@ap2_moda_fitness').replace(/^@+/, '')}/`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group p-3 rounded-2xl bg-slate-50/70 hover:bg-slate-100/80 border border-slate-200/80 hover:border-slate-300 flex items-center justify-between gap-3 transition-all cursor-pointer no-underline block"
@@ -4599,7 +4599,7 @@ export default function PublicCatalog({
             </p>
             <div className="flex items-center gap-4">
               <a 
-                href={storeBrandConfig.instagramUrl || (storeBrandConfig.instagram ? `https://www.instagram.com/${storeBrandConfig.instagram.replace(/^@/, '')}/` : 'https://www.instagram.com/')}
+                href={storeBrandConfig.instagramUrl || `https://www.instagram.com/${(storeBrandConfig.instagram || '@ap2_moda_fitness').replace(/^@+/, '')}/`}
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 transition font-medium"

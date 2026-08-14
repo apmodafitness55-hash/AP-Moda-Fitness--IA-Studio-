@@ -15,23 +15,24 @@ export interface StoreConfig {
 }
 
 export function formatInstagramHandle(input: string): string {
-  if (!input) return '';
+  if (!input) return '@ap2_moda_fitness';
   let cleaned = input.trim();
   if (cleaned.includes('instagram.com/')) {
     cleaned = cleaned.split('instagram.com/')[1].split('/')[0].split('?')[0];
   }
-  cleaned = cleaned.replace(/^@+/, '').trim();
-  return cleaned ? `@${cleaned}` : '';
+  cleaned = cleaned.replace(/^@+/, '').replace(/\/+$/, '').trim();
+  return cleaned ? `@${cleaned}` : '@ap2_moda_fitness';
 }
 
 export function getInstagramProfileUrl(input: string): string {
-  if (!input) return '';
-  const cleaned = input.trim();
-  if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) {
-    return cleaned;
+  if (!input) return 'https://www.instagram.com/ap2_moda_fitness/';
+  let cleaned = input.trim();
+  if (cleaned.includes('instagram.com/')) {
+    const handlePart = cleaned.split('instagram.com/')[1].split('/')[0].split('?')[0].replace(/^@+/, '').replace(/\/+$/, '').trim();
+    if (handlePart) return `https://www.instagram.com/${handlePart}/`;
   }
-  const handle = cleaned.replace(/^@+/, '').trim();
-  return handle ? `https://www.instagram.com/${handle}/` : '';
+  const handle = cleaned.replace(/^@+/, '').replace(/\/+$/, '').trim();
+  return handle ? `https://www.instagram.com/${handle}/` : 'https://www.instagram.com/ap2_moda_fitness/';
 }
 
 export function getStoreConfig(): StoreConfig {
@@ -48,8 +49,8 @@ export function getStoreConfig(): StoreConfig {
   // Use custom uploaded logo from user if set, otherwise fallback to default /logo.png
   const logoUrl = (savedLogo && savedLogo.trim() && !savedLogo.includes('unsplash') ? savedLogo.trim() : '/logo.png').trim();
   
-  // Instagram handle (stored without hardcoded third-party accounts)
-  const savedInstagram = localStorage.getItem('ap_store_instagram') || '';
+  // Instagram handle (stored with reliable fallback to prevent opening generic home feed)
+  const savedInstagram = localStorage.getItem('ap_store_instagram') || '@ap2_moda_fitness';
   const instagram = formatInstagramHandle(savedInstagram);
   const instagramUrl = getInstagramProfileUrl(savedInstagram);
 

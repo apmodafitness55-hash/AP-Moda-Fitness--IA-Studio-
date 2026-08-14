@@ -157,6 +157,7 @@ export default function LojaOnline({
   const [storeSub, setStoreSub] = useState(() => localStorage.getItem('ap_vitrine_store_sub') || 'Moda Fitness Premium');
   const [themeColor, setThemeColor] = useState(() => localStorage.getItem('ap_vitrine_theme_color') || '#db2777');
   const [activeAnimation, setActiveAnimation] = useState(() => localStorage.getItem('ap_vitrine_active_animation') || 'shimmer-luxury');
+  const [storeInstagram, setStoreInstagram] = useState(() => localStorage.getItem('ap_store_instagram') || '@ap2_moda_fitness');
   const [storeLogoUrl, setStoreLogoUrl] = useState(() => {
     const saved = localStorage.getItem('ap_store_logo');
     return (saved && saved.trim() && !saved.includes('unsplash')) ? saved.trim() : '/logo.png';
@@ -456,19 +457,23 @@ export default function LojaOnline({
       localStorage.setItem('ap_vitrine_active_animation', activeAnimation);
       localStorage.setItem('ap_store_logo', storeLogoUrl);
       
+      const normalizedInsta = storeInstagram.trim() ? (storeInstagram.startsWith('@') || storeInstagram.startsWith('http') ? storeInstagram.trim() : `@${storeInstagram.trim()}`) : '@ap2_moda_fitness';
+      localStorage.setItem('ap_store_instagram', normalizedInsta);
+      
       await pushSystemConfigToSupabase('ap_vitrine_store_name', storeName);
       await pushSystemConfigToSupabase('ap_store_name', storeName);
       await pushSystemConfigToSupabase('ap_vitrine_store_sub', storeSub);
       await pushSystemConfigToSupabase('ap_vitrine_theme_color', themeColor);
       await pushSystemConfigToSupabase('ap_vitrine_active_animation', activeAnimation);
       await pushSystemConfigToSupabase('ap_store_logo', storeLogoUrl);
+      await pushSystemConfigToSupabase('ap_store_instagram', normalizedInsta);
       
       // Dispatch custom storage sync event to notify PublicCatalog and Sidebar instantly
       window.dispatchEvent(new Event('storage'));
       window.dispatchEvent(new CustomEvent('store_config_updated'));
       window.dispatchEvent(new Event('ap-storage-synced'));
       
-      alert('Configurações de Identidade, Logotipo e Vitrine salvas e sincronizadas com o Supabase com sucesso!');
+      alert('Configurações de Identidade, Logotipo, Instagram e Vitrine salvas com sucesso!');
     } catch (e) {
       console.error(e);
       alert('Erro ao sincronizar com o Supabase, mas os dados foram salvos localmente.');
@@ -2184,7 +2189,7 @@ export default function LojaOnline({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Nome Comercial da Loja</label>
                   <input
@@ -2206,6 +2211,21 @@ export default function LojaOnline({
                   />
                 </div>
                 <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-pink-600 uppercase flex items-center gap-1">
+                    <span>Instagram Oficial (@)</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-pink-500 font-bold text-xs pointer-events-none">@</span>
+                    <input
+                      type="text"
+                      value={storeInstagram.replace(/^@/, '')}
+                      onChange={(e) => setStoreInstagram(e.target.value.trim())}
+                      className="w-full bg-pink-50/40 border border-pink-200 rounded-lg pl-6 pr-2.5 py-2.5 text-xs font-semibold text-slate-800 focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
+                      placeholder="ex: ap2_moda_fitness"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Cor do Tema (Hex)</label>
                   <div className="flex gap-2">
                     <input
@@ -2223,7 +2243,7 @@ export default function LojaOnline({
                     />
                   </div>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1 md:col-span-2 lg:col-span-4">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Efeito Sazonal / Micro-interação Ativa</label>
                   <select
                     value={activeAnimation}
