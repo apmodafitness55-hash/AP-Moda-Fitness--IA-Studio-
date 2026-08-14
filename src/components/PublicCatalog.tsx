@@ -51,12 +51,15 @@ import {
   Share2,
   Link2,
   Copy,
-  ExternalLink
+  ExternalLink,
+  Instagram,
+  ShieldCheck
 } from 'lucide-react';
 import { Product, Client } from '../types';
 import { getAppUrl } from '../config';
 import { pushSystemConfigToSupabase } from '../supabase';
 import { CheckoutWizard } from './CheckoutWizard';
+import { getStoreConfig } from '../utils/storeConfig';
 
 export function validateCPF(cpf: string): boolean {
   const cleanCPF = cpf.replace(/\D/g, '');
@@ -1464,6 +1467,54 @@ export default function PublicCatalog({
     }
   }, [loggedClient]);
   
+  // Dynamic Store Configuration for Header, Footer and SEO
+  const [storeBrandConfig, setStoreBrandConfig] = useState(() => getStoreConfig());
+
+  // Dynamic Google Search Schema JSON-LD Updater
+  useEffect(() => {
+    try {
+      const cfg = getStoreConfig();
+      setStoreBrandConfig(cfg);
+      let scriptTag = document.getElementById('store-schema-jsonld') as HTMLScriptElement;
+      if (!scriptTag) {
+        scriptTag = document.createElement('script');
+        scriptTag.id = 'store-schema-jsonld';
+        scriptTag.type = 'application/ld+json';
+        document.head.appendChild(scriptTag);
+      }
+      const schemaData: Record<string, any> = {
+        "@context": "https://schema.org",
+        "@type": "ClothingStore",
+        "name": cfg.name || "AP2 Moda Fitness",
+        "alternateName": ["AP Moda Fitness", "AP2 Moda Fitness Premium"],
+        "url": typeof window !== 'undefined' ? window.location.origin : "https://www.apmodafitness2.com.br",
+        "logo": {
+          "@type": "ImageObject",
+          "url": typeof window !== 'undefined' ? `${window.location.origin}/logo.png` : "https://www.apmodafitness2.com.br/logo.png"
+        },
+        "image": typeof window !== 'undefined' ? `${window.location.origin}/logo.png` : "https://www.apmodafitness2.com.br/logo.png",
+        "description": cfg.slogan || "Moda fitness feminina de alta performance e elegância.",
+        "telephone": cfg.phone,
+        "priceRange": "$$",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": cfg.address || "Travessa Jose Jorge, 51, Centro",
+          "addressLocality": cfg.city || "São José de Mipibu",
+          "addressRegion": cfg.state || "RN",
+          "addressCountry": "BR"
+        }
+      };
+
+      if (cfg.instagramUrl) {
+        schemaData["sameAs"] = [cfg.instagramUrl];
+      }
+
+      scriptTag.text = JSON.stringify(schemaData);
+    } catch (e) {
+      console.warn('Erro ao atualizar SEO Schema:', e);
+    }
+  }, []);
+
   // Retirada Agendamento
   const [pickupDate, setPickupDate] = useState('');
   const [pickupTime, setPickupTime] = useState('');
@@ -4403,6 +4454,167 @@ export default function PublicCatalog({
           )}
         </div>
 
+        {/* 6.5. Official Institutional Store Footer */}
+        <footer className="mt-16 pt-12 pb-16 border-t border-slate-200/80 bg-gradient-to-b from-[#FAF9F6] to-slate-100 text-slate-700 rounded-3xl p-6 md:p-10 space-y-10 shadow-xs">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            
+            {/* Column 1: Store Brand and About */}
+            <div className="space-y-4 md:col-span-1 text-left">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl overflow-hidden bg-white shadow-xs border border-slate-200/80 p-1 flex items-center justify-center shrink-0">
+                  <img 
+                    src={storeBrandConfig.logoUrl || '/logo.png'} 
+                    alt={storeBrandConfig.name} 
+                    className="w-full h-full object-contain"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <div>
+                  <h4 className="font-serif italic text-lg font-bold text-slate-900 leading-tight">
+                    {storeBrandConfig.name}
+                  </h4>
+                  <p className="text-[10px] font-extrabold uppercase tracking-widest text-pink-600">
+                    Boutique Fitness Premium
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed font-sans">
+                {storeBrandConfig.slogan || 'Onde o seu limite vira ponto de partida. Peças desenvolvidas com alta tecnologia têxtil, modelagem anatômica e zero transparência.'}
+              </p>
+              <div className="text-[11px] text-slate-400 space-y-1 pt-1 font-mono">
+                <p>CNPJ: {storeBrandConfig.cnpj || '67.074.681/0001-03'}</p>
+                <p>📍 {storeBrandConfig.fullAddress || 'Travessa Jose Jorge, 51, Centro - São José de Mipibu/RN'}</p>
+              </div>
+            </div>
+
+            {/* Column 2: Instagram Oficial Card */}
+            <div className="space-y-3 md:col-span-1 text-left bg-white p-5 rounded-2xl border border-pink-100 shadow-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                  <Instagram size={17} />
+                </div>
+                <div>
+                  <h5 className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                    Instagram Oficial
+                  </h5>
+                  <p className="text-[10px] font-bold text-pink-600">
+                    {storeBrandConfig.instagram || '@ap2_moda_fitness'}
+                  </p>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Acompanhe provadores ao vivo, bastidores, lançamentos exclusivos e dicas fitness diárias no nosso perfil oficial!
+              </p>
+              {storeBrandConfig.instagramUrl ? (
+                <a
+                  href={storeBrandConfig.instagramUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-3 bg-gradient-to-r from-rose-500 via-pink-600 to-purple-600 hover:opacity-95 text-white font-extrabold text-[11px] uppercase tracking-wider rounded-xl transition shadow-xs cursor-pointer no-underline"
+                >
+                  <Instagram size={14} />
+                  <span>Seguir no Instagram</span>
+                  <ExternalLink size={12} />
+                </a>
+              ) : (
+                <span className="text-[10px] text-slate-400 italic block">
+                  Perfil oficial sendo configurado pela boutique.
+                </span>
+              )}
+            </div>
+
+            {/* Column 3: Atendimento WhatsApp */}
+            <div className="space-y-3 md:col-span-1 text-left bg-white p-5 rounded-2xl border border-emerald-100 shadow-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                  <MessageCircle size={17} />
+                </div>
+                <div>
+                  <h5 className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                    Atendimento VIP
+                  </h5>
+                  <p className="text-[10px] font-bold text-emerald-700">
+                    WhatsApp da Loja
+                  </p>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Tire dúvidas sobre caimento, medidas, formas de pagamento e frete diretamente com nossa equipe de consultoras!
+              </p>
+              <a
+                href={`https://wa.me/${storeBrandConfig.phone.replace(/\D/g, '') || '5584991982963'}?text=${encodeURIComponent(`Olá! Estou no site da ${storeBrandConfig.name} e gostaria de tirar uma dúvida sobre as peças da coleção 🌸`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] uppercase tracking-wider rounded-xl transition shadow-xs cursor-pointer no-underline"
+              >
+                <MessageCircle size={14} />
+                <span>Conversar no WhatsApp</span>
+              </a>
+            </div>
+
+            {/* Column 4: Garantias e Segurança */}
+            <div className="space-y-3 md:col-span-1 text-left">
+              <h5 className="text-xs font-black text-slate-800 uppercase tracking-wide pb-1 border-b border-slate-200/60">
+                Garantia & Confiança
+              </h5>
+              
+              <div className="space-y-2.5 text-[11px]">
+                <div className="flex items-start gap-2 text-slate-600">
+                  <ShieldCheck size={16} className="text-pink-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block text-slate-800">Compra 100% Segura</strong>
+                    <span className="text-slate-400 text-[10px]">Criptografia SSL de ponta a ponta</span>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2 text-slate-600">
+                  <Truck size={16} className="text-pink-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block text-slate-800">Entrega Rápida</strong>
+                    <span className="text-slate-400 text-[10px]">Motoboy Express e Correios Nacional</span>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2 text-slate-600">
+                  <CreditCard size={16} className="text-pink-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block text-slate-800">Pix com Desconto & Cartão</strong>
+                    <span className="text-slate-400 text-[10px]">Parcele em até 6x sem juros</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Bottom Copyright bar */}
+          <div className="pt-6 border-t border-slate-200/80 flex flex-col md:flex-row items-center justify-between gap-4 text-[11px] text-slate-400">
+            <p>© {new Date().getFullYear()} {storeBrandConfig.name}. Todos os direitos reservados.</p>
+            <div className="flex items-center gap-4">
+              {storeBrandConfig.instagramUrl && (
+                <a 
+                  href={storeBrandConfig.instagramUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="flex items-center gap-1 text-slate-600 hover:text-pink-600 transition font-bold"
+                >
+                  <Instagram size={14} />
+                  <span>Instagram</span>
+                </a>
+              )}
+              <a 
+                href={`https://wa.me/${storeBrandConfig.phone.replace(/\D/g, '') || '5584991982963'}`} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="flex items-center gap-1 text-slate-600 hover:text-emerald-600 transition font-bold"
+              >
+                <MessageCircle size={14} />
+                <span>WhatsApp</span>
+              </a>
+            </div>
+          </div>
+        </footer>
+
       </main>
 
       {/* 7. Beautiful Immersive Product Detail Overlay (Product Page Restructuring) */}
@@ -6529,6 +6741,39 @@ export default function PublicCatalog({
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Social and Support Links */}
+              <div className="border-t border-slate-100 pt-5 space-y-2.5">
+                <p className="font-extrabold text-[10px] uppercase tracking-wider text-slate-400 block">Conecte-se com a Loja</p>
+                
+                {storeBrandConfig.instagramUrl && (
+                  <a
+                    href={storeBrandConfig.instagramUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full px-4 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 via-pink-600 to-purple-600 text-white font-extrabold text-xs flex items-center justify-between shadow-xs transition hover:opacity-95 no-underline"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Instagram size={15} />
+                      <span>{storeBrandConfig.instagram || 'Instagram Oficial'}</span>
+                    </span>
+                    <ExternalLink size={12} />
+                  </a>
+                )}
+
+                <a
+                  href={`https://wa.me/${storeBrandConfig.phone.replace(/\D/g, '') || '5584991982963'}?text=${encodeURIComponent(`Olá! Estou no site da ${storeBrandConfig.name} e gostaria de atendimento 🌸`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-between shadow-xs transition hover:bg-emerald-700 no-underline"
+                >
+                  <span className="flex items-center gap-2">
+                    <MessageCircle size={15} />
+                    <span>WhatsApp de Atendimento</span>
+                  </span>
+                  <ExternalLink size={12} />
+                </a>
               </div>
 
               {/* Quick advantages */}

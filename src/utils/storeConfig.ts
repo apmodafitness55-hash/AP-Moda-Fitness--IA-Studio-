@@ -11,6 +11,27 @@ export interface StoreConfig {
   footer: string;
   logoUrl: string;
   instagram: string;
+  instagramUrl: string;
+}
+
+export function formatInstagramHandle(input: string): string {
+  if (!input) return '';
+  let cleaned = input.trim();
+  if (cleaned.includes('instagram.com/')) {
+    cleaned = cleaned.split('instagram.com/')[1].split('/')[0].split('?')[0];
+  }
+  cleaned = cleaned.replace(/^@+/, '').trim();
+  return cleaned ? `@${cleaned}` : '';
+}
+
+export function getInstagramProfileUrl(input: string): string {
+  if (!input) return '';
+  const cleaned = input.trim();
+  if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) {
+    return cleaned;
+  }
+  const handle = cleaned.replace(/^@+/, '').trim();
+  return handle ? `https://www.instagram.com/${handle}/` : '';
 }
 
 export function getStoreConfig(): StoreConfig {
@@ -23,8 +44,23 @@ export function getStoreConfig(): StoreConfig {
   let state = (localStorage.getItem('ap_store_state') || 'RN').trim();
   let phone = (localStorage.getItem('ap_store_phone') || '(84) 99198-2963').trim();
   const pixKey = (localStorage.getItem('ap_pix_key') || '67.074.681/0001-03').trim();
-  const footer = (localStorage.getItem('ap_store_footer') || 'Obrigado por escolher a AP2 Moda Fitness! Peças lindas que elevam seu treino. Siga-nos no Instagram: @ap2_moda_fitness').trim();
   const logoUrl = (localStorage.getItem('ap_store_logo') || '/logo.png').trim();
+  
+  // Instagram handle (stored without hardcoded third-party accounts)
+  const savedInstagram = localStorage.getItem('ap_store_instagram') || '';
+  const instagram = formatInstagramHandle(savedInstagram);
+  const instagramUrl = getInstagramProfileUrl(savedInstagram);
+
+  const defaultFooter = instagram
+    ? `Obrigado por escolher a ${name}! Peças lindas que elevam seu treino. Siga-nos no Instagram: ${instagram}`
+    : `Obrigado por escolher a ${name}! Peças lindas que elevam seu treino com estilo e alta performance.`;
+
+  let footer = (localStorage.getItem('ap_store_footer') || defaultFooter).trim();
+  
+  // Clean out legacy mock data from footer if present
+  if (footer.includes('@ap_moda_fitness2') || footer.includes('@ap2_moda_fitness')) {
+    footer = defaultFooter;
+  }
 
   // Clean out legacy mock data if present
   if (cnpj.includes('12.345.678') || cnpj.includes('45.678.901')) {
@@ -59,6 +95,7 @@ export function getStoreConfig(): StoreConfig {
     pixKey,
     footer,
     logoUrl,
-    instagram: '@ap2_moda_fitness'
+    instagram,
+    instagramUrl
   };
 }

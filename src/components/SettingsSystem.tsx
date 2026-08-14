@@ -55,7 +55,9 @@ import {
   HardDrive,
   Calendar,
   Mail,
-  Globe
+  Globe,
+  Instagram,
+  ExternalLink
 } from 'lucide-react';
 import ImageUploader from './ImageUploader';
 import { 
@@ -279,8 +281,13 @@ export default function SettingsSystem({
   });
 
   const [storePhone, setStorePhone] = useState(() => localStorage.getItem('ap_store_phone') || '(84) 99198-2963');
+  const [storeInstagram, setStoreInstagram] = useState(() => localStorage.getItem('ap_store_instagram') || '');
   const [storePixKey, setStorePixKey] = useState(() => localStorage.getItem('ap_pix_key') || '67.074.681/0001-03');
-  const [storeFooter, setStoreFooter] = useState(() => localStorage.getItem('ap_store_footer') || 'Obrigado por escolher a AP Moda Fitness! Peças lindas que elevam seu treino. Siga-nos no Instagram: @ap_moda_fitness2');
+  const [storeFooter, setStoreFooter] = useState(() => {
+    const saved = localStorage.getItem('ap_store_footer');
+    if (saved && !saved.includes('@ap_moda_fitness2') && !saved.includes('@ap2_moda_fitness')) return saved;
+    return 'Obrigado por escolher a AP2 Moda Fitness! Peças lindas que elevam seu treino com estilo e alta performance.';
+  });
   const [storeLogoUrl, setStoreLogoUrl] = useState(() => localStorage.getItem('ap_store_logo') || '/logo.png');
 
   // Motoboy dynamic pricing state
@@ -383,8 +390,14 @@ export default function SettingsSystem({
       setStoreCity(localStorage.getItem('ap_store_city') || 'São José de Mipibu');
       setStoreState(localStorage.getItem('ap_store_state') || 'RN');
       setStorePhone(localStorage.getItem('ap_store_phone') || '(84) 99198-2963');
+      setStoreInstagram(localStorage.getItem('ap_store_instagram') || '');
       setStorePixKey(localStorage.getItem('ap_pix_key') || '67.074.681/0001-03');
-      setStoreFooter(localStorage.getItem('ap_store_footer') || 'Obrigado por escolher a AP Moda Fitness! Peças lindas que elevam seu treino. Siga-nos no Instagram: @ap_moda_fitness2');
+      const syncedFooter = localStorage.getItem('ap_store_footer');
+      if (syncedFooter && !syncedFooter.includes('@ap_moda_fitness2') && !syncedFooter.includes('@ap2_moda_fitness')) {
+        setStoreFooter(syncedFooter);
+      } else {
+        setStoreFooter('Obrigado por escolher a AP2 Moda Fitness! Peças lindas que elevam seu treino com estilo e alta performance.');
+      }
       setStoreLogoUrl(localStorage.getItem('ap_store_logo') || '/logo.png');
       setWhatsappToken(localStorage.getItem('ap_whatsapp_token') || '');
       setWhatsappPhoneId(localStorage.getItem('ap_whatsapp_phone_id') || '');
@@ -1046,6 +1059,7 @@ export default function SettingsSystem({
     localStorage.setItem('ap_store_city', storeCity);
     localStorage.setItem('ap_store_state', storeState);
     localStorage.setItem('ap_store_phone', storePhone);
+    localStorage.setItem('ap_store_instagram', storeInstagram);
     localStorage.setItem('ap_pix_key', storePixKey);
     localStorage.setItem('ap_store_footer', storeFooter);
     localStorage.setItem('ap_store_logo', storeLogoUrl);
@@ -1066,6 +1080,7 @@ export default function SettingsSystem({
       parsedCompany.cnpj = storeCnpj;
       parsedCompany.slogan = storeSlogan;
       parsedCompany.phone = storePhone;
+      parsedCompany.instagram = storeInstagram;
       parsedCompany.pixKey = storePixKey;
       parsedCompany.addressLine1 = storeAddress;
       parsedCompany.addressLine2 = `${storeCity} - ${storeState}`;
@@ -1085,6 +1100,7 @@ export default function SettingsSystem({
     await pushSystemConfigToSupabase('ap_store_city', storeCity);
     await pushSystemConfigToSupabase('ap_store_state', storeState);
     await pushSystemConfigToSupabase('ap_store_phone', storePhone);
+    await pushSystemConfigToSupabase('ap_store_instagram', storeInstagram);
     await pushSystemConfigToSupabase('ap_pix_key', storePixKey);
     await pushSystemConfigToSupabase('ap_store_footer', storeFooter);
     await pushSystemConfigToSupabase('ap_store_logo', storeLogoUrl);
@@ -1762,6 +1778,41 @@ export default function SettingsSystem({
                     className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2.5 font-medium text-slate-755 focus:outline-hidden font-mono"
                   />
                 </div>
+              </div>
+
+              {/* Official Instagram Configuration Block */}
+              <div className="border border-pink-200/70 bg-gradient-to-r from-pink-50/50 via-purple-50/30 to-pink-50/40 rounded-2xl p-4 space-y-2.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 text-pink-700 font-extrabold text-xs uppercase tracking-wide">
+                    <Instagram size={16} className="text-pink-600" />
+                    <span>Instagram Oficial da Boutique</span>
+                  </label>
+                  {storeInstagram && (
+                    <a 
+                      href={storeInstagram.startsWith('http') ? storeInstagram : `https://www.instagram.com/${storeInstagram.replace(/^@/, '').trim()}/`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-pink-700 hover:text-pink-800 bg-white px-2.5 py-1 rounded-lg border border-pink-200 transition shadow-2xs hover:shadow-xs cursor-pointer"
+                      title="Testar e abrir perfil do Instagram em nova aba"
+                    >
+                      <span>Testar / Abrir Perfil</span>
+                      <ExternalLink size={12} />
+                    </a>
+                  )}
+                </div>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-pink-500 font-black text-sm pointer-events-none">@</span>
+                  <input
+                    type="text"
+                    value={storeInstagram.replace(/^@/, '')}
+                    onChange={(e) => setStoreInstagram(e.target.value.trim())}
+                    placeholder="ex: sualoja_oficial (ou link completo do seu Instagram)"
+                    className="w-full bg-white border border-pink-200 rounded-xl pl-8 pr-3 py-2.5 font-semibold text-slate-800 focus:outline-hidden text-xs md:text-sm focus:border-pink-500 transition shadow-xs"
+                  />
+                </div>
+                <p className="text-[10.5px] text-slate-500 leading-relaxed font-sans">
+                  ✨ <strong>Importante para sua marca e Google Search:</strong> Este Instagram é associado diretamente ao <strong>catálogo online</strong>, ao <strong>rodapé do site</strong> e aos <strong>dados estruturados de busca do Google (SEO)</strong> para que nenhum perfil incorreto apareça para os seus clientes.
+                </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

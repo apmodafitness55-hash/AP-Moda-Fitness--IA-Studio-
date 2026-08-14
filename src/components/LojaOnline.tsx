@@ -43,6 +43,7 @@ import { pushSystemConfigToSupabase } from '../supabase';
 import ImageUploader from './ImageUploader';
 import { MarketingSalesHub } from './MarketingSalesHub';
 import { Coupon, getStoredCoupons, saveStoredCoupons } from '../utils/couponUtils';
+import { getStoreConfig } from '../utils/storeConfig';
 
 interface LojaOnlineProps {
   products: Product[];
@@ -992,26 +993,42 @@ export default function LojaOnline({
                     <span className="absolute right-3 top-3 text-[8px] bg-slate-200 text-slate-500 font-bold px-1.5 py-0.5 rounded uppercase">Preview no Instagram</span>
                     
                     {/* Header profile info mockup */}
-                    <div className="flex items-center gap-3.5 mb-2.5">
-                      <div className="w-12 h-12 rounded-full ring-2 ring-pink-500 p-0.5 bg-white flex-shrink-0">
-                        <div className="w-full h-full bg-slate-200 rounded-full flex items-center justify-center font-bold text-slate-400 text-xs">AP</div>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="font-bold text-xs text-slate-800">apmodafitness</p>
-                        <div className="flex gap-2.5 text-[10px] text-slate-500 font-medium">
-                          <span><strong>142</strong> posts</span>
-                          <span><strong>3.8k</strong> seguidores</span>
-                        </div>
-                      </div>
-                    </div>
+                    {(() => {
+                      const cfg = getStoreConfig();
+                      const handle = (cfg.instagram || '@ap2_moda_fitness').replace(/^@/, '');
+                      return (
+                        <>
+                          <div className="flex items-center gap-3.5 mb-2.5">
+                            <div className="w-12 h-12 rounded-full ring-2 ring-pink-500 p-0.5 bg-white flex-shrink-0 overflow-hidden">
+                              <img 
+                                src={cfg.logoUrl || '/logo.png'} 
+                                alt="Logo" 
+                                className="w-full h-full object-cover rounded-full"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <p className="font-bold text-xs text-slate-800 flex items-center gap-1">
+                                <span>{handle}</span>
+                                <span className="text-[10px] text-sky-500">✓</span>
+                              </p>
+                              <div className="flex gap-2.5 text-[10px] text-slate-500 font-medium">
+                                <span><strong>142</strong> posts</span>
+                                <span><strong>3.8k</strong> seguidores</span>
+                              </div>
+                            </div>
+                          </div>
 
-                    {/* Bio Rendered Text markup with link converted to blue */}
-                    <div className="text-[11px] text-slate-800 leading-relaxed font-sans whitespace-pre-wrap">
-                      <p className="font-semibold text-slate-900">AP Moda Fitness | Premium</p>
-                      {instaBio.split('{link}')[0]}
-                      <span className="text-blue-600 font-medium break-all underline cursor-pointer hover:text-blue-800">{getCatalogLink()}</span>
-                      {instaBio.split('{link}')[1] || ''}
-                    </div>
+                          {/* Bio Rendered Text markup with link converted to blue */}
+                          <div className="text-[11px] text-slate-800 leading-relaxed font-sans whitespace-pre-wrap">
+                            <p className="font-semibold text-slate-900">{cfg.name} | Oficial</p>
+                            {instaBio.split('{link}')[0]}
+                            <span className="text-blue-600 font-medium break-all underline cursor-pointer hover:text-blue-800">{getCatalogLink()}</span>
+                            {instaBio.split('{link}')[1] || ''}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
 
                   {/* WHATSAPP MOCKUP PREVIEW */}
@@ -1019,20 +1036,34 @@ export default function LojaOnline({
                     <span className="absolute right-3 top-3 text-[8px] bg-emerald-100 text-emerald-600 font-bold px-1.5 py-0.5 rounded uppercase">Preview no WhatsApp</span>
                     
                     {/* Green chat bar simulator */}
-                    <div className="flex items-center gap-3 mb-2.5">
-                      <div className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center text-white font-extrabold text-xs">AP</div>
-                      <div>
-                        <p className="font-bold text-xs text-slate-800">AP Moda Fitness (Catálogo)</p>
-                        <p className="text-slate-400 text-[8px]">Recado de status ativo</p>
-                      </div>
-                    </div>
+                    {(() => {
+                      const cfg = getStoreConfig();
+                      return (
+                        <>
+                          <div className="flex items-center gap-3 mb-2.5">
+                            <div className="w-9 h-9 rounded-full ring-1 ring-emerald-500 bg-white overflow-hidden flex items-center justify-center p-0.5 flex-shrink-0">
+                              <img 
+                                src={cfg.logoUrl || '/logo.png'} 
+                                alt="Logo" 
+                                className="w-full h-full object-cover rounded-full"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                            <div>
+                              <p className="font-bold text-xs text-slate-800">{cfg.name} (Catálogo)</p>
+                              <p className="text-slate-400 text-[8px]">Recado de status ativo</p>
+                            </div>
+                          </div>
 
-                    {/* Bio message simulation */}
-                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100/50 shadow-xs max-w-xs text-[11px] text-slate-850 whitespace-pre-wrap leading-relaxed relative">
-                      {whatsappBio.split('{link}')[0]}
-                      <span className="text-emerald-600 font-semibold break-all underline cursor-pointer">{getCatalogLink()}</span>
-                      {whatsappBio.split('{link}')[1] || ''}
-                    </div>
+                          {/* Bio message simulation */}
+                          <div className="bg-white p-2.5 rounded-xl border border-emerald-100/50 shadow-xs max-w-xs text-[11px] text-slate-850 whitespace-pre-wrap leading-relaxed relative">
+                            {whatsappBio.split('{link}')[0]}
+                            <span className="text-emerald-600 font-semibold break-all underline cursor-pointer">{getCatalogLink()}</span>
+                            {whatsappBio.split('{link}')[1] || ''}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
 
                 </div>
