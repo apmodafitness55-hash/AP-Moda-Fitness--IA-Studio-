@@ -153,10 +153,26 @@ export default function LojaOnline({
   const [couponInput, setCouponInput] = useState('');
 
   // Storefront dynamic settings with localStorage & Supabase syncing
-  const [storeName, setStoreName] = useState(() => localStorage.getItem('ap_vitrine_store_name') || 'AP Moda Fitness');
+  const [storeName, setStoreName] = useState(() => localStorage.getItem('ap_vitrine_store_name') || 'AP2 Moda Fitness');
   const [storeSub, setStoreSub] = useState(() => localStorage.getItem('ap_vitrine_store_sub') || 'Moda Fitness Premium');
   const [themeColor, setThemeColor] = useState(() => localStorage.getItem('ap_vitrine_theme_color') || '#db2777');
   const [activeAnimation, setActiveAnimation] = useState(() => localStorage.getItem('ap_vitrine_active_animation') || 'shimmer-luxury');
+  const [storeLogoUrl, setStoreLogoUrl] = useState(() => {
+    const saved = localStorage.getItem('ap_store_logo');
+    return (saved && saved.trim() && !saved.includes('unsplash')) ? saved.trim() : '/logo.png';
+  });
+
+  const handleQuickSaveLogo = async (newUrl: string) => {
+    setStoreLogoUrl(newUrl);
+    localStorage.setItem('ap_store_logo', newUrl);
+    try {
+      await pushSystemConfigToSupabase('ap_store_logo', newUrl);
+    } catch (e) {}
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('store_config_updated'));
+    window.dispatchEvent(new Event('ap-storage-synced'));
+    alert('Logotipo da loja atualizado com sucesso no catálogo e sistema!');
+  };
 
   const [benefitCards, setBenefitCards] = useState(() => {
     try {
@@ -434,19 +450,25 @@ export default function LojaOnline({
     setIsSavingConfigs(true);
     try {
       localStorage.setItem('ap_vitrine_store_name', storeName);
+      localStorage.setItem('ap_store_name', storeName);
       localStorage.setItem('ap_vitrine_store_sub', storeSub);
       localStorage.setItem('ap_vitrine_theme_color', themeColor);
       localStorage.setItem('ap_vitrine_active_animation', activeAnimation);
+      localStorage.setItem('ap_store_logo', storeLogoUrl);
       
       await pushSystemConfigToSupabase('ap_vitrine_store_name', storeName);
+      await pushSystemConfigToSupabase('ap_store_name', storeName);
       await pushSystemConfigToSupabase('ap_vitrine_store_sub', storeSub);
       await pushSystemConfigToSupabase('ap_vitrine_theme_color', themeColor);
       await pushSystemConfigToSupabase('ap_vitrine_active_animation', activeAnimation);
+      await pushSystemConfigToSupabase('ap_store_logo', storeLogoUrl);
       
-      // Dispatch custom storage sync event to notify PublicCatalog instantly
+      // Dispatch custom storage sync event to notify PublicCatalog and Sidebar instantly
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new CustomEvent('store_config_updated'));
       window.dispatchEvent(new Event('ap-storage-synced'));
       
-      alert('Configurações de Identidade e Efeitos Sazonais salvas e sincronizadas com o Supabase com sucesso!');
+      alert('Configurações de Identidade, Logotipo e Vitrine salvas e sincronizadas com o Supabase com sucesso!');
     } catch (e) {
       console.error(e);
       alert('Erro ao sincronizar com o Supabase, mas os dados foram salvos localmente.');
@@ -2085,6 +2107,83 @@ export default function LojaOnline({
           {/* Config: Identidade & Textos */}
           {activeConfigTab === 'textos' && (
             <div className="space-y-6 text-left">
+              {/* Logo Management Card */}
+              <div className="bg-pink-50/50 border border-pink-150 rounded-2xl p-4.5 space-y-3.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                      <span>🖼️ Logotipo Oficial da Vitrine & Catálogo</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Envie o arquivo da sua logo (PNG, JPG, SVG) direto do seu celular ou computador para atualizar o cabeçalho, rodapé e gaveta lateral de navegação.
+                    </p>
+                  </div>
+                  {storeLogoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickSaveLogo('/logo.png')}
+                      className="text-[10px] text-slate-400 hover:text-rose-600 font-bold underline cursor-pointer self-start sm:self-auto"
+                    >
+                      Redefinir padrão
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                  <div className="md:col-span-8 space-y-2.5">
+                    <ImageUploader 
+                      onUploadSuccess={(url) => {
+                        setStoreLogoUrl(url);
+                        handleQuickSaveLogo(url);
+                      }} 
+                      currentImageUrl={storeLogoUrl}
+                    />
+
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={storeLogoUrl}
+                        onChange={(e) => setStoreLogoUrl(e.target.value)}
+                        placeholder="URL da imagem da logo ou envie pelo botão acima..."
+                        className="flex-grow bg-white border border-slate-200 rounded-xl p-2.5 font-medium text-slate-700 focus:outline-hidden font-mono text-[11px]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleQuickSaveLogo(storeLogoUrl)}
+                        className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer shrink-0 transition-all flex items-center gap-1.5"
+                      >
+                        <Check size={14} />
+                        <span>Salvar Logo</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Dual Preview Box (Light & Dark) */}
+                  <div className="md:col-span-4 bg-white border border-slate-200 rounded-2xl p-3 text-center space-y-2 shadow-2xs">
+                    <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Pré-visualização</p>
+                    <div className="flex items-center justify-center gap-3">
+                      <div className="w-16 h-16 rounded-xl bg-slate-50 border border-slate-200 p-1 flex items-center justify-center overflow-hidden shadow-2xs" title="Fundo Claro">
+                        <img 
+                          src={storeLogoUrl || '/logo.png'} 
+                          alt="Logo Preview Claro" 
+                          className="w-full h-full object-cover rounded-lg" 
+                          referrerPolicy="no-referrer" 
+                        />
+                      </div>
+                      <div className="w-16 h-16 rounded-xl bg-slate-900 border border-slate-800 p-1 flex items-center justify-center overflow-hidden shadow-2xs" title="Fundo Escuro">
+                        <img 
+                          src={storeLogoUrl || '/logo.png'} 
+                          alt="Logo Preview Escuro" 
+                          className="w-full h-full object-cover rounded-lg" 
+                          referrerPolicy="no-referrer" 
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[9px] text-emerald-600 font-bold">✓ Atualização em tempo real</p>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Nome Comercial da Loja</label>

@@ -44,7 +44,9 @@ export function getStoreConfig(): StoreConfig {
   let state = (localStorage.getItem('ap_store_state') || 'RN').trim();
   let phone = (localStorage.getItem('ap_store_phone') || '(84) 99198-2963').trim();
   const pixKey = (localStorage.getItem('ap_pix_key') || '67.074.681/0001-03').trim();
-  const logoUrl = (localStorage.getItem('ap_store_logo') || '/logo.png').trim();
+  const savedLogo = localStorage.getItem('ap_store_logo');
+  // Use custom uploaded logo from user if set, otherwise fallback to default /logo.png
+  const logoUrl = (savedLogo && savedLogo.trim() && !savedLogo.includes('unsplash') ? savedLogo.trim() : '/logo.png').trim();
   
   // Instagram handle (stored without hardcoded third-party accounts)
   const savedInstagram = localStorage.getItem('ap_store_instagram') || '';

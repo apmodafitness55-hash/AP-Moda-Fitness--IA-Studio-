@@ -364,7 +364,7 @@ export default function App() {
 
     // 2. High-resolution Favicon mapping
     const savedLogo = localStorage.getItem('ap_store_logo');
-    const faviconUrl = savedLogo || 'https://images.unsplash.com/photo-1518310383802-640c2de311b2?w=128&h=128&fit=crop&q=80';
+    const faviconUrl = savedLogo || '/logo.png';
 
     // Remove existing default favicon/shortcut/apple icons to prevent conflicts
     const existingIcons = document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]');

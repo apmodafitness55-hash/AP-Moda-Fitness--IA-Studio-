@@ -1470,49 +1470,59 @@ export default function PublicCatalog({
   // Dynamic Store Configuration for Header, Footer and SEO
   const [storeBrandConfig, setStoreBrandConfig] = useState(() => getStoreConfig());
 
-  // Dynamic Google Search Schema JSON-LD Updater
+  // Dynamic Store Config live updater & Google Search Schema JSON-LD Updater
   useEffect(() => {
-    try {
-      const cfg = getStoreConfig();
-      setStoreBrandConfig(cfg);
-      let scriptTag = document.getElementById('store-schema-jsonld') as HTMLScriptElement;
-      if (!scriptTag) {
-        scriptTag = document.createElement('script');
-        scriptTag.id = 'store-schema-jsonld';
-        scriptTag.type = 'application/ld+json';
-        document.head.appendChild(scriptTag);
-      }
-      const schemaData: Record<string, any> = {
-        "@context": "https://schema.org",
-        "@type": "ClothingStore",
-        "name": cfg.name || "AP2 Moda Fitness",
-        "alternateName": ["AP Moda Fitness", "AP2 Moda Fitness Premium"],
-        "url": typeof window !== 'undefined' ? window.location.origin : "https://www.apmodafitness2.com.br",
-        "logo": {
-          "@type": "ImageObject",
-          "url": typeof window !== 'undefined' ? `${window.location.origin}/logo.png` : "https://www.apmodafitness2.com.br/logo.png"
-        },
-        "image": typeof window !== 'undefined' ? `${window.location.origin}/logo.png` : "https://www.apmodafitness2.com.br/logo.png",
-        "description": cfg.slogan || "Moda fitness feminina de alta performance e elegância.",
-        "telephone": cfg.phone,
-        "priceRange": "$$",
-        "address": {
-          "@type": "PostalAddress",
-          "streetAddress": cfg.address || "Travessa Jose Jorge, 51, Centro",
-          "addressLocality": cfg.city || "São José de Mipibu",
-          "addressRegion": cfg.state || "RN",
-          "addressCountry": "BR"
+    const updateConfig = () => {
+      try {
+        const cfg = getStoreConfig();
+        setStoreBrandConfig(cfg);
+        let scriptTag = document.getElementById('store-schema-jsonld') as HTMLScriptElement;
+        if (!scriptTag) {
+          scriptTag = document.createElement('script');
+          scriptTag.id = 'store-schema-jsonld';
+          scriptTag.type = 'application/ld+json';
+          document.head.appendChild(scriptTag);
         }
-      };
+        const schemaData: Record<string, any> = {
+          "@context": "https://schema.org",
+          "@type": "ClothingStore",
+          "name": cfg.name || "AP2 Moda Fitness",
+          "alternateName": ["AP Moda Fitness", "AP2 Moda Fitness Premium"],
+          "url": typeof window !== 'undefined' ? window.location.origin : "https://www.apmodafitness2.com.br",
+          "logo": {
+            "@type": "ImageObject",
+            "url": cfg.logoUrl || (typeof window !== 'undefined' ? `${window.location.origin}/logo.png` : "https://www.apmodafitness2.com.br/logo.png")
+          },
+          "image": cfg.logoUrl || (typeof window !== 'undefined' ? `${window.location.origin}/logo.png` : "https://www.apmodafitness2.com.br/logo.png"),
+          "description": cfg.slogan || "Moda fitness feminina de alta performance e elegância.",
+          "telephone": cfg.phone,
+          "priceRange": "$$",
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": cfg.address || "Travessa Jose Jorge, 51, Centro",
+            "addressLocality": cfg.city || "São José de Mipibu",
+            "addressRegion": cfg.state || "RN",
+            "addressCountry": "BR"
+          }
+        };
 
-      if (cfg.instagramUrl) {
-        schemaData["sameAs"] = [cfg.instagramUrl];
+        if (cfg.instagramUrl) {
+          schemaData["sameAs"] = [cfg.instagramUrl];
+        }
+
+        scriptTag.text = JSON.stringify(schemaData);
+      } catch (e) {
+        console.warn('Erro ao atualizar SEO Schema:', e);
       }
+    };
 
-      scriptTag.text = JSON.stringify(schemaData);
-    } catch (e) {
-      console.warn('Erro ao atualizar SEO Schema:', e);
-    }
+    updateConfig();
+    window.addEventListener('storage', updateConfig);
+    window.addEventListener('store_config_updated', updateConfig);
+    return () => {
+      window.removeEventListener('storage', updateConfig);
+      window.removeEventListener('store_config_updated', updateConfig);
+    };
   }, []);
 
   // Retirada Agendamento
@@ -4453,133 +4463,128 @@ export default function PublicCatalog({
             </div>
           )}
         </div>
+      </main>
 
-        {/* 6.5. Official Institutional Store Footer */}
-        <footer className="mt-16 pt-12 pb-16 border-t border-slate-200/80 bg-gradient-to-b from-[#FAF9F6] to-slate-100 text-slate-700 rounded-3xl p-6 md:p-10 space-y-10 shadow-xs">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+      {/* 6.5. Official Institutional Store Footer - Clean, Minimalist & Elegant */}
+      <footer className="w-full max-w-7xl mx-auto px-4 md:px-8 mt-16 mb-8">
+        <div className="bg-white border border-slate-200/80 rounded-3xl p-6 md:p-8 shadow-xs space-y-8">
+          
+          {/* Top Brand and Trust Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pb-6 border-b border-slate-100 items-start">
             
-            {/* Column 1: Store Brand and About */}
-            <div className="space-y-4 md:col-span-1 text-left">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl overflow-hidden bg-white shadow-xs border border-slate-200/80 p-1 flex items-center justify-center shrink-0">
+            {/* Brand Presentation */}
+            <div className="space-y-3 text-left">
+              <div className="flex items-center gap-3.5">
+                <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl overflow-hidden bg-slate-50 border border-slate-200/90 flex items-center justify-center shrink-0 shadow-xs">
                   <img 
                     src={storeBrandConfig.logoUrl || '/logo.png'} 
                     alt={storeBrandConfig.name} 
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
                   />
                 </div>
                 <div>
-                  <h4 className="font-serif italic text-lg font-bold text-slate-900 leading-tight">
+                  <h4 className="font-serif italic text-lg md:text-xl font-bold text-slate-900 leading-tight">
                     {storeBrandConfig.name}
                   </h4>
-                  <p className="text-[10px] font-extrabold uppercase tracking-widest text-pink-600">
+                  <p className="text-[10px] md:text-[11px] font-extrabold uppercase tracking-widest text-slate-500">
                     Boutique Fitness Premium
                   </p>
                 </div>
               </div>
-              <p className="text-xs text-slate-500 leading-relaxed font-sans">
-                {storeBrandConfig.slogan || 'Onde o seu limite vira ponto de partida. Peças desenvolvidas com alta tecnologia têxtil, modelagem anatômica e zero transparência.'}
+              <p className="text-xs text-slate-500 leading-relaxed">
+                {storeBrandConfig.slogan || 'Peças desenvolvidas com alta tecnologia têxtil, modelagem anatômica e zero transparência para o seu treino.'}
               </p>
-              <div className="text-[11px] text-slate-400 space-y-1 pt-1 font-mono">
+              <div className="text-[11px] text-slate-400 font-mono pt-1">
                 <p>CNPJ: {storeBrandConfig.cnpj || '67.074.681/0001-03'}</p>
-                <p>📍 {storeBrandConfig.fullAddress || 'Travessa Jose Jorge, 51, Centro - São José de Mipibu/RN'}</p>
               </div>
             </div>
 
-            {/* Column 2: Instagram Oficial Card */}
-            <div className="space-y-3 md:col-span-1 text-left bg-white p-5 rounded-2xl border border-pink-100 shadow-xs">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 text-white flex items-center justify-center shadow-xs shrink-0">
-                  <Instagram size={17} />
-                </div>
-                <div>
-                  <h5 className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                    Instagram Oficial
-                  </h5>
-                  <p className="text-[10px] font-bold text-pink-600">
-                    {storeBrandConfig.instagram || '@ap2_moda_fitness'}
-                  </p>
-                </div>
-              </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                Acompanhe provadores ao vivo, bastidores, lançamentos exclusivos e dicas fitness diárias no nosso perfil oficial!
-              </p>
-              {storeBrandConfig.instagramUrl ? (
-                <a
-                  href={storeBrandConfig.instagramUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-3 bg-gradient-to-r from-rose-500 via-pink-600 to-purple-600 hover:opacity-95 text-white font-extrabold text-[11px] uppercase tracking-wider rounded-xl transition shadow-xs cursor-pointer no-underline"
-                >
-                  <Instagram size={14} />
-                  <span>Seguir no Instagram</span>
-                  <ExternalLink size={12} />
-                </a>
-              ) : (
-                <span className="text-[10px] text-slate-400 italic block">
-                  Perfil oficial sendo configurado pela boutique.
-                </span>
-              )}
-            </div>
+            {/* Direct Clickable Contact & Social Cards (Clean & Minimalist with Colored Emblems) */}
+            <div className="space-y-3 text-left">
+              <h5 className="text-[11px] font-black text-slate-700 uppercase tracking-wider">
+                Canais de Atendimento
+              </h5>
 
-            {/* Column 3: Atendimento WhatsApp */}
-            <div className="space-y-3 md:col-span-1 text-left bg-white p-5 rounded-2xl border border-emerald-100 shadow-xs">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
-                  <MessageCircle size={17} />
-                </div>
-                <div>
-                  <h5 className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                    Atendimento VIP
-                  </h5>
-                  <p className="text-[10px] font-bold text-emerald-700">
-                    WhatsApp da Loja
-                  </p>
-                </div>
-              </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                Tire dúvidas sobre caimento, medidas, formas de pagamento e frete diretamente com nossa equipe de consultoras!
-              </p>
+              {/* Instagram Card - Whole card is directly clickable */}
               <a
-                href={`https://wa.me/${storeBrandConfig.phone.replace(/\D/g, '') || '5584991982963'}?text=${encodeURIComponent(`Olá! Estou no site da ${storeBrandConfig.name} e gostaria de tirar uma dúvida sobre as peças da coleção 🌸`)}`}
+                href={storeBrandConfig.instagramUrl || (storeBrandConfig.instagram ? `https://www.instagram.com/${storeBrandConfig.instagram.replace(/^@/, '')}/` : 'https://www.instagram.com/')}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] uppercase tracking-wider rounded-xl transition shadow-xs cursor-pointer no-underline"
+                className="group p-3 rounded-2xl bg-slate-50/70 hover:bg-slate-100/80 border border-slate-200/80 hover:border-slate-300 flex items-center justify-between gap-3 transition-all cursor-pointer no-underline block"
+                title="Acessar Instagram Oficial"
               >
-                <MessageCircle size={14} />
-                <span>Conversar no WhatsApp</span>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                    <Instagram size={16} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Instagram Oficial</p>
+                    <p className="text-xs font-bold text-slate-800 truncate group-hover:text-slate-950">
+                      {storeBrandConfig.instagram || '@ap2_moda_fitness'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-slate-400 group-hover:text-slate-700 transition pr-1">
+                  <ExternalLink size={14} />
+                </div>
+              </a>
+
+              {/* WhatsApp Card - Whole card is directly clickable (Phone number hidden) */}
+              <a
+                href={`https://wa.me/${storeBrandConfig.phone.replace(/\D/g, '') || '5584991982963'}?text=${encodeURIComponent(`Olá! Estou no site da ${storeBrandConfig.name} e gostaria de tirar uma dúvida sobre os produtos 🌸`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group p-3 rounded-2xl bg-slate-50/70 hover:bg-slate-100/80 border border-slate-200/80 hover:border-slate-300 flex items-center justify-between gap-3 transition-all cursor-pointer no-underline block"
+                title="Conversar no WhatsApp"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-[#25D366] text-white flex items-center justify-center shrink-0 shadow-2xs">
+                    <MessageCircle size={16} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">WhatsApp da Loja</p>
+                    <p className="text-xs font-bold text-slate-800 truncate group-hover:text-slate-950">
+                      Fale com uma Consultora
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-slate-400 group-hover:text-slate-700 transition pr-1">
+                  <ExternalLink size={14} />
+                </div>
               </a>
             </div>
 
-            {/* Column 4: Garantias e Segurança */}
-            <div className="space-y-3 md:col-span-1 text-left">
-              <h5 className="text-xs font-black text-slate-800 uppercase tracking-wide pb-1 border-b border-slate-200/60">
-                Garantia & Confiança
+            {/* Shopping Security & Guarantees (Clean Neutral Minimalist) */}
+            <div className="space-y-3 text-left">
+              <h5 className="text-[11px] font-black text-slate-700 uppercase tracking-wider">
+                Garantia & Entrega
               </h5>
-              
-              <div className="space-y-2.5 text-[11px]">
-                <div className="flex items-start gap-2 text-slate-600">
-                  <ShieldCheck size={16} className="text-pink-600 shrink-0 mt-0.5" />
+
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center gap-2.5 text-slate-600 bg-slate-50/70 p-2.5 rounded-xl border border-slate-200/60">
+                  <ShieldCheck size={16} className="text-slate-700 shrink-0" />
                   <div>
-                    <strong className="block text-slate-800">Compra 100% Segura</strong>
+                    <span className="font-bold text-slate-800 block leading-tight text-[11px]">Compra 100% Segura</span>
                     <span className="text-slate-400 text-[10px]">Criptografia SSL de ponta a ponta</span>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-2 text-slate-600">
-                  <Truck size={16} className="text-pink-600 shrink-0 mt-0.5" />
+                <div className="flex items-center gap-2.5 text-slate-600 bg-slate-50/70 p-2.5 rounded-xl border border-slate-200/60">
+                  <Truck size={16} className="text-slate-700 shrink-0" />
                   <div>
-                    <strong className="block text-slate-800">Entrega Rápida</strong>
-                    <span className="text-slate-400 text-[10px]">Motoboy Express e Correios Nacional</span>
+                    <span className="font-bold text-slate-800 block leading-tight text-[11px]">Entrega Rápida</span>
+                    <span className="text-slate-400 text-[10px]">Motoboy Express e Correios</span>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-2 text-slate-600">
-                  <CreditCard size={16} className="text-pink-600 shrink-0 mt-0.5" />
+                <div className="flex items-center gap-2.5 text-slate-600 bg-slate-50/70 p-2.5 rounded-xl border border-slate-200/60">
+                  <CreditCard size={16} className="text-slate-700 shrink-0" />
                   <div>
-                    <strong className="block text-slate-800">Pix com Desconto & Cartão</strong>
-                    <span className="text-slate-400 text-[10px]">Parcele em até 6x sem juros</span>
+                    <span className="font-bold text-slate-800 block leading-tight text-[11px]">Pix e Cartão</span>
+                    <span className="text-slate-400 text-[10px]">Condições especiais no Pix e parcelamento</span>
                   </div>
                 </div>
               </div>
@@ -4587,35 +4592,35 @@ export default function PublicCatalog({
 
           </div>
 
-          {/* Bottom Copyright bar */}
-          <div className="pt-6 border-t border-slate-200/80 flex flex-col md:flex-row items-center justify-between gap-4 text-[11px] text-slate-400">
-            <p>© {new Date().getFullYear()} {storeBrandConfig.name}. Todos os direitos reservados.</p>
+          {/* Bottom Copyright & Direct Links */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-400">
+            <p className="text-center sm:text-left">
+              © {new Date().getFullYear()} {storeBrandConfig.name}. Todos os direitos reservados.
+            </p>
             <div className="flex items-center gap-4">
-              {storeBrandConfig.instagramUrl && (
-                <a 
-                  href={storeBrandConfig.instagramUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="flex items-center gap-1 text-slate-600 hover:text-pink-600 transition font-bold"
-                >
-                  <Instagram size={14} />
-                  <span>Instagram</span>
-                </a>
-              )}
+              <a 
+                href={storeBrandConfig.instagramUrl || (storeBrandConfig.instagram ? `https://www.instagram.com/${storeBrandConfig.instagram.replace(/^@/, '')}/` : 'https://www.instagram.com/')}
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 transition font-medium"
+              >
+                <Instagram size={13} />
+                <span>Instagram</span>
+              </a>
               <a 
                 href={`https://wa.me/${storeBrandConfig.phone.replace(/\D/g, '') || '5584991982963'}`} 
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="flex items-center gap-1 text-slate-600 hover:text-emerald-600 transition font-bold"
+                className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 transition font-medium"
               >
-                <MessageCircle size={14} />
+                <MessageCircle size={13} />
                 <span>WhatsApp</span>
               </a>
             </div>
           </div>
-        </footer>
 
-      </main>
+        </div>
+      </footer>
 
       {/* 7. Beautiful Immersive Product Detail Overlay (Product Page Restructuring) */}
       {selectedProduct && (() => {
@@ -6690,14 +6695,24 @@ export default function PublicCatalog({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Drawer Header */}
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-pink-50/20">
-              <div className="flex flex-col">
-                <span className="font-serif italic text-lg font-bold text-slate-950">
-                  {storeName}
-                </span>
-                <span className="text-[8px] font-bold uppercase tracking-widest mt-0.5" style={{ color: themeColor }}>
-                  {storeSub}
-                </span>
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/60">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl overflow-hidden bg-white border border-slate-200/90 flex items-center justify-center shrink-0 shadow-2xs">
+                  <img 
+                    src={storeBrandConfig.logoUrl || '/logo.png'} 
+                    alt={storeName} 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-serif italic text-base font-bold text-slate-950 leading-tight">
+                    {storeName}
+                  </span>
+                  <span className="text-[8px] font-bold uppercase tracking-widest mt-0.5" style={{ color: themeColor }}>
+                    {storeSub}
+                  </span>
+                </div>
               </div>
               <button 
                 type="button"
@@ -6752,13 +6767,15 @@ export default function PublicCatalog({
                     href={storeBrandConfig.instagramUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="w-full px-4 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 via-pink-600 to-purple-600 text-white font-extrabold text-xs flex items-center justify-between shadow-xs transition hover:opacity-95 no-underline"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100/90 border border-slate-200 text-slate-700 font-bold text-xs flex items-center justify-between transition no-underline"
                   >
-                    <span className="flex items-center gap-2">
-                      <Instagram size={15} />
+                    <span className="flex items-center gap-2.5">
+                      <span className="w-6 h-6 rounded-lg bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                        <Instagram size={13} />
+                      </span>
                       <span>{storeBrandConfig.instagram || 'Instagram Oficial'}</span>
                     </span>
-                    <ExternalLink size={12} />
+                    <ExternalLink size={12} className="text-slate-400" />
                   </a>
                 )}
 
@@ -6766,13 +6783,15 @@ export default function PublicCatalog({
                   href={`https://wa.me/${storeBrandConfig.phone.replace(/\D/g, '') || '5584991982963'}?text=${encodeURIComponent(`Olá! Estou no site da ${storeBrandConfig.name} e gostaria de atendimento 🌸`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-between shadow-xs transition hover:bg-emerald-700 no-underline"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100/90 border border-slate-200 text-slate-700 font-bold text-xs flex items-center justify-between transition no-underline"
                 >
-                  <span className="flex items-center gap-2">
-                    <MessageCircle size={15} />
+                  <span className="flex items-center gap-2.5">
+                    <span className="w-6 h-6 rounded-lg bg-[#25D366] text-white flex items-center justify-center shrink-0 shadow-2xs">
+                      <MessageCircle size={13} />
+                    </span>
                     <span>WhatsApp de Atendimento</span>
                   </span>
-                  <ExternalLink size={12} />
+                  <ExternalLink size={12} className="text-slate-400" />
                 </a>
               </div>
 

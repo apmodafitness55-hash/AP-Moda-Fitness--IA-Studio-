@@ -1105,7 +1105,24 @@ export default function SettingsSystem({
     await pushSystemConfigToSupabase('ap_store_footer', storeFooter);
     await pushSystemConfigToSupabase('ap_store_logo', storeLogoUrl);
 
+    // Broadcast change to other components & windows immediately
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('store_config_updated'));
+    window.dispatchEvent(new Event('ap-storage-synced'));
+
     alert('Dados da empresa atualizados com sucesso no sistema e sincronizados em nuvem!');
+  };
+
+  const handleQuickSaveLogo = async (newUrl: string) => {
+    setStoreLogoUrl(newUrl);
+    localStorage.setItem('ap_store_logo', newUrl);
+    try {
+      await pushSystemConfigToSupabase('ap_store_logo', newUrl);
+    } catch (e) {}
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('store_config_updated'));
+    window.dispatchEvent(new Event('ap-storage-synced'));
+    alert('Logotipo oficial atualizado com sucesso! Ele já está visível em todo o sistema e no catálogo.');
   };
 
   const handleSaveWhatsappSettings = async (e: React.FormEvent) => {
@@ -1832,27 +1849,80 @@ export default function SettingsSystem({
                 </div>
               </div>
 
-               <div>
-                <label className="block text-slate-405 font-bold mb-1 uppercase text-[10px] tracking-wide">Logotipo da Boutique (Upload para ImgBB / Envio Direto)</label>
-                <div className="space-y-2.5">
-                  <ImageUploader 
-                    onUploadSuccess={(url) => setStoreLogoUrl(url)} 
-                    currentImageUrl={storeLogoUrl}
-                  />
-                  <div className="flex gap-3">
-                    <input
-                      type="text"
-                      required
-                      value={storeLogoUrl}
-                      onChange={(e) => setStoreLogoUrl(e.target.value)}
-                      className="flex-grow bg-slate-50 border border-slate-150 rounded-xl p-2.5 font-medium text-slate-755 focus:outline-hidden font-mono text-[10px]"
+               <div className="bg-pink-50/40 border border-pink-150 rounded-2xl p-4.5 space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-slate-800 font-extrabold text-xs uppercase tracking-wide">
+                      🖼️ Logotipo Oficial da Boutique & Catálogo
+                    </label>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Envie a imagem da sua logo direto da galeria do celular ou computador. Ela será aplicada instantaneamente no cabeçalho, rodapé, catálogo online e recibos.
+                    </p>
+                  </div>
+                  {storeLogoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickSaveLogo('/logo.png')}
+                      className="text-[10px] text-slate-400 hover:text-rose-600 font-bold underline cursor-pointer"
+                    >
+                      Redefinir padrão
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                  <div className="md:col-span-8 space-y-2.5">
+                    <ImageUploader 
+                      onUploadSuccess={(url) => {
+                        setStoreLogoUrl(url);
+                        handleQuickSaveLogo(url);
+                      }} 
+                      currentImageUrl={storeLogoUrl}
                     />
-                    <div className="w-11 h-11 bg-slate-100 border border-slate-200 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
-                      <img src={storeLogoUrl} alt="Logo Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={storeLogoUrl}
+                        onChange={(e) => setStoreLogoUrl(e.target.value)}
+                        placeholder="Cole aqui a URL da imagem ou envie pelo botão acima..."
+                        className="flex-grow bg-white border border-slate-200 rounded-xl p-2.5 font-medium text-slate-700 focus:outline-hidden font-mono text-[11px]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleQuickSaveLogo(storeLogoUrl)}
+                        className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer shrink-0 transition-all flex items-center gap-1.5"
+                      >
+                        <Check size={14} />
+                        <span>Salvar Logo</span>
+                      </button>
                     </div>
                   </div>
+
+                  {/* Dual Preview Box (Light & Dark backdrop preview) */}
+                  <div className="md:col-span-4 bg-white border border-slate-200 rounded-2xl p-3 text-center space-y-2 shadow-2xs">
+                    <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Pré-visualização</p>
+                    <div className="flex items-center justify-center gap-3">
+                      <div className="w-16 h-16 rounded-xl bg-slate-50 border border-slate-200 p-1 flex items-center justify-center overflow-hidden shadow-2xs" title="Fundo Claro">
+                        <img 
+                          src={storeLogoUrl || '/logo.png'} 
+                          alt="Logo Preview Claro" 
+                          className="w-full h-full object-cover rounded-lg" 
+                          referrerPolicy="no-referrer" 
+                        />
+                      </div>
+                      <div className="w-16 h-16 rounded-xl bg-slate-900 border border-slate-800 p-1 flex items-center justify-center overflow-hidden shadow-2xs" title="Fundo Escuro">
+                        <img 
+                          src={storeLogoUrl || '/logo.png'} 
+                          alt="Logo Preview Escuro" 
+                          className="w-full h-full object-cover rounded-lg" 
+                          referrerPolicy="no-referrer" 
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[9px] text-emerald-600 font-bold">✓ Atualização em tempo real</p>
+                  </div>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1">Este logo será impresso de forma gráfica texturizada no topo do cupom térmico faturado pelo PDV!</p>
               </div>
 
               <div>
