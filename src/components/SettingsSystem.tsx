@@ -57,7 +57,8 @@ import {
   Mail,
   Globe,
   Instagram,
-  ExternalLink
+  ExternalLink,
+  Check
 } from 'lucide-react';
 import ImageUploader from './ImageUploader';
 import { 
