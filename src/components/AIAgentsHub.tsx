@@ -32,6 +32,7 @@ import {
 import { Product, Client } from '../types';
 import { pushSystemConfigToSupabase } from '../supabase';
 import ImageUploader from './ImageUploader';
+import { getWhatsAppUrl } from '../utils/storeConfig';
 
 interface AIAgentsHubProps {
   products: Product[];
@@ -761,9 +762,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
       .replace(/^###\s(.*)/gm, '*$1*')
       .replace(/^-\s/gm, '• '); // Replace list bullet
 
-    const encoded = encodeURIComponent(formatted);
-    const phoneClean = waPhone.replace(/\D/g, '');
-    const url = `https://api.whatsapp.com/send?${phoneClean ? `phone=55${phoneClean}&` : ''}text=${encoded}`;
+    const url = getWhatsAppUrl(waPhone, formatted);
     window.open(url, '_blank');
   };
 

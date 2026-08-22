@@ -18,6 +18,7 @@ import {
   Loader2,
   RefreshCw
 } from 'lucide-react';
+import { getWhatsAppUrl } from '../utils/storeConfig';
 
 interface CheckoutItem {
   productName: string;
@@ -143,14 +144,7 @@ export default function AbandonedCarts({ checkouts = [], setCheckouts, onSyncChe
 
   // Helper to generate a direct wa.me link
   const getDirectWhatsAppLink = (phone: string, message: string) => {
-    let cleanPhone = phone.replace(/\D/g, '');
-    if (cleanPhone.length === 11 && !cleanPhone.startsWith('55')) {
-      cleanPhone = '55' + cleanPhone;
-    } else if (cleanPhone.length === 10 && !cleanPhone.startsWith('55')) {
-      cleanPhone = '55' + cleanPhone;
-    }
-    const encodedText = encodeURIComponent(message);
-    return `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`;
+    return getWhatsAppUrl(phone, message);
   };
 
   // Trigger AI WhatsApp Message Generation

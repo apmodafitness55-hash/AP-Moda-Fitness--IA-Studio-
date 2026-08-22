@@ -27,6 +27,7 @@ import { validateCPF } from './PublicCatalog'; // Import CPF validation helper i
 import { validateCouponForCpf } from '../utils/couponUtils';
 import { getSupabaseClient } from '../supabase';
 import { playSaleSuccessSound } from '../lib/audioFeedback';
+import { getWhatsAppUrl } from '../utils/storeConfig';
 
 interface CheckoutWizardProps {
   cart: {
@@ -975,7 +976,7 @@ export function CheckoutWizard({
                   <button
                     type="button"
                     onClick={() => {
-                      const whatsappUrl = `https://api.whatsapp.com/send?phone=${completedOrder.phone || '5585994269151'}&text=${encodeURIComponent(completedOrder.orderMsg)}`;
+                      const whatsappUrl = getWhatsAppUrl(completedOrder.phone, completedOrder.orderMsg);
                       window.open(whatsappUrl, '_blank');
                     }}
                     className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-600/15 transition-all flex items-center justify-center gap-2 cursor-pointer border-none active:scale-97"

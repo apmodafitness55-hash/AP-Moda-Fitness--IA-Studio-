@@ -27,6 +27,7 @@ import {
   LogOut,
   Brush
 } from 'lucide-react';
+import { getWhatsAppUrl } from '../utils/storeConfig';
 // Locally extend OnlineOrder to cover standard fields
 interface DriverAppPortalProps {
   onlineOrders: any[];
@@ -227,10 +228,8 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
 
     // Build automated WhatsApp link and show modal
     const rawPhone = order.phone || '';
-    const cleanPhone = rawPhone.replace(/\D/g, '');
-    const clientPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
     const msg = `Olá, *${order.clientName}*! Seu pedido da *AP Moda Fitness* (ID: #${order.id.toUpperCase()}) está a caminho com o nosso entregador *${selectedRider}*. 🏍️💨\n\n📍 Endereço de Entrega: _${order.address}_\n\nPor favor, certifique-se de que há alguém disponível no local para receber. Obrigado!`;
-    const link = `https://api.whatsapp.com/send?phone=${clientPhone}&text=${encodeURIComponent(msg)}`;
+    const link = getWhatsAppUrl(rawPhone, msg);
 
     setShowWhatsappModal({
       orderId: order.id,

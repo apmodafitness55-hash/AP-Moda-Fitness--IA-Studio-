@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { Product, Sale, Client } from '../types';
 import CorreiosLabel from './CorreiosLabel';
+import { getWhatsAppUrl } from '../utils/storeConfig';
 
 interface OrdersLogisticsProps {
   products: Product[];
@@ -611,7 +612,7 @@ export default function OrdersLogistics({
     const msg = `Olá, ${order.clientName}! 🌸\n\nSomos do suporte da *AP Moda Fitness*. Seu pedido *${order.id.toUpperCase()}* está no status: *${order.status}*!\n\n🛍️ *Seus Itens:*\n${itemsText}\n\n📍 *Endereço de Entrega:*\n${order.address}\n\n💵 *Total:* ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.total + order.deliveryFee)} (já incluindo entrega).\n\n${order.status === 'Saiu para Entrega' ? `🏍️ Entregador encarregado: *${order.motoboy || 'Próprio'}*. Já estamos a caminho!` : 'Qualquer dúvida estamos à disposição!'}`;
     
     try {
-      const url = `https://api.whatsapp.com/send?phone=${order.phone.replace(/\D/g, '')}&text=${encodeURIComponent(msg)}`;
+      const url = getWhatsAppUrl(order.phone, msg);
       window.open(url, '_blank');
     } catch {
       showCustomAlert('Mensagem do WhatsApp', msg);
@@ -1780,7 +1781,7 @@ export default function OrdersLogistics({
                                       const totalVal = cond.items.reduce((s: number, i: any) => s + (i.price * i.quantity), 0);
                                       const totalFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalVal);
                                       const text = `Olá, ${cond.clientName}! Tudo bem? ❤️\n\nPassando para acompanhar as pecinhas da sua *Mala de Condicional* da *AP Moda Fitness*! 🥰\n\n📦 *Peças na sua mala:*\n${itemsText}\n\n💰 *Valor total sob prova:* ${totalFormatted}\n⏳ *Prazo de devolução/retorno:* ${dateLimitFormatted}\n\nExperimente com calma e me diga quais você mais amou e quer ficar! Se precisar de ajuda para escolher ou quiser simular suas medidas no nosso *Provador Virtual*, estou por aqui! 🌸🏼‍♀️`;
-                                      window.open(`https://api.whatsapp.com/send?phone=55${cond.phone}&text=${encodeURIComponent(text)}`, '_blank');
+                                      window.open(getWhatsAppUrl(cond.phone, text), '_blank');
                                     }}
                                     className="p-1 px-2.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors border-none font-bold text-[10px] cursor-pointer flex items-center gap-1"
                                   >
@@ -2116,7 +2117,7 @@ export default function OrdersLogistics({
                       const totalVal = selectedCondProducts.reduce((s, i) => s + (i.price * i.quantity), 0);
                       const totalFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalVal);
                       const msgText = `Olá, ${condClient.trim()}! Tudo bem? ❤️\n\nSua *Mala de Condicional* da *AP Moda Fitness* está pronta e a caminho! 🥰\n\n📦 *Peças enviadas para você provar em casa:*\n${itemsText}\n\n💰 *Valor total sob prova:* ${totalFormatted}\n⏳ *Prazo para retorno sugerido:* ${dateLimitStr}\n\nExperimente tudo com carinho! Caso queira ajustar ou simular suas medidas no nosso *Provador Virtual*, estamos à disposição. Boas provas! 🌸🏃‍♀️`;
-                      window.open(`https://api.whatsapp.com/send?phone=55${condPhone.trim()}&text=${encodeURIComponent(msgText)}`, '_blank');
+                      window.open(getWhatsAppUrl(condPhone, msgText), '_blank');
                     }
                   }}
                   className="flex-1 py-2.5 bg-pink-600 text-white hover:bg-pink-700 rounded-xl font-bold transition-all cursor-pointer text-center shadow-md shadow-pink-500/10 border-none text-xs"

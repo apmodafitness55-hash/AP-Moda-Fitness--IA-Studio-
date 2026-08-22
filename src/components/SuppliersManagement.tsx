@@ -27,6 +27,7 @@ import {
   X
 } from 'lucide-react';
 import { Product, Transaction } from '../types';
+import { getWhatsAppUrl } from '../utils/storeConfig';
 
 export interface Supplier {
   id: string;
@@ -501,7 +502,7 @@ export default function SuppliersManagement({
                               <span className="font-bold text-slate-400 uppercase text-[8px] tracking-wider w-16 flex items-center gap-1">
                                 <Phone size={9} /> Fone:
                               </span>
-                              <a href={`https://wa.me/${sup.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="font-mono text-pink-600 hover:underline">
+                              <a href={getWhatsAppUrl(sup.phone)} target="_blank" rel="noopener noreferrer" className="font-mono text-pink-600 hover:underline">
                                 {sup.phone}
                               </a>
                             </div>

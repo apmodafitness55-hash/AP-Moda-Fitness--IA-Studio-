@@ -46,6 +46,7 @@ import {
 } from 'lucide-react';
 import { Client, Sale, SalesChannel } from '../types';
 import { pushSystemConfigToSupabase, syncBulkSalesToSupabase, syncBulkOnlineOrdersToSupabase } from '../supabase';
+import { getWhatsAppUrl } from '../utils/storeConfig';
 
 export function validateCPF(cpf: string): boolean {
   const cleanCPF = cpf.replace(/\D/g, '');
@@ -603,7 +604,7 @@ export default function CustomersCRM({
     markCongratsAsSent(id, type, couponCode);
     
     // Trigger window open for manual dispatch
-    const url = `https://api.whatsapp.com/send?${phoneClean ? `phone=55${phoneClean}&` : ''}text=${encoded}`;
+    const url = getWhatsAppUrl(phoneClean, textMsg);
     window.open(url, '_blank');
     
     // Custom notification trigger event to App.tsx or general notification popup
@@ -3038,10 +3039,8 @@ export default function CustomersCRM({
                   {predictiveAnalysis
                     .filter(item => item.client.name.toLowerCase().includes(searchQuery.toLowerCase()))
                     .map((item) => {
-                      const whatsappMessage = encodeURIComponent(
-                        `Olá, ${item.client.name}! 🌸 Tudo bem? Notamos que faz ${item.daysSinceLastPurchase} dias desde o seu último pedido na AP Moda Fitness! Preparamos novidades exclusivas na linha de ${item.suggestedCategory} para você. Gostaria de dar uma olhada no nosso catálogo VIP?`
-                      );
-                      const whatsappLink = `https://api.whatsapp.com/send?phone=55${item.client.phone.replace(/\D/g, '')}&text=${whatsappMessage}`;
+                      const msgText = `Olá, ${item.client.name}! 🌸 Tudo bem? Notamos que faz ${item.daysSinceLastPurchase} dias desde o seu último pedido na AP Moda Fitness! Preparamos novidades exclusivas na linha de ${item.suggestedCategory} para você. Gostaria de dar uma olhada no nosso catálogo VIP?`;
+                      const whatsappLink = getWhatsAppUrl(item.client.phone, msgText);
 
                       return (
                         <tr key={item.client.id} className="hover:bg-slate-50/70 transition-colors">

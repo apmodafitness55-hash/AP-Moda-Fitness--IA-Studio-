@@ -7,11 +7,42 @@ export interface StoreConfig {
   state: string;
   fullAddress: string;
   phone: string;
+  cleanPhone: string;
+  whatsappUrl: string;
   pixKey: string;
   footer: string;
   logoUrl: string;
   instagram: string;
   instagramUrl: string;
+}
+
+export function formatWhatsAppNumber(input?: string): string {
+  if (!input) return '5584991982963';
+  let digits = input.replace(/\D/g, '');
+  if (!digits) return '5584991982963';
+  
+  // Standard Brazilian numbers: 10 digits (DDD + 8 digits) or 11 digits (DDD + 9 digits)
+  if (digits.length === 10 || digits.length === 11) {
+    return `55${digits}`;
+  }
+  
+  // If already prefixed with 55 (e.g. 5584991982963 or 558432710000)
+  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+    return digits;
+  }
+  
+  // Fallback for short numbers without country code
+  if (!digits.startsWith('55') && digits.length <= 11) {
+    return `55${digits}`;
+  }
+  
+  return digits;
+}
+
+export function getWhatsAppUrl(phoneInput?: string, text?: string): string {
+  const formattedNumber = formatWhatsAppNumber(phoneInput);
+  const base = `https://wa.me/${formattedNumber}`;
+  return text ? `${base}?text=${encodeURIComponent(text)}` : base;
 }
 
 export function formatInstagramHandle(input: string): string {
@@ -86,6 +117,9 @@ export function getStoreConfig(): StoreConfig {
     fullAddress += `/${state}`;
   }
 
+  const cleanPhone = formatWhatsAppNumber(phone);
+  const whatsappUrl = getWhatsAppUrl(phone);
+
   return {
     name,
     slogan,
@@ -95,6 +129,8 @@ export function getStoreConfig(): StoreConfig {
     state,
     fullAddress,
     phone,
+    cleanPhone,
+    whatsappUrl,
     pixKey,
     footer,
     logoUrl,

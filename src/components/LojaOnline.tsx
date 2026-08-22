@@ -43,7 +43,7 @@ import { pushSystemConfigToSupabase } from '../supabase';
 import ImageUploader from './ImageUploader';
 import { MarketingSalesHub } from './MarketingSalesHub';
 import { Coupon, getStoredCoupons, saveStoredCoupons } from '../utils/couponUtils';
-import { getStoreConfig } from '../utils/storeConfig';
+import { getStoreConfig, getWhatsAppUrl } from '../utils/storeConfig';
 
 interface LojaOnlineProps {
   products: Product[];
@@ -674,7 +674,8 @@ export default function LojaOnline({
     const message = `Olá, AP Moda Fitness! 🌸\n\nAcabei de ver suas peças na sua *Vitrine Online* e montei meu carrinho de compras!\n\n🛍️ *Meu Carrinho:*\n${itemsText}${discountText}${shippingText}\n\n💵 *Subtotal:* R$ ${cartSubtotal.toFixed(2)}\n💸 *Total das Peças:* R$ ${totalPecas.toFixed(2)}\n💰 *Valor Final com Frete:* R$ ${cartTotal.toFixed(2)}\n\nPode confirmar se essas peças estão disponíveis e os prazos? Obrigada!`;
 
     try {
-      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`, '_blank');
+      const storePhone = localStorage.getItem('ap_store_phone') || '';
+      window.open(getWhatsAppUrl(storePhone, message), '_blank');
     } catch {
       alert(`Mensagem do carrinho enviada de forma simulada:\n\n${message}`);
     }

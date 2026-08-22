@@ -59,7 +59,7 @@ import { Product, Client } from '../types';
 import { getAppUrl } from '../config';
 import { pushSystemConfigToSupabase } from '../supabase';
 import { CheckoutWizard } from './CheckoutWizard';
-import { getStoreConfig } from '../utils/storeConfig';
+import { getStoreConfig, getWhatsAppUrl, formatWhatsAppNumber } from '../utils/storeConfig';
 
 export function validateCPF(cpf: string): boolean {
   const cleanCPF = cpf.replace(/\D/g, '');
@@ -2789,9 +2789,9 @@ export default function PublicCatalog({
 
   const storeInfo = useMemo(() => {
     let name = 'AP2 Moda Fitness';
-    let city = 'Natal';
+    let city = 'Sao Jose de Mipibu';
     let state = 'RN';
-    let phone = '5521991234567';
+    let phone = '(84) 99198-2963';
 
     try {
       const savedName = localStorage.getItem('ap_store_name');
@@ -2838,18 +2838,11 @@ export default function PublicCatalog({
       .replace(/[^a-zA-Z\s]/g, '')
       .replace(/\s+/g, '')
       .trim()
-      .substring(0, 15) || 'SaoPaulo';
+      .substring(0, 15) || 'SaoJoseMipibu';
     const cityLen = String(cleanCity.length).padStart(2, '0');
 
-    // Clean phone
-    const cleanPhone = phone.replace(/\D/g, '');
-    let finalPhone = cleanPhone;
-    if (cleanPhone.length >= 10 && cleanPhone.length <= 11 && !cleanPhone.startsWith('55')) {
-      finalPhone = `55${cleanPhone}`;
-    }
-    if (finalPhone.length === 0) {
-      finalPhone = '5521991234567';
-    }
+    // Clean phone ensuring country code +55
+    const finalPhone = formatWhatsAppNumber(phone);
 
     return {
       name,
@@ -4533,7 +4526,7 @@ export default function PublicCatalog({
 
               {/* WhatsApp Card - Whole card is directly clickable (Phone number hidden) */}
               <a
-                href={`https://wa.me/${storeBrandConfig.phone.replace(/\D/g, '') || '5584991982963'}?text=${encodeURIComponent(`Olá! Estou no site da ${storeBrandConfig.name} e gostaria de tirar uma dúvida sobre os produtos 🌸`)}`}
+                href={getWhatsAppUrl(storeBrandConfig.phone, `Olá! Estou no site da ${storeBrandConfig.name} e gostaria de tirar uma dúvida sobre os produtos 🌸`)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group p-3 rounded-2xl bg-slate-50/70 hover:bg-slate-100/80 border border-slate-200/80 hover:border-slate-300 flex items-center justify-between gap-3 transition-all cursor-pointer no-underline block"
@@ -4608,7 +4601,7 @@ export default function PublicCatalog({
                 <span>Instagram</span>
               </a>
               <a 
-                href={`https://wa.me/${storeBrandConfig.phone.replace(/\D/g, '') || '5584991982963'}`} 
+                href={getWhatsAppUrl(storeBrandConfig.phone)} 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 transition font-medium"
@@ -5098,7 +5091,7 @@ export default function PublicCatalog({
                         Esta peça teve altíssima procura e o estoque acabou! Solicite prioridade de reposição com nosso atendimento.
                       </p>
                       <a
-                        href={`https://wa.me/55${(storeInfo?.phone || '21991234567').replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Vi no site da AP Moda Fitness que o produto "${selectedProduct.name}" está esgotado. Gostaria de saber se terá reposição em breve!`)}`}
+                        href={getWhatsAppUrl(storeBrandConfig.phone || storeInfo.phone, `Olá! Vi no site da ${storeBrandConfig.name} que o produto "${selectedProduct.name}" está esgotado. Gostaria de saber se terá reposição em breve!`)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition shadow-xs text-decoration-none"
@@ -5458,9 +5451,9 @@ export default function PublicCatalog({
 
       {/* 9. Interactive Float WhatsApp Button with notify sticker */}
       <a 
-        href={`https://api.whatsapp.com/send?phone=${storeInfo.phone}&text=Ol%C3%A1!%20Gostaria%20de%20tirar%20uma%20d%C3%BAvida%20sobre%20as%20pe%C3%A7as%20da%20vitrine%20AP%20Moda%20Fitness%20🌸`}
+        href={getWhatsAppUrl(storeBrandConfig.phone || storeInfo.phone, `Olá! Gostaria de tirar uma dúvida sobre as peças da vitrine ${storeBrandConfig.name} 🌸`)}
         target="_blank"
-        rel="noreferrer"
+        rel="noopener noreferrer"
         className="fixed bottom-6 right-6 z-40 bg-green-500 hover:bg-green-600 p-3.5 rounded-full shadow-lg text-white hover:scale-110 active:scale-95 transition-all text-center flex items-center justify-center animate-bounce duration-3000 cursor-pointer"
         title="Atendimento pelo WhatsApp"
       >
@@ -6780,7 +6773,7 @@ export default function PublicCatalog({
                 )}
 
                 <a
-                  href={`https://wa.me/${storeBrandConfig.phone.replace(/\D/g, '') || '5584991982963'}?text=${encodeURIComponent(`Olá! Estou no site da ${storeBrandConfig.name} e gostaria de atendimento 🌸`)}`}
+                  href={getWhatsAppUrl(storeBrandConfig.phone, `Olá! Estou no site da ${storeBrandConfig.name} e gostaria de atendimento 🌸`)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100/90 border border-slate-200 text-slate-700 font-bold text-xs flex items-center justify-between transition no-underline"
