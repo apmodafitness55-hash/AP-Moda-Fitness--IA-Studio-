@@ -1,3 +1,13 @@
 User-agent: *
 Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Googlebot-Favicons
+Allow: /
+
 Sitemap: https://www.apmodafitness2.com.br/sitemap.xml
