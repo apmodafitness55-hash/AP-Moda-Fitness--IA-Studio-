@@ -292,8 +292,13 @@ export default function VendasList({
           notes: `Vinculado por Administrador em VendasList`
         };
         updatedGlobal = [newItem, ...updatedGlobal];
-        localStorage.setItem(`ap_manual_partner_sales_${chosenPartner.id}`, JSON.stringify(updatedGlobal));
       }
+
+      // Sync specific partner keys and global manual sales key
+      currentPList.forEach((p: any) => {
+        const partnerSpecific = updatedGlobal.filter((g: any) => g.partnerId === p.id);
+        localStorage.setItem(`ap_manual_partner_sales_${p.id}`, JSON.stringify(partnerSpecific));
+      });
 
       localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
       pushSystemConfigToSupabase('ap_manual_partner_sales', JSON.stringify(updatedGlobal));

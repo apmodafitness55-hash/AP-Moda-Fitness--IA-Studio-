@@ -204,23 +204,23 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
     const currentPId = sanitize(currentPartner.id || '');
     const currentPName = sanitize(currentPartner.name || '');
 
-    const isPartnerMatch = (cCode: string, pName: string, pId: string, notes: string, extraFields: string = '') => {
+    const isPartnerMatch = (cCode: string, pName: string, pId: string, notes: string) => {
       const cleanCCode = sanitize(cCode);
       const cleanPName = sanitize(pName);
       const cleanPId = sanitize(pId);
       const cleanNotes = sanitize(notes);
 
-      // Explicit Partner ID assignment takes top precedence
+      // 1. Explicit Partner ID assignment takes absolute top precedence & exclusivity
       if (cleanPId) {
         return cleanPId === currentPId;
       }
 
-      // Explicit Partner Name assignment takes second precedence
+      // 2. Explicit Partner Name assignment takes second precedence & exclusivity
       if (cleanPName) {
         return currentPName ? (cleanPName === currentPName || cleanPName.includes(currentPName) || currentPName.includes(cleanPName)) : false;
       }
 
-      // Check coupon code matching against tokens
+      // 3. Check coupon code matching against tokens (strict match)
       if (cleanCCode) {
         for (const token of partnerTokens) {
           if (!token) continue;
@@ -228,12 +228,14 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
             return true;
           }
         }
+        // If sale has a specific coupon code that doesn't match this partner, do NOT match via notes
+        return false;
       }
 
-      // Check notes matching against partner tokens
+      // 4. Check notes matching against partner tokens
       if (cleanNotes) {
         for (const token of partnerTokens) {
-          if (!token) continue;
+          if (!token || token.length < 4) continue;
           if (cleanNotes.includes(token)) {
             return true;
           }
@@ -243,51 +245,59 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
       return false;
     };
 
-    // 1. From POS sales
+    // Helper for normalizing IDs during deduplication
+    const normalizeId = (idStr: string) => String(idStr || '').toLowerCase().replace('#', '').trim();
+
+    // 1. From POS sales (Vendas Concluídas)
     const salesList = Array.isArray(activeSales) && activeSales.length > 0 ? activeSales : sales;
     if (Array.isArray(salesList)) {
       salesList.forEach(s => {
         if (s.status === 'Cancelada') return;
         const cCode = s.couponCode || s.coupon || s.partnerCoupon || (s.appliedCoupon?.code) || '';
-        const pName = s.partner || s.partnerName || s.seller || s.salesperson || '';
+        // NOTE: Partner is strictly external influencer/affiliate (s.partner / s.partnerName), NOT store salesperson
+        const pName = s.partner || (s as any).partnerName || '';
         const pId = s.partnerId || '';
-        const notes = `${s.notes || ''} ${s.observation || ''} ${s.clientName || ''}`;
+        const notes = `${s.notes || ''} ${s.observation || ''}`;
 
-        if (isPartnerMatch(cCode, pName, pId, notes, JSON.stringify(s))) {
-          const totalVal = Number(s.total || s.value || s.amount || 0);
-          const commRate = currentPartner.commissionRate || 10;
-          const commVal = (totalVal * commRate) / 100;
-          matched.push({
-            id: s.id || `VND-${s.number || Math.floor(1000 + Math.random() * 9000)}`,
-            clientName: s.clientName || s.customerName || s.client || 'Cliente',
-            total: totalVal,
-            date: s.date ? s.date.split('T')[0] : (s.createdAt ? s.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]),
-            status: s.status || 'Concluída',
-            commission: commVal,
-            type: 'Venda Loja'
-          });
+        if (isPartnerMatch(cCode, pName, pId, notes)) {
+          const normId = normalizeId(s.id);
+          if (!matched.some(m => normalizeId(m.id) === normId)) {
+            const totalVal = Number(s.total || (s as any).value || (s as any).amount || 0);
+            const commRate = currentPartner.commissionRate || 10;
+            const commVal = (totalVal * commRate) / 100;
+            matched.push({
+              id: s.id || `VND-${(s as any).number || Math.floor(1000 + Math.random() * 9000)}`,
+              clientName: s.clientName || (s as any).customerName || (s as any).client || 'Cliente',
+              total: totalVal,
+              date: s.date ? s.date.split('T')[0] : (s.createdAt ? s.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]),
+              status: s.status || 'Concluída',
+              commission: commVal,
+              type: 'Venda Loja'
+            });
+          }
         }
       });
     }
 
-    // 2. From onlineOrders
+    // 2. From onlineOrders (deduplicated against POS sales)
     const ordersList = Array.isArray(activeOrders) && activeOrders.length > 0 ? activeOrders : onlineOrders;
     if (Array.isArray(ordersList)) {
       ordersList.forEach(o => {
         if (o.status === 'Cancelado') return;
-        const cCode = o.couponCode || o.coupon || o.ref || o.partnerCoupon || (o.appliedCoupon?.code) || '';
-        const pName = o.partnerName || o.partner || o.partnerId || '';
+        const cCode = o.couponCode || o.coupon || (o as any).ref || o.partnerCoupon || (o.appliedCoupon?.code) || '';
+        const pName = o.partnerName || o.partner || '';
         const pId = o.partnerId || '';
-        const notes = `${o.notes || ''} ${o.observation || ''} ${o.clientName || ''} ${o.customerName || ''}`;
+        const notes = `${o.notes || ''} ${o.observation || ''}`;
 
-        if (isPartnerMatch(cCode, pName, pId, notes, JSON.stringify(o))) {
-          if (!matched.some(m => m.id === o.id)) {
-            const totalVal = Number(o.total || o.value || o.amount || 0);
+        if (isPartnerMatch(cCode, pName, pId, notes)) {
+          const normId = normalizeId(o.id);
+          if (!matched.some(m => normalizeId(m.id) === normId)) {
+            const totalVal = Number(o.total || (o as any).value || (o as any).amount || 0);
             const commRate = currentPartner.commissionRate || 10;
             const commVal = (totalVal * commRate) / 100;
             matched.push({
-              id: o.id || `PED-${o.number || Math.floor(1000 + Math.random() * 9000)}`,
-              clientName: o.clientName || o.customerName || o.client || 'Cliente Site',
+              id: o.id || `PED-${(o as any).number || Math.floor(1000 + Math.random() * 9000)}`,
+              clientName: o.clientName || (o as any).customerName || (o as any).client || 'Cliente Site',
               total: totalVal,
               date: o.date ? o.date.split('T')[0] : (o.createdAt ? o.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]),
               status: o.status || 'Concluído',
@@ -299,10 +309,11 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
       });
     }
 
-    // 3. From manual retroactive sales
+    // 3. From manual retroactive sales (deduplicated against existing matched sales/orders)
     if (Array.isArray(manualSales)) {
       manualSales.forEach(m => {
-        if (!matched.some(item => item.id === m.id)) {
+        const normId = normalizeId(m.id);
+        if (!matched.some(item => normalizeId(item.id) === normId)) {
           const totalVal = Number(m.total || m.amount || 0);
           const commRate = m.commissionRate || currentPartner.commissionRate || 10;
           const commVal = m.commission ?? ((totalVal * commRate) / 100);
