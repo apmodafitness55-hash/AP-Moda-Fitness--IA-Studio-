@@ -4505,7 +4505,7 @@ export default function PublicCatalog({
 
               {/* Instagram Card - Whole card is directly clickable */}
               <a
-                href={storeBrandConfig.instagramUrl || `https://www.instagram.com/${(storeBrandConfig.instagram || '@ap2_moda_fitness').replace(/^@+/, '')}/`}
+                href={storeBrandConfig.instagramUrl || `https://www.instagram.com/${(storeBrandConfig.instagram || '@ap_moda_fitness2').replace(/^@+/, '')}/`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group p-3 rounded-2xl bg-slate-50/70 hover:bg-slate-100/80 border border-slate-200/80 hover:border-slate-300 flex items-center justify-between gap-3 transition-all cursor-pointer no-underline block"
@@ -4518,7 +4518,7 @@ export default function PublicCatalog({
                   <div className="min-w-0">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Instagram Oficial</p>
                     <p className="text-xs font-bold text-slate-800 truncate group-hover:text-slate-950">
-                      {storeBrandConfig.instagram || '@ap2_moda_fitness'}
+                      {storeBrandConfig.instagram || '@ap_moda_fitness2'}
                     </p>
                   </div>
                 </div>
@@ -4596,7 +4596,7 @@ export default function PublicCatalog({
             </p>
             <div className="flex items-center gap-4">
               <a 
-                href={storeBrandConfig.instagramUrl || `https://www.instagram.com/${(storeBrandConfig.instagram || '@ap2_moda_fitness').replace(/^@+/, '')}/`}
+                href={storeBrandConfig.instagramUrl || `https://www.instagram.com/${(storeBrandConfig.instagram || '@ap_moda_fitness2').replace(/^@+/, '')}/`}
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 transition font-medium"

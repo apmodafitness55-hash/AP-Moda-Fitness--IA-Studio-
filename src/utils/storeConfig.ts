@@ -46,24 +46,24 @@ export function getWhatsAppUrl(phoneInput?: string, text?: string): string {
 }
 
 export function formatInstagramHandle(input: string): string {
-  if (!input) return '@ap2_moda_fitness';
+  if (!input) return '@ap_moda_fitness2';
   let cleaned = input.trim();
   if (cleaned.includes('instagram.com/')) {
     cleaned = cleaned.split('instagram.com/')[1].split('/')[0].split('?')[0];
   }
   cleaned = cleaned.replace(/^@+/, '').replace(/\/+$/, '').trim();
-  return cleaned ? `@${cleaned}` : '@ap2_moda_fitness';
+  return cleaned ? `@${cleaned}` : '@ap_moda_fitness2';
 }
 
 export function getInstagramProfileUrl(input: string): string {
-  if (!input) return 'https://www.instagram.com/ap2_moda_fitness/';
+  if (!input) return 'https://www.instagram.com/ap_moda_fitness2/';
   let cleaned = input.trim();
   if (cleaned.includes('instagram.com/')) {
     const handlePart = cleaned.split('instagram.com/')[1].split('/')[0].split('?')[0].replace(/^@+/, '').replace(/\/+$/, '').trim();
     if (handlePart) return `https://www.instagram.com/${handlePart}/`;
   }
   const handle = cleaned.replace(/^@+/, '').replace(/\/+$/, '').trim();
-  return handle ? `https://www.instagram.com/${handle}/` : 'https://www.instagram.com/ap2_moda_fitness/';
+  return handle ? `https://www.instagram.com/${handle}/` : 'https://www.instagram.com/ap_moda_fitness2/';
 }
 
 export function getStoreConfig(): StoreConfig {
@@ -81,7 +81,7 @@ export function getStoreConfig(): StoreConfig {
   const logoUrl = (savedLogo && savedLogo.trim() && !savedLogo.includes('unsplash') ? savedLogo.trim() : '/logo.png').trim();
   
   // Instagram handle (stored with reliable fallback to prevent opening generic home feed)
-  const savedInstagram = localStorage.getItem('ap_store_instagram') || '@ap2_moda_fitness';
+  const savedInstagram = localStorage.getItem('ap_store_instagram') || '@ap_moda_fitness2';
   const instagram = formatInstagramHandle(savedInstagram);
   const instagramUrl = getInstagramProfileUrl(savedInstagram);
 
