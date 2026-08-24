@@ -44,6 +44,7 @@ import ImageUploader from './ImageUploader';
 import { MarketingSalesHub } from './MarketingSalesHub';
 import { Coupon, getStoredCoupons, saveStoredCoupons } from '../utils/couponUtils';
 import { getStoreConfig, getWhatsAppUrl } from '../utils/storeConfig';
+import CategoryBubblesManager, { resolveCategoryBubbleImage } from './CategoryBubblesManager';
 
 interface LojaOnlineProps {
   products: Product[];
@@ -1536,7 +1537,7 @@ export default function LojaOnline({
             </div>
 
             {/* In-Preview Public Header */}
-            <div className="bg-slate-950 p-3 rounded-2xl flex justify-between items-center text-xs selection:bg-pink-600 mb-4 border border-slate-850">
+            <div className="bg-slate-950 p-3 rounded-2xl flex justify-between items-center text-xs selection:bg-pink-600 mb-3 border border-slate-850">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-md bg-pink-600 flex items-center justify-center text-white font-bold text-xs shadow-md shadow-pink-500/10">AP</div>
                 <span className="font-bold text-white tracking-wide">AP Vitrine Online</span>
@@ -1555,6 +1556,44 @@ export default function LojaOnline({
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* In-Preview Stories Category Bubbles */}
+            <div className="flex items-center gap-2.5 overflow-x-auto pb-3 mb-3 scrollbar-none bg-slate-950/60 p-2.5 rounded-2xl border border-slate-800/80">
+              {categoriesList.map(cat => {
+                const isSelected = previewCategory === cat;
+                let customThumbnails: Record<string, string> = {};
+                try {
+                  const saved = localStorage.getItem('ap_vitrine_category_thumbnails');
+                  if (saved) customThumbnails = JSON.parse(saved);
+                } catch(e) {}
+                const resolved = resolveCategoryBubbleImage(cat, customThumbnails, products);
+                return (
+                  <button
+                    key={`preview-bubble-${cat}`}
+                    type="button"
+                    onClick={() => setPreviewCategory(cat)}
+                    className="flex flex-col items-center gap-1 focus:outline-hidden group cursor-pointer border-none bg-transparent p-0 flex-shrink-0"
+                  >
+                    <div 
+                      className={`w-11 h-11 rounded-full flex items-center justify-center p-[2px] transition-all
+                        ${isSelected ? 'border-2 border-pink-500 ring-2 ring-pink-500/30' : 'border border-slate-700 hover:border-slate-500'}`}
+                    >
+                      <div className="w-full h-full rounded-full overflow-hidden bg-slate-800">
+                        <img 
+                          src={resolved.url} 
+                          alt={cat} 
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    </div>
+                    <span className={`text-[8.5px] font-bold max-w-[50px] truncate text-center ${isSelected ? 'text-pink-400 font-black' : 'text-slate-400'}`}>
+                      {cat}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* PUBLIC HERO BANNER (SLIDER / CATEGORY HEADER) */}
@@ -2084,7 +2123,7 @@ export default function LojaOnline({
                 onClick={() => setActiveConfigTab('categorias')}
                 className={`px-3 py-1.5 text-[11px] font-extrabold rounded-lg transition-all cursor-pointer whitespace-nowrap border-none ${activeConfigTab === 'categorias' ? 'bg-white text-pink-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
               >
-                Seções / Categorias
+                Bolinhas & Seções de Categorias 🌸
               </button>
               <button
                 type="button"
@@ -2642,58 +2681,69 @@ export default function LojaOnline({
 
           {/* Config: Categorias / Seções */}
           {activeConfigTab === 'categorias' && (
-            <form onSubmit={handleSaveCategoryBanners} className="space-y-6 text-left">
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide mb-1 flex items-center gap-1.5">
-                  <Image size={14} className="text-pink-600" />
-                  <span>Banners de Destaque das Seções</span>
-                </h4>
-                <p className="text-[10px] text-slate-500 font-medium">As imagens abaixo aparecem como cabeçalhos das categorias de peças na navegação do cliente.</p>
-              </div>
+            <div className="space-y-8 text-left">
+              {/* 1. Category Bubbles Manager (Stories) */}
+              <CategoryBubblesManager 
+                products={products}
+                themeColor={themeColor}
+              />
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white border border-slate-150 rounded-2xl p-4 space-y-3 shadow-2xs">
-                  <span className="bg-pink-100 text-pink-700 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider block w-max">SEÇÃO 1: SLIM FIT</span>
-                  <div className="aspect-video w-full rounded-lg bg-slate-100 overflow-hidden border border-slate-150">
-                    <img src={categoryBanners.slimFit} alt="Slim Fit Banner" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <hr className="border-slate-200" />
+
+              {/* 2. Highlight Section Banners (Slim Fit & Plus Size) */}
+              <form onSubmit={handleSaveCategoryBanners} className="space-y-6">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide mb-1 flex items-center gap-1.5">
+                    <Image size={14} className="text-pink-600" />
+                    <span>Banners de Destaque das Seções (Cabeçalhos)</span>
+                  </h4>
+                  <p className="text-[10px] text-slate-500 font-medium">As imagens abaixo aparecem como cabeçalhos das categorias de peças na navegação do cliente.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white border border-slate-150 rounded-2xl p-4 space-y-3 shadow-2xs">
+                    <span className="bg-pink-100 text-pink-700 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider block w-max">SEÇÃO 1: SLIM FIT</span>
+                    <div className="aspect-video w-full rounded-lg bg-slate-100 overflow-hidden border border-slate-150">
+                      <img src={categoryBanners.slimFit} alt="Slim Fit Banner" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Banner Slim Fit</label>
+                      <ImageUploader
+                        currentImageUrl={categoryBanners.slimFit}
+                        onUploadSuccess={(url) => setCategoryBanners({ ...categoryBanners, slimFit: url })}
+                      />
+                      <p className="text-[10px] text-slate-400 font-medium mt-1">Dimensão ideal: 800x800px ou 600x800px</p>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Banner Slim Fit</label>
-                    <ImageUploader
-                      currentImageUrl={categoryBanners.slimFit}
-                      onUploadSuccess={(url) => setCategoryBanners({ ...categoryBanners, slimFit: url })}
-                    />
-                    <p className="text-[10px] text-slate-400 font-medium mt-1">Dimensão ideal: 800x800px ou 600x800px</p>
+
+                  <div className="bg-white border border-slate-150 rounded-2xl p-4 space-y-3 shadow-2xs">
+                    <span className="bg-pink-100 text-pink-700 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider block w-max">SEÇÃO 2: PLUS SIZE / CURVAS</span>
+                    <div className="aspect-video w-full rounded-lg bg-slate-100 overflow-hidden border border-slate-150">
+                      <img src={categoryBanners.plusSize} alt="Plus Size Banner" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Banner Plus Size</label>
+                      <ImageUploader
+                        currentImageUrl={categoryBanners.plusSize}
+                        onUploadSuccess={(url) => setCategoryBanners({ ...categoryBanners, plusSize: url })}
+                      />
+                      <p className="text-[10px] text-slate-400 font-medium mt-1">Dimensão ideal: 800x800px ou 600x800px</p>
+                    </div>
                   </div>
                 </div>
 
-                <div className="bg-white border border-slate-150 rounded-2xl p-4 space-y-3 shadow-2xs">
-                  <span className="bg-pink-100 text-pink-700 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider block w-max">SEÇÃO 2: PLUS SIZE / CURVAS</span>
-                  <div className="aspect-video w-full rounded-lg bg-slate-100 overflow-hidden border border-slate-150">
-                    <img src={categoryBanners.plusSize} alt="Plus Size Banner" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Banner Plus Size</label>
-                    <ImageUploader
-                      currentImageUrl={categoryBanners.plusSize}
-                      onUploadSuccess={(url) => setCategoryBanners({ ...categoryBanners, plusSize: url })}
-                    />
-                    <p className="text-[10px] text-slate-400 font-medium mt-1">Dimensão ideal: 800x800px ou 600x800px</p>
-                  </div>
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    disabled={isSavingConfigs}
+                    className="bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs px-6 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer transition shadow-xs border-none"
+                  >
+                    <Save size={14} />
+                    <span>{isSavingConfigs ? 'Salvando...' : 'Salvar Banners de Destaque'}</span>
+                  </button>
                 </div>
-              </div>
-
-              <div className="flex justify-end pt-2">
-                <button
-                  type="submit"
-                  disabled={isSavingConfigs}
-                  className="bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl flex items-center gap-2 cursor-pointer transition shadow-xs border-none"
-                >
-                  <Save size={14} />
-                  <span>{isSavingConfigs ? 'Salvando...' : 'Salvar Banners de Categoria'}</span>
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
           )}
 
           {/* Config: Cupons & Categorias */}

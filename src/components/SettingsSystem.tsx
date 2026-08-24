@@ -61,6 +61,7 @@ import {
   Check
 } from 'lucide-react';
 import ImageUploader from './ImageUploader';
+import CategoryBubblesManager from './CategoryBubblesManager';
 import { 
   SUPABASE_SETUP_INFO, 
   pushSystemConfigToSupabase, 
@@ -4043,11 +4044,19 @@ export default function SettingsSystem({
               </div>
             </div>
 
-            {/* Bloco 3: Destaques Slim Fit / Plus Size */}
+            {/* Bloco 3: Bolinhas / Stories das Categorias */}
+            <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-5">
+              <CategoryBubblesManager 
+                products={products}
+                themeColor="#ec4899"
+              />
+            </div>
+
+            {/* Bloco 4: Destaques Slim Fit / Plus Size */}
             <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-5">
               <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-1.5 pb-2 border-b border-slate-50">
                 <Sparkles size={16} className="text-pink-600" />
-                <span>Banners de Campanhas de Categoria (Slim Fit / Plus Size)</span>
+                <span>Banners de Destaque das Seções (Slim Fit / Plus Size)</span>
               </h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

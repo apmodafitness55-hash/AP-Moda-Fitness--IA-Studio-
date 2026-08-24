@@ -60,6 +60,7 @@ import { getAppUrl } from '../config';
 import { pushSystemConfigToSupabase } from '../supabase';
 import { CheckoutWizard } from './CheckoutWizard';
 import { getStoreConfig, getWhatsAppUrl, formatWhatsAppNumber } from '../utils/storeConfig';
+import { resolveCategoryBubbleImage, getFallbackCategoryPhoto } from './CategoryBubblesManager';
 
 export function validateCPF(cpf: string): boolean {
   const cleanCPF = cpf.replace(/\D/g, '');
@@ -175,30 +176,8 @@ const getColorHex = (name: string | undefined | null) => {
   return `hsl(${h}, 65%, 55%)`;
 };
 
-const getCategoryThumbnail = (category: string): string => {
-  const cat = (category || '').toLowerCase();
-  if (cat === 'todos') {
-    return 'https://images.unsplash.com/photo-1518310383802-640c2de311b2?w=150&h=150&fit=crop&q=80';
-  }
-  if (cat.includes('blusa') || cat.includes('camiseta') || cat.includes('top') || cat.includes('cropped') || cat.includes('dry-fit') || cat.includes('dryfit')) {
-    return 'https://images.unsplash.com/photo-1554412933-514a83d2f3c8?w=150&h=150&fit=crop&q=80';
-  }
-  if (cat.includes('legging') || cat.includes('calça') || cat.includes('calca') || cat.includes('shorts') || cat.includes('bermuda') || cat.includes('calças')) {
-    return 'https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=150&h=150&fit=crop&q=80';
-  }
-  if (cat.includes('conjunto') || cat.includes('conjuntos')) {
-    return 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=150&h=150&fit=crop&q=80';
-  }
-  if (cat.includes('slim') || cat.includes('fit')) {
-    return 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=150&h=150&fit=crop&q=80';
-  }
-  if (cat.includes('plus') || cat.includes('size')) {
-    return 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=150&h=150&fit=crop&q=80';
-  }
-  if (cat.includes('macacão') || cat.includes('macacao') || cat.includes('body')) {
-    return 'https://images.unsplash.com/photo-1518310383802-640c2de311b2?w=150&h=150&fit=crop&q=80';
-  }
-  return 'https://images.unsplash.com/photo-1518310383802-640c2de311b2?w=150&h=150&fit=crop&q=80';
+const getCategoryThumbnail = (category: string, thumbnailsMap: Record<string, string> = {}, prods: Product[] = []): string => {
+  return resolveCategoryBubbleImage(category, thumbnailsMap, prods).url;
 };
 
 const getProductDynamicSizes = (product: any): string[] => {
@@ -367,6 +346,31 @@ export default function PublicCatalog({
       plusSize: "https://images.unsplash.com/photo-1518310383802-640c2de311b2?w=600&q=80"
     };
   });
+
+  // Custom Category Thumbnails (Bolinhas / Stories)
+  const [categoryThumbnails, setCategoryThumbnails] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('ap_vitrine_category_thumbnails');
+      if (saved) return JSON.parse(saved);
+    } catch(e) {}
+    return {};
+  });
+
+  // Listen for category thumbnails updates across tabs or from Admin panel
+  useEffect(() => {
+    const handleThumbnailsUpdate = () => {
+      try {
+        const saved = localStorage.getItem('ap_vitrine_category_thumbnails');
+        if (saved) setCategoryThumbnails(JSON.parse(saved));
+      } catch (e) {}
+    };
+    window.addEventListener('storage', handleThumbnailsUpdate);
+    window.addEventListener('ap_category_thumbnails_updated', handleThumbnailsUpdate);
+    return () => {
+      window.removeEventListener('storage', handleThumbnailsUpdate);
+      window.removeEventListener('ap_category_thumbnails_updated', handleThumbnailsUpdate);
+    };
+  }, []);
 
   // Floating campaign promotion banner configuration (Default: 1st Purchase Coupon)
   const [floatingBanner, setFloatingBanner] = useState<any>(() => {
@@ -1591,11 +1595,11 @@ export default function PublicCatalog({
     }
   };
 
-  // Lists categories
+  // Lists categories (combining products categories with any user-configured custom thumbnails)
   const categoriesList = useMemo(() => {
-    const list = new Set(products.map(p => p.category).filter(Boolean));
-    return ['Todos', ...Array.from(list)];
-  }, [products]);
+    const list = new Set(['Todos', ...products.map(p => p.category).filter(Boolean), ...Object.keys(categoryThumbnails).filter(Boolean)]);
+    return Array.from(list);
+  }, [products, categoryThumbnails]);
 
   // Dynamic sizes and colors for filter drawer
   const sizeOrder = useMemo(() => ['P', 'M', 'G', 'GG', 'G1', 'G2', 'G3'], []);
@@ -3862,7 +3866,7 @@ export default function PublicCatalog({
         <div className="flex items-center gap-4 overflow-x-auto pb-4 pt-1 scrollbar-none scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
           {categoriesList.map(cat => {
             const isSelected = selectedCategory === cat;
-            const thumbnail = getCategoryThumbnail(cat);
+            const thumbnail = getCategoryThumbnail(cat, categoryThumbnails, products);
             return (
               <button
                 key={`story-cat-${cat}`}
