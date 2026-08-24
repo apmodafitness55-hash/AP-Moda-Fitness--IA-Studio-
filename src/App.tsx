@@ -1020,8 +1020,48 @@ export default function App() {
       // 5. Sincroniza Vendas
       const dbSales = await fetchSalesFromSupabase();
       if (dbSales && dbSales.length > 0) {
-        setSales(dbSales);
-        localStorage.setItem('ap_moda_sales', JSON.stringify(dbSales));
+        const localSales = lastSalesRef.current && lastSalesRef.current.length > 0 ? lastSalesRef.current : sales;
+        const localSalesMap = new Map(localSales.map(s => [s.id, s]));
+        
+        let manualSalesMap = new Map();
+        try {
+          const savedM = localStorage.getItem('ap_manual_partner_sales');
+          if (savedM) {
+            const parsedM = JSON.parse(savedM);
+            if (Array.isArray(parsedM)) {
+              parsedM.forEach(m => {
+                if (m.id) {
+                  manualSalesMap.set(m.id.toLowerCase(), m);
+                  manualSalesMap.set(m.id.replace('#', '').toLowerCase(), m);
+                }
+              });
+            }
+          }
+        } catch(e) {}
+
+        const mergedDbSales = dbSales.map(dbS => {
+          const sIdLower = (dbS.id || '').toLowerCase();
+          const localS = localSalesMap.get(dbS.id) || localSalesMap.get(sIdLower);
+          const manualM = manualSalesMap.get(sIdLower) || manualSalesMap.get(sIdLower.replace('ped-', '#ped-')) || manualSalesMap.get(sIdLower.replace('#', ''));
+          
+          const partner = dbS.partner || (dbS as any).partnerName || (localS && (localS.partner || (localS as any).partnerName)) || (manualM && manualM.partnerName) || undefined;
+          const partnerName = (dbS as any).partnerName || dbS.partner || (localS && ((localS as any).partnerName || localS.partner)) || (manualM && manualM.partnerName) || undefined;
+          const partnerId = dbS.partnerId || (localS && localS.partnerId) || (manualM && manualM.partnerId) || undefined;
+          const couponCode = dbS.couponCode || (dbS as any).partnerCoupon || (localS && (localS.couponCode || (localS as any).partnerCoupon)) || (manualM && manualM.couponCode) || undefined;
+          
+          return {
+            ...dbS,
+            partner: partner || dbS.partner,
+            partnerName: partnerName || (dbS as any).partnerName,
+            partnerId: partnerId || dbS.partnerId,
+            couponCode: couponCode || dbS.couponCode,
+            partnerCoupon: couponCode || (dbS as any).partnerCoupon,
+            coupon: couponCode || (dbS as any).coupon
+          };
+        });
+
+        setSales(mergedDbSales);
+        localStorage.setItem('ap_moda_sales', JSON.stringify(mergedDbSales));
       } else {
         if (isSeeded) {
           console.log('[Supabase Sync] Banco de vendas vazio na nuvem e sistema já semeado. Respeitando estado limpo.');
@@ -1802,28 +1842,60 @@ export default function App() {
         let localModified = false;
         const merged = [...currentSales];
 
+        let manualSalesMap = new Map();
+        try {
+          const savedM = localStorage.getItem('ap_manual_partner_sales');
+          if (savedM) {
+            const parsedM = JSON.parse(savedM);
+            if (Array.isArray(parsedM)) {
+              parsedM.forEach(m => {
+                if (m.id) {
+                  manualSalesMap.set(m.id.toLowerCase(), m);
+                  manualSalesMap.set(m.id.replace('#', '').toLowerCase(), m);
+                }
+              });
+            }
+          }
+        } catch(e) {}
+
         for (const dbS of dbSales) {
-          const localS = localMap.get(dbS.id);
+          const sIdLower = (dbS.id || '').toLowerCase();
+          const localS = localMap.get(dbS.id) || localMap.get(sIdLower);
+          const manualM = manualSalesMap.get(sIdLower) || manualSalesMap.get(sIdLower.replace('ped-', '#ped-')) || manualSalesMap.get(sIdLower.replace('#', ''));
+          
+          const localHasPartner = !!(localS && (localS.partner || localS.partnerId || (localS as any).partnerName || localS.couponCode));
+          const manualHasPartner = !!(manualM && (manualM.partnerName || manualM.partnerId || manualM.couponCode));
+          const remoteHasPartner = !!(dbS.partner || dbS.partnerId || (dbS as any).partnerName || dbS.couponCode);
+
+          const partner = dbS.partner || (localS && (localS.partner || (localS as any).partnerName)) || (manualM && manualM.partnerName);
+          const partnerName = (dbS as any).partnerName || dbS.partner || (localS && ((localS as any).partnerName || localS.partner)) || (manualM && manualM.partnerName);
+          const partnerId = dbS.partnerId || (localS && localS.partnerId) || (manualM && manualM.partnerId);
+          const couponCode = dbS.couponCode || (dbS as any).partnerCoupon || (localS && (localS.couponCode || (localS as any).partnerCoupon)) || (manualM && manualM.couponCode);
+
+          const effectiveDbS = (localHasPartner || manualHasPartner) && !remoteHasPartner
+            ? {
+                ...dbS,
+                partner: partner || undefined,
+                partnerName: partnerName || undefined,
+                partnerId: partnerId || undefined,
+                couponCode: couponCode || undefined,
+                partnerCoupon: couponCode || undefined,
+                coupon: couponCode || undefined
+              }
+            : {
+                ...dbS,
+                partner: partner || dbS.partner,
+                partnerName: partnerName || (dbS as any).partnerName,
+                partnerId: partnerId || dbS.partnerId,
+                couponCode: couponCode || dbS.couponCode,
+                partnerCoupon: couponCode || (dbS as any).partnerCoupon,
+                coupon: couponCode || (dbS as any).coupon
+              };
+
           if (!localS) {
-            merged.push(dbS);
+            merged.push(effectiveDbS);
             localModified = true;
           } else if (!remainingDirty.includes(dbS.id)) {
-            // Preserve local partner data if remote record lacks it
-            const localHasPartner = !!(localS.partner || localS.partnerId || localS.partnerName);
-            const remoteHasPartner = !!(dbS.partner || dbS.partnerId || dbS.partnerName);
-
-            const effectiveDbS = (localHasPartner && !remoteHasPartner)
-              ? {
-                  ...dbS,
-                  partner: localS.partner || (localS as any).partnerName,
-                  partnerName: (localS as any).partnerName || localS.partner,
-                  partnerId: localS.partnerId,
-                  couponCode: localS.couponCode || (localS as any).partnerCoupon,
-                  partnerCoupon: (localS as any).partnerCoupon || localS.couponCode,
-                  coupon: (localS as any).coupon || localS.couponCode
-                }
-              : dbS;
-
             if (JSON.stringify(localS) !== JSON.stringify(effectiveDbS)) {
               const idx = merged.findIndex(x => x.id === dbS.id);
               if (idx >= 0) merged[idx] = effectiveDbS;
@@ -2908,7 +2980,14 @@ export default function App() {
               deliveryMethod: o.deliveryMethod || '',
               address: o.address || '',
               tipo_envio: o.deliveryMethod || 'correios',
-              status_logistico: newStatus === 'Entregue' ? 'entregue' : 'pendente'
+              status_logistico: newStatus === 'Entregue' ? 'entregue' : 'pendente',
+              partner: o.partner || o.partnerName || undefined,
+              partnerName: o.partnerName || o.partner || undefined,
+              partnerId: o.partnerId || undefined,
+              couponCode: o.couponCode || o.coupon || o.partnerCoupon || undefined,
+              partnerCoupon: o.partnerCoupon || o.couponCode || o.coupon || undefined,
+              coupon: o.coupon || o.couponCode || undefined,
+              notes: o.notes || undefined
             };
 
             setTimeout(() => {

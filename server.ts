@@ -1803,7 +1803,14 @@ app.post('/api/webhook/payment', async (req, res) => {
       terminal_id: null,
       valor_bruto: Number(order.total || 0),
       taxa_financeira: 0,
-      valor_liquido: Number(order.total || 0)
+      valor_liquido: Number(order.total || 0),
+      partner: order.partner || order.partnerName || null,
+      partnerName: order.partnerName || order.partner || null,
+      partnerId: order.partnerId || null,
+      couponCode: order.couponCode || order.coupon || order.partnerCoupon || null,
+      partnerCoupon: order.partnerCoupon || order.couponCode || order.coupon || null,
+      coupon: order.coupon || order.couponCode || null,
+      notes: order.notes || null
     };
 
     const { error: saleInsertErr } = await firebase

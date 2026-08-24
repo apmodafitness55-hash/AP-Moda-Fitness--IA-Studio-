@@ -98,6 +98,91 @@ export default function VendasList({
     };
   }, [getRegisteredPartners]);
 
+  // Robust partner information resolver combining all storage sources (Sale, OnlineOrders, Manual Partner Sales, Coupon Matching)
+  const resolveSalePartnerInfo = useCallback((sale: Sale) => {
+    const directPartner = sale.partner || (sale as any).partnerName || (sale as any).partnerId;
+    const directCoupon = sale.couponCode || (sale as any).partnerCoupon || (sale as any).coupon;
+    
+    // 1. Check manual partner sales storage
+    let manualItem: any = null;
+    try {
+      const savedManual = localStorage.getItem('ap_manual_partner_sales');
+      if (savedManual) {
+        const parsed = JSON.parse(savedManual);
+        if (Array.isArray(parsed)) {
+          const sIdLower = (sale.id || '').toLowerCase();
+          manualItem = parsed.find((m: any) => {
+            const mIdLower = (m.id || '').toLowerCase();
+            return mIdLower === sIdLower || 
+              mIdLower === sIdLower.replace('ped-', '#ped-') || 
+              mIdLower.replace('#', '') === sIdLower.replace('#', '');
+          });
+        }
+      }
+    } catch(e) {}
+
+    // 2. Check online orders list
+    let orderItem: any = null;
+    if (Array.isArray(onlineOrders)) {
+      const sIdLower = (sale.id || '').toLowerCase();
+      orderItem = onlineOrders.find((o: any) => {
+        const oIdLower = (o.id || '').toLowerCase();
+        return oIdLower === sIdLower || 
+          oIdLower === sIdLower.replace('ped-', '#ped-') || 
+          oIdLower.replace('#', '') === sIdLower.replace('#', '');
+      });
+    }
+
+    let partnerName = directPartner || (manualItem ? manualItem.partnerName : null) || (orderItem ? (orderItem.partnerName || orderItem.partner) : null);
+    let couponCode = directCoupon || (manualItem ? manualItem.couponCode : null) || (orderItem ? (orderItem.couponCode || orderItem.partnerCoupon || orderItem.coupon) : null);
+    let partnerId = sale.partnerId || (manualItem ? manualItem.partnerId : null) || (orderItem ? orderItem.partnerId : null);
+
+    // If we have couponCode but no partnerName, find partner in registeredPartners by couponCode
+    if (!partnerName && couponCode) {
+      const cleanCoupon = String(couponCode).trim().toUpperCase();
+      const matchPartner = registeredPartners.find((p: any) => {
+        const pCoupon = (p.couponCode || '').trim().toUpperCase();
+        const pLogin = (p.login || '').trim().toUpperCase();
+        return pCoupon === cleanCoupon || (pLogin && (pLogin === cleanCoupon || pLogin + '10' === cleanCoupon));
+      });
+      if (matchPartner) {
+        partnerName = matchPartner.name;
+        if (!partnerId) partnerId = matchPartner.id;
+      }
+    }
+
+    // If we have partnerName or partnerId but no coupon, find coupon from registeredPartners
+    if (partnerName && !couponCode) {
+      const matchPartner = registeredPartners.find((p: any) => 
+        p.id === partnerId || 
+        (p.name && p.name.toLowerCase().trim() === String(partnerName).toLowerCase().trim()) ||
+        (p.name && String(partnerName).toLowerCase().trim().includes(p.name.toLowerCase().trim()))
+      );
+      if (matchPartner) {
+        couponCode = matchPartner.couponCode;
+        if (!partnerId) partnerId = matchPartner.id;
+      }
+    }
+
+    const hasPartner = !!(partnerName || couponCode);
+    let displayLabel = '';
+    if (partnerName && couponCode) {
+      displayLabel = `${partnerName} (${couponCode})`;
+    } else if (partnerName) {
+      displayLabel = partnerName;
+    } else if (couponCode) {
+      displayLabel = `Cupom: ${couponCode}`;
+    }
+
+    return {
+      hasPartner,
+      partnerName: partnerName || '',
+      couponCode: couponCode || '',
+      partnerId: partnerId || '',
+      displayLabel
+    };
+  }, [onlineOrders, registeredPartners]);
+
   const [selectedSaleForPartnerLinking, setSelectedSaleForPartnerLinking] = useState<Sale | null>(null);
   const [linkingPartnerId, setLinkingPartnerId] = useState<string>('');
 
@@ -117,12 +202,12 @@ export default function VendasList({
       if (s.id === saleId) {
         targetSaleObj = {
           ...s,
-          partner: updatedPartnerName,
-          partnerName: updatedPartnerName,
-          partnerId: updatedPartnerId,
-          couponCode: updatedCouponCode,
-          partnerCoupon: updatedCouponCode,
-          coupon: updatedCouponCode
+          partner: updatedPartnerName || undefined,
+          partnerName: updatedPartnerName || undefined,
+          partnerId: updatedPartnerId || undefined,
+          couponCode: updatedCouponCode || undefined,
+          partnerCoupon: updatedCouponCode || undefined,
+          coupon: updatedCouponCode || undefined
         };
         return targetSaleObj;
       }
@@ -146,15 +231,15 @@ export default function VendasList({
     let targetOrderObj: any = null;
     const currentOrders = Array.isArray(onlineOrders) ? onlineOrders : [];
     const updatedOrders = currentOrders.map((o: any) => {
-      if (o.id === saleId) {
+      if (o.id === saleId || o.id.toLowerCase() === saleId.toLowerCase() || (saleId.startsWith('ped-') && o.id.replace('#', '').toLowerCase() === saleId.toLowerCase())) {
         targetOrderObj = {
           ...o,
-          partnerName: updatedPartnerName,
-          partner: updatedPartnerName,
-          partnerId: updatedPartnerId,
-          couponCode: updatedCouponCode,
-          partnerCoupon: updatedCouponCode,
-          coupon: updatedCouponCode
+          partnerName: updatedPartnerName || undefined,
+          partner: updatedPartnerName || undefined,
+          partnerId: updatedPartnerId || undefined,
+          couponCode: updatedCouponCode || undefined,
+          partnerCoupon: updatedCouponCode || undefined,
+          coupon: updatedCouponCode || undefined
         };
         return targetOrderObj;
       }
@@ -181,7 +266,11 @@ export default function VendasList({
     try {
       const savedGlobal = localStorage.getItem('ap_manual_partner_sales');
       const parsedGlobal: any[] = savedGlobal ? JSON.parse(savedGlobal) : [];
-      let updatedGlobal = parsedGlobal.filter((g: any) => g.id !== saleId);
+      let updatedGlobal = parsedGlobal.filter((g: any) => 
+        g.id !== saleId && 
+        g.id.toLowerCase() !== saleId.toLowerCase() && 
+        g.id.replace('#', '').toLowerCase() !== saleId.replace('#', '').toLowerCase()
+      );
 
       if (chosenPartner) {
         const saleDateStr = selectedSaleForPartnerLinking.createdAt 
@@ -192,6 +281,7 @@ export default function VendasList({
           id: saleId,
           partnerId: chosenPartner.id,
           partnerName: chosenPartner.name,
+          couponCode: chosenPartner.couponCode || '',
           clientName: selectedSaleForPartnerLinking.clientName || 'Cliente',
           total: selectedSaleForPartnerLinking.total || 0,
           date: saleDateStr,
@@ -220,13 +310,10 @@ export default function VendasList({
 
           const matchedSales = updatedSales.filter(s => {
             if (s.status === 'Cancelada') return false;
-            const sPId = (s.partnerId || '').trim();
-            const sPName = (s.partner || (s as any).partnerName || '').toLowerCase().trim();
-            const sCoupon = (s.couponCode || (s as any).partnerCoupon || (s as any).appliedCoupon?.code || '').toUpperCase().trim();
-
-            if (sPId) return sPId === pId;
-            if (sPName) return sPName === pNameLower || sPName.includes(pNameLower);
-            if (sCoupon && pCouponUpper) return sCoupon === pCouponUpper;
+            const sInfo = resolveSalePartnerInfo(s);
+            if (sInfo.partnerId && sInfo.partnerId === pId) return true;
+            if (sInfo.partnerName && (sInfo.partnerName.toLowerCase().trim() === pNameLower || sInfo.partnerName.toLowerCase().trim().includes(pNameLower))) return true;
+            if (sInfo.couponCode && pCouponUpper && sInfo.couponCode.toUpperCase().trim() === pCouponUpper) return true;
             return false;
           });
 
@@ -517,10 +604,13 @@ export default function VendasList({
     return sales.filter(sale => {
       // Search Box matching
       const query = searchTerm.toLowerCase();
+      const pInfo = resolveSalePartnerInfo(sale);
       const matchesSearch = 
         sale.id.toLowerCase().includes(query) ||
         sale.clientName.toLowerCase().includes(query) ||
         (sale.salesperson && sale.salesperson.toLowerCase().includes(query)) ||
+        (pInfo.partnerName && pInfo.partnerName.toLowerCase().includes(query)) ||
+        (pInfo.couponCode && pInfo.couponCode.toLowerCase().includes(query)) ||
         sale.items.some(it => it.name.toLowerCase().includes(query));
 
       // Channel matching
@@ -542,7 +632,7 @@ export default function VendasList({
 
       return matchesSearch && matchesChannel && matchesStatus && matchesSeller && matchesPayMethod && matchesStartDate && matchesEndDate;
     });
-  }, [sales, searchTerm, selectedChannel, selectedStatus, selectedSalesperson, selectedPayMethod, startDate, endDate]);
+  }, [sales, searchTerm, selectedChannel, selectedStatus, selectedSalesperson, selectedPayMethod, startDate, endDate, resolveSalePartnerInfo]);
 
   const handleExportCSV = () => {
     try {
@@ -892,38 +982,40 @@ export default function VendasList({
 
                     {/* Parceira / Cupom */}
                     <td className="p-3 font-medium whitespace-nowrap">
-                      {(sale.partner || (sale as any).partnerName || sale.couponCode || (sale as any).partnerCoupon) ? (
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] font-bold text-pink-700 bg-pink-50 border border-pink-200 px-1.5 py-0.5 rounded-md flex items-center gap-1">
-                            <span>🏷️ {sale.partner || (sale as any).partnerName || sale.couponCode}</span>
-                          </span>
+                      {(() => {
+                        const pInfo = resolveSalePartnerInfo(sale);
+                        if (pInfo.hasPartner) {
+                          return (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10.5px] font-bold text-pink-700 bg-pink-50/90 border border-pink-200 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
+                                <span>🏷️ {pInfo.displayLabel}</span>
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setSelectedSaleForPartnerLinking(sale);
+                                  setLinkingPartnerId(pInfo.partnerId || '');
+                                }}
+                                className="p-1 text-slate-400 hover:text-pink-600 hover:bg-pink-50 rounded transition cursor-pointer"
+                                title="Editar Parceiro Vinculado"
+                              >
+                                <Edit size={12} />
+                              </button>
+                            </div>
+                          );
+                        }
+                        return (
                           <button
                             onClick={() => {
                               setSelectedSaleForPartnerLinking(sale);
-                              const matchP = registeredPartners.find((p: any) => 
-                                (sale.partner && p.name.toLowerCase() === sale.partner.toLowerCase()) || 
-                                (sale.couponCode && p.couponCode === sale.couponCode)
-                              );
-                              setLinkingPartnerId(matchP ? matchP.id : '');
+                              setLinkingPartnerId('');
                             }}
-                            className="p-1 text-slate-400 hover:text-pink-600 transition cursor-pointer"
-                            title="Alterar Parceiro da Venda"
+                            className="text-[10px] font-bold text-slate-500 hover:text-pink-600 bg-slate-100 hover:bg-pink-50 border border-slate-200 hover:border-pink-200 px-2 py-0.5 rounded-md flex items-center gap-1 transition cursor-pointer"
                           >
-                            <Edit size={11} />
+                            <Plus size={11} />
+                            <span>+ Vincular Parceiro</span>
                           </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setSelectedSaleForPartnerLinking(sale);
-                            setLinkingPartnerId('');
-                          }}
-                          className="text-[10px] font-bold text-slate-500 hover:text-pink-600 bg-slate-100 hover:bg-pink-50 border border-slate-200 hover:border-pink-200 px-2 py-0.5 rounded-md flex items-center gap-1 transition cursor-pointer"
-                        >
-                          <Plus size={11} />
-                          <span>+ Vincular Parceiro</span>
-                        </button>
-                      )}
+                        );
+                      })()}
                     </td>
 
                     {/* Itens Comprados */}
