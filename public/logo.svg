@@ -1,0 +1,20 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='1024' height='1024' viewBox='0 0 1024 1024'>
+  <!-- Crisp white circular background -->
+  <rect width='1024' height='1024' fill='#ffffff'/>
+  
+  <!-- Outer subtle circular border -->
+  <circle cx='512' cy='512' r='480' fill='#ffffff' stroke='#18181b' stroke-width='10'/>
+  <circle cx='512' cy='512' r='462' fill='#ffffff' stroke='#e4e4e7' stroke-width='3'/>
+
+  <!-- Monogram AP2 -->
+  <g text-anchor='middle' dominant-baseline='central'>
+    <!-- AP Letters in elegant serif -->
+    <text x='470' y='475' font-family='Liberation Serif, C059, FreeSerif, serif' font-size='420' font-weight='bold' fill='#09090b' letter-spacing='-15'>AP</text>
+    
+    <!-- Subscript 2 badge -->
+    <text x='745' y='535' font-family='Liberation Sans, FreeSans, sans-serif' font-size='165' font-weight='800' fill='#09090b'>2</text>
+    
+    <!-- MODA FITNESS subtitle with wide letter spacing -->
+    <text x='512' y='740' font-family='Liberation Sans, FreeSans, sans-serif' font-size='58' font-weight='700' letter-spacing='22' fill='#27272a'>MODA FITNESS</text>
+  </g>
+</svg>

@@ -10,7 +10,8 @@
     <link rel="canonical" href="https://www.apmodafitness2.com.br" />
     
     <!-- Favicon and Brand Logo Icons for Google Search Snippets, Mobile and Desktop Browsers -->
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
     <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192x192.png" />
@@ -24,6 +25,8 @@
     <meta property="og:title" content="AP2 Moda Fitness | Loja Oficial de Roupas Fitness Femininas" />
     <meta property="og:description" content="Loja oficial AP2 Moda Fitness (@ap_moda_fitness2). Leggings, tops e conjuntos de academia de alta performance com entrega rápida." />
     <meta property="og:image" content="https://www.apmodafitness2.com.br/logo.png" />
+    <meta property="og:image:width" content="1024" />
+    <meta property="og:image:height" content="1024" />
     <meta property="og:site_name" content="AP2 Moda Fitness" />
     <meta property="og:locale" content="pt_BR" />
 
@@ -33,21 +36,30 @@
     <meta name="twitter:description" content="Boutique de moda fitness feminina premium. Siga @ap_moda_fitness2 no Instagram." />
     <meta name="twitter:image" content="https://www.apmodafitness2.com.br/logo.png" />
 
-    <!-- Google Structured Data (JSON-LD) for ClothingStore, Official Instagram and Search Snippets -->
+    <!-- Google Structured Data (JSON-LD) for Organization, ClothingStore, and Social Identity -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "ClothingStore",
       "@id": "https://www.apmodafitness2.com.br/#store",
       "name": "AP2 Moda Fitness",
-      "alternateName": ["AP Moda Fitness", "AP2 Moda Fitness Premium", "@ap_moda_fitness2"],
+      "alternateName": [
+        "AP Moda Fitness",
+        "AP2 Moda Fitness Premium",
+        "ap_moda_fitness2",
+        "@ap_moda_fitness2"
+      ],
       "url": "https://www.apmodafitness2.com.br",
-      "logo": "https://www.apmodafitness2.com.br/favicon-192x192.png",
-      "image": "https://www.apmodafitness2.com.br/logo.png",
+      "logo": "https://www.apmodafitness2.com.br/logo.png",
+      "image": [
+        "https://www.apmodafitness2.com.br/logo.png",
+        "https://www.apmodafitness2.com.br/favicon-192x192.png"
+      ],
       "telephone": "+55-84-99198-2963",
       "priceRange": "$$",
       "sameAs": [
-        "https://www.instagram.com/ap_moda_fitness2/"
+        "https://www.instagram.com/ap_moda_fitness2/",
+        "https://instagram.com/ap_moda_fitness2"
       ],
       "address": {
         "@type": "PostalAddress",
@@ -57,6 +69,7 @@
         "postalCode": "59280-000",
         "addressCountry": "BR"
       },
+      "disambiguatingDescription": "Loja oficial online da AP2 Moda Fitness (@ap_moda_fitness2) em São José de Mipibu - RN. Peças de alta compressão, conforto e tecnologia para o seu treino.",
       "description": "Loja oficial da AP2 Moda Fitness. Peças de alta compressão, conforto e tecnologia para o seu treino."
     }
     </script>
@@ -64,8 +77,9 @@
     {
       "@context": "https://schema.org",
       "@type": "WebSite",
+      "@id": "https://www.apmodafitness2.com.br/#website",
       "name": "AP2 Moda Fitness",
-      "alternateName": "AP2 Moda Fitness Loja Oficial",
+      "alternateName": ["AP2 Moda Fitness Loja Oficial", "ap_moda_fitness2"],
       "url": "https://www.apmodafitness2.com.br"
     }
     </script>
