@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   DollarSign, 
   Search, 
@@ -28,6 +28,7 @@ import {
   Check
 } from 'lucide-react';
 import { Transaction, Sale, Product } from '../types';
+import { getStoredPartnerWithdrawRequests, PartnerWithdrawRequest } from '../utils/partnerUtils';
 
 interface FinanceCashflowProps {
   transactions: Transaction[];
@@ -45,6 +46,23 @@ export default function FinanceCashflow({
   products = []
 }: FinanceCashflowProps) {
   const [activeMainTab, setActiveMainTab] = useState<'caixa' | 'saude'>('caixa');
+  const [partnerWithdraws, setPartnerWithdraws] = useState<PartnerWithdrawRequest[]>(() => getStoredPartnerWithdrawRequests());
+
+  useEffect(() => {
+    const handleSync = () => setPartnerWithdraws(getStoredPartnerWithdrawRequests());
+    window.addEventListener('ap-partner-withdraws-updated', handleSync);
+    window.addEventListener('ap-partner-withdraw-alert', handleSync);
+    window.addEventListener('ap-storage-synced', handleSync);
+    return () => {
+      window.removeEventListener('ap-partner-withdraws-updated', handleSync);
+      window.removeEventListener('ap-partner-withdraw-alert', handleSync);
+      window.removeEventListener('ap-storage-synced', handleSync);
+    };
+  }, []);
+
+  const pendingWithdraws = useMemo(() => partnerWithdraws.filter(r => r.status === 'Pendente'), [partnerWithdraws]);
+  const pendingPartnerWithdrawsCount = pendingWithdraws.length;
+  const pendingPartnerWithdrawsTotal = pendingWithdraws.reduce((acc, r) => acc + (r.amount || 0), 0);
   const [saudePeriod, setSaudePeriod] = useState<'current_month' | 'last_month' | 'last_30' | 'last_90' | 'all'>('current_month');
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -452,6 +470,41 @@ export default function FinanceCashflow({
 
       {activeMainTab === 'caixa' ? (
         <>
+          {/* Banner de alerta de saques de parceiros pendentes */}
+          {pendingPartnerWithdrawsCount > 0 && (
+            <div className="bg-gradient-to-r from-pink-500/10 via-rose-500/10 to-pink-500/5 border border-pink-200/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-pink-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs animate-bounce">
+                  💸
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-2">
+                    <span>{pendingPartnerWithdrawsCount} solicitação(ões) de saque Pix de parceiras aguardando pagamento</span>
+                    <span className="bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full font-mono">
+                      PENDENTE
+                    </span>
+                  </h4>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    Total a transferir: <strong className="text-pink-700 font-mono font-bold">{formatCurrency(pendingPartnerWithdrawsTotal)}</strong> para repasse de comissões via Pix.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const crmBtn = document.querySelector('[data-tab="crm"]') as HTMLElement;
+                    if (crmBtn) crmBtn.click();
+                    else window.dispatchEvent(new CustomEvent('ap-navigate-tab', { detail: 'crm' }));
+                  }}
+                  className="px-3 py-1.5 bg-pink-600 hover:bg-pink-700 text-white font-extrabold text-[11px] rounded-xl transition shadow-xs cursor-pointer whitespace-nowrap"
+                >
+                  Ver no CRM de Parceiras →
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Advanced Finance KPI cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Caixa Realizado (Real Realized Safe) */}

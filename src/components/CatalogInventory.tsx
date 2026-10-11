@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { Product } from '../types';
 import ImageUploader from './ImageUploader';
+import { getOptimizedImageUrl, handleImageFallback } from '../utils/imageUtils';
 
 interface CatalogInventoryProps {
   products: Product[];
@@ -1065,7 +1066,7 @@ export default function CatalogInventory({
                     {/* Item Image and Name */}
                     <td className="p-4 flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-100 bg-slate-50 shrink-0">
-                        <img src={p.image} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <img src={getOptimizedImageUrl(p.image, 160)} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={handleImageFallback} />
                       </div>
                       <div>
                         <span className="font-semibold text-slate-800 text-xs block leading-tight">{p.name}</span>
@@ -1676,7 +1677,7 @@ export default function CatalogInventory({
                             <span className="font-mono text-slate-350 font-bold">#{idx + 1}</span>
                             <div className="w-8 h-8 rounded bg-slate-50 overflow-hidden flex-shrink-0">
                               {p.image ? (
-                                <img src={p.image} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                <img src={getOptimizedImageUrl(p.image, 160)} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={handleImageFallback} />
                               ) : (
                                 <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-400">🧥</div>
                               )}
@@ -3402,7 +3403,7 @@ function ProductGradeCard({ product, onUpdateProduct }: ProductGradeCardProps) {
       <div>
         <div className="flex items-center gap-3 border-b border-slate-50 pb-3">
           <div className="w-12 h-12 rounded-lg overflow-hidden border border-slate-100 bg-slate-50 shrink-0">
-            <img src={product.image} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            <img src={getOptimizedImageUrl(product.image, 600)} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={handleImageFallback} />
           </div>
           <div className="min-w-0 flex-1">
             <h4 className="font-semibold text-slate-800 text-xs truncate leading-tight">{product.name}</h4>

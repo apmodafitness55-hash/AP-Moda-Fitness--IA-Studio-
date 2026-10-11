@@ -729,6 +729,51 @@ export async function syncSystemConfigsWithSupabase(...args: any[]) {
         }
       }
 
+      // Sync ap_partner_withdraw_requests (Solicitações de Saque de Parceiras)
+      const withdrawsCfg = configs.find((c: any) => c.key === 'ap_partner_withdraw_requests');
+      if (withdrawsCfg && withdrawsCfg.value) {
+        const remoteVal = typeof withdrawsCfg.value === 'string' ? withdrawsCfg.value : JSON.stringify(withdrawsCfg.value);
+        const localVal = localStorage.getItem('ap_partner_withdraw_requests');
+        if (remoteVal !== localVal) {
+          try {
+            const parsedRemote = JSON.parse(remoteVal);
+            const parsedLocal = localVal ? JSON.parse(localVal) : [];
+            const localIds = new Set(parsedLocal.map((r: any) => r.id));
+            const newRequests = Array.isArray(parsedRemote) 
+              ? parsedRemote.filter((r: any) => !localIds.has(r.id) && r.status === 'Pendente')
+              : [];
+
+            localStorage.setItem('ap_partner_withdraw_requests', remoteVal);
+            
+            // Sincroniza também nos caches individuais de cada parceira
+            if (Array.isArray(parsedRemote)) {
+              const byPartner = new Map<string, any[]>();
+              for (const r of parsedRemote) {
+                if (!byPartner.has(r.partnerId)) byPartner.set(r.partnerId, []);
+                byPartner.get(r.partnerId).push(r);
+              }
+              byPartner.forEach((list, pId) => {
+                try {
+                  localStorage.setItem('ap_withdraw_requests_' + pId, JSON.stringify(list));
+                } catch (e) {}
+              });
+            }
+
+            if (newRequests.length > 0) {
+              window.dispatchEvent(new CustomEvent('ap-partner-withdraw-alert', { 
+                detail: { newRequests, allRequests: parsedRemote } 
+              }));
+            }
+            window.dispatchEvent(new CustomEvent('ap-partner-withdraws-updated', { 
+              detail: parsedRemote 
+            }));
+          } catch (e) {
+            localStorage.setItem('ap_partner_withdraw_requests', remoteVal);
+          }
+          localModified = true;
+        }
+      }
+
       if (localModified) {
         window.dispatchEvent(new Event('ap-storage-synced'));
       }

@@ -61,6 +61,7 @@ import { pushSystemConfigToSupabase } from '../supabase';
 import { CheckoutWizard } from './CheckoutWizard';
 import { getStoreConfig, getWhatsAppUrl, formatWhatsAppNumber } from '../utils/storeConfig';
 import { resolveCategoryBubbleImage, getFallbackCategoryPhoto } from './CategoryBubblesManager';
+import { getOptimizedImageUrl, handleImageFallback } from '../utils/imageUtils';
 
 export function validateCPF(cpf: string): boolean {
   const cleanCPF = cpf.replace(/\D/g, '');
@@ -3891,10 +3892,13 @@ export default function PublicCatalog({
                   {/* Round image container */}
                   <div className="w-full h-full rounded-full overflow-hidden bg-slate-50 border border-white">
                     <img 
-                      src={thumbnail} 
+                      src={getOptimizedImageUrl(thumbnail, 160)} 
                       alt={cat} 
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover transition duration-500 group-hover:scale-110"
                       referrerPolicy="no-referrer"
+                      onError={handleImageFallback}
                     />
                   </div>
                 </div>
@@ -4049,10 +4053,13 @@ export default function PublicCatalog({
                         className="relative aspect-[3/4] rounded-xl overflow-hidden bg-slate-50 border border-[#1E3A42]/5 cursor-pointer hover:scale-102 transition duration-300"
                       >
                         <img 
-                          src={pair.top.image} 
+                          src={getOptimizedImageUrl(pair.top.image, 500)} 
                           alt={pair.top.name} 
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover" 
                           referrerPolicy="no-referrer"
+                          onError={handleImageFallback}
                         />
                         <div className="absolute bottom-1.5 left-1.5 right-1.5 bg-black/50 backdrop-blur-xs py-0.5 px-1 rounded text-[8px] font-bold text-white uppercase text-center truncate">
                           {pair.top.category || 'Peça Superior'}
@@ -4064,10 +4071,13 @@ export default function PublicCatalog({
                         className="relative aspect-[3/4] rounded-xl overflow-hidden bg-slate-50 border border-[#1E3A42]/5 cursor-pointer hover:scale-102 transition duration-300"
                       >
                         <img 
-                          src={pair.bottom.image} 
+                          src={getOptimizedImageUrl(pair.bottom.image, 500)} 
                           alt={pair.bottom.name} 
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover" 
                           referrerPolicy="no-referrer"
+                          onError={handleImageFallback}
                         />
                         <div className="absolute bottom-1.5 left-1.5 right-1.5 bg-black/50 backdrop-blur-xs py-0.5 px-1 rounded text-[8px] font-bold text-white uppercase text-center truncate">
                           {pair.bottom.category || 'Peça Inferior'}
@@ -4314,10 +4324,13 @@ export default function PublicCatalog({
                     <div className="relative aspect-[3/4] w-full rounded-2xl bg-white overflow-hidden shadow-xs cursor-pointer border border-slate-100/65" onClick={() => handleOpenProduct(prod)}>
                       {prod.image ? (
                         <img 
-                          src={prod.image} 
+                          src={getOptimizedImageUrl(prod.image, 600)} 
                           alt={prod.name} 
+                          loading="lazy"
+                          decoding="async"
                           className={`w-full h-full object-cover group-hover:scale-104 transition-transform duration-700 ${isOutOfStock ? 'opacity-75 grayscale-[20%]' : ''}`}
                           referrerPolicy="no-referrer"
+                          onError={handleImageFallback}
                         />
                       ) : (
                         <div className="w-full h-full bg-slate-50 flex flex-col items-center justify-center p-4 text-center text-slate-400 group-hover:bg-slate-100 transition-colors duration-500">
@@ -4770,10 +4783,11 @@ export default function PublicCatalog({
                             ${isCurrent ? 'border-[#1E3A42]' : 'border-transparent opacity-75 hover:opacity-100'}`}
                         >
                           <img 
-                            src={imgUrl} 
+                            src={getOptimizedImageUrl(imgUrl, 160)} 
                             alt={`${selectedProduct.name} vista ${idx + 1}`} 
                             className="w-full h-full object-cover" 
                             referrerPolicy="no-referrer"
+                            onError={handleImageFallback}
                           />
                         </button>
                       );
@@ -5160,10 +5174,11 @@ export default function PublicCatalog({
                         <div className="flex items-center gap-3">
                           <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-slate-50 border border-slate-100 flex-shrink-0 flex items-center justify-center">
                             <img 
-                              src={compProduct.image} 
+                              src={getOptimizedImageUrl(compProduct.image, 160)} 
                               alt={compProduct.name} 
                               className="w-full h-full object-cover" 
                               referrerPolicy="no-referrer"
+                              onError={handleImageFallback}
                             />
                           </div>
                           <div className="flex-1 text-left min-w-0">
@@ -5344,7 +5359,14 @@ export default function PublicCatalog({
                           className="w-28 shrink-0 space-y-1.5 cursor-pointer bg-white hover:bg-slate-50 p-2 border border-slate-100 rounded-xl"
                         >
                           <div className="aspect-[3/4] rounded-lg overflow-hidden relative">
-                            <img src={rel.image} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            <img 
+                              src={rel.image} 
+                              alt={rel.name}
+                              loading="lazy"
+                              decoding="async"
+                              className="w-full h-full object-cover" 
+                              referrerPolicy="no-referrer" 
+                            />
                           </div>
                           <div className="text-left leading-tight text-[9px]">
                             <p className="font-extrabold text-slate-700 truncate">{rel.name}</p>

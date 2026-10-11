@@ -45,6 +45,7 @@ import { MarketingSalesHub } from './MarketingSalesHub';
 import { Coupon, getStoredCoupons, saveStoredCoupons } from '../utils/couponUtils';
 import { getStoreConfig, getWhatsAppUrl } from '../utils/storeConfig';
 import CategoryBubblesManager, { resolveCategoryBubbleImage } from './CategoryBubblesManager';
+import { getOptimizedImageUrl, handleImageFallback } from '../utils/imageUtils';
 
 interface LojaOnlineProps {
   products: Product[];
@@ -1581,10 +1582,11 @@ export default function LojaOnline({
                     >
                       <div className="w-full h-full rounded-full overflow-hidden bg-slate-800">
                         <img 
-                          src={resolved.url} 
+                          src={getOptimizedImageUrl(resolved.url, 160)} 
                           alt={cat} 
                           className="w-full h-full object-cover"
                           referrerPolicy="no-referrer"
+                          onError={handleImageFallback}
                         />
                       </div>
                     </div>
@@ -1692,7 +1694,7 @@ export default function LojaOnline({
                 <div className="flex-grow space-y-3.5 overflow-y-auto pr-1">
                   {/* Photo & Category */}
                   <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-slate-900">
-                    <img src={selectedDetailProduct.image} alt={selectedDetailProduct.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    <img src={getOptimizedImageUrl(selectedDetailProduct.image, 1000)} alt={selectedDetailProduct.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={handleImageFallback} />
                     <span className="absolute top-2 left-2 bg-slate-950/80 backdrop-blur-xs text-[8px] font-bold text-pink-400 px-1.5 py-0.5 rounded uppercase tracking-wider font-mono">
                       {selectedDetailProduct.category}
                     </span>
@@ -1850,7 +1852,15 @@ export default function LojaOnline({
                         setDetailQty(1);
                       }}
                     >
-                      <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <img 
+                        src={getOptimizedImageUrl(prod.image, 600)} 
+                        alt={prod.name} 
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover" 
+                        referrerPolicy="no-referrer" 
+                        onError={handleImageFallback}
+                      />
                       <span className="absolute top-1 left-1.5 bg-slate-900/85 backdrop-blur-xs text-[8px] font-bold text-pink-400 px-1 py-0.5 rounded uppercase font-mono">{prod.category}</span>
                     </div>
                     <p 
@@ -3260,7 +3270,14 @@ export default function LojaOnline({
                               <td className="p-3">
                                 <div className="flex items-center gap-2.5">
                                   <div className="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 shrink-0">
-                                    <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    <img 
+                                      src={prod.image} 
+                                      alt={prod.name} 
+                                      loading="lazy"
+                                      decoding="async"
+                                      className="w-full h-full object-cover" 
+                                      referrerPolicy="no-referrer" 
+                                    />
                                   </div>
                                   <div>
                                     <p className="font-bold text-slate-800 text-[11px] leading-tight line-clamp-1">{prod.name}</p>

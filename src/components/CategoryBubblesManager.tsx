@@ -20,6 +20,7 @@ import {
 import { Product } from '../types';
 import ImageUploader from './ImageUploader';
 import { pushSystemConfigToSupabase } from '../supabase';
+import { getOptimizedImageUrl, handleImageFallback } from '../utils/imageUtils';
 
 interface CategoryBubblesManagerProps {
   products: Product[];
@@ -382,10 +383,11 @@ export default function CategoryBubblesManager({
                     >
                       <div className="w-full h-full rounded-full overflow-hidden bg-slate-200 border border-white">
                         <img
-                          src={resolved.url}
+                          src={getOptimizedImageUrl(resolved.url, 160)}
                           alt={category}
                           className="w-full h-full object-cover"
                           referrerPolicy="no-referrer"
+                          onError={handleImageFallback}
                         />
                       </div>
                     </div>

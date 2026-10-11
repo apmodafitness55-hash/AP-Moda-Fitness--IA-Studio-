@@ -25,6 +25,7 @@ import {
 import { ActiveTab, Product, Sale, Client, Transaction } from './types';
 import { INITIAL_PRODUCTS, INITIAL_CLIENTS, INITIAL_SALES, INITIAL_TRANSACTIONS, INITIAL_TEAM_MEMBERS } from './data/mockData';
 import { playSaleSuccessSound, playNotificationSound } from './lib/audioFeedback';
+import { getStoredPartnerWithdrawRequests, PartnerWithdrawRequest } from './utils/partnerUtils';
 
 import Sidebar from './components/Sidebar';
 import DashboardOverview from './components/DashboardOverview';
@@ -488,6 +489,16 @@ export default function App() {
   } | null>(null);
 
   const alertedSaleIdsRef = useRef<Set<string>>(new Set());
+  const [newWithdrawToast, setNewWithdrawToast] = useState<{
+    id: string;
+    partnerName: string;
+    partnerCoupon?: string;
+    amount: number;
+    pixKeyType?: string;
+    pixKey?: string;
+    date?: string;
+  } | null>(null);
+  const alertedWithdrawIdsRef = useRef<Set<string>>(new Set());
 
   const [notificationPermission, setNotificationPermission] = useState<string>(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -596,6 +607,99 @@ export default function App() {
 
     // 6. WhatsApp Business API notification trigger
     triggerWhatsAppAlert('sale_completed', saleData);
+  }, []);
+
+  const triggerPartnerWithdrawAlert = useCallback((withdrawData: {
+    id: string;
+    partnerName: string;
+    partnerCoupon?: string;
+    amount: number;
+    pixKeyType?: string;
+    pixKey?: string;
+    date?: string;
+  }) => {
+    if (!withdrawData || !withdrawData.id) return;
+    if (alertedWithdrawIdsRef.current.has(withdrawData.id)) {
+      return;
+    }
+    alertedWithdrawIdsRef.current.add(withdrawData.id);
+
+    // 1. Play notification sound
+    try {
+      playSaleSuccessSound();
+    } catch (err) {
+      console.warn('Could not play sound:', err);
+    }
+
+    // 2. Desktop Web Push Notification
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        const formattedValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(withdrawData.amount || 0);
+        const notification = new Notification('💸 Solicitação de Saque Pix - Parceira!', {
+          body: `${withdrawData.partnerName} (${withdrawData.partnerCoupon || 'Parceira'}) solicitou resgate de ${formattedValue}.\nChave Pix (${withdrawData.pixKeyType || 'Pix'}): ${withdrawData.pixKey || 'Não informada'}\nClique para ver no CRM.`,
+          icon: '/icon.png',
+          tag: `withdraw-${withdrawData.id}`,
+          requireInteraction: true
+        });
+        notification.onclick = () => {
+          window.focus();
+          setActiveTab(ActiveTab.CLIENTES);
+          setCustomersCRMSubTab('parceiros');
+        };
+      } catch (e) {
+        console.warn('Failed to display web notification:', e);
+      }
+    }
+
+    // 3. Flashing browser tab title
+    if (typeof document !== 'undefined') {
+      const originalTitle = document.title || 'AP Moda Fitness';
+      let count = 0;
+      const interval = setInterval(() => {
+        count++;
+        document.title = (count % 2 === 0)
+          ? `💸 (1 SAQUE PIX SOLICITADO!) AP Moda Fitness`
+          : `🎁 R$ ${(withdrawData.amount || 0).toFixed(2)} - ${withdrawData.partnerName}`;
+        if (count >= 14) {
+          clearInterval(interval);
+          document.title = originalTitle;
+        }
+      }, 900);
+      const resetTitle = () => {
+        clearInterval(interval);
+        document.title = originalTitle;
+        window.removeEventListener('focus', resetTitle);
+        window.removeEventListener('click', resetTitle);
+      };
+      window.addEventListener('focus', resetTitle);
+      window.addEventListener('click', resetTitle);
+    }
+
+    // 4. Floating On-Screen Toast Alert
+    setNewWithdrawToast({
+      id: withdrawData.id,
+      partnerName: withdrawData.partnerName,
+      partnerCoupon: withdrawData.partnerCoupon,
+      amount: withdrawData.amount,
+      pixKeyType: withdrawData.pixKeyType || 'Pix',
+      pixKey: withdrawData.pixKey || '',
+      date: withdrawData.date || new Date().toLocaleDateString('pt-BR')
+    });
+    setTimeout(() => {
+      setNewWithdrawToast(prev => (prev?.id === withdrawData.id ? null : prev));
+    }, 15000);
+
+    // 5. System Notification List Item
+    const newNotify = {
+      id: Date.now() + Math.random(),
+      title: `💸 Saque Pix: ${withdrawData.partnerName}`,
+      detail: `${withdrawData.partnerName} solicitou resgate de R$ ${(withdrawData.amount || 0).toFixed(2)}. Chave Pix (${withdrawData.pixKeyType || 'Pix'}): ${withdrawData.pixKey}.`,
+      read: false,
+      type: 'partner_withdraw' as const,
+      requestId: withdrawData.id,
+      data: withdrawData
+    };
+    setNotifications(prev => [newNotify, ...prev]);
   }, []);
 
   // Previous state refs for delta comparisons
@@ -2607,6 +2711,47 @@ export default function App() {
     };
   }, [systemOffline]);
 
+  // Efeito para escuta ativa de solicitações de saque de parceiros
+  useEffect(() => {
+    const handlePartnerWithdraw = (e: any) => {
+      const detail = e.detail;
+      if (detail && detail.newRequests && Array.isArray(detail.newRequests)) {
+        detail.newRequests.forEach((req: any) => triggerPartnerWithdrawAlert(req));
+      } else if (detail && detail.id) {
+        triggerPartnerWithdrawAlert(detail);
+      }
+    };
+
+    window.addEventListener('ap-partner-withdraw-alert', handlePartnerWithdraw);
+    window.addEventListener('ap-partner-withdraw-requested', handlePartnerWithdraw);
+
+    // Carrega solicitações pendentes no sino de notificações ao iniciar o sistema
+    try {
+      const stored = getStoredPartnerWithdrawRequests();
+      const pendings = stored.filter(r => r.status === 'Pendente');
+      if (pendings.length > 0) {
+        setNotifications(prev => {
+          const existingIds = new Set(prev.map(n => n.requestId || n.id));
+          const toAdd = pendings.filter(p => !existingIds.has(p.id)).map(p => ({
+            id: Date.now() + Math.random(),
+            title: `💸 Saque Pix: ${p.partnerName}`,
+            detail: `${p.partnerName} (${p.partnerCoupon}) solicitou resgate de R$ ${p.amount.toFixed(2)}. Chave Pix (${p.pixKeyType}): ${p.pixKey}.`,
+            read: false,
+            type: 'partner_withdraw' as const,
+            requestId: p.id,
+            data: p
+          }));
+          return toAdd.length > 0 ? [...toAdd, ...prev] : prev;
+        });
+      }
+    } catch (e) {}
+
+    return () => {
+      window.removeEventListener('ap-partner-withdraw-alert', handlePartnerWithdraw);
+      window.removeEventListener('ap-partner-withdraw-requested', handlePartnerWithdraw);
+    };
+  }, [triggerPartnerWithdrawAlert]);
+
   // WhatsApp Business API triggers (com suporte a fila offline)
   const triggerWhatsAppAlert = async (type: 'sale_completed' | 'stock_alert', data: any, forceSync = false) => {
     // Se o sistema estiver offline e não for forçado, enfileira
@@ -3950,6 +4095,68 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* Floating Toast Alert Banner for Real-Time Partner Pix Withdraws */}
+        {newWithdrawToast && (
+          <div className="fixed top-28 right-4 z-50 bg-gradient-to-r from-pink-600 via-rose-600 to-pink-800 text-white p-4 rounded-2xl shadow-2xl border border-pink-300/40 max-w-sm w-full animate-in slide-in-from-top-6 duration-300">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl shrink-0 animate-bounce">
+                💸
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-extrabold text-[11px] uppercase tracking-wider text-pink-100 font-mono">
+                    Solicitação de Saque Pix!
+                  </span>
+                  <span className="bg-pink-300 text-pink-950 font-black text-[9px] px-2 py-0.5 rounded-full uppercase font-mono shadow-xs shrink-0">
+                    Parceira
+                  </span>
+                </div>
+                <p className="text-sm font-black text-white truncate mt-0.5">
+                  {newWithdrawToast.partnerName} {newWithdrawToast.partnerCoupon ? `(${newWithdrawToast.partnerCoupon})` : ''}
+                </p>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-xs font-extrabold text-pink-200">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(newWithdrawToast.amount || 0)}
+                  </span>
+                  <span className="text-[10px] text-pink-100/90 font-medium font-mono">
+                    {newWithdrawToast.pixKeyType}: {newWithdrawToast.pixKey}
+                  </span>
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <button 
+                    onClick={() => {
+                      if (newWithdrawToast.pixKey) {
+                        navigator.clipboard.writeText(newWithdrawToast.pixKey);
+                        alert('Chave Pix copiada para a área de transferência!');
+                      }
+                    }}
+                    className="flex-1 bg-white/20 hover:bg-white/30 text-white font-extrabold text-xs py-1.5 px-2 rounded-xl transition-all shadow-xs cursor-pointer text-center"
+                  >
+                    📋 Copiar Pix
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setActiveTab(ActiveTab.CLIENTES);
+                      setCustomersCRMSubTab('parceiros');
+                      setNewWithdrawToast(null);
+                    }} 
+                    className="flex-1 bg-white text-pink-900 hover:bg-pink-50 active:scale-95 font-extrabold text-xs py-1.5 px-3 rounded-xl transition-all shadow-md cursor-pointer text-center"
+                  >
+                    Ver no CRM →
+                  </button>
+                  <button 
+                    onClick={() => setNewWithdrawToast(null)}
+                    className="text-white/80 hover:text-white hover:bg-white/10 p-1.5 rounded-lg text-xs transition-colors cursor-pointer"
+                    title="Fechar Notificação"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       {/* Sidebar navigation */}
       <Sidebar 
         activeTab={activeTab} 
@@ -4106,7 +4313,7 @@ export default function App() {
               {isNotificationsOpen && (
                 <div id="notifications-menu" className="absolute right-0 mt-3 bg-white border border-slate-100 rounded-xl shadow-xl w-80 p-3 z-50 text-xs space-y-2 text-left animate-in fade-in-50 duration-200">
                   <div className="flex justify-between items-center border-b border-slate-50 pb-2">
-                    <span className="font-bold text-slate-800">Alertas de Vendas ao Vivo</span>
+                    <span className="font-bold text-slate-800 flex items-center gap-1.5"><span>Alertas do Sistema</span><span className="bg-pink-100 text-pink-700 text-[9px] font-mono px-1.5 py-0.2 rounded-full">Vendas & Parceiras</span></span>
                     <button 
                       onClick={() => setNotifications(prev => prev.map(n => ({...n, read: true})))}
                       className="text-pink-600 hover:text-pink-700 font-bold text-[10px] cursor-pointer"
@@ -4137,12 +4344,52 @@ export default function App() {
 
                   <div className="divide-y divide-slate-50 max-h-60 overflow-y-auto">
                     {notifications.length === 0 ? (
-                      <p className="py-4 text-center text-slate-400 text-[11px]">Nenhuma nova notificação de venda</p>
+                      <p className="py-4 text-center text-slate-400 text-[11px]">Nenhuma nova notificação</p>
                     ) : (
                       notifications.map(n => (
-                        <div key={n.id} className={`py-2 text-slate-700 leading-tight ${!n.read ? 'bg-pink-50/30 px-1.5 py-1.5 rounded-lg border-l-2 border-pink-500' : ''}`}>
-                          <p className="font-semibold">{n.title}</p>
-                          <p className="text-slate-400 text-[10px] mt-0.5">{n.detail}</p>
+                        <div key={n.id} className={`py-2.5 text-slate-700 leading-tight transition-colors ${!n.read ? 'bg-pink-50/40 px-2 py-2 rounded-lg border-l-3 border-pink-500' : 'px-2'}`}>
+                          <div className="flex items-start justify-between gap-1.5">
+                            <p className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                              {n.type === 'partner_withdraw' ? (
+                                <span className="bg-pink-100 text-pink-700 font-extrabold text-[9px] px-1.5 py-0.2 rounded font-mono">PIX PARCEIRA</span>
+                              ) : n.type === 'sale' ? (
+                                <span className="bg-emerald-100 text-emerald-700 font-extrabold text-[9px] px-1.5 py-0.2 rounded font-mono">VENDA</span>
+                              ) : null}
+                              <span>{n.title}</span>
+                            </p>
+                            {!n.read && (
+                              <span className="w-2 h-2 rounded-full bg-pink-500 shrink-0 mt-1"></span>
+                            )}
+                          </div>
+                          <p className="text-slate-500 text-[10.5px] mt-1 leading-snug">{n.detail}</p>
+                          {n.type === 'partner_withdraw' && n.data && (
+                            <div className="mt-2 flex items-center gap-2">
+                              {n.data.pixKey && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigator.clipboard.writeText(n.data.pixKey);
+                                    alert('Chave Pix copiada com sucesso!');
+                                  }}
+                                  className="text-[9.5px] font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-2 py-0.5 rounded cursor-pointer transition shadow-2xs"
+                                >
+                                  📋 Copiar Chave
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveTab(ActiveTab.CLIENTES);
+                                  setCustomersCRMSubTab('parceiros');
+                                  setIsNotificationsOpen(false);
+                                }}
+                                className="text-[9.5px] font-bold bg-pink-600 text-white hover:bg-pink-700 px-2 py-0.5 rounded cursor-pointer transition shadow-2xs"
+                              >
+                                Abrir no CRM →
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ))
                     )}

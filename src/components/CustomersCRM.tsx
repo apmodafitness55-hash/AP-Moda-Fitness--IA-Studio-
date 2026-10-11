@@ -45,6 +45,7 @@ import {
   Tag
 } from 'lucide-react';
 import { Client, Sale, SalesChannel } from '../types';
+import { getStoredPartnerWithdrawRequests, updatePartnerWithdrawRequestStatus, PartnerWithdrawRequest } from '../utils/partnerUtils';
 import { pushSystemConfigToSupabase, syncBulkSalesToSupabase, syncBulkOnlineOrdersToSupabase } from '../supabase';
 import { getWhatsAppUrl } from '../utils/storeConfig';
 
@@ -811,6 +812,51 @@ export default function CustomersCRM({
   const [partInsta, setPartInsta] = useState('');
   const [partCoupon, setPartCoupon] = useState('');
   const [partRate, setPartRate] = useState(10);
+
+  // State for partner withdraw requests management
+  const [withdrawRequests, setWithdrawRequests] = useState<PartnerWithdrawRequest[]>(() => getStoredPartnerWithdrawRequests());
+  const [withdrawFilter, setWithdrawFilter] = useState<'todas' | 'pendente' | 'pago' | 'rejeitado'>('todas');
+  const [withdrawSearch, setWithdrawSearch] = useState<string>('');
+  const [copiedPixId, setCopiedPixId] = useState<string | null>(null);
+  const [withdrawFeedbackMsg, setWithdrawFeedbackMsg] = useState<string>('');
+
+  // Keep withdraw requests synced in real-time
+  useEffect(() => {
+    const refreshWithdraws = () => {
+      setWithdrawRequests(getStoredPartnerWithdrawRequests());
+    };
+    window.addEventListener('ap-partner-withdraws-updated', refreshWithdraws);
+    window.addEventListener('ap-partner-withdraw-alert', refreshWithdraws);
+    window.addEventListener('ap-partner-withdraw-requested', refreshWithdraws);
+    window.addEventListener('ap-storage-synced', refreshWithdraws);
+    return () => {
+      window.removeEventListener('ap-partner-withdraws-updated', refreshWithdraws);
+      window.removeEventListener('ap-partner-withdraw-alert', refreshWithdraws);
+      window.removeEventListener('ap-partner-withdraw-requested', refreshWithdraws);
+      window.removeEventListener('ap-storage-synced', refreshWithdraws);
+    };
+  }, []);
+
+  const handleMarkWithdrawPaid = async (req: PartnerWithdrawRequest) => {
+    const formatted = formatCurrency(req.amount);
+    if (!window.confirm(`Confirmar que o Pix de ${formatted} foi transferido para ${req.partnerName} (${req.pixKey})?`)) {
+      return;
+    }
+    const updated = await updatePartnerWithdrawRequestStatus(req.id, 'Pago');
+    setWithdrawRequests(updated);
+    setWithdrawFeedbackMsg(`✅ Solicitação #${req.id} de ${req.partnerName} marcada como Paga! Portal da parceira atualizado.`);
+    setTimeout(() => setWithdrawFeedbackMsg(''), 5000);
+  };
+
+  const handleRejectWithdraw = async (req: PartnerWithdrawRequest) => {
+    const formatted = formatCurrency(req.amount);
+    const reason = window.prompt(`Motivo da recusa para ${req.partnerName} (o valor de ${formatted} será devolvido ao saldo dela):`, 'Dados da chave Pix incorretos');
+    if (reason === null) return;
+    const updated = await updatePartnerWithdrawRequestStatus(req.id, 'Rejeitado', reason);
+    setWithdrawRequests(updated);
+    setWithdrawFeedbackMsg(`⚠️ Solicitação #${req.id} rejeitada. Saldo de ${formatted} estornado com sucesso.`);
+    setTimeout(() => setWithdrawFeedbackMsg(''), 5000);
+  };
 
   // CRM Analytics computations
   const averageNpsScore = useMemo(() => {
@@ -1915,6 +1961,256 @@ export default function CustomersCRM({
             </form>
           </div>
 
+          {/* Central de Solicitações de Saque Pix das Parceiras */}
+          <div className="lg:col-span-3 bg-white border border-slate-100 rounded-2xl p-5 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-pink-100/60 text-pink-600 flex items-center justify-center font-black">
+                  💸
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-sm tracking-tight flex items-center gap-2">
+                    <span>Solicitações de Saque Pix das Parceiras</span>
+                    {withdrawRequests.filter(r => r.status === 'Pendente').length > 0 && (
+                      <span className="bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full animate-pulse">
+                        {withdrawRequests.filter(r => r.status === 'Pendente').length} PENDENTE(S)
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    Acompanhe, copie a chave Pix e confirme o pagamento das comissões solicitadas pelas influenciadoras
+                  </p>
+                </div>
+              </div>
+
+              {/* Status filter buttons */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {(['todas', 'pendente', 'pago', 'rejeitado'] as const).map(f => {
+                  const count = f === 'todas' 
+                    ? withdrawRequests.length 
+                    : withdrawRequests.filter(r => r.status.toLowerCase() === f).length;
+                  return (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => setWithdrawFilter(f)}
+                      className={`px-2.5 py-1 rounded-lg font-bold text-[10px] capitalize transition cursor-pointer ${
+                        withdrawFilter === f
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {f} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Feedback message banner */}
+            {withdrawFeedbackMsg && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-xs animate-in fade-in duration-200">
+                {withdrawFeedbackMsg}
+              </div>
+            )}
+
+            {/* KPI Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-amber-50/60 border border-amber-200/60 rounded-xl p-3">
+                <span className="text-[9px] font-extrabold text-amber-700 uppercase tracking-wider block">
+                  Aguardando Pagamento Pix
+                </span>
+                <span className="font-mono font-black text-lg text-amber-900 mt-0.5 block">
+                  {formatCurrency(
+                    withdrawRequests
+                      .filter(r => r.status === 'Pendente')
+                      .reduce((acc, r) => acc + (r.amount || 0), 0)
+                  )}
+                </span>
+                <span className="text-[9px] text-amber-600 font-medium">
+                  {withdrawRequests.filter(r => r.status === 'Pendente').length} solicitação(ões) pendente(s)
+                </span>
+              </div>
+
+              <div className="bg-emerald-50/60 border border-emerald-200/60 rounded-xl p-3">
+                <span className="text-[9px] font-extrabold text-emerald-700 uppercase tracking-wider block">
+                  Total Pago / Repassado
+                </span>
+                <span className="font-mono font-black text-lg text-emerald-900 mt-0.5 block">
+                  {formatCurrency(
+                    withdrawRequests
+                      .filter(r => r.status === 'Pago' || r.status === 'Aprovado')
+                      .reduce((acc, r) => acc + (r.amount || 0), 0)
+                  )}
+                </span>
+                <span className="text-[9px] text-emerald-600 font-medium">
+                  {withdrawRequests.filter(r => r.status === 'Pago' || r.status === 'Aprovado').length} resgates concluídos
+                </span>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3">
+                <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-wider block">
+                  Total Geral de Solicitações
+                </span>
+                <span className="font-mono font-black text-lg text-slate-800 mt-0.5 block">
+                  {formatCurrency(
+                    withdrawRequests.reduce((acc, r) => acc + (r.amount || 0), 0)
+                  )}
+                </span>
+                <span className="text-[9px] text-slate-400 font-medium">
+                  {withdrawRequests.length} pedidos de saque no histórico
+                </span>
+              </div>
+            </div>
+
+            {/* Table of requests */}
+            <div className="overflow-x-auto rounded-xl border border-slate-100">
+              <table className="w-full text-[11px] font-sans text-left">
+                <thead className="bg-slate-50 text-slate-500 font-extrabold uppercase text-[9px] tracking-wider border-b border-slate-100">
+                  <tr>
+                    <th className="py-2.5 px-3">Protocolo</th>
+                    <th className="py-2.5 px-3">Data</th>
+                    <th className="py-2.5 px-3">Parceira</th>
+                    <th className="py-2.5 px-3">Valor (R$)</th>
+                    <th className="py-2.5 px-3">Chave Pix</th>
+                    <th className="py-2.5 px-3 text-center">Status</th>
+                    <th className="py-2.5 px-3 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                  {withdrawRequests
+                    .filter(req => {
+                      if (withdrawFilter !== 'todas' && req.status.toLowerCase() !== withdrawFilter) {
+                        return false;
+                      }
+                      if (withdrawSearch.trim()) {
+                        const q = withdrawSearch.toLowerCase();
+                        return (
+                          req.partnerName.toLowerCase().includes(q) ||
+                          req.partnerCoupon.toLowerCase().includes(q) ||
+                          req.pixKey.toLowerCase().includes(q)
+                        );
+                      }
+                      return true;
+                    })
+                    .map(req => {
+                      const isPending = req.status === 'Pendente';
+                      const isPaid = req.status === 'Pago' || req.status === 'Aprovado';
+                      const isCopied = copiedPixId === req.id;
+
+                      return (
+                        <tr key={req.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3 px-3 font-mono font-bold text-slate-900 text-[10px]">
+                            {req.id}
+                          </td>
+                          <td className="py-3 px-3 text-slate-500 whitespace-nowrap">
+                            {req.date}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="font-bold text-slate-900 block">{req.partnerName}</span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[9px] bg-pink-50 text-pink-700 px-1.5 py-0.2 rounded font-mono font-bold">
+                                Cupom: {req.partnerCoupon}
+                              </span>
+                              {req.partnerInstagram && (
+                                <span className="text-[9px] text-slate-400">
+                                  {req.partnerInstagram}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 font-mono font-extrabold text-slate-900 text-xs whitespace-nowrap">
+                            {formatCurrency(req.amount)}
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-[10px] text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded max-w-[130px] truncate" title={req.pixKey}>
+                                {req.pixKey}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(req.pixKey);
+                                  setCopiedPixId(req.id);
+                                  setTimeout(() => setCopiedPixId(null), 2000);
+                                }}
+                                className="px-1.5 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[9px] font-bold transition cursor-pointer shrink-0"
+                                title="Copiar chave Pix"
+                              >
+                                {isCopied ? 'Copiado! ✓' : 'Copiar'}
+                              </button>
+                            </div>
+                            <span className="text-[9px] text-slate-400 mt-0.5 block">
+                              Tipo: {req.pixKeyType}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-center whitespace-nowrap">
+                            <span
+                              className={`font-black text-[9px] px-2.5 py-1 rounded-full uppercase tracking-wider inline-block ${
+                                isPaid
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : isPending
+                                  ? 'bg-amber-100 text-amber-800 animate-pulse'
+                                  : 'bg-rose-100 text-rose-800'
+                              }`}
+                            >
+                              {req.status}
+                            </span>
+                            {req.paidAt && (
+                              <span className="text-[8px] text-slate-400 block mt-0.5 font-mono">
+                                {new Date(req.paidAt).toLocaleDateString('pt-BR')}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {isPending && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMarkWithdrawPaid(req)}
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] rounded-lg transition active:scale-95 shadow-2xs cursor-pointer flex items-center gap-1"
+                                    title="Marcar Pix como pago"
+                                  >
+                                    <span>✓ Pago</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRejectWithdraw(req)}
+                                    className="px-2 py-1 bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 font-bold text-[10px] rounded-lg transition cursor-pointer"
+                                    title="Rejeitar e devolver saldo à parceira"
+                                  >
+                                    ✕
+                                  </button>
+                                </>
+                              )}
+                              {isPaid && (
+                                <span className="text-[10px] text-emerald-700 font-extrabold flex items-center justify-end gap-1">
+                                  <span>Concluído</span>
+                                </span>
+                              )}
+                              {req.status === 'Rejeitado' && (
+                                <span className="text-[10px] text-rose-600 font-bold" title={req.receiptNote || 'Sem observações'}>
+                                  Recusado
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                  {withdrawRequests.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400 italic">
+                        Nenhuma solicitação de saque Pix registrada até o momento.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 

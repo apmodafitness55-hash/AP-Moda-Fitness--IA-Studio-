@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { saveStoredPartners } from '../utils/partnerUtils';
+import { saveStoredPartners, addPartnerWithdrawRequest, getStoredPartnerWithdrawRequests, PartnerWithdrawRequest } from '../utils/partnerUtils';
 import { getAppUrl } from '../config';
 import { pushSystemConfigToSupabase, syncBulkSalesToSupabase, syncBulkOnlineOrdersToSupabase, fetchSystemConfigsFromSupabase } from '../supabase';
 import { 
@@ -582,9 +582,14 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
     setTimeout(() => setRetroSuccessMsg(''), 4000);
   };
 
-  // Withdraw requests history loaded from localStorage (no ghost defaults)
-  const [withdrawRequests, setWithdrawRequests] = useState<WithdrawRequest[]>(() => {
+  // Withdraw requests history loaded from global and localStorage
+  const [withdrawRequests, setWithdrawRequests] = useState<PartnerWithdrawRequest[]>(() => {
     try {
+      const globalList = getStoredPartnerWithdrawRequests();
+      if (Array.isArray(globalList) && globalList.length > 0) {
+        const mine = globalList.filter(r => r.partnerId === currentPartner.id);
+        if (mine.length > 0) return mine;
+      }
       const saved = localStorage.getItem(`ap_withdraw_requests_${currentPartner.id}`);
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -593,6 +598,25 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
     } catch(e){}
     return [];
   });
+
+  // Keep withdraw requests in sync with Supabase and admin actions
+  useEffect(() => {
+    const handleUpdated = (e: any) => {
+      try {
+        const globalList = e.detail || getStoredPartnerWithdrawRequests();
+        if (Array.isArray(globalList)) {
+          const mine = globalList.filter((r: any) => r.partnerId === currentPartner.id);
+          setWithdrawRequests(mine);
+        }
+      } catch (err) {}
+    };
+    window.addEventListener('ap-partner-withdraws-updated', handleUpdated);
+    window.addEventListener('ap-storage-synced', handleUpdated);
+    return () => {
+      window.removeEventListener('ap-partner-withdraws-updated', handleUpdated);
+      window.removeEventListener('ap-storage-synced', handleUpdated);
+    };
+  }, [currentPartner.id]);
 
   const [withdrawAmount, setWithdrawAmount] = useState<string>('');
   const [pixKeyType, setPixKeyType] = useState<string>('CPF/CNPJ');
@@ -719,18 +743,56 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
     updatePartnerBalance(nextBalance);
 
     // Add to request logs
-    const newReq: WithdrawRequest = {
-      id: `REQ-${Math.floor(100 + Math.random() * 900)}`,
+    const newReq: PartnerWithdrawRequest = {
+      id: `REQ-${Date.now().toString().slice(-6)}`,
+      partnerId: currentPartner.id,
+      partnerName: currentPartner.name,
+      partnerCoupon: currentPartner.couponCode,
+      partnerInstagram: currentPartner.instagram,
       amount: val,
       pixKeyType,
       pixKey,
       status: 'Pendente',
-      date: new Date().toISOString().split('T')[0]
+      date: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString()
     };
     
-    const updatedReqs = [newReq, ...withdrawRequests];
+    const updatedReqs = [newReq, ...withdrawRequests.filter(r => r.id !== newReq.id)];
     setWithdrawRequests(updatedReqs);
     localStorage.setItem(`ap_withdraw_requests_${currentPartner.id}`, JSON.stringify(updatedReqs));
+
+    // Sincroniza globalmente e envia para o Supabase
+    addPartnerWithdrawRequest(newReq).catch(err => {
+      console.error('Falha ao sincronizar solicitação de saque:', err);
+    });
+
+    // Envia notificação automática de WhatsApp para a gestão da AP Moda Fitness se configurada
+    try {
+      const token = localStorage.getItem('ap_whatsapp_token') || '';
+      const phoneId = localStorage.getItem('ap_whatsapp_phone_id') || '';
+      const recipient = localStorage.getItem('ap_whatsapp_recipient') || '';
+      const enabled = localStorage.getItem('ap_whatsapp_enabled') !== 'false';
+      if (enabled && (token || recipient)) {
+        fetch('/api/whatsapp/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            phoneId,
+            recipient,
+            type: 'partner_withdraw_request',
+            data: {
+              partnerName: currentPartner.name,
+              partnerCoupon: currentPartner.couponCode,
+              amount: val,
+              pixKeyType,
+              pixKey,
+              date: new Date().toLocaleDateString('pt-BR')
+            }
+          })
+        }).catch(e => console.warn('Falha no alerta WhatsApp de saque:', e));
+      }
+    } catch (e) {}
 
     // Also register inflow transaction in general cashflow to appear pending or outflow in the core system
     try {
@@ -740,7 +802,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
         id: `TX-PRT-${Math.floor(1000 + Math.random() * 9000)}`,
         type: 'Outflow',
         category: 'Comissão Parceiro',
-        description: `Saque comissão Pix enviado de ${currentPartner.name} (${currentPartner.couponCode})`,
+        description: `Saque comissão Pix solicitado por ${currentPartner.name} (${currentPartner.couponCode})`,
         amount: val,
         date: new Date().toISOString().split('T')[0]
       };
@@ -749,7 +811,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
 
     setWithdrawAmount('');
     setPixKey('');
-    setWithdrawSucessMsg(`✨ Solicitação registrada com sucesso! O valor de R$ ${val.toFixed(2)} foi programado para envio Pix no mesmo dia pela tesouraria da AP Moda Fitness.`);
+    setWithdrawSucessMsg(`✨ Solicitação registrada com sucesso! Notificação enviada em tempo real para o sistema da AP Moda Fitness. Protocolo: ${newReq.id}`);
   };
 
   const handleCopyCoupon = () => {

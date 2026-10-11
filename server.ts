@@ -10,6 +10,8 @@ import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import { createClient } from '@supabase/supabase-js';
+import sharp from 'sharp';
+import crypto from 'crypto';
 
 dotenv.config();
 
@@ -1001,6 +1003,7 @@ app.get('/api/images/:filename', (req, res) => {
     }
     const filePath = path.join(process.cwd(), 'uploads', filename);
     if (fs.existsSync(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       res.sendFile(filePath);
     } else {
       res.status(404).send('Imagem não encontrada localmente.');
@@ -1010,6 +1013,144 @@ app.get('/api/images/:filename', (req, res) => {
     res.status(500).send('Erro interno ao servir imagem.');
   }
 });
+
+// Static route for pre-compressed WebP product images
+app.use('/optimized-images', express.static(path.join(process.cwd(), 'public', 'optimized-images'), {
+  maxAge: '1y',
+  immutable: true
+}));
+
+// In-memory caches for CDN Proxy to guarantee sub-millisecond responses
+const cdnInFlight = new Map<string, Promise<Buffer>>();
+const cdnMemCache = new Map<string, { buffer: Buffer; contentType: string }>();
+
+// Fallback branded SVG for broken or unreachable external images
+const CDN_FALLBACK_SVG = Buffer.from(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="100%" height="100%">
+  <rect width="400" height="500" fill="#1E3A42" />
+  <circle cx="200" cy="210" r="50" fill="none" stroke="#ec4899" stroke-width="2.5" stroke-dasharray="4 4" />
+  <path d="M185 220 L200 190 L215 220 Z M193 212 L207 212" fill="none" stroke="#FAF9F6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+  <text x="200" y="295" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="800" fill="#FAF9F6" letter-spacing="3" text-anchor="middle">AP MODA FITNESS</text>
+  <text x="200" y="320" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" font-weight="600" fill="#ec4899" letter-spacing="2" text-anchor="middle">ALTA PERFORMANCE</text>
+</svg>
+`.trim());
+
+// High-speed on-the-fly Image CDN Proxy with Sharp compression and immutable caching
+app.get('/api/proxy/cdn-image', async (req, res) => {
+  try {
+    const rawUrl = req.query.url;
+    if (!rawUrl || typeof rawUrl !== 'string') {
+      return res.status(400).send('URL da imagem é obrigatória.');
+    }
+
+    const trimmedUrl = rawUrl.trim();
+    if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+      return res.status(400).send('URL deve ser http ou https.');
+    }
+
+    const width = Math.min(1600, Math.max(50, parseInt(req.query.w as string) || 800));
+    const quality = Math.min(100, Math.max(20, parseInt(req.query.q as string) || 80));
+
+    // 1. Check if we already have a pre-compressed static file in public/optimized-images
+    const preOptimizedDir = path.join(process.cwd(), 'public', 'optimized-images');
+    const md5Hash = crypto.createHash('md5').update(trimmedUrl).digest('hex');
+    const preOptimizedFile = path.join(preOptimizedDir, `${md5Hash}.webp`);
+    const preThumbFile = path.join(preOptimizedDir, 'thumbnails', `${md5Hash}.webp`);
+
+    if (width <= 200 && fs.existsSync(preThumbFile)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Content-Type', 'image/webp');
+      return res.sendFile(preThumbFile);
+    }
+    if (fs.existsSync(preOptimizedFile)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Content-Type', 'image/webp');
+      return res.sendFile(preOptimizedFile);
+    }
+
+    // 2. Cache key for dynamically converted images
+    const cacheKey = `${md5Hash}_w${width}_q${quality}`;
+    const cacheDir = path.join(process.cwd(), 'uploads', 'cdn_cache');
+    const cacheFile = path.join(cacheDir, `${cacheKey}.webp`);
+
+    // In-memory hot cache
+    const cachedMem = cdnMemCache.get(cacheKey);
+    if (cachedMem) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Content-Type', cachedMem.contentType);
+      return res.send(cachedMem.buffer);
+    }
+
+    // On-disk cache
+    if (fs.existsSync(cacheFile)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Content-Type', 'image/webp');
+      const fileBuf = fs.readFileSync(cacheFile);
+      if (fileBuf.length < 150000 && cdnMemCache.size < 100) {
+        cdnMemCache.set(cacheKey, { buffer: fileBuf, contentType: 'image/webp' });
+      }
+      return res.send(fileBuf);
+    }
+
+    // 3. Deduplicate in-flight requests for the exact same image
+    let fetchPromise = cdnInFlight.get(cacheKey);
+    if (!fetchPromise) {
+      fetchPromise = (async () => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+        const upstreamRes = await fetch(trimmedUrl, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+          }
+        });
+        clearTimeout(timeoutId);
+
+        if (!upstreamRes.ok) {
+          throw new Error(`Upstream responded with ${upstreamRes.status}`);
+        }
+
+        const origBuf = Buffer.from(await upstreamRes.arrayBuffer());
+        const transformed = await sharp(origBuf)
+          .rotate()
+          .resize({ width, fit: 'inside', withoutEnlargement: true })
+          .webp({ quality, effort: 3 })
+          .toBuffer();
+
+        if (!fs.existsSync(cacheDir)) {
+          fs.mkdirSync(cacheDir, { recursive: true });
+        }
+        fs.writeFile(cacheFile, transformed, () => {});
+
+        if (transformed.length < 150000 && cdnMemCache.size < 100) {
+          cdnMemCache.set(cacheKey, { buffer: transformed, contentType: 'image/webp' });
+        }
+
+        return transformed;
+      })();
+      cdnInFlight.set(cacheKey, fetchPromise);
+    }
+
+    try {
+      const buffer = await fetchPromise;
+      cdnInFlight.delete(cacheKey);
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Content-Type', 'image/webp');
+      return res.send(buffer);
+    } catch (err) {
+      cdnInFlight.delete(cacheKey);
+      console.warn(`[CDN Image Fetch Error] ${trimmedUrl}:`, err.message);
+      res.setHeader('Content-Type', 'image/svg+xml');
+      return res.send(CDN_FALLBACK_SVG);
+    }
+  } catch (err) {
+    console.error('[CDN Image Unhandled Error]:', err);
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(CDN_FALLBACK_SVG);
+  }
+});
+
 
 // Lazy-initialized Gemini Client to prevent crashes during container start
 const aiClientsMap = new Map<string, GoogleGenAI>();
@@ -1862,7 +2003,7 @@ async function getImgbbApiKeyFromDb(): Promise<string> {
   return process.env.IMGBB_API_KEY || '18601b3928fe35b4d0d517fe002c2df7';
 }
 
-// Upload de imagens no ImgBB com fallback para o Firebase Storage Bucket
+// Upload de imagens no ImgBB com fallback otimizado para Armazenamento Local
 app.post('/api/proxy/upload-image', async (req, res) => {
   try {
     const { file, name } = req.body;
@@ -1870,91 +2011,73 @@ app.post('/api/proxy/upload-image', async (req, res) => {
       return res.status(400).json({ error: 'Arquivo é obrigatório.' });
     }
 
-    let base64Data = '';
+    // Extrair buffer de imagem de Base64 ou data URI
+    let rawBuffer: Buffer;
     if (file.startsWith('data:')) {
       const match = file.match(/^data:(.+);base64,(.+)$/);
-      if (!match) {
-        return res.status(400).json({ error: 'Formato Base64 inválido.' });
-      }
-      base64Data = match[2];
-    } else {
-      base64Data = file;
-    }
-
-    // Obter Chave API do ImgBB
-    const apiKey = await getImgbbApiKeyFromDb();
-    console.log('[ImgBB Proxy] Iniciando upload seguro para o ImgBB...');
-
-    const body = new URLSearchParams();
-    body.append('image', base64Data);
-    if (name) {
-      body.append('name', name);
-    }
-
-    const imgbbRes = await fetchWithTimeout(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: body.toString()
-    }, 30000);
-
-    if (!imgbbRes.ok) {
-      const errText = await imgbbRes.text();
-      console.error('[ImgBB Proxy] Erro na resposta do ImgBB:', errText);
-      throw new Error(`Erro na API do ImgBB: ${imgbbRes.status} - ${errText}`);
-    }
-
-    const result = await imgbbRes.json() as any;
-    if (result && result.success && result.data && result.data.url) {
-      console.log('[ImgBB Proxy] Upload ImgBB concluído com sucesso. URL:', result.data.url);
-      return res.json({ success: true, url: result.data.url });
-    } else {
-      throw new Error('Formato de resposta inválido da API do ImgBB.');
-    }
-  } catch (err: any) {
-    console.error('[Proxy Upload Image ImgBB] Erro primário ImgBB:', err);
-    
-    // Fallback: Se falhar o upload no ImgBB, salva no Firebase Storage Bucket
-    try {
-      console.log('[Proxy Upload Image] Iniciando fallback no Firebase Storage...');
-      const { file, name } = req.body;
-      const match = file.match(/^data:(.+);base64,(.+)$/);
       if (match) {
-        const contentType = match[1];
-        const base64DataFallback = match[2];
-        const buffer = Buffer.from(base64DataFallback, 'base64');
-        const db = getFirebaseServerDb();
-
-        try {
-          await firebase.storage.createBucket('ap_images', {
-            public: true,
-            fileSizeLimit: 10485760
-          });
-        } catch (e) {}
-
-        const sanitizedName = (name || 'image.png').replace(/[^a-zA-Z0-9.]/g, '_');
-        const fileName = `${Date.now()}_${sanitizedName}`;
-
-        const { data, error } = await firebase.storage.from('ap_images').upload(fileName, buffer, {
-          contentType,
-          upsert: true
-        });
-
-        if (error) {
-          throw error;
-        }
-
-        const { data: publicUrlData } = firebase.storage.from('ap_images').getPublicUrl(fileName);
-        if (publicUrlData && publicUrlData.publicUrl) {
-          console.log('[Proxy Upload Image] Fallback no Firebase Storage bem-sucedido:', publicUrlData.publicUrl);
-          return res.json({ success: true, url: publicUrlData.publicUrl });
-        }
+        rawBuffer = Buffer.from(match[2], 'base64');
+      } else {
+        rawBuffer = Buffer.from(file.replace(/^data:[^;]+;base64,/, ''), 'base64');
       }
-    } catch (fallbackErr: any) {
-      console.error('[Proxy Upload Image] Erro gravíssimo tanto no ImgBB quanto no fallback de Firebase Storage:', fallbackErr);
+    } else {
+      rawBuffer = Buffer.from(file, 'base64');
     }
 
+    // Auto-otimização com Sharp para WebP de alta fidelidade e baixíssimo peso (máx 1200px)
+    let optimizedBuffer = rawBuffer;
+    let base64Data = '';
+    try {
+      optimizedBuffer = await sharp(rawBuffer)
+        .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 82 })
+        .toBuffer();
+      base64Data = optimizedBuffer.toString('base64');
+    } catch (sharpErr) {
+      console.warn('[Sharp compress warning]:', sharpErr);
+      base64Data = rawBuffer.toString('base64');
+    }
+
+    // Tentar upload via ImgBB se a chave estiver configurada
+    try {
+      const apiKey = await getImgbbApiKeyFromDb();
+      if (apiKey && apiKey !== '18601b3928fe35b4d0d517fe002c2df7') {
+        const body = new URLSearchParams();
+        body.append('image', base64Data);
+        if (name) body.append('name', name);
+
+        const imgbbRes = await fetchWithTimeout(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body.toString()
+        }, 15000);
+
+        if (imgbbRes.ok) {
+          const result = await imgbbRes.json() as any;
+          if (result && result.success && result.data && result.data.url) {
+            console.log('[ImgBB Proxy] Upload ImgBB concluído com sucesso. URL:', result.data.url);
+            return res.json({ success: true, url: result.data.url });
+          }
+        }
+      }
+    } catch (imgbbErr) {
+      console.warn('[ImgBB Upload Warning, usando fallback local]:', imgbbErr);
+    }
+
+    // Fallback: Armazena com compressão WebP no disco local do servidor (/uploads) com cache permanente
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    const sanitizedName = (name || 'image').replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const fileName = `${Date.now()}_${sanitizedName}.webp`;
+    fs.writeFileSync(path.join(uploadsDir, fileName), optimizedBuffer);
+    console.log('[Upload Local Fallback] Imagem salva com sucesso localmente:', fileName);
+
+    return res.json({ success: true, url: `/api/images/${fileName}` });
+  } catch (err: any) {
+    console.error('[Proxy Upload Image Error]:', err);
     res.status(500).json({ error: err.message || 'Erro durante o upload da imagem.' });
   }
 });
@@ -2829,17 +2952,42 @@ async function resolveDirectImageUrl(url: string): Promise<string> {
   return trimmed;
 }
 
+async function sanitizeAndCompressImage(val: string): Promise<string> {
+  if (!val || typeof val !== 'string') return val;
+  const trimmed = val.trim();
+  if (trimmed.startsWith('data:image/')) {
+    // If it's a huge base64 string (>40KB), auto-compress using sharp to WebP
+    if (trimmed.length > 40000) {
+      try {
+        const match = trimmed.match(/^data:image\/\w+;base64,(.+)$/);
+        if (match) {
+          const buf = Buffer.from(match[1], 'base64');
+          const compressed = await sharp(buf)
+            .resize(800, 1066, { fit: 'cover', withoutEnlargement: true })
+            .webp({ quality: 80 })
+            .toBuffer();
+          return 'data:image/webp;base64,' + compressed.toString('base64');
+        }
+      } catch (e) {
+        console.warn('[Auto-compress Product Image Warning]:', e);
+      }
+    }
+    return trimmed;
+  }
+  return await resolveDirectImageUrl(trimmed);
+}
+
 async function resolveProductPayloadImages(p: any) {
   if (!p || typeof p !== 'object') return p;
   
   if (p.image && typeof p.image === 'string') {
-    p.image = await resolveDirectImageUrl(p.image);
+    p.image = await sanitizeAndCompressImage(p.image);
   }
   
   if (p.images) {
     if (Array.isArray(p.images)) {
       p.images = await Promise.all(p.images.map(async (img: any) => {
-        if (typeof img === 'string') return await resolveDirectImageUrl(img);
+        if (typeof img === 'string') return await sanitizeAndCompressImage(img);
         return img;
       }));
     } else if (typeof p.images === 'string') {
@@ -2848,16 +2996,16 @@ async function resolveProductPayloadImages(p: any) {
           const parsed = JSON.parse(p.images);
           if (Array.isArray(parsed)) {
             const resolved = await Promise.all(parsed.map(async (img: any) => {
-              if (typeof img === 'string') return await resolveDirectImageUrl(img);
+              if (typeof img === 'string') return await sanitizeAndCompressImage(img);
               return img;
             }));
             p.images = JSON.stringify(resolved);
           }
         } else {
-          p.images = await resolveDirectImageUrl(p.images);
+          p.images = await sanitizeAndCompressImage(p.images);
         }
       } catch (e) {
-        p.images = await resolveDirectImageUrl(p.images);
+        p.images = await sanitizeAndCompressImage(p.images);
       }
     }
   }
@@ -3669,6 +3817,16 @@ app.post('/api/whatsapp/notify', async (req, res) => {
                     `💰 *Valor Total:* ${formattedTotal}\n\n` +
                     `Status: Pago & Concluído ✅\n` +
                     `Desejamos ótimas vendas! ✨`;
+    } else if (type === 'partner_withdraw_request') {
+      const { partnerName, partnerCoupon, amount, pixKeyType, pixKey, date } = data || {};
+      const formattedTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amount || 0);
+      messageText = '💸 *AP Moda Fitness - Solicitação de Saque Pix!*\n\n' +
+                    '👤 *Parceira:* ' + (partnerName || 'Parceira') + '\n' +
+                    '🎟️ *Cupom:* ' + (partnerCoupon || 'N/A') + '\n' +
+                    '💰 *Valor do Resgate:* ' + formattedTotal + '\n' +
+                    '🔑 *Chave Pix (' + (pixKeyType || 'Pix') + '):* ' + (pixKey || 'Não informada') + '\n' +
+                    '📅 *Data:* ' + (date || new Date().toLocaleDateString('pt-BR')) + '\n\n' +
+                    'Acesse o painel do sistema para conferir e realizar a transferência! 🌸';
     } else if (type === 'stock_alert') {
       const { name, stock, minStock, sku } = data || {};
       messageText = `🚨 *AP Moda Fitness - Alerta Crítico de Estoque!*\n\n` +
@@ -5012,6 +5170,63 @@ async function autoMigrateBackup() {
 }
 
 // Vite Middleware integration for responsive assets delivery
+
+async function preWarmImageCache() {
+  try {
+    const db = getFirebaseServerDb();
+    const { data: prods } = await db.from('ap_products').select('image, images');
+    if (!prods || !Array.isArray(prods)) return;
+
+    const urlsToWarm = new Set<string>();
+    for (const p of prods) {
+      if (p.image && typeof p.image === 'string' && p.image.startsWith('http')) urlsToWarm.add(p.image.trim());
+      if (Array.isArray(p.images)) {
+        p.images.forEach((img: any) => {
+          if (typeof img === 'string' && img.startsWith('http')) urlsToWarm.add(img.trim());
+        });
+      }
+    }
+
+    console.log(`[CDN Pre-Warm] Verificando cache para ${urlsToWarm.size} imagens de produtos...`);
+    const cacheDir = path.join(process.cwd(), 'uploads', 'cdn_cache');
+    const preOptimizedDir = path.join(process.cwd(), 'public', 'optimized-images');
+    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+
+    for (const imgUrl of urlsToWarm) {
+      const md5Hash = crypto.createHash('md5').update(imgUrl).digest('hex');
+      const staticFile = path.join(preOptimizedDir, `${md5Hash}.webp`);
+      if (fs.existsSync(staticFile)) continue;
+
+      const cacheFile = path.join(cacheDir, `${md5Hash}_w800_q80.webp`);
+      if (fs.existsSync(cacheFile)) continue;
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const res = await fetch(imgUrl, {
+          signal: controller.signal,
+          headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          const buf = Buffer.from(await res.arrayBuffer());
+          const webpBuf = await sharp(buf)
+            .rotate()
+            .resize({ width: 800, fit: 'inside', withoutEnlargement: true })
+            .webp({ quality: 80, effort: 3 })
+            .toBuffer();
+          fs.writeFileSync(cacheFile, webpBuf);
+          console.log(`[CDN Pre-Warm] Imagem otimizada em cache: ${md5Hash}.webp (${Math.round(webpBuf.length / 1024)}KB)`);
+        }
+      } catch (err) {
+        console.warn(`[CDN Pre-Warm Warning] Falha ao pré-aquecer ${imgUrl}:`, err.message);
+      }
+    }
+  } catch (err) {
+    console.warn('[CDN Pre-Warm Error]:', err.message);
+  }
+}
+
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production' || fs.existsSync(path.join(process.cwd(), 'dist/index.html'));
   if (!isProd) {
@@ -5056,6 +5271,9 @@ async function startServer() {
       isSupabaseVerifiedHealthy = false;
       console.log('[Supabase Server Boot] Sem credenciais do Supabase configuradas. Utilizando banco local.');
     }
+
+    // Pre-warm image CDN cache asynchronously
+    preWarmImageCache().catch(e => console.warn('[CDN Pre-Warm]', e));
 
     // Trigger backup migration asynchronously on server boot
     autoMigrateBackup().catch(err => {
