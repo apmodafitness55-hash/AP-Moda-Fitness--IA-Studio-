@@ -25,7 +25,7 @@ import {
 import { ActiveTab, Product, Sale, Client, Transaction } from './types';
 import { INITIAL_PRODUCTS, INITIAL_CLIENTS, INITIAL_SALES, INITIAL_TRANSACTIONS, INITIAL_TEAM_MEMBERS } from './data/mockData';
 import { playSaleSuccessSound, playNotificationSound } from './lib/audioFeedback';
-import { getStoredPartnerWithdrawRequests, PartnerWithdrawRequest } from './utils/partnerUtils';
+import { getStoredPartnerWithdrawRequests, syncPartnerWithdrawRequestsWithServer, PartnerWithdrawRequest } from './utils/partnerUtils';
 
 import Sidebar from './components/Sidebar';
 import DashboardOverview from './components/DashboardOverview';
@@ -479,7 +479,22 @@ export default function App() {
 
   // State for notification dropdown and real-time sale alert toast
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('ap_system_notifications');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ap_system_notifications', JSON.stringify(notifications));
+    } catch (e) {}
+  }, [notifications]);
   const [newSaleToast, setNewSaleToast] = useState<{
     id: string;
     clientName: string;
@@ -499,6 +514,15 @@ export default function App() {
     date?: string;
   } | null>(null);
   const alertedWithdrawIdsRef = useRef<Set<string>>(new Set());
+
+  // Global state for Partner Commission Withdraw Requests
+  const [partnerWithdrawRequests, setPartnerWithdrawRequests] = useState<PartnerWithdrawRequest[]>(() => {
+    return getStoredPartnerWithdrawRequests();
+  });
+  const pendingPartnerWithdraws = useMemo(() => {
+    return partnerWithdrawRequests.filter(r => r.status === 'Pendente');
+  }, [partnerWithdrawRequests]);
+  const pendingPartnerWithdrawsCount = pendingPartnerWithdraws.length;
 
   const [notificationPermission, setNotificationPermission] = useState<string>(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -619,6 +643,26 @@ export default function App() {
     date?: string;
   }) => {
     if (!withdrawData || !withdrawData.id) return;
+    
+    // Sempre garante que o item de notificação esteja presente e visível no sino
+    const notifId = `withdraw-${withdrawData.id}`;
+    const formattedVal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(withdrawData.amount || 0);
+    const newNotifyItem = {
+      id: notifId,
+      title: `💸 Saque Pix: ${withdrawData.partnerName}`,
+      detail: `${withdrawData.partnerName} (${withdrawData.partnerCoupon || 'Parceira'}) solicitou resgate de ${formattedVal}. Chave Pix (${withdrawData.pixKeyType || 'Pix'}): ${withdrawData.pixKey || 'Não informada'}.`,
+      read: false,
+      type: 'partner_withdraw' as const,
+      requestId: withdrawData.id,
+      data: withdrawData
+    };
+
+    setNotifications(prev => {
+      const exists = prev.some(n => n.requestId === withdrawData.id || n.id === notifId);
+      if (exists) return prev;
+      return [newNotifyItem, ...prev];
+    });
+
     if (alertedWithdrawIdsRef.current.has(withdrawData.id)) {
       return;
     }
@@ -1458,7 +1502,10 @@ export default function App() {
   // Calculations for sidebar badge alerts
   const lowStockCount = products.filter(p => p.stock < p.minStock).length;
 
-  const unreadNotificationsCount = notifications.filter(n => !n.read).length;
+  const unreadNotificationsCount = useMemo(() => {
+    const rawUnread = notifications.filter(n => !n.read).length;
+    return Math.max(rawUnread, pendingPartnerWithdrawsCount);
+  }, [notifications, pendingPartnerWithdrawsCount]);
 
   // Estado de Conexão Offline Seguro & Simulação
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
@@ -2711,7 +2758,49 @@ export default function App() {
     };
   }, [systemOffline]);
 
-  // Efeito para escuta ativa de solicitações de saque de parceiros
+  // Função para sincronizar da nuvem e atualizar o sino de notificações
+  const syncAndRefreshPartnerWithdraws = useCallback(async () => {
+    try {
+      await syncPartnerWithdrawRequestsWithServer();
+    } catch (e) {}
+
+    const stored = getStoredPartnerWithdrawRequests();
+    setPartnerWithdrawRequests(stored);
+
+    const pendings = stored.filter(r => r.status === 'Pendente');
+
+    if (pendings.length > 0) {
+      setNotifications(prev => {
+        const notifMap = new Map<string, any>();
+        prev.forEach(n => notifMap.set(n.requestId || String(n.id), n));
+
+        pendings.forEach(p => {
+          const reqKey = p.id;
+          const formattedTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.amount || 0);
+          notifMap.set(reqKey, {
+            id: `withdraw-${p.id}`,
+            title: `💸 Saque Pix: ${p.partnerName}`,
+            detail: `${p.partnerName} (${p.partnerCoupon || 'Parceira'}) solicitou resgate de ${formattedTotal}. Chave Pix (${p.pixKeyType || 'Pix'}): ${p.pixKey || 'Não informada'}.`,
+            read: false,
+            type: 'partner_withdraw' as const,
+            requestId: p.id,
+            data: p
+          });
+        });
+
+        return Array.from(notifMap.values());
+      });
+
+      // Dispara efeito sonoro e alerta visual para novas solicitações não alertadas ainda
+      pendings.forEach(p => {
+        if (!alertedWithdrawIdsRef.current.has(p.id)) {
+          triggerPartnerWithdrawAlert(p);
+        }
+      });
+    }
+  }, [triggerPartnerWithdrawAlert]);
+
+  // Efeito para escuta ativa e sincronização contínua de solicitações de saque de parceiros
   useEffect(() => {
     const handlePartnerWithdraw = (e: any) => {
       const detail = e.detail;
@@ -2720,37 +2809,36 @@ export default function App() {
       } else if (detail && detail.id) {
         triggerPartnerWithdrawAlert(detail);
       }
+      syncAndRefreshPartnerWithdraws();
+    };
+
+    const handleSyncEvent = () => {
+      syncAndRefreshPartnerWithdraws();
     };
 
     window.addEventListener('ap-partner-withdraw-alert', handlePartnerWithdraw);
     window.addEventListener('ap-partner-withdraw-requested', handlePartnerWithdraw);
+    window.addEventListener('ap-partner-withdraws-updated', handleSyncEvent);
+    window.addEventListener('ap-system-configs-refreshed', handleSyncEvent);
+    window.addEventListener('ap-storage-synced', handleSyncEvent);
 
-    // Carrega solicitações pendentes no sino de notificações ao iniciar o sistema
-    try {
-      const stored = getStoredPartnerWithdrawRequests();
-      const pendings = stored.filter(r => r.status === 'Pendente');
-      if (pendings.length > 0) {
-        setNotifications(prev => {
-          const existingIds = new Set(prev.map(n => n.requestId || n.id));
-          const toAdd = pendings.filter(p => !existingIds.has(p.id)).map(p => ({
-            id: Date.now() + Math.random(),
-            title: `💸 Saque Pix: ${p.partnerName}`,
-            detail: `${p.partnerName} (${p.partnerCoupon}) solicitou resgate de R$ ${p.amount.toFixed(2)}. Chave Pix (${p.pixKeyType}): ${p.pixKey}.`,
-            read: false,
-            type: 'partner_withdraw' as const,
-            requestId: p.id,
-            data: p
-          }));
-          return toAdd.length > 0 ? [...toAdd, ...prev] : prev;
-        });
-      }
-    } catch (e) {}
+    // Executa imediatamente na inicialização
+    syncAndRefreshPartnerWithdraws();
+
+    // Verificação periódica automática a cada 6 segundos para capturar solicitações feitas remotamente
+    const interval = setInterval(() => {
+      syncAndRefreshPartnerWithdraws();
+    }, 6000);
 
     return () => {
       window.removeEventListener('ap-partner-withdraw-alert', handlePartnerWithdraw);
       window.removeEventListener('ap-partner-withdraw-requested', handlePartnerWithdraw);
+      window.removeEventListener('ap-partner-withdraws-updated', handleSyncEvent);
+      window.removeEventListener('ap-system-configs-refreshed', handleSyncEvent);
+      window.removeEventListener('ap-storage-synced', handleSyncEvent);
+      clearInterval(interval);
     };
-  }, [triggerPartnerWithdrawAlert]);
+  }, [triggerPartnerWithdrawAlert, syncAndRefreshPartnerWithdraws]);
 
   // WhatsApp Business API triggers (com suporte a fila offline)
   const triggerWhatsAppAlert = async (type: 'sale_completed' | 'stock_alert', data: any, forceSync = false) => {
@@ -4164,6 +4252,7 @@ export default function App() {
         isOpen={isSidebarOpen} 
         setIsOpen={setIsSidebarOpen}
         lowStockCount={lowStockCount}
+        pendingPartnerWithdrawsCount={pendingPartnerWithdrawsCount}
         onOpenDriverPortal={() => setIsDriverPortalOpen(true)}
         themeAccent={themeAccent}
         setThemeAccent={setThemeAccent}
@@ -4313,7 +4402,20 @@ export default function App() {
               {isNotificationsOpen && (
                 <div id="notifications-menu" className="absolute right-0 mt-3 bg-white border border-slate-100 rounded-xl shadow-xl w-80 p-3 z-50 text-xs space-y-2 text-left animate-in fade-in-50 duration-200">
                   <div className="flex justify-between items-center border-b border-slate-50 pb-2">
-                    <span className="font-bold text-slate-800 flex items-center gap-1.5"><span>Alertas do Sistema</span><span className="bg-pink-100 text-pink-700 text-[9px] font-mono px-1.5 py-0.2 rounded-full">Vendas & Parceiras</span></span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-800 flex items-center gap-1.5"><span>Alertas</span><span className="bg-pink-100 text-pink-700 text-[9px] font-mono px-1.5 py-0.2 rounded-full">Vendas & Saques</span></span>
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          syncAndRefreshPartnerWithdraws();
+                        }}
+                        className="p-1 hover:bg-pink-50 text-pink-600 rounded text-[10px] font-bold cursor-pointer transition flex items-center gap-1"
+                        title="Buscar solicitações de saque de parceiras na nuvem agora"
+                      >
+                        🔄 Atualizar
+                      </button>
+                    </div>
                     <button 
                       onClick={() => setNotifications(prev => prev.map(n => ({...n, read: true})))}
                       className="text-pink-600 hover:text-pink-700 font-bold text-[10px] cursor-pointer"

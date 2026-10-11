@@ -72,6 +72,7 @@ interface SidebarProps {
   activeAiAgentsHubSubTab?: 'descritor' | 'estilista' | 'whatsapp' | 'sentinela' | 'campanha' | 'consultoria' | 'tradutor' | 'precificador';
   activeGoogleWorkspaceSubTab?: 'agenda' | 'tarefas' | 'docs' | 'gmail' | 'sheets' | 'drive' | 'config';
   activeSettingsSystemSubTab?: 'empresa' | 'integracoes' | 'seguranca' | 'roadmap' | 'vitrine';
+  pendingPartnerWithdrawsCount?: number;
 }
 
 export default function Sidebar({ 
@@ -80,6 +81,7 @@ export default function Sidebar({
   isOpen, 
   setIsOpen, 
   lowStockCount, 
+  pendingPartnerWithdrawsCount = 0,
   onOpenDriverPortal,
   themeAccent,
   setThemeAccent,
@@ -162,7 +164,7 @@ export default function Sidebar({
         { id: 'CLIENTES_DIRETORIO', label: 'Diretório de Clientes', icon: Users, keywords: 'clientes crm fichario contatos', tab: ActiveTab.CLIENTES, subTab: 'diretorio' },
         { id: 'CLIENTES_FUNIL', label: 'Funil de Vendas (NPS)', icon: TrendingUp, keywords: 'funil kanban leads oportunidades pipeline', tab: ActiveTab.CLIENTES, subTab: 'funil' },
         { id: 'CLIENTES_REGUA', label: 'Cobranças & Follow-ups', icon: CheckSquare, keywords: 'recobranca followup pos-vendas', tab: ActiveTab.CLIENTES, subTab: 'followup' },
-        { id: 'CLIENTES_EMBAIXADORES', label: 'Programa de Embaixadores', icon: Award, keywords: 'influenciadores afiliados parceiros marketing', tab: ActiveTab.CLIENTES, subTab: 'parceiros' },
+        { id: 'CLIENTES_EMBAIXADORES', label: 'Programa de Embaixadores', icon: Award, badge: pendingPartnerWithdrawsCount > 0 ? `💸 ${pendingPartnerWithdrawsCount}` : undefined, keywords: 'influenciadores afiliados parceiros marketing saques comissao', tab: ActiveTab.CLIENTES, subTab: 'parceiros' },
         { id: 'CLIENTES_FIDELIDADE', label: 'Clube Fidelidade & Cashback', icon: Coins, keywords: 'fidelidade cashback pontos clube bonus premium vip', tab: ActiveTab.CLIENTES, subTab: 'fidelidade' }
       ]
     },
@@ -265,7 +267,8 @@ export default function Sidebar({
           id: 'CLIENTES', 
           label: 'Clientes / CRM VIP', 
           icon: Users, 
-          keywords: 'clientes crm fichario contatos', 
+          badge: pendingPartnerWithdrawsCount > 0 ? `💸 ${pendingPartnerWithdrawsCount}` : undefined,
+          keywords: 'clientes crm fichario contatos parceiros embaixadores', 
           tab: ActiveTab.CLIENTES, 
           subLinks: [
             { label: 'Diretório de Clientes', subTab: 'diretorio' },
@@ -701,7 +704,12 @@ export default function Sidebar({
                                     }`}
                                 >
                                   <span className={`w-1 h-1 rounded-full shrink-0 transition-colors ${isSubActive ? 'bg-pink-500' : 'bg-slate-650'}`} />
-                                  <span className="truncate">{subLink.label}</span>
+                                  <span className="truncate flex-1">{subLink.label}</span>
+                                  {subLink.subTab === 'parceiros' && pendingPartnerWithdrawsCount > 0 && (
+                                    <span className="bg-pink-600 text-white font-extrabold text-[9px] px-1.5 py-0.2 rounded-full font-mono animate-pulse">
+                                      {pendingPartnerWithdrawsCount}
+                                    </span>
+                                  )}
                                 </button>
                               </li>
                             );

@@ -1,0 +1,466 @@
+const fs = require('fs');
+
+console.log('--- Início da aplicação do fix para notificações de saque de parceiros ---');
+
+// 1. Atualizar src/utils/partnerUtils.ts
+let partnerUtilsCode = fs.readFileSync('src/utils/partnerUtils.ts', 'utf8');
+
+const updatedPartnerUtils = `import { pushSystemConfigToSupabase } from '../supabase';
+
+export interface Partner {
+  id: string;
+  name: string;
+  instagram?: string;
+  couponCode: string;
+  commissionRate?: number;
+  salesCount?: number;
+  totalGenerated?: number;
+  availableBalance?: number;
+  login?: string;
+  password?: string;
+}
+
+export interface PartnerWithdrawRequest {
+  id: string;
+  partnerId: string;
+  partnerName: string;
+  partnerCoupon: string;
+  partnerInstagram?: string;
+  amount: number;
+  pixKeyType: string;
+  pixKey: string;
+  status: 'Pendente' | 'Aprovado' | 'Pago' | 'Rejeitado';
+  date: string; // YYYY-MM-DD
+  createdAt: string; // ISO string
+  paidAt?: string;
+  receiptNote?: string;
+}
+
+export function getStoredPartners(): Partner[] {
+  try {
+    const saved = localStorage.getItem('ap_moda_partners');
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    console.error('Error reading partners from localStorage:', e);
+  }
+  return [];
+}
+
+export function saveStoredPartners(partners: Partner[]): void {
+  try {
+    localStorage.setItem('ap_moda_partners', JSON.stringify(partners));
+    pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(partners));
+    window.dispatchEvent(new Event('ap-storage-synced'));
+  } catch (e) {
+    console.error('Error saving partners to localStorage:', e);
+  }
+}
+
+/**
+ * Retorna todas as solicitações de saque de parceiros armazenadas no sistema.
+ * Realiza varredura profunda: ap_partner_withdraw_requests, ap_withdraw_requests_* e transações financeiras.
+ */
+export function getStoredPartnerWithdrawRequests(): PartnerWithdrawRequest[] {
+  const map = new Map<string, PartnerWithdrawRequest>();
+
+  // 1. Chave global primária
+  try {
+    const saved = localStorage.getItem('ap_partner_withdraw_requests');
+    if (saved !== null) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        parsed.forEach(r => {
+          if (r && r.id) map.set(r.id, r);
+        });
+      }
+    }
+  } catch (e) {
+    console.error('Error reading partner withdraw requests from localStorage:', e);
+  }
+
+  // 2. Varredura de chaves individuais de parceiras no localStorage (ap_withdraw_requests_*)
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('ap_withdraw_requests_')) {
+        try {
+          const val = localStorage.getItem(key);
+          if (val) {
+            const parsed = JSON.parse(val);
+            if (Array.isArray(parsed)) {
+              parsed.forEach(r => {
+                if (r && r.id && !map.has(r.id)) {
+                  map.set(r.id, r);
+                }
+              });
+            }
+          }
+        } catch (e) {}
+      }
+    }
+  } catch (e) {}
+
+  // 3. Reconstrução a partir de transações de saída de comissão em ap_moda_transactions
+  try {
+    const savedTrans = localStorage.getItem('ap_moda_transactions');
+    if (savedTrans) {
+      const transactions = JSON.parse(savedTrans);
+      if (Array.isArray(transactions)) {
+        transactions.forEach(t => {
+          const isPartnerWithdraw = 
+            (t.category && String(t.category).toLowerCase().includes('comissão parceir')) ||
+            (t.description && (String(t.description).toLowerCase().includes('saque comissão pix') || String(t.description).toLowerCase().includes('comissão parceir')));
+
+          if (isPartnerWithdraw && t.amount > 0) {
+            const desc = t.description || '';
+            const match = desc.match(/solicitado por\\s+([^(]+)(?:\\(([^)]+)\\))?/i);
+            const partnerName = match ? match[1].trim() : 'Parceira';
+            const partnerCoupon = match && match[2] ? match[2].trim() : '';
+            const tDate = t.date ? String(t.date).split('T')[0] : new Date().toISOString().split('T')[0];
+
+            // Verifica se já existe solicitação com mesmo ID ou com mesmo valor/data
+            const alreadyExists = Array.from(map.values()).some(r => 
+              r.id === t.id || (Math.abs(r.amount - t.amount) < 0.01 && r.date === tDate)
+            );
+
+            if (!alreadyExists) {
+              const reconstructedId = t.id && t.id.startsWith('REQ-') ? t.id : \`REQ-\${t.id || Date.now()}\`;
+              map.set(reconstructedId, {
+                id: reconstructedId,
+                partnerId: \`part-\${partnerCoupon || 'comissao'}\`,
+                partnerName,
+                partnerCoupon,
+                amount: Number(t.amount),
+                pixKeyType: 'Chave Pix',
+                pixKey: 'Consultar no comprovante/portal',
+                status: t.status === 'pago' ? 'Pago' : 'Pendente',
+                date: tDate,
+                createdAt: t.date || new Date().toISOString()
+              });
+            }
+          }
+        });
+      }
+    }
+  } catch (e) {}
+
+  const result = Array.from(map.values()).sort((a, b) => 
+    new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime()
+  );
+
+  return result;
+}
+
+/**
+ * Salva a lista global de solicitações de saque e sincroniza com o Supabase, servidor e caches
+ */
+export async function saveStoredPartnerWithdrawRequests(reqs: PartnerWithdrawRequest[]): Promise<void> {
+  try {
+    localStorage.setItem('ap_partner_withdraw_requests', JSON.stringify(reqs));
+    
+    // Atualiza também os caches individuais de cada parceira para exibição no portal
+    const requestsByPartner = new Map<string, PartnerWithdrawRequest[]>();
+    for (const r of reqs) {
+      if (!requestsByPartner.has(r.partnerId)) {
+        requestsByPartner.set(r.partnerId, []);
+      }
+      requestsByPartner.get(r.partnerId)!.push(r);
+    }
+    
+    requestsByPartner.forEach((list, pId) => {
+      try {
+        localStorage.setItem(\`ap_withdraw_requests_\${pId}\`, JSON.stringify(list));
+      } catch (err) {}
+    });
+
+    // 1. Sincroniza diretamente com o Supabase na tabela ap_system_configs
+    pushSystemConfigToSupabase('ap_partner_withdraw_requests', JSON.stringify(reqs)).catch(err => {
+      console.warn('Falha no pushSystemConfigToSupabase para saques:', err);
+    });
+
+    // 2. Sincroniza diretamente com o endpoint REST dedicado do servidor
+    try {
+      fetch('/api/partner-withdraw-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reqs)
+      }).catch(() => {});
+    } catch (err) {}
+    
+    // Dispara eventos em tempo real para re-renderização dos componentes
+    window.dispatchEvent(new CustomEvent('ap-partner-withdraws-updated', { detail: reqs }));
+    window.dispatchEvent(new Event('ap-storage-synced'));
+  } catch (e) {
+    console.error('Error saving partner withdraw requests:', e);
+  }
+}
+
+/**
+ * Consulta o servidor e o banco Supabase em busca de novas solicitações feitas remotamente
+ */
+export async function syncPartnerWithdrawRequestsWithServer(): Promise<PartnerWithdrawRequest[]> {
+  try {
+    const res = await fetch('/api/partner-withdraw-requests');
+    if (res.ok) {
+      const serverList = await res.json();
+      if (Array.isArray(serverList) && serverList.length > 0) {
+        const localList = getStoredPartnerWithdrawRequests();
+        const map = new Map<string, PartnerWithdrawRequest>();
+        
+        serverList.forEach(r => { if (r && r.id) map.set(r.id, r); });
+        localList.forEach(r => { if (r && r.id && !map.has(r.id)) map.set(r.id, r); });
+
+        const merged = Array.from(map.values()).sort((a, b) => 
+          new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime()
+        );
+
+        localStorage.setItem('ap_partner_withdraw_requests', JSON.stringify(merged));
+        window.dispatchEvent(new CustomEvent('ap-partner-withdraws-updated', { detail: merged }));
+        window.dispatchEvent(new Event('ap-storage-synced'));
+        return merged;
+      }
+    }
+  } catch (err) {
+    console.warn('[Sync Partner Withdraws] Falha ao consultar endpoint:', err);
+  }
+  return getStoredPartnerWithdrawRequests();
+}
+
+/**
+ * Registra uma nova solicitação de saque Pix feita pela parceira no portal
+ */
+export async function addPartnerWithdrawRequest(
+  newReq: PartnerWithdrawRequest
+): Promise<PartnerWithdrawRequest[]> {
+  const current = getStoredPartnerWithdrawRequests();
+  const filtered = current.filter(r => r.id !== newReq.id);
+  const updated = [newReq, ...filtered];
+  
+  await saveStoredPartnerWithdrawRequests(updated);
+  
+  // Dispara evento imediato de solicitação para acionar sino de notificações e som no sistema
+  window.dispatchEvent(new CustomEvent('ap-partner-withdraw-requested', { detail: newReq }));
+  
+  return updated;
+}
+
+/**
+ * Atualiza o status de uma solicitação de pagamento (Pendente -> Pago / Rejeitado)
+ */
+export async function updatePartnerWithdrawRequestStatus(
+  id: string,
+  status: 'Pendente' | 'Aprovado' | 'Pago' | 'Rejeitado',
+  note?: string
+): Promise<PartnerWithdrawRequest[]> {
+  const current = getStoredPartnerWithdrawRequests();
+  let updatedPartnerId: string | null = null;
+  let refundedAmount = 0;
+
+  const updated = current.map(req => {
+    if (req.id === id) {
+      updatedPartnerId = req.partnerId;
+      refundedAmount = req.amount;
+      return {
+        ...req,
+        status,
+        receiptNote: note !== undefined ? note : req.receiptNote,
+        paidAt: status === 'Pago' ? new Date().toISOString() : req.paidAt
+      };
+    }
+    return req;
+  });
+
+  // Se o saque foi rejeitado pelo admin, estorna o saldo disponível da parceira
+  if (status === 'Rejeitado' && updatedPartnerId && refundedAmount > 0) {
+    try {
+      const allPartners = getStoredPartners();
+      const nextPartners = allPartners.map(p => {
+        if (p.id === updatedPartnerId) {
+          const currentBal = typeof p.availableBalance === 'number' ? p.availableBalance : 0;
+          return { ...p, availableBalance: currentBal + refundedAmount };
+        }
+        return p;
+      });
+      saveStoredPartners(nextPartners);
+    } catch (err) {
+      console.warn('Erro ao estornar saldo de parceira rejeitada:', err);
+    }
+  }
+
+  await saveStoredPartnerWithdrawRequests(updated);
+  return updated;
+}
+`;
+
+fs.writeFileSync('src/utils/partnerUtils.ts', updatedPartnerUtils, 'utf8');
+console.log('✓ src/utils/partnerUtils.ts atualizado com sucesso!');
+
+// 2. Atualizar server.ts com os endpoints /api/partner-withdraw-requests e auto-gravação no WhatsApp notify
+let serverCode = fs.readFileSync('server.ts', 'utf8');
+
+const partnerEndpointsCode = `
+// Dedicated Partner Withdraw Requests API (syncs with Supabase, transactions, and local state)
+app.get('/api/partner-withdraw-requests', async (req, res) => {
+  try {
+    const db = getFirebaseServerDb();
+    let requests: any[] = [];
+
+    // 1. Fetch from ap_system_configs
+    try {
+      const { data: configs } = await db.from('ap_system_configs').select('key, value');
+      if (configs && Array.isArray(configs)) {
+        const row = configs.find(c => c.key === 'ap_partner_withdraw_requests');
+        if (row && row.value) {
+          const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+          if (Array.isArray(parsed)) requests = parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('[Partner Withdraws] Falha ao ler ap_system_configs:', e);
+    }
+
+    // 2. Also inspect ap_transactions to reconstruct any missing partner withdraw transactions!
+    try {
+      const { data: txs } = await db.from('ap_transactions').select('*');
+      if (txs && Array.isArray(txs)) {
+        const partnerTxs = txs.filter(t => 
+          (t.category && String(t.category).toLowerCase().includes('comissão parceir')) ||
+          (t.description && (String(t.description).toLowerCase().includes('saque comissão pix') || String(t.description).toLowerCase().includes('comissão parceir')))
+        );
+        for (const pt of partnerTxs) {
+          const exists = requests.some(r => r.id === pt.id || (Math.abs((r.amount || 0) - (pt.amount || 0)) < 0.01 && r.date === String(pt.date || '').split('T')[0]));
+          if (!exists) {
+            const desc = pt.description || '';
+            const match = desc.match(/solicitado por\\s+([^(]+)(?:\\(([^)]+)\\))?/i);
+            const partnerName = match ? match[1].trim() : 'Parceira';
+            const partnerCoupon = match && match[2] ? match[2].trim() : '';
+            requests.unshift({
+              id: pt.id || \`REQ-TX-\${Date.now()}\`,
+              partnerId: \`part-rec-\${Date.now()}\`,
+              partnerName,
+              partnerCoupon,
+              amount: pt.amount || 0,
+              pixKeyType: 'Chave Pix',
+              pixKey: 'Consultar no comprovante/transação',
+              status: pt.status === 'pago' ? 'Pago' : 'Pendente',
+              date: pt.date ? String(pt.date).split('T')[0] : new Date().toISOString().split('T')[0],
+              createdAt: pt.date || new Date().toISOString()
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Partner Withdraws] Falha ao inspecionar transações:', e);
+    }
+
+    res.json(requests);
+  } catch (err: any) {
+    console.error('[Partner Withdraws GET] Erro:', err);
+    res.status(500).json({ error: err.message || 'Erro ao consultar solicitações de saque.' });
+  }
+});
+
+app.post('/api/partner-withdraw-requests', async (req, res) => {
+  try {
+    const db = getFirebaseServerDb();
+    const payload = req.body;
+    const newItems = Array.isArray(payload) ? payload : [payload];
+
+    // 1. Fetch current requests from ap_system_configs
+    let currentRequests: any[] = [];
+    try {
+      const { data: configs } = await db.from('ap_system_configs').select('key, value');
+      if (configs && Array.isArray(configs)) {
+        const row = configs.find(c => c.key === 'ap_partner_withdraw_requests');
+        if (row && row.value) {
+          const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+          if (Array.isArray(parsed)) currentRequests = parsed;
+        }
+      }
+    } catch (e) {}
+
+    // 2. Merge new items
+    const mergedMap = new Map<string, any>();
+    currentRequests.forEach(r => mergedMap.set(r.id, r));
+    newItems.forEach(r => {
+      if (r && r.id) mergedMap.set(r.id, { ...mergedMap.get(r.id), ...r });
+    });
+    const updated = Array.from(mergedMap.values()).sort((a, b) => 
+      new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime()
+    );
+
+    // 3. Save to ap_system_configs
+    await db.from('ap_system_configs').upsert([{
+      key: 'ap_partner_withdraw_requests',
+      value: JSON.stringify(updated)
+    }], { onConflict: 'key' });
+
+    console.log(\`[Partner Withdraws POST] Sincronizado \${updated.length} solicitações de saque no servidor.\`);
+    res.json({ success: true, requests: updated });
+  } catch (err: any) {
+    console.error('[Partner Withdraws POST] Erro:', err);
+    res.status(500).json({ error: err.message || 'Erro ao salvar solicitações de saque.' });
+  }
+});
+`;
+
+if (!serverCode.includes("app.get('/api/partner-withdraw-requests'")) {
+  const targetAnchor = "app.post(['/api/proxy/system-configs', '/api/proxy/system_configs'], async (req, res) => {";
+  const endAnchor = "res.json({ success: true });\n  } catch (err: any) {\n    console.error('[Proxy Configs POST] Erro:', err);\n    res.status(500).json({ error: err.message || 'Erro ao sincronizar configurações.' });\n  }\n});";
+  
+  if (serverCode.includes(endAnchor)) {
+    serverCode = serverCode.replace(endAnchor, endAnchor + "\n" + partnerEndpointsCode);
+    console.log('✓ Endpoints /api/partner-withdraw-requests adicionados em server.ts!');
+  } else {
+    console.error('Target endAnchor não encontrado em server.ts!');
+  }
+}
+
+// Também no endpoint /api/whatsapp/notify, gravar no banco quando for partner_withdraw_request
+const whatsappAnchor = "} else if (type === 'partner_withdraw_request') {";
+const whatsappReplacement = `} else if (type === 'partner_withdraw_request') {
+      // Auto-grava a solicitação no banco de dados centralizado
+      try {
+        const db = getFirebaseServerDb();
+        const reqId = data?.id || \`REQ-\${Date.now().toString().slice(-6)}\`;
+        const newReq = {
+          id: reqId,
+          partnerId: data?.partnerId || \`part-\${Date.now()}\`,
+          partnerName: data?.partnerName || 'Parceira',
+          partnerCoupon: data?.partnerCoupon || '',
+          partnerInstagram: data?.partnerInstagram || '',
+          amount: Number(data?.amount || 0),
+          pixKeyType: data?.pixKeyType || 'Pix',
+          pixKey: data?.pixKey || '',
+          status: 'Pendente',
+          date: data?.date || new Date().toISOString().split('T')[0],
+          createdAt: new Date().toISOString()
+        };
+        const { data: configs } = await db.from('ap_system_configs').select('key, value');
+        let currentReqs = [];
+        if (configs && Array.isArray(configs)) {
+          const row = configs.find(c => c.key === 'ap_partner_withdraw_requests');
+          if (row && row.value) {
+            currentReqs = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+          }
+        }
+        if (!currentReqs.some(r => r.id === reqId)) {
+          await db.from('ap_system_configs').upsert([{
+            key: 'ap_partner_withdraw_requests',
+            value: JSON.stringify([newReq, ...currentReqs])
+          }], { onConflict: 'key' });
+        }
+      } catch (errDb) {
+        console.warn('[WhatsApp Notify DB Record] Erro ao gravar saque no banco:', errDb);
+      }`;
+
+if (serverCode.includes(whatsappAnchor) && !serverCode.includes('Auto-grava a solicitação no banco de dados centralizado')) {
+  serverCode = serverCode.replace(whatsappAnchor, whatsappReplacement);
+  console.log('✓ Auto-gravação no banco adicionada em /api/whatsapp/notify em server.ts!');
+}
+
+fs.writeFileSync('server.ts', serverCode, 'utf8');
+

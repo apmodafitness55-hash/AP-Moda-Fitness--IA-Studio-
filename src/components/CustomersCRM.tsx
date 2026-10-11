@@ -45,7 +45,7 @@ import {
   Tag
 } from 'lucide-react';
 import { Client, Sale, SalesChannel } from '../types';
-import { getStoredPartnerWithdrawRequests, updatePartnerWithdrawRequestStatus, PartnerWithdrawRequest } from '../utils/partnerUtils';
+import { getStoredPartnerWithdrawRequests, updatePartnerWithdrawRequestStatus, syncPartnerWithdrawRequestsWithServer, PartnerWithdrawRequest } from '../utils/partnerUtils';
 import { pushSystemConfigToSupabase, syncBulkSalesToSupabase, syncBulkOnlineOrdersToSupabase } from '../supabase';
 import { getWhatsAppUrl } from '../utils/storeConfig';
 
@@ -1985,6 +1985,20 @@ export default function CustomersCRM({
 
               {/* Status filter buttons */}
               <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setWithdrawFeedbackMsg('🔄 Buscando solicitações de saque da nuvem e do banco de dados...');
+                    const updated = await syncPartnerWithdrawRequestsWithServer();
+                    setWithdrawRequests(updated);
+                    setWithdrawFeedbackMsg(`✨ ${updated.length} solicitações de parceiras carregadas com sucesso!`);
+                    setTimeout(() => setWithdrawFeedbackMsg(''), 4000);
+                  }}
+                  className="px-2.5 py-1 rounded-lg font-bold text-[10px] bg-pink-50 hover:bg-pink-100 text-pink-700 border border-pink-200 transition cursor-pointer flex items-center gap-1"
+                  title="Atualizar solicitações em tempo real com a nuvem"
+                >
+                  🔄 Sincronizar Nuvem
+                </button>
                 {(['todas', 'pendente', 'pago', 'rejeitado'] as const).map(f => {
                   const count = f === 'todas' 
                     ? withdrawRequests.length 

@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { saveStoredPartners, addPartnerWithdrawRequest, getStoredPartnerWithdrawRequests, PartnerWithdrawRequest } from '../utils/partnerUtils';
+import { saveStoredPartners, addPartnerWithdrawRequest, getStoredPartnerWithdrawRequests, syncPartnerWithdrawRequestsWithServer, saveStoredPartnerWithdrawRequests, PartnerWithdrawRequest } from '../utils/partnerUtils';
 import { getAppUrl } from '../config';
 import { pushSystemConfigToSupabase, syncBulkSalesToSupabase, syncBulkOnlineOrdersToSupabase, fetchSystemConfigsFromSupabase } from '../supabase';
 import { 
@@ -582,6 +582,26 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
     setTimeout(() => setRetroSuccessMsg(''), 4000);
   };
 
+  // Auto-sync de solicitações armazenadas nesta máquina com a nuvem
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`ap_withdraw_requests_${currentPartner.id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const globalList = getStoredPartnerWithdrawRequests();
+          const globalIds = new Set(globalList.map(r => r.id));
+          const missing = parsed.filter(r => !globalIds.has(r.id));
+          if (missing.length > 0) {
+            const merged = [...missing, ...globalList];
+            saveStoredPartnerWithdrawRequests(merged).catch(() => {});
+          }
+        }
+      }
+    } catch (e) {}
+    syncPartnerWithdrawRequestsWithServer().catch(() => {});
+  }, [currentPartner.id]);
+
   // Withdraw requests history loaded from global and localStorage
   const [withdrawRequests, setWithdrawRequests] = useState<PartnerWithdrawRequest[]>(() => {
     try {
@@ -713,7 +733,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
       return p;
     });
     setPartners(updated);
-    localStorage.setItem('ap_moda_partners', JSON.stringify(updated));
+    saveStoredPartners(updated);
   };
 
   // Handle request Pix Withdraw
@@ -765,6 +785,11 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
     addPartnerWithdrawRequest(newReq).catch(err => {
       console.error('Falha ao sincronizar solicitação de saque:', err);
     });
+    fetch('/api/partner-withdraw-requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newReq)
+    }).catch(() => {});
 
     // Envia notificação automática de WhatsApp para a gestão da AP Moda Fitness se configurada
     try {

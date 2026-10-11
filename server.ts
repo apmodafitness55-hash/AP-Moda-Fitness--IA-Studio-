@@ -3295,6 +3295,146 @@ app.post(['/api/proxy/system-configs', '/api/proxy/system_configs'], async (req,
   }
 });
 
+// Dedicated Partner Withdraw Requests API (syncs with Supabase, transactions, and local state)
+app.get('/api/partner-withdraw-requests', async (req, res) => {
+  try {
+    const db = getFirebaseServerDb();
+    let requests: any[] = [];
+
+    // 1. Fetch from ap_system_configs
+    try {
+      const { data: configs } = await db.from('ap_system_configs').select('*');
+      if (configs && Array.isArray(configs)) {
+        const row = configs.find(c => c.key === 'ap_partner_withdraw_requests');
+        if (row && row.value) {
+          const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+          if (Array.isArray(parsed)) requests = parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('[Partner Withdraws] Falha ao ler ap_system_configs:', e);
+    }
+
+    // 1.1 Local db file fallback if configs empty
+    if (requests.length === 0) {
+      try {
+        const localDbPath = path.join(process.cwd(), 'local_db.json');
+        if (fs.existsSync(localDbPath)) {
+          const localDb = JSON.parse(fs.readFileSync(localDbPath, 'utf-8'));
+          if (localDb.ap_system_configs && Array.isArray(localDb.ap_system_configs)) {
+            const row = localDb.ap_system_configs.find((c: any) => c.key === 'ap_partner_withdraw_requests');
+            if (row && row.value) {
+              const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+              if (Array.isArray(parsed)) requests = parsed;
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 2. Also inspect ap_transactions to reconstruct any missing partner withdraw transactions!
+    try {
+      const { data: txs } = await db.from('ap_transactions').select('*');
+      if (txs && Array.isArray(txs)) {
+        const partnerTxs = txs.filter(t => {
+          const cat = String(t.category || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+          const desc = String(t.description || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+          return cat.includes('comiss') || desc.includes('comiss') || desc.includes('saque pix') || desc.includes('resgate pix') || desc.includes('saque comiss');
+        });
+
+        for (const pt of partnerTxs) {
+          const exists = requests.some(r => r.id === pt.id || (Math.abs((r.amount || 0) - (pt.amount || 0)) < 0.01 && r.date === String(pt.date || '').split('T')[0]));
+          if (!exists) {
+            const desc = pt.description || '';
+            const match = desc.match(/solicitado por\s+([^(]+)(?:\(([^)]+)\))?/i);
+            const partnerName = match ? match[1].trim() : 'Parceira';
+            const partnerCoupon = match && match[2] ? match[2].trim() : '';
+            requests.unshift({
+              id: pt.id || `REQ-TX-${Date.now()}`,
+              partnerId: `part-${partnerCoupon || 'comissao'}`,
+              partnerName,
+              partnerCoupon,
+              amount: Number(pt.amount || 0),
+              pixKeyType: 'Chave Pix',
+              pixKey: 'Consultar no comprovante/transação',
+              status: pt.status === 'pago' ? 'Pago' : 'Pendente',
+              date: pt.date ? String(pt.date).split('T')[0] : new Date().toISOString().split('T')[0],
+              createdAt: pt.date || new Date().toISOString()
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Partner Withdraws] Falha ao inspecionar transações:', e);
+    }
+
+    res.json(requests);
+  } catch (err: any) {
+    console.error('[Partner Withdraws GET] Erro:', err);
+    res.status(500).json({ error: err.message || 'Erro ao consultar solicitações de saque.' });
+  }
+});
+
+app.post('/api/partner-withdraw-requests', async (req, res) => {
+  try {
+    const db = getFirebaseServerDb();
+    const payload = req.body;
+    const newItems = Array.isArray(payload) ? payload : [payload];
+
+    // 1. Fetch current requests from ap_system_configs
+    let currentRequests: any[] = [];
+    try {
+      const { data: configs } = await db.from('ap_system_configs').select('*');
+      if (configs && Array.isArray(configs)) {
+        const row = configs.find(c => c.key === 'ap_partner_withdraw_requests');
+        if (row && row.value) {
+          const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+          if (Array.isArray(parsed)) currentRequests = parsed;
+        }
+      }
+    } catch (e) {}
+
+    // 2. Merge new items
+    const mergedMap = new Map<string, any>();
+    currentRequests.forEach(r => mergedMap.set(r.id, r));
+    newItems.forEach(r => {
+      if (r && r.id) mergedMap.set(r.id, { ...mergedMap.get(r.id), ...r });
+    });
+    const updated = Array.from(mergedMap.values()).sort((a, b) => 
+      new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime()
+    );
+
+    // 3. Save to ap_system_configs
+    await db.from('ap_system_configs').upsert([{
+      key: 'ap_partner_withdraw_requests',
+      value: JSON.stringify(updated)
+    }], { onConflict: 'key' });
+
+    // 4. Save to local_db.json
+    try {
+      const localDbPath = path.join(process.cwd(), 'local_db.json');
+      if (fs.existsSync(localDbPath)) {
+        const localDb = JSON.parse(fs.readFileSync(localDbPath, 'utf-8'));
+        if (!localDb.ap_system_configs) localDb.ap_system_configs = [];
+        const idx = localDb.ap_system_configs.findIndex((c: any) => c.key === 'ap_partner_withdraw_requests');
+        if (idx > -1) {
+          localDb.ap_system_configs[idx].value = JSON.stringify(updated);
+        } else {
+          localDb.ap_system_configs.push({ key: 'ap_partner_withdraw_requests', value: JSON.stringify(updated) });
+        }
+        fs.writeFileSync(localDbPath, JSON.stringify(localDb, null, 2), 'utf-8');
+      }
+    } catch (e) {}
+
+    console.log(`[Partner Withdraws POST] Sincronizado ${updated.length} solicitações de saque no servidor.`);
+    res.json({ success: true, requests: updated });
+  } catch (err: any) {
+    console.error('[Partner Withdraws POST] Erro:', err);
+    res.status(500).json({ error: err.message || 'Erro ao salvar solicitações de saque.' });
+  }
+});
+
+
 app.post('/api/proxy/clear-all', async (req, res) => {
   try {
     const db = getFirebaseServerDb();
@@ -3818,6 +3958,40 @@ app.post('/api/whatsapp/notify', async (req, res) => {
                     `Status: Pago & Concluído ✅\n` +
                     `Desejamos ótimas vendas! ✨`;
     } else if (type === 'partner_withdraw_request') {
+      // Auto-grava a solicitação no banco de dados centralizado
+      try {
+        const db = getFirebaseServerDb();
+        const reqId = data?.id || `REQ-${Date.now().toString().slice(-6)}`;
+        const newReq = {
+          id: reqId,
+          partnerId: data?.partnerId || `part-${Date.now()}`,
+          partnerName: data?.partnerName || 'Parceira',
+          partnerCoupon: data?.partnerCoupon || '',
+          partnerInstagram: data?.partnerInstagram || '',
+          amount: Number(data?.amount || 0),
+          pixKeyType: data?.pixKeyType || 'Pix',
+          pixKey: data?.pixKey || '',
+          status: 'Pendente',
+          date: data?.date || new Date().toISOString().split('T')[0],
+          createdAt: new Date().toISOString()
+        };
+        const { data: configs } = await db.from('ap_system_configs').select('key, value');
+        let currentReqs = [];
+        if (configs && Array.isArray(configs)) {
+          const row = configs.find(c => c.key === 'ap_partner_withdraw_requests');
+          if (row && row.value) {
+            currentReqs = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+          }
+        }
+        if (!currentReqs.some(r => r.id === reqId)) {
+          await db.from('ap_system_configs').upsert([{
+            key: 'ap_partner_withdraw_requests',
+            value: JSON.stringify([newReq, ...currentReqs])
+          }], { onConflict: 'key' });
+        }
+      } catch (errDb) {
+        console.warn('[WhatsApp Notify DB Record] Erro ao gravar saque no banco:', errDb);
+      }
       const { partnerName, partnerCoupon, amount, pixKeyType, pixKey, date } = data || {};
       const formattedTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amount || 0);
       messageText = '💸 *AP Moda Fitness - Solicitação de Saque Pix!*\n\n' +
