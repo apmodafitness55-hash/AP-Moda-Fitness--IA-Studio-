@@ -45,7 +45,7 @@ import {
   Tag
 } from 'lucide-react';
 import { Client, Sale, SalesChannel } from '../types';
-import { getStoredPartnerWithdrawRequests, updatePartnerWithdrawRequestStatus, syncPartnerWithdrawRequestsWithServer, PartnerWithdrawRequest } from '../utils/partnerUtils';
+import { getStoredPartnerWithdrawRequests, updatePartnerWithdrawRequestStatus, syncPartnerWithdrawRequestsWithServer, simulatePartnerWithdrawRequestForTesting, PartnerWithdrawRequest } from '../utils/partnerUtils';
 import { pushSystemConfigToSupabase, syncBulkSalesToSupabase, syncBulkOnlineOrdersToSupabase } from '../supabase';
 import { getWhatsAppUrl } from '../utils/storeConfig';
 
@@ -1998,6 +1998,20 @@ export default function CustomersCRM({
                   title="Atualizar solicitações em tempo real com a nuvem"
                 >
                   🔄 Sincronizar Nuvem
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const sim = await simulatePartnerWithdrawRequestForTesting();
+                    setWithdrawFeedbackMsg(`🎉 Simulação criada com sucesso para ${sim.partnerName}! O alerta foi acionado no topo da tela e no sino de notificações.`);
+                    const updated = await syncPartnerWithdrawRequestsWithServer();
+                    setWithdrawRequests(updated);
+                    setTimeout(() => setWithdrawFeedbackMsg(''), 5000);
+                  }}
+                  className="px-2.5 py-1 rounded-lg font-bold text-[10px] bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition cursor-pointer flex items-center gap-1"
+                  title="Criar um saque pendente de teste para visualizar os alertas visuais no topo, sino e menu"
+                >
+                  ➕ Simular Saque (Teste)
                 </button>
                 {(['todas', 'pendente', 'pago', 'rejeitado'] as const).map(f => {
                   const count = f === 'todas' 

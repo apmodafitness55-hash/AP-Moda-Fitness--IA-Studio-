@@ -45,7 +45,7 @@ import { MarketingSalesHub } from './MarketingSalesHub';
 import { Coupon, getStoredCoupons, saveStoredCoupons } from '../utils/couponUtils';
 import { getStoreConfig, getWhatsAppUrl } from '../utils/storeConfig';
 import CategoryBubblesManager, { resolveCategoryBubbleImage } from './CategoryBubblesManager';
-import { getOptimizedImageUrl, handleImageFallback } from '../utils/imageUtils';
+import { getOptimizedImageUrl, handleImageFallback, getProductMainImage } from '../utils/imageUtils';
 
 interface LojaOnlineProps {
   products: Product[];
@@ -1853,7 +1853,7 @@ export default function LojaOnline({
                       }}
                     >
                       <img 
-                        src={getOptimizedImageUrl(prod.image, 600)} 
+                        src={getOptimizedImageUrl(getProductMainImage(prod), 600)} 
                         alt={prod.name} 
                         loading="lazy"
                         decoding="async"
@@ -3271,12 +3271,13 @@ export default function LojaOnline({
                                 <div className="flex items-center gap-2.5">
                                   <div className="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 shrink-0">
                                     <img 
-                                      src={prod.image} 
+                                      src={getOptimizedImageUrl(getProductMainImage(prod), 160)} 
                                       alt={prod.name} 
                                       loading="lazy"
                                       decoding="async"
                                       className="w-full h-full object-cover" 
                                       referrerPolicy="no-referrer" 
+                                      onError={handleImageFallback}
                                     />
                                   </div>
                                   <div>

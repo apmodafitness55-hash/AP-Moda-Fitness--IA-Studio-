@@ -34,6 +34,8 @@ import {
   Sparkles
 } from 'lucide-react';
 import { Product, Sale, Client, Transaction, ActiveTab, SalesChannel } from '../types';
+import { getStoredPartnerWithdrawRequests } from '../utils/partnerUtils';
+import { getOptimizedImageUrl, handleImageFallback, getProductMainImage } from '../utils/imageUtils';
 import ThermalReceipt from './ThermalReceipt';
 import SalesGoalSimulator from './SalesGoalSimulator';
 
@@ -322,6 +324,10 @@ export default function DashboardOverview({
     return list;
   }, [products]);
 
+  const pendingWithdraws = useMemo(() => {
+    return getStoredPartnerWithdrawRequests().filter(r => r.status === 'Pendente');
+  }, []);
+
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
@@ -341,6 +347,42 @@ export default function DashboardOverview({
           </button>
         </div>
       </div>
+
+      {/* Pending Partner Commission Withdraw Alert */}
+      {pendingWithdraws.length > 0 && (
+        <div 
+          onClick={() => {
+            setActiveTab(ActiveTab.CLIENTES);
+            if (setCustomersCRMSubTab) setCustomersCRMSubTab('parceiros');
+          }}
+          className="bg-gradient-to-r from-pink-600 via-rose-600 to-pink-700 text-white p-4 rounded-2xl shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 cursor-pointer hover:shadow-md transition-all border border-pink-400/40 select-none group"
+          title="Clique para abrir a Central de Saques Pix no CRM e efetuar o pagamento"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white shrink-0 font-mono font-black text-base animate-pulse">
+              💸
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-sm tracking-tight text-white">
+                  {pendingWithdraws.length === 1 
+                    ? '1 Solicitação de Saque Pix de Parceira Pendente' 
+                    : `${pendingWithdraws.length} Solicitações de Saque Pix Pendentes`}
+                </span>
+                <span className="bg-white text-pink-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  Ação Necessária
+                </span>
+              </div>
+              <p className="text-pink-100 text-xs mt-0.5">
+                {pendingWithdraws[0].partnerName} solicitou resgate de {formatCurrency(pendingWithdraws[0].amount)}. Chave Pix: {pendingWithdraws[0].pixKey || 'Ver no CRM'}. Clique para abrir e pagar.
+              </p>
+            </div>
+          </div>
+          <span className="bg-white/20 group-hover:bg-white/30 text-white font-bold text-xs px-3.5 py-2 rounded-xl shrink-0 flex items-center gap-1 transition">
+            Pagar no CRM →
+          </span>
+        </div>
+      )}
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
@@ -750,7 +792,7 @@ export default function DashboardOverview({
                 title="Clique para visualizar no catálogo de produtos"
               >
                 <div className="relative w-11 h-11 rounded-lg overflow-hidden border border-slate-100 bg-slate-50 shrink-0">
-                  <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <img src={getOptimizedImageUrl(getProductMainImage(prod), 160)} alt={prod.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={handleImageFallback} />
                   <div className="absolute top-0 left-0 bg-slate-900/70 text-white font-mono text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-br-lg">
                     {idx + 1}
                   </div>

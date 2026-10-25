@@ -17,6 +17,7 @@ import {
   Ruler
 } from 'lucide-react';
 import { Product, Sale, Client } from '../types';
+import { getOptimizedImageUrl, handleImageFallback, getProductMainImage } from '../utils/imageUtils';
 
 interface CheckoutItem {
   productName: string;
@@ -393,7 +394,7 @@ export default function DashboardPerformanceAnalytics({
                   className={`bg-gradient-to-b ${placeColors[idx] || 'from-slate-800/10 to-transparent border-slate-800'} border p-4 rounded-xl flex items-center gap-4 transition-all duration-300 hover:scale-[1.01]`}
                 >
                   <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-slate-800 border border-slate-700 relative">
-                    <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    <img src={getOptimizedImageUrl(getProductMainImage(prod), 160)} alt={prod.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={handleImageFallback} />
                     <span className="absolute top-0 left-0 bg-slate-950/80 text-white font-mono text-[9px] font-black w-4 h-4 flex items-center justify-center rounded-br">
                       {idx + 1}
                     </span>
@@ -477,7 +478,7 @@ export default function DashboardPerformanceAnalytics({
                       </td>
                       <td className="py-3.5 flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-slate-800 bg-slate-900">
-                          <img referrerPolicy="no-referrer" src={prod.image} alt={prod.name} className="w-full h-full object-cover" />
+                          <img referrerPolicy="no-referrer" src={getOptimizedImageUrl(getProductMainImage(prod), 160)} alt={prod.name} className="w-full h-full object-cover" onError={handleImageFallback} />
                         </div>
                         <div className="leading-snug min-w-0">
                           <p className="font-extrabold text-white truncate max-w-[200px] sm:max-w-[300px]">{prod.name}</p>

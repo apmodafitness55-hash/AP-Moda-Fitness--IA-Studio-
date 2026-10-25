@@ -4417,7 +4417,7 @@ export default function App() {
                       </button>
                     </div>
                     <button 
-                      onClick={() => setNotifications(prev => prev.map(n => ({...n, read: true})))}
+                      onClick={() => setNotifications(prev => prev.map(n => n.type === 'partner_withdraw' ? n : ({...n, read: true})))}
                       className="text-pink-600 hover:text-pink-700 font-bold text-[10px] cursor-pointer"
                     >
                       Marcar Lidas
@@ -4443,6 +4443,61 @@ export default function App() {
                       </button>
                     )}
                   </div>
+
+                  {/* Pinned box for Pending Partner Withdrawals */}
+                  {pendingPartnerWithdrawsCount > 0 && (
+                    <div className="bg-gradient-to-br from-pink-50 to-rose-50 border border-pink-200 rounded-lg p-2.5 my-1.5 shadow-2xs">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-pink-200/60">
+                        <span className="text-[10px] font-black uppercase text-pink-700 tracking-wider flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-pink-600 animate-ping"></span>
+                          💸 Saques Pix Pendentes ({pendingPartnerWithdrawsCount})
+                        </span>
+                        <span className="text-[9px] font-extrabold text-pink-900 bg-pink-100 px-1.5 py-0.5 rounded">
+                          Aguardando Pix
+                        </span>
+                      </div>
+                      <div className="mt-1.5 space-y-1.5 max-h-36 overflow-y-auto">
+                        {pendingPartnerWithdraws.map(pw => (
+                          <div key={pw.id} className="bg-white/90 p-2 rounded-md border border-pink-100 flex items-center justify-between gap-2 shadow-2xs">
+                            <div className="truncate">
+                              <p className="font-bold text-xs text-slate-800 truncate">{pw.partnerName}</p>
+                              <p className="text-[10px] text-pink-600 font-extrabold">
+                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pw.amount)}
+                                <span className="text-slate-400 font-normal ml-1 font-mono">({pw.pixKeyType || 'Pix'})</span>
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {pw.pixKey && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigator.clipboard.writeText(pw.pixKey);
+                                    alert(`Chave Pix copiada (${pw.pixKeyType || 'Pix'}): ${pw.pixKey}`);
+                                  }}
+                                  className="text-[9.5px] font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-2 py-1 rounded cursor-pointer transition shadow-2xs"
+                                  title="Copiar Chave Pix"
+                                >
+                                  📋 Copiar
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveTab(ActiveTab.CLIENTES);
+                                  setCustomersCRMSubTab('parceiros');
+                                  setIsNotificationsOpen(false);
+                                }}
+                                className="text-[9.5px] font-bold bg-pink-600 text-white hover:bg-pink-700 px-2 py-1 rounded cursor-pointer transition shadow-2xs"
+                              >
+                                Pagar →
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="divide-y divide-slate-50 max-h-60 overflow-y-auto">
                     {notifications.length === 0 ? (
@@ -4530,6 +4585,54 @@ export default function App() {
 
           </div>
         </header>
+
+        {/* Persistent Global Alert Banner for Pending Partner Withdrawals */}
+        {pendingPartnerWithdrawsCount > 0 && (
+          <div className="bg-gradient-to-r from-pink-600 via-rose-600 to-pink-700 text-white font-sans px-4 py-2.5 text-xs flex flex-col sm:flex-row justify-between items-center gap-2.5 font-bold shadow-md relative z-20 border-b border-pink-700">
+            <div className="flex items-center gap-2.5">
+              <span className="p-1.5 bg-white/20 rounded-lg text-white font-mono text-[10px] shrink-0 flex items-center gap-1 animate-pulse">
+                <span>💸 SAQUE PIX</span>
+              </span>
+              <p className="text-left leading-normal text-xs">
+                <span className="font-extrabold text-white">
+                  {pendingPartnerWithdrawsCount === 1 
+                    ? 'Existe 1 solicitação de resgate Pix de comissão de parceira aguardando pagamento!'
+                    : `Existem ${pendingPartnerWithdrawsCount} solicitações de resgate Pix de comissões de parceiras aguardando pagamento!`}
+                </span>
+                {pendingPartnerWithdraws.length > 0 && (
+                  <span className="text-pink-100 font-medium ml-1">
+                    (Último: {pendingPartnerWithdraws[0].partnerName} — {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pendingPartnerWithdraws[0].amount)})
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {pendingPartnerWithdraws.length > 0 && pendingPartnerWithdraws[0].pixKey && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(pendingPartnerWithdraws[0].pixKey);
+                    alert(`Chave Pix copiada (${pendingPartnerWithdraws[0].pixKeyType || 'Pix'}): ${pendingPartnerWithdraws[0].pixKey}`);
+                  }}
+                  className="bg-white/15 hover:bg-white/25 text-white text-[11px] px-2.5 py-1 rounded-md transition font-semibold flex items-center gap-1 cursor-pointer"
+                  title="Copiar Chave Pix da parceira"
+                >
+                  <span>📋 Copiar Pix</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab(ActiveTab.CLIENTES);
+                  setCustomersCRMSubTab('parceiros');
+                }}
+                className="bg-white text-pink-700 hover:bg-pink-50 text-[11px] px-3 py-1 rounded-md transition font-extrabold shadow-sm flex items-center gap-1 cursor-pointer"
+              >
+                <span>Pagar & Detalhes no CRM →</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {systemOffline && (
           <div className="bg-amber-500 text-slate-950 font-sans px-4 py-2.5 text-xs flex flex-col md:flex-row justify-between items-center gap-2 font-bold shadow-inner relative z-20 transition-all duration-300 border-b border-amber-600">

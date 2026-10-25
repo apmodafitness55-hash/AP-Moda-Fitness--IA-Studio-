@@ -54,6 +54,58 @@ export const PRE_OPTIMIZED_IMAGES: Record<string, string> = {
 };
 
 /**
+ * Resolves common external viewer URLs to direct raw image URLs right on the client
+ */
+export function resolveClientDirectImageUrl(url?: string | null): string {
+  if (!url || typeof url !== 'string') return '';
+  let trimmed = url.trim();
+  if (!trimmed) return '';
+
+  // Google Drive share / preview links -> Google User Content CDN
+  const gdriveMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (trimmed.includes('drive.google.com') && gdriveMatch && gdriveMatch[1]) {
+    return `https://lh3.googleusercontent.com/d/${gdriveMatch[1]}`;
+  }
+
+  // Dropbox links -> Direct raw file
+  if (trimmed.includes('dropbox.com')) {
+    if (trimmed.includes('dl=0')) return trimmed.replace('dl=0', 'raw=1');
+    if (!trimmed.includes('raw=1') && !trimmed.includes('dl=1')) {
+      return trimmed + (trimmed.includes('?') ? '&raw=1' : '?raw=1');
+    }
+    return trimmed;
+  }
+
+  // Imgur gallery / viewer link -> Direct JPEG
+  const imgurMatch = trimmed.match(/^https?:\/\/(?:www\.)?imgur\.com\/([a-zA-Z0-9]+)$/);
+  if (imgurMatch && imgurMatch[1]) {
+    return `https://i.imgur.com/${imgurMatch[1]}.jpg`;
+  }
+
+  return trimmed;
+}
+
+/**
+ * Safely extracts the primary image URL from a product object,
+ * whether stored in prod.image (string or array) or prod.images (array).
+ */
+export function getProductMainImage(prod: any): string {
+  if (!prod) return '';
+  if (typeof prod.image === 'string' && prod.image.trim()) {
+    return prod.image.trim();
+  }
+  if (Array.isArray(prod.images) && prod.images.length > 0) {
+    const found = prod.images.find((img: any) => typeof img === 'string' && img.trim());
+    if (found) return found.trim();
+  }
+  if (Array.isArray(prod.image) && prod.image.length > 0) {
+    const found = prod.image.find((img: any) => typeof img === 'string' && img.trim());
+    if (found) return found.trim();
+  }
+  return '';
+}
+
+/**
  * Returns an ultra-optimized image URL.
  * Automatically chooses local pre-compressed WebP assets (<30KB) or routes
  * through the server-side CDN proxy to ensure fast, zero-delay rendering on all devices.
@@ -64,7 +116,7 @@ export function getOptimizedImageUrl(
   quality: number = 80
 ): string {
   if (!url || typeof url !== 'string') return AP_FALLBACK_IMAGE;
-  const trimmed = url.trim();
+  let trimmed = resolveClientDirectImageUrl(url);
   if (!trimmed) return AP_FALLBACK_IMAGE;
 
   // 1. Data URI (Base64) -> already in-memory, serve directly
@@ -73,7 +125,9 @@ export function getOptimizedImageUrl(
   }
 
   // 2. Check if we have an ultra-fast static pre-compressed WebP file
-  const preFile = PRE_OPTIMIZED_IMAGES[trimmed];
+  const preFile = PRE_OPTIMIZED_IMAGES[trimmed] || 
+                 PRE_OPTIMIZED_IMAGES[trimmed.replace('http://', 'https://')] ||
+                 PRE_OPTIMIZED_IMAGES[trimmed.split('?')[0]];
   if (preFile) {
     if (targetWidth <= 200) {
       return `/optimized-images/thumbnails/${preFile}`;
@@ -100,12 +154,29 @@ export function getOptimizedImageUrl(
 }
 
 /**
- * Image error handler fallback to prevent broken UI
+ * Two-tier resilient image error handler:
+ * 1. If loading via the CDN proxy failed, attempt loading the original upstream URL directly.
+ * 2. If the original also fails, display the branded fallback image.
  */
 export function handleImageFallback(e: React.SyntheticEvent<HTMLImageElement, Event>) {
   const target = e.currentTarget;
+
+  // Tier 1 recovery: If it failed via the CDN proxy, fallback immediately to the original direct image URL!
+  if (target.src && target.src.includes('/api/proxy/cdn-image')) {
+    try {
+      const urlObj = new URL(target.src, window.location.origin);
+      const originalUrl = urlObj.searchParams.get('url');
+      if (originalUrl && originalUrl !== target.src) {
+        // Switch to direct image loading
+        target.src = originalUrl;
+        return;
+      }
+    } catch (err) {}
+  }
+
+  // Tier 2 recovery: If already at fallback, stop infinite loop
   if (target.src !== AP_FALLBACK_IMAGE) {
-    target.onerror = null; // Prevent infinite loop
+    target.onerror = null;
     target.src = AP_FALLBACK_IMAGE;
   }
 }

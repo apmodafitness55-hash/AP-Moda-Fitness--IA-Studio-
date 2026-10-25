@@ -61,7 +61,7 @@ import { pushSystemConfigToSupabase } from '../supabase';
 import { CheckoutWizard } from './CheckoutWizard';
 import { getStoreConfig, getWhatsAppUrl, formatWhatsAppNumber } from '../utils/storeConfig';
 import { resolveCategoryBubbleImage, getFallbackCategoryPhoto } from './CategoryBubblesManager';
-import { getOptimizedImageUrl, handleImageFallback } from '../utils/imageUtils';
+import { getOptimizedImageUrl, handleImageFallback, getProductMainImage } from '../utils/imageUtils';
 
 export function validateCPF(cpf: string): boolean {
   const cleanCPF = cpf.replace(/\D/g, '');
@@ -4313,6 +4313,7 @@ export default function PublicCatalog({
                 const isItemLiked = wishlistLikes[prod.id]?.active || false;
                 const totalWishCount = getProductReviewCount(prod.id, prod.name, prod.category);
                 const isOutOfStock = prod.stock <= 0;
+                const mainProductImg = getProductMainImage(prod);
 
                 return (
                   <div 
@@ -4322,9 +4323,9 @@ export default function PublicCatalog({
                     
                     {/* Portrait Style Frame with layout ratio of the fashion site */}
                     <div className="relative aspect-[3/4] w-full rounded-2xl bg-white overflow-hidden shadow-xs cursor-pointer border border-slate-100/65" onClick={() => handleOpenProduct(prod)}>
-                      {prod.image ? (
+                      {mainProductImg ? (
                         <img 
-                          src={getOptimizedImageUrl(prod.image, 600)} 
+                          src={getOptimizedImageUrl(mainProductImg, 600)} 
                           alt={prod.name} 
                           loading="lazy"
                           decoding="async"
@@ -4675,12 +4676,15 @@ export default function PublicCatalog({
           return false;
         };
 
-        const imagesPoolRaw = selectedProduct.images && selectedProduct.images.length > 0 
-          ? selectedProduct.images 
-          : [selectedProduct.image];
-        const imagesPool = imagesPoolRaw.filter(Boolean);
-        const currentIdx = detailImageIdx % imagesPool.length;
-        const activeImage = imagesPool[currentIdx] || selectedProduct.image;
+        const mainProductImg = getProductMainImage(selectedProduct);
+        const imagesPoolRaw = [
+          mainProductImg,
+          ...(Array.isArray(selectedProduct.images) ? selectedProduct.images : []),
+          typeof selectedProduct.image === 'string' ? selectedProduct.image : ''
+        ].filter(Boolean);
+        const imagesPool = Array.from(new Set(imagesPoolRaw));
+        const currentIdx = imagesPool.length > 0 ? (detailImageIdx % imagesPool.length) : 0;
+        const activeImage = imagesPool[currentIdx] || mainProductImg;
 
         return (
           <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-[150] p-3 md:p-6 font-sans">
@@ -4731,7 +4735,7 @@ export default function PublicCatalog({
                       onMouseLeave={() => setIsZooming(false)}
                     >
                       <img 
-                        src={activeImage} 
+                        src={getOptimizedImageUrl(activeImage, 900)} 
                         alt={selectedProduct.name} 
                         className="w-full h-full object-cover transition-transform duration-300 ease-out"
                         style={{
@@ -4739,6 +4743,7 @@ export default function PublicCatalog({
                           transformOrigin: `${zoomPos.x}% ${zoomPos.y}%`
                         }}
                         referrerPolicy="no-referrer"
+                        onError={handleImageFallback}
                       />
                     </div>
                   )}

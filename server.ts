@@ -1021,7 +1021,7 @@ app.use('/optimized-images', express.static(path.join(process.cwd(), 'public', '
 }));
 
 // In-memory caches for CDN Proxy to guarantee sub-millisecond responses
-const cdnInFlight = new Map<string, Promise<Buffer>>();
+const cdnInFlight = new Map<string, Promise<{ buffer: Buffer; contentType: string }>>();
 const cdnMemCache = new Map<string, { buffer: Buffer; contentType: string }>();
 
 // Fallback branded SVG for broken or unreachable external images
@@ -1043,33 +1043,53 @@ app.get('/api/proxy/cdn-image', async (req, res) => {
       return res.status(400).send('URL da imagem é obrigatória.');
     }
 
-    const trimmedUrl = rawUrl.trim();
+    let trimmedUrl = rawUrl.trim();
     if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
       return res.status(400).send('URL deve ser http ou https.');
     }
+
+    // Resolve any viewer links (e.g. ibb.co -> i.ibb.co, Google Drive -> lh3 usercontent, Dropbox -> raw)
+    const directUrl = await resolveDirectImageUrl(trimmedUrl);
+    const targetUrl = directUrl || trimmedUrl;
 
     const width = Math.min(1600, Math.max(50, parseInt(req.query.w as string) || 800));
     const quality = Math.min(100, Math.max(20, parseInt(req.query.q as string) || 80));
 
     // 1. Check if we already have a pre-compressed static file in public/optimized-images
     const preOptimizedDir = path.join(process.cwd(), 'public', 'optimized-images');
-    const md5Hash = crypto.createHash('md5').update(trimmedUrl).digest('hex');
-    const preOptimizedFile = path.join(preOptimizedDir, `${md5Hash}.webp`);
-    const preThumbFile = path.join(preOptimizedDir, 'thumbnails', `${md5Hash}.webp`);
+    const targetMd5 = crypto.createHash('md5').update(targetUrl).digest('hex');
+    const trimmedMd5 = crypto.createHash('md5').update(trimmedUrl).digest('hex');
 
-    if (width <= 200 && fs.existsSync(preThumbFile)) {
-      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      res.setHeader('Content-Type', 'image/webp');
-      return res.sendFile(preThumbFile);
+    const targetPreFile = path.join(preOptimizedDir, `${targetMd5}.webp`);
+    const targetPreThumb = path.join(preOptimizedDir, 'thumbnails', `${targetMd5}.webp`);
+    const trimmedPreFile = path.join(preOptimizedDir, `${trimmedMd5}.webp`);
+    const trimmedPreThumb = path.join(preOptimizedDir, 'thumbnails', `${trimmedMd5}.webp`);
+
+    if (width <= 200) {
+      if (fs.existsSync(targetPreThumb)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        res.setHeader('Content-Type', 'image/webp');
+        return res.sendFile(targetPreThumb);
+      }
+      if (fs.existsSync(trimmedPreThumb)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        res.setHeader('Content-Type', 'image/webp');
+        return res.sendFile(trimmedPreThumb);
+      }
     }
-    if (fs.existsSync(preOptimizedFile)) {
+    if (fs.existsSync(targetPreFile)) {
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       res.setHeader('Content-Type', 'image/webp');
-      return res.sendFile(preOptimizedFile);
+      return res.sendFile(targetPreFile);
+    }
+    if (fs.existsSync(trimmedPreFile)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Content-Type', 'image/webp');
+      return res.sendFile(trimmedPreFile);
     }
 
     // 2. Cache key for dynamically converted images
-    const cacheKey = `${md5Hash}_w${width}_q${quality}`;
+    const cacheKey = `${targetMd5}_w${width}_q${quality}`;
     const cacheDir = path.join(process.cwd(), 'uploads', 'cdn_cache');
     const cacheFile = path.join(cacheDir, `${cacheKey}.webp`);
 
@@ -1098,54 +1118,72 @@ app.get('/api/proxy/cdn-image', async (req, res) => {
       fetchPromise = (async () => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 12000);
-        const upstreamRes = await fetch(trimmedUrl, {
-          signal: controller.signal,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
-          }
-        });
-        clearTimeout(timeoutId);
+        let upstreamRes;
+        try {
+          upstreamRes = await fetch(targetUrl, {
+            signal: controller.signal,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+            }
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
 
-        if (!upstreamRes.ok) {
-          throw new Error(`Upstream responded with ${upstreamRes.status}`);
+        if (!upstreamRes || !upstreamRes.ok) {
+          throw new Error(`Upstream responded with ${upstreamRes ? upstreamRes.status : 'error'}`);
         }
 
         const origBuf = Buffer.from(await upstreamRes.arrayBuffer());
-        const transformed = await sharp(origBuf)
-          .rotate()
-          .resize({ width, fit: 'inside', withoutEnlargement: true })
-          .webp({ quality, effort: 3 })
-          .toBuffer();
+        const upstreamContentType = upstreamRes.headers.get('content-type') || 'image/jpeg';
 
-        if (!fs.existsSync(cacheDir)) {
-          fs.mkdirSync(cacheDir, { recursive: true });
-        }
-        fs.writeFile(cacheFile, transformed, () => {});
-
-        if (transformed.length < 150000 && cdnMemCache.size < 100) {
-          cdnMemCache.set(cacheKey, { buffer: transformed, contentType: 'image/webp' });
+        if (upstreamContentType.includes('svg')) {
+          return { buffer: origBuf, contentType: 'image/svg+xml' };
         }
 
-        return transformed;
+        try {
+          const transformed = await sharp(origBuf)
+            .rotate()
+            .resize({ width, fit: 'inside', withoutEnlargement: true })
+            .webp({ quality, effort: 3 })
+            .toBuffer();
+
+          if (!fs.existsSync(cacheDir)) {
+            fs.mkdirSync(cacheDir, { recursive: true });
+          }
+          fs.writeFile(cacheFile, transformed, () => {});
+
+          if (transformed.length < 150000 && cdnMemCache.size < 100) {
+            cdnMemCache.set(cacheKey, { buffer: transformed, contentType: 'image/webp' });
+          }
+
+          return { buffer: transformed, contentType: 'image/webp' };
+        } catch (sharpErr) {
+          console.warn('[Sharp Conversion Warning] Serving original buffer:', sharpErr);
+          return { buffer: origBuf, contentType: upstreamContentType };
+        }
       })();
       cdnInFlight.set(cacheKey, fetchPromise);
     }
 
     try {
-      const buffer = await fetchPromise;
+      const result = await fetchPromise;
       cdnInFlight.delete(cacheKey);
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      res.setHeader('Content-Type', 'image/webp');
-      return res.send(buffer);
-    } catch (err) {
+      res.setHeader('Content-Type', result.contentType);
+      return res.send(result.buffer);
+    } catch (err: any) {
       cdnInFlight.delete(cacheKey);
-      console.warn(`[CDN Image Fetch Error] ${trimmedUrl}:`, err.message);
-      res.setHeader('Content-Type', 'image/svg+xml');
-      return res.send(CDN_FALLBACK_SVG);
+      console.warn(`[CDN Image Fetch Error] ${targetUrl}:`, err.message);
+      // Resilient fallback: Redirect browser directly to the image URL so user's client loads it directly!
+      return res.redirect(302, targetUrl);
     }
   } catch (err) {
     console.error('[CDN Image Unhandled Error]:', err);
+    if (req.query.url && typeof req.query.url === 'string') {
+      return res.redirect(302, (req.query.url as string).trim());
+    }
     res.setHeader('Content-Type', 'image/svg+xml');
     res.send(CDN_FALLBACK_SVG);
   }
@@ -2917,38 +2955,73 @@ app.get('/api/proxy/resolve-image-url', async (req, res) => {
 async function resolveDirectImageUrl(url: string): Promise<string> {
   if (!url || typeof url !== 'string') return url;
   const trimmed = url.trim();
-  // Check if it looks like an ImgBB viewer link
-  const isImgbbViewer = (trimmed.includes('ibb.co/') || trimmed.includes('imgbb.com/')) && 
-                        !trimmed.includes('i.ibb.co/') && 
-                        !/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(trimmed);
-  if (!isImgbbViewer) {
+
+  // 1. Google Drive share / view links -> Google's high-speed user content CDN
+  const gdriveMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (trimmed.includes('drive.google.com') && gdriveMatch && gdriveMatch[1]) {
+    return `https://lh3.googleusercontent.com/d/${gdriveMatch[1]}`;
+  }
+
+  // 2. Dropbox share links -> Direct file raw download
+  if (trimmed.includes('dropbox.com')) {
+    if (trimmed.includes('dl=0')) return trimmed.replace('dl=0', 'raw=1');
+    if (!trimmed.includes('raw=1') && !trimmed.includes('dl=1')) {
+      return trimmed + (trimmed.includes('?') ? '&raw=1' : '?raw=1');
+    }
     return trimmed;
   }
 
-  try {
-    console.log(`[ImgBB Resolver] Resolvendo link do visualizador: ${trimmed}`);
-    const response = await fetchWithTimeout(trimmed, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36'
-      }
-    }, 10000);
-
-    if (!response.ok) {
-      console.warn(`[ImgBB Resolver] Falha ao acessar página (status ${response.status})`);
-      return trimmed;
-    }
-
-    const html = await response.text();
-    const ogImageMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i) || 
-                         html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i);
-    if (ogImageMatch && ogImageMatch[1]) {
-      const directUrl = ogImageMatch[1].trim();
-      console.log(`[ImgBB Resolver] Link direto resolvido com sucesso: ${directUrl}`);
-      return directUrl;
-    }
-  } catch (err: any) {
-    console.error(`[ImgBB Resolver] Erro ao tentar resolver link:`, err.message || err);
+  // 3. Imgur viewer links -> Direct i.imgur.com JPEG
+  const imgurMatch = trimmed.match(/^https?:\/\/(?:www\.)?imgur\.com\/([a-zA-Z0-9]+)$/);
+  if (imgurMatch && imgurMatch[1]) {
+    return `https://i.imgur.com/${imgurMatch[1]}.jpg`;
   }
+
+  // 4. ImgBB viewer link resolution (e.g. ibb.co/XYZ or imgbb.com/XYZ without direct i.ibb.co)
+  const isImgbbViewer = (trimmed.includes('ibb.co/') || trimmed.includes('imgbb.com/')) && 
+                        !trimmed.includes('i.ibb.co/') && 
+                        !/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(trimmed);
+  if (isImgbbViewer) {
+    try {
+      console.log(`[ImgBB Resolver] Resolvendo link do visualizador: ${trimmed}`);
+      const response = await fetchWithTimeout(trimmed, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+      }, 10000);
+
+      if (response.ok) {
+        const html = await response.text();
+        const ogImageMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i) || 
+                             html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i) ||
+                             html.match(/https:\/\/i\.ibb\.co\/[a-zA-Z0-9_/.-]+/);
+        if (ogImageMatch && ogImageMatch[1]) {
+          const directUrl = ogImageMatch[1].trim();
+          console.log(`[ImgBB Resolver] Link direto resolvido com sucesso: ${directUrl}`);
+          return directUrl;
+        } else if (ogImageMatch && ogImageMatch[0]) {
+          return ogImageMatch[0].trim();
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[ImgBB Resolver] Erro ao tentar resolver link:`, err.message || err);
+    }
+  }
+
+  // 5. Postimages viewer links
+  if (trimmed.includes('postimg.cc/') && !trimmed.includes('i.postimg.cc/')) {
+    try {
+      const response = await fetchWithTimeout(trimmed, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+      }, 8000);
+      if (response.ok) {
+        const html = await response.text();
+        const ogMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i);
+        if (ogMatch && ogMatch[1]) return ogMatch[1].trim();
+      }
+    } catch (err) {}
+  }
+
   return trimmed;
 }
 
