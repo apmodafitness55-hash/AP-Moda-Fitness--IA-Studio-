@@ -839,23 +839,12 @@ function resolveSupabaseCredentials() {
     if (matchedUrl) break;
   }
 
-  // 4. Fallback: If no matching pairs can be found via JWT analysis, fallback to original logic
+  // 4. Default fallback: Verified production Supabase project
   if (!matchedUrl || !matchedKey) {
-    const envUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-    const envKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || '';
-
-    const hasEnvConfig = envUrl && envUrl.startsWith('http') && envKey && !envKey.startsWith('MY_');
-
-    if (hasEnvConfig) {
-      matchedUrl = envUrl;
-      matchedKey = envKey;
-    } else if (savedConfig?.url && savedConfig?.key) {
-      matchedUrl = savedConfig.url;
-      matchedKey = savedConfig.key;
-    } else {
-      matchedUrl = envUrl || savedConfig?.url || '';
-      matchedKey = envKey || savedConfig?.key || '';
-    }
+    const defaultLiveUrl = 'https://ckrwmdaocoyigpmzpdyz.supabase.co';
+    const defaultLiveKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrcndtZGFvY295aWdwbXpwZHl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NDk2NzMsImV4cCI6MjA5NzEyNTY3M30.20vJ4pjavzl06v1dOIbx9rkxf7kc_72ApGgD6jCRiss';
+    matchedUrl = defaultLiveUrl;
+    matchedKey = defaultLiveKey;
   }
 
   return { url: matchedUrl, key: matchedKey };
@@ -899,26 +888,6 @@ function getFirebaseServerDb() {
     return new LocalDBAdapter();
   }
 
-  const isDefaultSandbox = supabaseUrl && supabaseUrl.includes('ckrwmdaocoyigpmzpdyz');
-
-  // If it's the default sandbox, fallback to LocalDB if unhealthy. 
-  // If it's a custom database, always use it to prevent data partition/loss.
-  if (isDefaultSandbox) {
-    if (isSupabaseVerifiedHealthy === false) {
-      return new LocalDBAdapter();
-    }
-
-    if (isSupabaseVerifiedHealthy === null) {
-      isSupabaseVerifiedHealthy = false; // set temporary false to prevent concurrent check attempts
-      const { url, key } = resolveSupabaseCredentials();
-      checkSupabaseHealth(url || '', key || '').then(healthy => {
-        isSupabaseVerifiedHealthy = healthy;
-        console.log(`[Supabase Server Lazy Check] Resultado da verificação: ${healthy ? 'CONECTADO' : 'USANDO BANCO LOCAL SEGURO'}`);
-      });
-      return new LocalDBAdapter();
-    }
-  }
-
   if (supabaseClientInstance && (currentConfigUrl !== supabaseUrl || currentConfigKey !== supabaseKey)) {
     console.log('[Supabase Server] Detectado alteração nas credenciais. Re-inicializando cliente...');
     supabaseClientInstance = null;
@@ -929,7 +898,7 @@ function getFirebaseServerDb() {
       supabaseClientInstance = createClient(supabaseUrl || '', supabaseKey || '');
       currentConfigUrl = supabaseUrl || '';
       currentConfigKey = supabaseKey || '';
-      console.log('[Supabase Server] Cliente do Supabase inicializado com sucesso.');
+      console.log('[Supabase Server] Cliente do Supabase inicializado com sucesso para:', supabaseUrl);
     } catch (err) {
       console.error('[Supabase Server Init Error]', err);
       return new LocalDBAdapter();
@@ -949,21 +918,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Dynamic DB configuration endpoints to bridge the communication gap between frontend settings and backend server
 app.get('/api/get-db-config', (req, res) => {
   try {
-    let url = process.env.SUPABASE_URL || '';
-    let key = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || '';
-
-    const hasEnvConfig = url && url.startsWith('http') && key && !key.startsWith('MY_');
-
-    if (!hasEnvConfig) {
-      const configPath = path.join(process.cwd(), 'db_config.json');
-      if (fs.existsSync(configPath)) {
-        const savedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-        if (savedConfig.url && savedConfig.key) {
-          url = savedConfig.url;
-          key = savedConfig.key;
-        }
-      }
-    }
+    const { url, key } = resolveSupabaseCredentials();
     res.json({ url, key });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Erro ao carregar configurações de banco.' });

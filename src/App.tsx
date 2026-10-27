@@ -1379,34 +1379,9 @@ export default function App() {
   useEffect(() => { isCustomerViewRef.current = isCustomerView; }, [isCustomerView]);
   useEffect(() => { runFullSynchronousSetupRef.current = runFullSynchronousSetup; }, [runFullSynchronousSetup]);
 
-  // Limpar cache de dados estáticos e mockados para iniciar completamente vazio em todas as tabelas
+  // Garantir que as credenciais do Supabase estejam sincronizadas sem apagar dados locais
   useEffect(() => {
-    const isCleaned = localStorage.getItem('ap_moda_global_clean_v4');
-    if (!isCleaned) {
-      localStorage.removeItem('ap_moda_clients');
-      localStorage.removeItem('ap_moda_sales');
-      localStorage.removeItem('ap_moda_products');
-      localStorage.removeItem('ap_moda_transactions');
-      localStorage.removeItem('ap_moda_opportunities');
-      localStorage.removeItem('ap_moda_followups');
-      localStorage.removeItem('ap_moda_online_orders');
-      localStorage.removeItem('ap_moda_checkouts');
-      localStorage.removeItem('ap_moda_partners');
-      localStorage.removeItem('ap_moda_trocas');
-      localStorage.removeItem('ap_moda_motoboys_detailed');
-      localStorage.setItem('ap_moda_global_clean_v4', 'true');
-      setClients(INITIAL_CLIENTS);
-      setSales(INITIAL_SALES);
-      setProducts(INITIAL_PRODUCTS);
-      setTransactions(INITIAL_TRANSACTIONS);
-      setOnlineOrders([]);
-      setCheckouts([]);
-      
-      localStorage.setItem('ap_moda_products', JSON.stringify(INITIAL_PRODUCTS));
-      localStorage.setItem('ap_moda_clients', JSON.stringify(INITIAL_CLIENTS));
-      localStorage.setItem('ap_moda_sales', JSON.stringify(INITIAL_SALES));
-      localStorage.setItem('ap_moda_transactions', JSON.stringify(INITIAL_TRANSACTIONS));
-    }
+    localStorage.setItem('ap_moda_global_clean_v4', 'true');
   }, []);
 
   // Carregar usuários e credenciais do Supabase na inicialização, se houver
@@ -1440,7 +1415,7 @@ export default function App() {
             }
           } catch (e) {}
         } else {
-          // Visão pública do catálogo / visitante: Puxa o catálogo do Supabase para não deixar o site vazio
+          // Visão pública do catálogo / visitante: Puxa o catálogo do Supabase para manter o catálogo real atualizado
           try {
             const dbProducts = await fetchProductsFromSupabase();
             if (dbProducts && dbProducts.length > 0) {
@@ -1448,26 +1423,27 @@ export default function App() {
               localStorage.setItem('ap_moda_products', JSON.stringify(dbProducts));
               console.log('[Public Catalog Init] Produtos carregados com sucesso do Supabase para visitantes:', dbProducts.length);
             } else {
-              const isSeeded = localStorage.getItem('ap_system_seeded') === 'true';
-              if (isSeeded) {
-                console.log('[Public Catalog Init] Banco de dados vazio e sistema já semeado. Exibindo catálogo limpo.');
-                setProducts([]);
-                localStorage.setItem('ap_moda_products', JSON.stringify([]));
-              } else {
-                console.log('[Public Catalog Init] Banco de dados vazio e não semeado. Carregando catálogo padrão localmente (somente leitura).');
-                setProducts(INITIAL_PRODUCTS);
-                localStorage.setItem('ap_moda_products', JSON.stringify(INITIAL_PRODUCTS));
+              // Se a consulta remota vier vazia, preserva o cache local existente antes de qualquer fallback
+              const existingLocal = localStorage.getItem('ap_moda_products');
+              if (existingLocal) {
+                try {
+                  const parsed = JSON.parse(existingLocal);
+                  if (Array.isArray(parsed) && parsed.length > 0) {
+                    setProducts(parsed);
+                  }
+                } catch (e) {}
               }
             }
           } catch (err) {
             console.warn('[Public Catalog Init] Falha ao carregar produtos na inicialização do visitante:', err);
-            const isSeeded = localStorage.getItem('ap_system_seeded') === 'true';
-            if (isSeeded) {
-              setProducts([]);
-              localStorage.setItem('ap_moda_products', JSON.stringify([]));
-            } else {
-              setProducts(INITIAL_PRODUCTS);
-              localStorage.setItem('ap_moda_products', JSON.stringify(INITIAL_PRODUCTS));
+            const existingLocal = localStorage.getItem('ap_moda_products');
+            if (existingLocal) {
+              try {
+                const parsed = JSON.parse(existingLocal);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  setProducts(parsed);
+                }
+              } catch (e) {}
             }
           }
         }

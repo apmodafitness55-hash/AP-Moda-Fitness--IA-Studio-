@@ -44,6 +44,13 @@ export interface Product {
   colorStocks?: Record<string, number>;
   sizeColorStocks?: Record<string, Record<string, number>>;
   measurementSpecs?: Record<string, { bustoMin: number; bustoMax: number; cinturaMin: number; cinturaMax: number; quadrilMin: number; quadrilMax: number }>;
+  size_colors?: any;
+  color_stocks?: any;
+  size_color_stocks?: any;
+  measurement_specs?: any;
+  minstock?: number;
+  salescount?: number;
+  videourl?: string;
   composition?: string;
   routes?: string;
   compare_at_price?: number;
@@ -51,6 +58,7 @@ export interface Product {
   width?: number; // em cm (ex: 20)
   height?: number; // em cm (ex: 5)
   length?: number; // em cm (ex: 25)
+  created_at?: string;
 }
 
 export interface SaleItem {
