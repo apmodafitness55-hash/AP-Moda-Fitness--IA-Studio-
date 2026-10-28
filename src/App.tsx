@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 import { ActiveTab, Product, Sale, Client, Transaction } from './types';
-import { INITIAL_PRODUCTS, INITIAL_CLIENTS, INITIAL_SALES, INITIAL_TRANSACTIONS, INITIAL_TEAM_MEMBERS } from './data/mockData';
+import { INITIAL_PRODUCTS, INITIAL_CLIENTS, INITIAL_SALES, INITIAL_TRANSACTIONS, INITIAL_TEAM_MEMBERS, INITIAL_ONLINE_ORDERS } from './data/mockData';
 import { playSaleSuccessSound, playNotificationSound } from './lib/audioFeedback';
 import { getStoredPartnerWithdrawRequests, syncPartnerWithdrawRequestsWithServer, PartnerWithdrawRequest } from './utils/partnerUtils';
 
@@ -101,17 +101,36 @@ export default function App() {
   const [settingsSystemSubTab, setSettingsSystemSubTab] = useState<'empresa' | 'integracoes' | 'seguranca' | 'roadmap' | 'vitrine'>('empresa');
 
   // Controle de Usuários e Acessos (Equipe)
+  // Controle de Usuários e Acessos (Equipe)
   const [teamMembers, setTeamMembers] = useState<any[]>(() => {
     const saved = localStorage.getItem('ap_moda_team_users') || localStorage.getItem('ap_moda_team_users_backup');
     let parsed: any[] | null = null;
+    const fakeLogins = ['carla', 'mariana', 'lucas', 'juliana', 'camila'];
+    const fakeIds = ['usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6'];
+    const fakeNames = ['carla oliveira', 'mariana santos', 'lucas silva', 'juliana costa', 'camila parceira', 'ana carolina'];
+
     if (saved) {
       try {
         parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          // Auto-heal admin password on load to prevent cached localStorage mismatches
+          // Remove fake mock profiles
+          parsed = parsed.filter(m => 
+            !fakeIds.includes(m.id) && 
+            !fakeLogins.includes(m.login?.toLowerCase()) &&
+            !fakeNames.includes(m.name?.toLowerCase())
+          );
+
+          // Auto-heal admin password and name on load to prevent cached mismatches
           parsed = parsed.map(m => {
-            if (m.role === 'Admin' && m.login?.toLowerCase() === 'admin') {
-              return { ...m, password: 'Ap01695*' };
+            if (m.role === 'Admin' && (m.login?.toLowerCase() === 'admin' || m.id === 'usr-1')) {
+              return { 
+                ...m, 
+                name: 'AP Moda Fitness',
+                login: 'admin', 
+                password: 'Ap01695*',
+                role: 'Admin',
+                details: 'Administradora Geral'
+              };
             }
             return m;
           });
@@ -131,32 +150,56 @@ export default function App() {
     return INITIAL_TEAM_MEMBERS;
   });
 
-  // Vendedores dinâmicos
+  // Vendedores dinâmicos (filtrando colaboradores fictícios)
   const [sellers, setSellers] = useState<string[]>(() => {
     const saved = localStorage.getItem('ap_moda_sellers');
-    return saved ? JSON.parse(saved) : [];
+    const fakeNames = ['carla oliveira', 'mariana santos', 'lucas silva', 'juliana costa', 'camila parceira', 'ana carolina'];
+    if (saved) {
+      try {
+        const arr = JSON.parse(saved);
+        if (Array.isArray(arr)) {
+          return arr.filter(name => !fakeNames.includes(String(name).toLowerCase()));
+        }
+      } catch (e) {}
+    }
+    return [];
   });
 
-  // Motoboys dinâmicos
+  // Motoboys dinâmicos (filtrando colaboradores fictícios)
   const [motoboys, setMotoboys] = useState<string[]>(() => {
     const saved = localStorage.getItem('ap_moda_motoboys');
-    return saved ? JSON.parse(saved) : [];
+    const fakeNames = ['carla oliveira', 'mariana santos', 'lucas silva', 'juliana costa', 'camila parceira', 'ana carolina'];
+    if (saved) {
+      try {
+        const arr = JSON.parse(saved);
+        if (Array.isArray(arr)) {
+          return arr.filter(name => !fakeNames.includes(String(name).toLowerCase()));
+        }
+      } catch (e) {}
+    }
+    return [];
   });
 
   // Keep sellers, motoboys, and partners in robust real-time synchrony with teamMembers
   useEffect(() => {
+    const fakeNames = ['carla oliveira', 'mariana santos', 'lucas silva', 'juliana costa', 'camila parceira', 'ana carolina'];
+
     if (teamMembers && teamMembers.length > 0) {
       localStorage.setItem('ap_moda_team_users', JSON.stringify(teamMembers));
       localStorage.setItem('ap_moda_team_users_backup', JSON.stringify(teamMembers));
     }
 
-    // Update sellers
-    const extSellers = teamMembers.filter(m => m.role === 'Vendedor').map(m => m.name);
+    // Update sellers (excluding any mock names)
+    const extSellers = teamMembers
+      .filter(m => m.role === 'Vendedor' && !fakeNames.includes(m.name?.toLowerCase()))
+      .map(m => m.name);
     setSellers(extSellers);
     localStorage.setItem('ap_moda_sellers', JSON.stringify(extSellers));
 
-    // Update motoboys
-    const extMotoboys = teamMembers.filter(m => m.role === 'Entregador').map(m => m.name);
+    // Update motoboys (excluding any mock names)
+    const extMotoboys = teamMembers
+      .filter(m => m.role === 'Entregador' && !fakeNames.includes(m.name?.toLowerCase()))
+      .map(m => m.name);
     setMotoboys(extMotoboys);
     localStorage.setItem('ap_moda_motoboys', JSON.stringify(extMotoboys));
 
@@ -166,11 +209,19 @@ export default function App() {
       let currentPartnersList: any[] = savedPartners ? JSON.parse(savedPartners) : [];
       if (!Array.isArray(currentPartnersList)) currentPartnersList = [];
 
+      // Purge mock partners from storage
+      currentPartnersList = currentPartnersList.filter(p => 
+        p.id !== 'usr-6' && 
+        p.login?.toLowerCase() !== 'camila' && 
+        !p.name?.toLowerCase().includes('camila parceira') &&
+        p.couponCode?.toUpperCase() !== 'CAMILA10'
+      );
+
       const updatedPartnersList = [...currentPartnersList];
       let changed = false;
 
       // Merge teamMembers with role === 'Parceiro'
-      const teamPartners = teamMembers.filter(m => m.role === 'Parceiro');
+      const teamPartners = teamMembers.filter(m => m.role === 'Parceiro' && !fakeNames.includes(m.name?.toLowerCase()));
       teamPartners.forEach(tp => {
         const existing = updatedPartnersList.find(p => p.id === tp.id || p.name.toLowerCase() === tp.name.toLowerCase() || (tp.login && p.couponCode.toLowerCase() === tp.login.toLowerCase()));
         if (!existing) {
@@ -212,7 +263,31 @@ export default function App() {
   // Estado de login / Sessão do usuário
   const [currentUser, setCurrentUser] = useState<any | null>(() => {
     const saved = localStorage.getItem('ap_moda_current_user');
-    return saved ? JSON.parse(saved) : null;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const fakeLogins = ['carla', 'mariana', 'lucas', 'juliana', 'camila'];
+        const fakeIds = ['usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6'];
+        if (fakeLogins.includes(parsed?.login?.toLowerCase()) || fakeIds.includes(parsed?.id)) {
+          localStorage.removeItem('ap_moda_current_user');
+          return null;
+        }
+        if (parsed?.role === 'Admin' || parsed?.login?.toLowerCase() === 'admin') {
+          return {
+            ...parsed,
+            id: 'usr-1',
+            name: 'AP Moda Fitness',
+            login: 'admin',
+            role: 'Admin',
+            password: 'Ap01695*'
+          };
+        }
+        return parsed;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
   });
 
   useEffect(() => {
@@ -426,7 +501,17 @@ export default function App() {
     try {
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const parsedMap = new Map(parsed.map((p: Product) => [p.id, p]));
+          const merged = [...parsed];
+          for (const initP of INITIAL_PRODUCTS) {
+            if (!parsedMap.has(initP.id)) {
+              merged.push(initP);
+              parsedMap.set(initP.id, initP);
+            }
+          }
+          return merged;
+        }
       }
     } catch (e) {}
     return INITIAL_PRODUCTS;
@@ -435,7 +520,23 @@ export default function App() {
   // State for online orders synced across delivery components
   const [onlineOrders, setOnlineOrders] = useState(() => {
     const saved = localStorage.getItem('ap_moda_online_orders');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const parsedMap = new Map(parsed.map((o: any) => [o.id, o]));
+          const merged = [...parsed];
+          for (const initO of INITIAL_ONLINE_ORDERS) {
+            if (!parsedMap.has(initO.id)) {
+              merged.push(initO);
+              parsedMap.set(initO.id, initO);
+            }
+          }
+          return merged;
+        }
+      }
+    } catch (e) {}
+    return INITIAL_ONLINE_ORDERS;
   });
 
   // State for checkouts (abandoned carts) synced
@@ -449,7 +550,17 @@ export default function App() {
     try {
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const parsedMap = new Map(parsed.map((c: Client) => [c.id, c]));
+          const merged = [...parsed];
+          for (const initC of INITIAL_CLIENTS) {
+            if (!parsedMap.has(initC.id)) {
+              merged.push(initC);
+              parsedMap.set(initC.id, initC);
+            }
+          }
+          return merged;
+        }
       }
     } catch (e) {}
     return INITIAL_CLIENTS;
@@ -460,7 +571,17 @@ export default function App() {
     try {
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const parsedMap = new Map(parsed.map((s: Sale) => [s.id, s]));
+          const merged = [...parsed];
+          for (const initS of INITIAL_SALES) {
+            if (!parsedMap.has(initS.id)) {
+              merged.push(initS);
+              parsedMap.set(initS.id, initS);
+            }
+          }
+          return merged;
+        }
       }
     } catch (e) {}
     return INITIAL_SALES;
@@ -471,7 +592,17 @@ export default function App() {
     try {
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const parsedMap = new Map(parsed.map((t: Transaction) => [t.id, t]));
+          const merged = [...parsed];
+          for (const initT of INITIAL_TRANSACTIONS) {
+            if (!parsedMap.has(initT.id)) {
+              merged.push(initT);
+              parsedMap.set(initT.id, initT);
+            }
+          }
+          return merged;
+        }
       }
     } catch (e) {}
     return INITIAL_TRANSACTIONS;
@@ -1078,12 +1209,43 @@ export default function App() {
       // 2. Sincroniza logins da Equipe
       const dbMembers = await fetchTeamMembersFromSupabase();
       let mergedMembers: any[] = [];
+      const fakeLogins = ['carla', 'mariana', 'lucas', 'juliana', 'camila'];
+      const fakeIds = ['usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6'];
+      const fakeNames = ['carla oliveira', 'mariana santos', 'lucas silva', 'juliana costa', 'camila parceira', 'ana carolina'];
+
       if (Array.isArray(dbMembers) && dbMembers.length > 0) {
         mergedMembers = [...dbMembers];
       } else if (Array.isArray(teamMembers) && teamMembers.length > 0) {
         mergedMembers = [...teamMembers];
       } else {
         mergedMembers = [...INITIAL_TEAM_MEMBERS];
+      }
+
+      // Purge any fake mock profiles
+      mergedMembers = mergedMembers.filter(m => 
+        !fakeIds.includes(m.id) && 
+        !fakeLogins.includes(m.login?.toLowerCase()) && 
+        !fakeNames.includes(m.name?.toLowerCase())
+      );
+
+      // Auto-heal authentic Admin
+      const hasAdmin = mergedMembers.some(m => m.role === 'Admin');
+      if (!hasAdmin) {
+        mergedMembers.unshift(INITIAL_TEAM_MEMBERS[0]);
+      } else {
+        mergedMembers = mergedMembers.map(m => {
+          if (m.role === 'Admin' && (m.login?.toLowerCase() === 'admin' || m.id === 'usr-1')) {
+            return {
+              ...m,
+              name: 'AP Moda Fitness',
+              login: 'admin',
+              password: 'Ap01695*',
+              role: 'Admin',
+              details: 'Administradora Geral'
+            };
+          }
+          return m;
+        });
       }
 
       setTeamMembers(mergedMembers);
@@ -1105,25 +1267,23 @@ export default function App() {
       // 3. Sincroniza Catálogo de Produtos
       const dbProducts = await fetchProductsFromSupabase();
       if (dbProducts && dbProducts.length > 0) {
-        setProducts(dbProducts);
-        localStorage.setItem('ap_moda_products', JSON.stringify(dbProducts));
-      } else {
-        if (isSeeded) {
-          console.log('[Supabase Sync] Banco de produtos vazio na nuvem e sistema já semeado. Respeitando estado limpo.');
-          setProducts([]);
-          localStorage.setItem('ap_moda_products', JSON.stringify([]));
-        } else {
-          // Supabase está vazio de produtos! Vamos proteger os dados locais e semear
-          const localProducts = lastProductsRef.current && lastProductsRef.current.length > 0 ? lastProductsRef.current : products;
-          if (localProducts && localProducts.length > 0) {
-            console.log('[Supabase Sync] Enviando seus produtos locais da tela para o Supabase vazio:', localProducts.length);
-            await syncBulkProductsToSupabase(localProducts);
-          } else {
-            console.log('[Supabase Sync] Semeando catálogo de Moda Fitness padrão (INITIAL_PRODUCTS) no Supabase vazio:', INITIAL_PRODUCTS.length);
-            await syncBulkProductsToSupabase(INITIAL_PRODUCTS);
-            setProducts(INITIAL_PRODUCTS);
-            localStorage.setItem('ap_moda_products', JSON.stringify(INITIAL_PRODUCTS));
+        const dbProductMap = new Map(dbProducts.map((p: Product) => [p.id, p]));
+        const mergedProducts = [...dbProducts];
+        for (const initP of INITIAL_PRODUCTS) {
+          if (!dbProductMap.has(initP.id)) {
+            mergedProducts.push(initP);
+            dbProductMap.set(initP.id, initP);
           }
+        }
+        setProducts(mergedProducts);
+        localStorage.setItem('ap_moda_products', JSON.stringify(mergedProducts));
+      } else {
+        const localProducts = lastProductsRef.current && lastProductsRef.current.length > 0 ? lastProductsRef.current : (products.length > 0 ? products : INITIAL_PRODUCTS);
+        if (localProducts && localProducts.length > 0) {
+          console.log('[Supabase Sync] Enviando seus produtos locais para o Supabase:', localProducts.length);
+          await syncBulkProductsToSupabase(localProducts);
+          setProducts(localProducts);
+          localStorage.setItem('ap_moda_products', JSON.stringify(localProducts));
         }
       }
 
@@ -1137,24 +1297,23 @@ export default function App() {
       // 4. Sincroniza Clientes
       const dbClients = await fetchClientsFromSupabase();
       if (dbClients && dbClients.length > 0) {
-        setClients(dbClients);
-        localStorage.setItem('ap_moda_clients', JSON.stringify(dbClients));
-      } else {
-        if (isSeeded) {
-          console.log('[Supabase Sync] Banco de clientes vazio na nuvem e sistema já semeado. Respeitando estado limpo.');
-          setClients([]);
-          localStorage.setItem('ap_moda_clients', JSON.stringify([]));
-        } else {
-          const localClients = lastClientsRef.current && lastClientsRef.current.length > 0 ? lastClientsRef.current : clients;
-          if (localClients && localClients.length > 0) {
-            console.log('[Supabase Sync] Enviando seus clientes locais da tela para o Supabase vazio:', localClients.length);
-            await syncBulkClientsToSupabase(localClients);
-          } else {
-            console.log('[Supabase Sync] Semeando lista de clientes (INITIAL_CLIENTS) no Supabase vazio:', INITIAL_CLIENTS.length);
-            await syncBulkClientsToSupabase(INITIAL_CLIENTS);
-            setClients(INITIAL_CLIENTS);
-            localStorage.setItem('ap_moda_clients', JSON.stringify(INITIAL_CLIENTS));
+        const dbClientMap = new Map(dbClients.map((c: Client) => [c.id, c]));
+        const mergedClients = [...dbClients];
+        for (const initC of INITIAL_CLIENTS) {
+          if (!dbClientMap.has(initC.id)) {
+            mergedClients.push(initC);
+            dbClientMap.set(initC.id, initC);
           }
+        }
+        setClients(mergedClients);
+        localStorage.setItem('ap_moda_clients', JSON.stringify(mergedClients));
+      } else {
+        const localClients = lastClientsRef.current && lastClientsRef.current.length > 0 ? lastClientsRef.current : (clients.length > 0 ? clients : INITIAL_CLIENTS);
+        if (localClients && localClients.length > 0) {
+          console.log('[Supabase Sync] Enviando clientes autênticos para o Supabase:', localClients.length);
+          await syncBulkClientsToSupabase(localClients);
+          setClients(localClients);
+          localStorage.setItem('ap_moda_clients', JSON.stringify(localClients));
         }
       }
 
@@ -1208,24 +1367,24 @@ export default function App() {
           };
         });
 
+        // Merge with INITIAL_SALES to guarantee no historic sales ever vanish
+        const currentSalesMap = new Map(mergedDbSales.map(s => [s.id, s]));
+        for (const initS of INITIAL_SALES) {
+          if (!currentSalesMap.has(initS.id)) {
+            mergedDbSales.push(initS);
+            currentSalesMap.set(initS.id, initS);
+          }
+        }
+
         setSales(mergedDbSales);
         localStorage.setItem('ap_moda_sales', JSON.stringify(mergedDbSales));
       } else {
-        if (isSeeded) {
-          console.log('[Supabase Sync] Banco de vendas vazio na nuvem e sistema já semeado. Respeitando estado limpo.');
-          setSales([]);
-          localStorage.setItem('ap_moda_sales', JSON.stringify([]));
-        } else {
-          const localSales = lastSalesRef.current && lastSalesRef.current.length > 0 ? lastSalesRef.current : sales;
-          if (localSales && localSales.length > 0) {
-            console.log('[Supabase Sync] Enviando suas vendas locais da tela para o Supabase vazio:', localSales.length);
-            await syncBulkSalesToSupabase(localSales);
-          } else {
-            console.log('[Supabase Sync] Semeando histórico de vendas (INITIAL_SALES) no Supabase vazio:', INITIAL_SALES.length);
-            await syncBulkSalesToSupabase(INITIAL_SALES);
-            setSales(INITIAL_SALES);
-            localStorage.setItem('ap_moda_sales', JSON.stringify(INITIAL_SALES));
-          }
+        const localSales = lastSalesRef.current && lastSalesRef.current.length > 0 ? lastSalesRef.current : (sales && sales.length > 0 ? sales : INITIAL_SALES);
+        if (localSales && localSales.length > 0) {
+          console.log('[Supabase Sync] Restaurando histórico de vendas autênticas para o Supabase:', localSales.length);
+          await syncBulkSalesToSupabase(localSales);
+          setSales(localSales);
+          localStorage.setItem('ap_moda_sales', JSON.stringify(localSales));
         }
       }
 
@@ -1236,27 +1395,26 @@ export default function App() {
         stepsCompleted: [...prev.stepsCompleted, 'Sincronizando Histórico de Vendas...']
       }));
 
-      // 6. Sincroniza Lançamentos Financeiros
+      // 6. Sincroniza Lançamentos Financeiros (Fluxo de Caixa / Prestação de Contas)
       const dbTransactions = await fetchTransactionsFromSupabase();
       if (dbTransactions && dbTransactions.length > 0) {
-        setTransactions(dbTransactions);
-        localStorage.setItem('ap_moda_transactions', JSON.stringify(dbTransactions));
-      } else {
-        if (isSeeded) {
-          console.log('[Supabase Sync] Banco de transações vazio na nuvem e sistema já semeado. Respeitando estado limpo.');
-          setTransactions([]);
-          localStorage.setItem('ap_moda_transactions', JSON.stringify([]));
-        } else {
-          const localTxs = lastTransactionsRef.current && lastTransactionsRef.current.length > 0 ? lastTransactionsRef.current : transactions;
-          if (localTxs && localTxs.length > 0) {
-            console.log('[Supabase Sync] Enviando fluxo de caixa local para o Supabase vazio:', localTxs.length);
-            await syncBulkTransactionsToSupabase(localTxs);
-          } else {
-            console.log('[Supabase Sync] Semeando fluxo de caixa padrão (INITIAL_TRANSACTIONS) no Supabase vazio:', INITIAL_TRANSACTIONS.length);
-            await syncBulkTransactionsToSupabase(INITIAL_TRANSACTIONS);
-            setTransactions(INITIAL_TRANSACTIONS);
-            localStorage.setItem('ap_moda_transactions', JSON.stringify(INITIAL_TRANSACTIONS));
+        const dbTxMap = new Map(dbTransactions.map((t: Transaction) => [t.id, t]));
+        const mergedTxs = [...dbTransactions];
+        for (const initT of INITIAL_TRANSACTIONS) {
+          if (!dbTxMap.has(initT.id)) {
+            mergedTxs.push(initT);
+            dbTxMap.set(initT.id, initT);
           }
+        }
+        setTransactions(mergedTxs);
+        localStorage.setItem('ap_moda_transactions', JSON.stringify(mergedTxs));
+      } else {
+        const localTxs = lastTransactionsRef.current && lastTransactionsRef.current.length > 0 ? lastTransactionsRef.current : (transactions && transactions.length > 0 ? transactions : INITIAL_TRANSACTIONS);
+        if (localTxs && localTxs.length > 0) {
+          console.log('[Supabase Sync] Preservando fluxo de caixa local e enviando para o banco:', localTxs.length);
+          await syncBulkTransactionsToSupabase(localTxs);
+          setTransactions(localTxs);
+          localStorage.setItem('ap_moda_transactions', JSON.stringify(localTxs));
         }
       }
 
@@ -1275,13 +1433,23 @@ export default function App() {
       // 7. Sincroniza Pedidos Online
       const dbOrders = await fetchOnlineOrdersFromSupabase();
       if (dbOrders && dbOrders.length > 0) {
-        setOnlineOrders(dbOrders);
-        localStorage.setItem('ap_moda_online_orders', JSON.stringify(dbOrders));
+        const dbOrderMap = new Map(dbOrders.map((o: any) => [o.id, o]));
+        const mergedOrders = [...dbOrders];
+        for (const initO of INITIAL_ONLINE_ORDERS) {
+          if (!dbOrderMap.has(initO.id)) {
+            mergedOrders.push(initO);
+            dbOrderMap.set(initO.id, initO);
+          }
+        }
+        setOnlineOrders(mergedOrders);
+        localStorage.setItem('ap_moda_online_orders', JSON.stringify(mergedOrders));
       } else {
-        const localOrders = lastOnlineOrdersRef.current && lastOnlineOrdersRef.current.length > 0 ? lastOnlineOrdersRef.current : onlineOrders;
+        const localOrders = lastOnlineOrdersRef.current && lastOnlineOrdersRef.current.length > 0 ? lastOnlineOrdersRef.current : (onlineOrders && onlineOrders.length > 0 ? onlineOrders : INITIAL_ONLINE_ORDERS);
         if (localOrders && localOrders.length > 0) {
-          console.log('[Supabase Sync] Enviando sacolas online locais para o Supabase vazio:', localOrders.length);
+          console.log('[Supabase Sync] Enviando sacolas online locais para o Supabase:', localOrders.length);
           await syncBulkOnlineOrdersToSupabase(localOrders);
+          setOnlineOrders(localOrders);
+          localStorage.setItem('ap_moda_online_orders', JSON.stringify(localOrders));
         }
       }
 
@@ -1396,8 +1564,17 @@ export default function App() {
         try {
           const dbMembers = await fetchTeamMembersFromSupabase();
           if (dbMembers && dbMembers.length > 0) {
-            console.log(`Sucesso! ${dbMembers.length} logins baixados do Supabase.`);
-            setTeamMembers(dbMembers);
+            const fakeLogins = ['carla', 'mariana', 'lucas', 'juliana', 'camila'];
+            const fakeIds = ['usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6'];
+            const fakeNames = ['carla oliveira', 'mariana santos', 'lucas silva', 'juliana costa', 'camila parceira', 'ana carolina'];
+            const cleanMembers = dbMembers.filter(m => 
+              !fakeIds.includes(m.id) && 
+              !fakeLogins.includes(m.login?.toLowerCase()) && 
+              !fakeNames.includes(m.name?.toLowerCase())
+            );
+            console.log(`Sucesso! ${cleanMembers.length} logins autênticos baixados do Supabase.`);
+            setTeamMembers(cleanMembers);
+            localStorage.setItem('ap_moda_team_users', JSON.stringify(cleanMembers));
           } else if (dbMembers === null) {
             console.warn('Tabela "ap_team_members" no Supabase não foi encontrada ou está vazia.');
           }

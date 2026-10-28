@@ -148,6 +148,8 @@ export default function DashboardOverview({
       'WhatsApp': { value: 0, revenue: 0 },
       'E-commerce': { value: 0, revenue: 0 },
       'Loja Física': { value: 0, revenue: 0 },
+      'Loja Online': { value: 0, revenue: 0 },
+      'PDV': { value: 0, revenue: 0 },
       'Outros': { value: 0, revenue: 0 }
     };
 
@@ -159,11 +161,13 @@ export default function DashboardOverview({
       }
     });
 
-    const colors = {
+    const colors: Record<SalesChannel, string> = {
       'Instagram': '#E1306C',
       'WhatsApp': '#25D366',
       'E-commerce': '#3B82F6',
       'Loja Física': '#F59E0B',
+      'Loja Online': '#EC4899',
+      'PDV': '#10B981',
       'Outros': '#8B5CF6'
     };
 

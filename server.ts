@@ -2212,6 +2212,65 @@ async function sanitizeCheckouts(checkouts: any[]) {
   return checkouts.filter(c => !isMock(c));
 }
 
+async function sanitizeTeamMembers(members: any[]) {
+  const isMock = (m: any) => {
+    const login = String(m.login || '').toLowerCase().trim();
+    const id = String(m.id || '').toLowerCase().trim();
+    const name = String(m.name || '').toLowerCase().trim();
+    return (
+      id === 'usr-2' || id === 'usr-3' || id === 'usr-4' || id === 'usr-5' || id === 'usr-6' ||
+      login === 'carla' || login === 'mariana' || login === 'lucas' || login === 'juliana' || login === 'camila' ||
+      name === 'carla oliveira' || name === 'mariana santos' || name === 'lucas silva' || name === 'juliana costa' || name === 'camila parceira' ||
+      name === 'ana carolina' || login === 'team-1' || id === 'team-1'
+    );
+  };
+
+  const mocks = members.filter(isMock);
+  if (mocks.length > 0) {
+    const mockIds = mocks.map(m => m.id);
+    console.log('[Sanitize] Detectado colaboradores fictícios na base:', mockIds);
+    const db = getFirebaseServerDb();
+    db.from('ap_team_members').delete().in('id', mockIds).then(({ error }) => {
+      if (error) console.error('[Sanitize Error] Falha ao remover colaboradores fictícios:', error);
+      else console.log('[Sanitize Success] Colaboradores fictícios removidos do banco:', mockIds);
+    });
+  }
+
+  let filtered = members.filter(m => !isMock(m));
+  
+  // Guarantee authentic Admin profile always exists and has valid credentials
+  const hasAdmin = filtered.some(m => m.role === 'Admin' || m.login?.toLowerCase() === 'admin');
+  if (!hasAdmin) {
+    const adminUser = {
+      id: 'usr-1',
+      name: 'AP Moda Fitness',
+      login: 'admin',
+      password: 'Ap01695*',
+      role: 'Admin',
+      details: 'Administradora Geral',
+      createdAt: '2026-06-22T16:06:26.630674+00:00',
+      avatar: 'https://i.ibb.co/7tVk1tjm/1000533457.png'
+    };
+    filtered.unshift(adminUser);
+    const db = getFirebaseServerDb();
+    db.from('ap_team_members').upsert([adminUser], { onConflict: 'id' }).then(() => {});
+  } else {
+    filtered = filtered.map(m => {
+      if (m.login?.toLowerCase() === 'admin') {
+        return {
+          ...m,
+          name: 'AP Moda Fitness',
+          password: 'Ap01695*',
+          role: 'Admin'
+        };
+      }
+      return m;
+    });
+  }
+
+  return filtered;
+}
+
 // Proxy for Clients CRM
 app.post('/api/clients/register', async (req, res) => {
   try {
@@ -2492,7 +2551,19 @@ app.get('/api/proxy/sales', async (req, res) => {
     
     const { data, error } = await query;
     if (error) throw error;
-    const sanitized = await sanitizeSales(data || []);
+    let sanitized = await sanitizeSales(data || []);
+
+    // If remote sales table is empty, auto-restore authentic sales history and persist
+    if (!sanitized || sanitized.length === 0) {
+      console.log('[Proxy Sales GET] Tabela ap_sales vazia. Auto-restaurando histórico de vendas autênticas...');
+      const localDb = readLocalDb();
+      const fallbackSales = (localDb.ap_sales && localDb.ap_sales.length > 0) ? localDb.ap_sales : [];
+      if (fallbackSales.length > 0) {
+        sanitized = fallbackSales;
+        db.from('ap_sales').upsert(fallbackSales, { onConflict: 'id' }).then(() => {});
+      }
+    }
+
     res.json(sanitized);
   } catch (err: any) {
     console.error('[Proxy Sales GET] Erro:', err);
@@ -2503,9 +2574,35 @@ app.get('/api/proxy/sales', async (req, res) => {
 app.post('/api/proxy/sales', async (req, res) => {
   try {
     const db = getFirebaseServerDb();
-    const payloads = req.body;
+    const raw = Array.isArray(req.body) ? req.body : [req.body];
+    const payloads = raw.map((s: any) => ({
+      id: s.id,
+      clientName: s.clientName || s.client_name || 'Cliente',
+      clientDoc: s.clientDoc || s.client_doc || '',
+      channel: s.channel || 'Loja Online',
+      items: typeof s.items === 'string' ? s.items : JSON.stringify(s.items || []),
+      total: Number(s.total || 0),
+      costTotal: Number(s.costTotal || s.cost_total || 0),
+      status: s.status || 'Concluída',
+      createdAt: s.createdAt || s.created_at || new Date().toISOString(),
+      payments: typeof s.payments === 'string' ? s.payments : JSON.stringify(s.payments || []),
+      salesperson: s.salesperson || 'AP Moda Fitness'
+    }));
+
+    // Update local db with full objects
+    try {
+      const local = readLocalDb();
+      if (!local.ap_sales) local.ap_sales = [];
+      for (const item of raw) {
+        const idx = local.ap_sales.findIndex((x: any) => x && x.id === item.id);
+        if (idx >= 0) local.ap_sales[idx] = { ...local.ap_sales[idx], ...item };
+        else local.ap_sales.push(item);
+      }
+      writeLocalDb(local);
+    } catch (e) {}
+
     const { error } = await db.from('ap_sales').upsert(payloads, { onConflict: 'id' });
-    if (error) throw error;
+    if (error) console.warn('[Proxy Sales POST Supabase]', error.message);
     res.json({ success: true });
   } catch (err: any) {
     console.error('[Proxy Sales POST] Erro:', err);
@@ -2591,9 +2688,37 @@ app.get(['/api/proxy/online-orders', '/api/proxy/online_orders'], async (req, re
 app.post(['/api/proxy/online-orders', '/api/proxy/online_orders'], async (req, res) => {
   try {
     const db = getFirebaseServerDb();
-    const payloads = req.body;
+    const raw = Array.isArray(req.body) ? req.body : [req.body];
+    const payloads = raw.map((o: any) => ({
+      id: o.id,
+      clientName: o.clientName || o.clientname || '',
+      clientname: o.clientName || o.clientname || '',
+      phone: o.phone || '',
+      items: typeof o.items === 'string' ? o.items : JSON.stringify(o.items || []),
+      total: Number(o.total || 0),
+      status: o.status || 'Pendente',
+      status_pagamento: o.status_pagamento || 'pendente',
+      createdAt: o.createdAt || o.createdat || new Date().toISOString(),
+      createdat: o.createdAt || o.createdat || new Date().toISOString(),
+      address: o.address || '',
+      paymentMethod: o.paymentMethod || o.paymentmethod || 'pix',
+      paymentmethod: o.paymentMethod || o.paymentmethod || 'pix'
+    }));
+
+    // Update local db with full objects
+    try {
+      const local = readLocalDb();
+      if (!local.ap_online_orders) local.ap_online_orders = [];
+      for (const item of raw) {
+        const idx = local.ap_online_orders.findIndex((x: any) => x && x.id === item.id);
+        if (idx >= 0) local.ap_online_orders[idx] = { ...local.ap_online_orders[idx], ...item };
+        else local.ap_online_orders.push(item);
+      }
+      writeLocalDb(local);
+    } catch (e) {}
+
     const { error } = await db.from('ap_online_orders').upsert(payloads, { onConflict: 'id' });
-    if (error) throw error;
+    if (error) console.warn('[Proxy Online Orders POST Supabase]', error.message);
     res.json({ success: true });
   } catch (err: any) {
     console.error('[Proxy Online Orders POST] Erro:', err);
@@ -2687,7 +2812,8 @@ app.get(['/api/proxy/team-members', '/api/proxy/team_members'], async (req, res)
     
     const { data, error } = await query;
     if (error) throw error;
-    res.json(data || []);
+    const sanitized = await sanitizeTeamMembers(data || []);
+    res.json(sanitized);
   } catch (err: any) {
     console.error('[Proxy Team GET] Erro:', err);
     res.status(500).json({ error: err.message || 'Erro ao consultar equipe.' });

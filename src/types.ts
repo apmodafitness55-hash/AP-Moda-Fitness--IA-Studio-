@@ -22,7 +22,7 @@ export enum ActiveTab {
   METAS = 'METAS', // Simulador de Metas de Vendas
 }
 
-export type SalesChannel = 'Instagram' | 'WhatsApp' | 'E-commerce' | 'Loja Física' | 'Outros';
+export type SalesChannel = 'Instagram' | 'WhatsApp' | 'E-commerce' | 'Loja Física' | 'Loja Online' | 'PDV' | 'Outros';
 
 export interface Product {
   id: string;

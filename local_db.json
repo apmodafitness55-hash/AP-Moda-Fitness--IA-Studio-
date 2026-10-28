@@ -769,10 +769,576 @@
           "AZUL MARINHO": 1
         }
       }
+    },
+    {
+      "id": "prod-macacao-curto-run",
+      "name": "Macacão Curto - Run",
+      "sku": "MAC-RUN-CURTO-01",
+      "category": "Macacões",
+      "price": 72.9,
+      "compare_at_price": 89.9,
+      "cost": 32,
+      "stock": 0,
+      "minStock": 5,
+      "salesCount": 14,
+      "image": "/optimized-images/macacao_curto_run.webp",
+      "images": [
+        "/optimized-images/macacao_curto_run.webp"
+      ],
+      "description": "Macacão fitness curto Coleção Run de alta sustentação e modelagem impecável. Tecido com toque aveludado e compressão na medida certa.",
+      "colors": [
+        "Roxo",
+        "Preto",
+        "Azul Marinho"
+      ],
+      "sizes": [
+        "P",
+        "M",
+        "G"
+      ],
+      "created_at": "2026-07-02T19:30:00.000Z"
+    },
+    {
+      "id": "prod-macacao-longo-run",
+      "name": "Macacão Longo - Run",
+      "sku": "MAC-RUN-LONGO-02",
+      "category": "Macacões",
+      "price": 74.9,
+      "compare_at_price": 94.9,
+      "cost": 34,
+      "stock": 0,
+      "minStock": 5,
+      "salesCount": 18,
+      "image": "/optimized-images/macacao_longo_run.webp",
+      "images": [
+        "/optimized-images/macacao_longo_run.webp"
+      ],
+      "description": "Macacão longo modelador Coleção Run. Cós duplo com alta compressão, valoriza a silhueta e proporciona conforto máximo nos treinos.",
+      "colors": [
+        "Marrom",
+        "Preto",
+        "Verde Militar"
+      ],
+      "sizes": [
+        "P",
+        "M",
+        "G"
+      ],
+      "created_at": "2026-07-02T19:35:00.000Z"
+    },
+    {
+      "id": "prod-7",
+      "name": "Macacão Wave Sculpt Sem Costura",
+      "sku": "MAC-WAVE-007",
+      "category": "Macacões",
+      "price": 249.9,
+      "compare_at_price": 289.9,
+      "cost": 80,
+      "stock": 15,
+      "minStock": 5,
+      "salesCount": 22,
+      "image": "https://images.unsplash.com/photo-1518310383802-640c2de311b2?w=800&auto=format&fit=crop&q=80",
+      "images": [
+        "https://images.unsplash.com/photo-1518310383802-640c2de311b2?w=800&auto=format&fit=crop&q=80"
+      ],
+      "description": "Macacão premium com tecnologia seamless wave sculpt, ajuste anatômico perfeito e compressão equilibrada sem costuras incômodas.",
+      "colors": [
+        "Preto",
+        "Azul Marinho",
+        "Cinza Grafite"
+      ],
+      "sizes": [
+        "P",
+        "M",
+        "G"
+      ],
+      "created_at": "2026-06-25T14:20:00.000Z"
+    },
+    {
+      "id": "prod-conj-top-calca-slim",
+      "name": "conj top + calça slim",
+      "sku": "CONJ-TOP-CALCA-SLIM",
+      "category": "Conjuntos",
+      "price": 59.9,
+      "compare_at_price": 89.9,
+      "cost": 25,
+      "stock": 10,
+      "minStock": 5,
+      "salesCount": 16,
+      "image": "/optimized-images/conj_top_calca_slim.webp",
+      "images": [
+        "/optimized-images/conj_top_calca_slim.webp"
+      ],
+      "description": "Conjunto completo Top + Calça Slim Fit de alta compressão modeladora.",
+      "colors": [
+        "Preto",
+        "Cinza",
+        "Azul Marinho"
+      ],
+      "sizes": [
+        "P",
+        "M"
+      ],
+      "created_at": "2026-07-02T19:40:00.000Z"
+    },
+    {
+      "id": "prod-1",
+      "name": "Legging Glow Cós Anatômico",
+      "sku": "LEG-GLOW-001",
+      "category": "Leggings",
+      "price": 119.9,
+      "compare_at_price": 149.9,
+      "cost": 45,
+      "stock": 25,
+      "minStock": 5,
+      "salesCount": 38,
+      "image": "https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=800&auto=format&fit=crop&q=80",
+      "images": [
+        "https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=800&auto=format&fit=crop&q=80"
+      ],
+      "description": "Legging glow de alta compressão com cós anatômico modelador que não escorrega durante treinos pesados.",
+      "colors": [
+        "Preto",
+        "Azul Marinho",
+        "Cinza"
+      ],
+      "sizes": [
+        "P",
+        "M",
+        "G"
+      ],
+      "created_at": "2026-06-25T14:25:00.000Z"
+    },
+    {
+      "id": "prod-2",
+      "name": "Top Cross Alta Sustentação",
+      "sku": "TOP-CROSS-002",
+      "category": "Tops",
+      "price": 89.9,
+      "compare_at_price": 109.9,
+      "cost": 35,
+      "stock": 30,
+      "minStock": 5,
+      "salesCount": 42,
+      "image": "https://images.unsplash.com/photo-1518611012118-696072aa579a?w=800&auto=format&fit=crop&q=80",
+      "images": [
+        "https://images.unsplash.com/photo-1518611012118-696072aa579a?w=800&auto=format&fit=crop&q=80"
+      ],
+      "description": "Top fitness de alta sustentação com alças cruzadas nas costas e bojo removível para segurança total.",
+      "colors": [
+        "Preto",
+        "Vermelho Duo",
+        "Rosa"
+      ],
+      "sizes": [
+        "P",
+        "M",
+        "G"
+      ],
+      "created_at": "2026-06-25T14:30:00.000Z"
+    },
+    {
+      "id": "prod-3",
+      "name": "Shorts Seamless Sculpt",
+      "sku": "SHO-SCULPT-003",
+      "category": "Shorts",
+      "price": 99.9,
+      "compare_at_price": 129.9,
+      "cost": 40,
+      "stock": 20,
+      "minStock": 5,
+      "salesCount": 29,
+      "image": "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&auto=format&fit=crop&q=80",
+      "images": [
+        "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&auto=format&fit=crop&q=80"
+      ],
+      "description": "Shorts seamless sculpt com efeito modelador e zero transparência.",
+      "colors": [
+        "Preto",
+        "Bege",
+        "Cinza"
+      ],
+      "sizes": [
+        "P",
+        "M",
+        "G"
+      ],
+      "created_at": "2026-06-25T14:35:00.000Z"
+    },
+    {
+      "id": "prod-4",
+      "name": "Legging Ativa All-Black Cós Alto",
+      "sku": "LEG-ATIVA-004",
+      "category": "Leggings",
+      "price": 139.9,
+      "compare_at_price": 169.9,
+      "cost": 50,
+      "stock": 18,
+      "minStock": 5,
+      "salesCount": 25,
+      "image": "https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=800&auto=format&fit=crop&q=80",
+      "images": [
+        "https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=800&auto=format&fit=crop&q=80"
+      ],
+      "description": "Legging com compressão gradual e cós alto duplo para conforto supremo.",
+      "colors": [
+        "Preto"
+      ],
+      "sizes": [
+        "P",
+        "M",
+        "G"
+      ],
+      "created_at": "2026-06-25T14:40:00.000Z"
+    },
+    {
+      "id": "prod-5",
+      "name": "Top Sport Confort Alta Sustentação",
+      "sku": "TOP-SPORT-005",
+      "category": "Tops",
+      "price": 109.9,
+      "compare_at_price": 129.9,
+      "cost": 38,
+      "stock": 22,
+      "minStock": 5,
+      "salesCount": 31,
+      "image": "https://images.unsplash.com/photo-1554412933-514a83d2f3c8?w=800&auto=format&fit=crop&q=80",
+      "images": [
+        "https://images.unsplash.com/photo-1554412933-514a83d2f3c8?w=800&auto=format&fit=crop&q=80"
+      ],
+      "description": "Top de compressão sport confort com tecido respirável dry-tech.",
+      "colors": [
+        "Preto",
+        "Azul Marinho"
+      ],
+      "sizes": [
+        "P",
+        "M",
+        "G"
+      ],
+      "created_at": "2026-06-25T14:45:00.000Z"
+    },
+    {
+      "id": "prod-6",
+      "name": "Shorts Biker Anatômico Alta Compressão",
+      "sku": "SHO-BIKER-006",
+      "category": "Shorts",
+      "price": 89.9,
+      "compare_at_price": 109.9,
+      "cost": 35,
+      "stock": 16,
+      "minStock": 5,
+      "salesCount": 19,
+      "image": "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=800&auto=format&fit=crop&q=80",
+      "images": [
+        "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=800&auto=format&fit=crop&q=80"
+      ],
+      "description": "Shorts biker com comprimento ideal que não enrola na perna.",
+      "colors": [
+        "Preto",
+        "Cinza"
+      ],
+      "sizes": [
+        "P",
+        "M",
+        "G"
+      ],
+      "created_at": "2026-06-25T14:50:00.000Z"
     }
   ],
-  "ap_clients": [],
-  "ap_sales": [],
+  "ap_clients": [
+    {
+      "id": "cli-amaro",
+      "name": "Amaro Honório Pereira Neto",
+      "email": "amaro.honorio@gmail.com",
+      "phone": "84 99146-8136",
+      "cpf": "016.956.564-58",
+      "channel": "Loja Online",
+      "addressStreet": "Travessa José Jorge",
+      "addressNum": "51",
+      "addressBairro": "Centro",
+      "addressCidade": "São José de Mipibu",
+      "addressEstado": "RN",
+      "addressCep": "59162-000",
+      "totalSpent": 363.8,
+      "ordersCount": 2,
+      "createdAt": "2026-07-20T21:04:15.059Z",
+      "wishlist": ""
+    },
+    {
+      "id": "cli-cinthia",
+      "name": "Cinthia Rodrigues da Silva",
+      "email": "cinthia.rodrigues@gmail.com",
+      "phone": "(84) 99198-2963",
+      "channel": "Loja Online",
+      "totalSpent": 51.21,
+      "ordersCount": 1,
+      "createdAt": "2026-07-10T21:58:05.892Z",
+      "wishlist": ""
+    },
+    {
+      "id": "cli-pericles",
+      "name": "pericles ramos",
+      "email": "pericles.ramos@gmail.com",
+      "phone": "(84) 99198-2963",
+      "channel": "Loja Online",
+      "totalSpent": 44.9,
+      "ordersCount": 1,
+      "createdAt": "2026-07-10T14:06:08.324Z",
+      "wishlist": ""
+    },
+    {
+      "id": "cli-carla",
+      "name": "Carla Oliveira",
+      "email": "carla.oliveira@gmail.com",
+      "phone": "(84) 99198-2963",
+      "channel": "PDV",
+      "totalSpent": 209.8,
+      "ordersCount": 1,
+      "createdAt": "2026-07-10T14:04:54.907Z",
+      "wishlist": ""
+    }
+  ],
+  "ap_sales": [
+    {
+      "id": "V-00892",
+      "clientName": "Cinthia Rodrigues da Silva",
+      "clientDoc": "",
+      "channel": "Loja Online",
+      "items": [
+        {
+          "productId": "prod-1783018503677",
+          "name": "Calça Legging",
+          "quantity": 1,
+          "price": 51.21,
+          "cost": 19
+        }
+      ],
+      "total": 51.21,
+      "costTotal": 19,
+      "status": "Concluída",
+      "createdAt": "2026-07-10T21:58:05.892Z",
+      "payments": [
+        {
+          "method": "PIX",
+          "amount": 51.21
+        }
+      ],
+      "salesperson": "E-commerce",
+      "deliveryMethod": "Correios",
+      "address": "Travessa Jose Jorge, 51, Centro - Sao Jose de Mipibu/RN",
+      "tipo_envio": "correios",
+      "status_logistico": "pendente",
+      "valor_bruto": 51.21,
+      "taxa_financeira": 0,
+      "valor_liquido": 51.21
+    },
+    {
+      "id": "V-00688",
+      "clientName": "pericles ramos",
+      "clientDoc": "",
+      "channel": "Loja Online",
+      "items": [
+        {
+          "productId": "prod-1783018503677",
+          "name": "Calça Legging",
+          "quantity": 1,
+          "price": 47.49,
+          "cost": 19
+        }
+      ],
+      "total": 47.49,
+      "costTotal": 19,
+      "status": "Cancelada",
+      "createdAt": "2026-07-10T21:13:14.688Z",
+      "payments": [
+        {
+          "method": "PIX",
+          "amount": 47.49
+        }
+      ],
+      "salesperson": "E-commerce",
+      "deliveryMethod": "Correios",
+      "notes": "Venda estornada / cancelada pelo cliente"
+    },
+    {
+      "id": "V-00398",
+      "clientName": "pericles",
+      "clientDoc": "",
+      "channel": "Loja Online",
+      "items": [
+        {
+          "productId": "prod-1783018503677",
+          "name": "Calça Legging",
+          "quantity": 1,
+          "price": 44.9,
+          "cost": 19
+        }
+      ],
+      "total": 44.9,
+      "costTotal": 19,
+      "status": "Concluída",
+      "createdAt": "2026-07-10T14:18:42.398Z",
+      "payments": [
+        {
+          "method": "InfinitePay",
+          "amount": 44.9
+        }
+      ],
+      "salesperson": "E-commerce",
+      "deliveryMethod": "Correios"
+    },
+    {
+      "id": "V-00012",
+      "clientName": "pericles",
+      "clientDoc": "",
+      "channel": "Loja Online",
+      "items": [
+        {
+          "productId": "prod-1783018503677",
+          "name": "Calça Legging",
+          "quantity": 1,
+          "price": 37.9,
+          "cost": 19
+        }
+      ],
+      "total": 37.9,
+      "costTotal": 19,
+      "status": "Cancelada",
+      "createdAt": "2026-07-10T14:07:34.012Z",
+      "payments": [
+        {
+          "method": "InfinitePay",
+          "amount": 37.9
+        }
+      ],
+      "salesperson": "E-commerce",
+      "notes": "Venda estornada"
+    },
+    {
+      "id": "V-00324",
+      "clientName": "pericles",
+      "clientDoc": "",
+      "channel": "Loja Online",
+      "items": [
+        {
+          "productId": "prod-1783018503677",
+          "name": "Calça Legging",
+          "quantity": 1,
+          "price": 37.9,
+          "cost": 19
+        }
+      ],
+      "total": 37.9,
+      "costTotal": 19,
+      "status": "Cancelada",
+      "createdAt": "2026-07-10T14:06:08.324Z",
+      "payments": [
+        {
+          "method": "InfinitePay",
+          "amount": 37.9
+        }
+      ],
+      "salesperson": "E-commerce",
+      "notes": "Venda estornada"
+    },
+    {
+      "id": "SALE-COND-1783692294907",
+      "clientName": "Carla Oliveira",
+      "clientDoc": "",
+      "channel": "PDV",
+      "items": [
+        {
+          "productId": "prod-1783017531559",
+          "name": "Conj. Run Top & Calça",
+          "quantity": 1,
+          "price": 129.9,
+          "cost": 39
+        },
+        {
+          "productId": "prod-1783017014631",
+          "name": "Conj. Top & Short EBB",
+          "quantity": 1,
+          "price": 49.9,
+          "cost": 20
+        },
+        {
+          "productId": "prod-1783018784358",
+          "name": "Top Alça Sem Bojo - Slim Fit",
+          "quantity": 1,
+          "price": 30,
+          "cost": 10
+        }
+      ],
+      "total": 209.8,
+      "costTotal": 69,
+      "status": "Concluída",
+      "createdAt": "2026-07-10T14:04:54.907Z",
+      "payments": [
+        {
+          "method": "Dinheiro",
+          "amount": 209.8
+        }
+      ],
+      "salesperson": "AP Moda Fitness"
+    },
+    {
+      "id": "ped-web-6664",
+      "clientName": "Amaro Honório Pereira Neto",
+      "clientDoc": "016.956.564-58",
+      "channel": "Loja Online",
+      "items": [
+        {
+          "productId": "prod-7",
+          "name": "Macacão Wave Sculpt Sem Costura (Preto - P)",
+          "quantity": 1,
+          "price": 249.9,
+          "cost": 80
+        }
+      ],
+      "total": 249.9,
+      "costTotal": 80,
+      "status": "Pendente",
+      "createdAt": "2026-07-20T21:08:17.598Z",
+      "payments": [
+        {
+          "method": "Cartão de Crédito",
+          "amount": 249.9
+        }
+      ],
+      "deliveryMethod": "motoboy",
+      "address": "Travessa José Jorge, 51 - Bairro: Centro - São José de Mipibu/RN - CEP: 59162-000",
+      "notes": "Cor: Preto | CPF: 016.956.564-58"
+    },
+    {
+      "id": "ped-web-8418",
+      "clientName": "Amaro Honório Pereira Neto",
+      "clientDoc": "016.956.564-58",
+      "channel": "Loja Online",
+      "items": [
+        {
+          "productId": "prod-1",
+          "name": "Legging Glow Cós Anatômico (Preto - P)",
+          "quantity": 1,
+          "price": 119.9,
+          "cost": 45
+        }
+      ],
+      "total": 113.9,
+      "costTotal": 45,
+      "status": "Pendente",
+      "createdAt": "2026-07-20T21:04:15.059Z",
+      "payments": [
+        {
+          "method": "PIX",
+          "amount": 113.9
+        }
+      ],
+      "deliveryMethod": "motoboy",
+      "address": "Travessa José Jorge, 51 - Bairro: Centro - São José de Mipibu/RN - CEP: 59162-000",
+      "notes": "Cor: Preto | CPF: 016.956.564-58"
+    }
+  ],
   "ap_transactions": [
     {
       "id": "t-1783692294908",
@@ -989,6 +1555,26 @@
       "paymentMethod": null,
       "payment_method": null,
       "createdAt": null
+    },
+    {
+      "id": "t-ped-web-6664",
+      "type": "Inflow",
+      "category": "Venda",
+      "description": "Pedido Online #ped-web-6664 - Amaro Honório Pereira Neto (Cartão de Crédito: R$ 249,90)",
+      "amount": 249.9,
+      "date": "2026-07-20T21:08:17.598Z",
+      "created_at": "2026-07-20T21:08:17.598Z",
+      "status": "pago"
+    },
+    {
+      "id": "t-ped-web-8418",
+      "type": "Inflow",
+      "category": "Venda",
+      "description": "Pedido Online #ped-web-8418 - Amaro Honório Pereira Neto (PIX: R$ 113,90)",
+      "amount": 113.9,
+      "date": "2026-07-20T21:04:15.059Z",
+      "created_at": "2026-07-20T21:04:15.059Z",
+      "status": "pago"
     }
   ],
   "ap_online_orders": [
