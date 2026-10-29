@@ -171,14 +171,7 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
       }
     } catch(e){}
 
-    // Load active partners from ap_moda_partners with built-in defaults
-    const defaultPartnersList = [
-      { id: 'part-1', name: 'Marina Fitness Coach', login: 'marina', instagram: '@marina_fit', couponCode: 'MARINAFIT10', password: '123' },
-      { id: 'part-2', name: 'Julia Rezende', login: 'jurezende', instagram: '@jurezendedm', couponCode: 'JU10', password: '123' },
-      { id: 'part-3', name: 'Amanda Runner', login: 'amanda', instagram: '@amandarun', couponCode: 'AMANDAPRO', password: '123' },
-      { id: 'part-4', name: 'Patricia Cardoso', login: 'patriciacardoso', instagram: '@patriciacardoso', couponCode: 'PATRICIA10', password: 'Patricia123' }
-    ];
-
+    // Load active partners from ap_moda_partners
     let localPartners: any[] = [];
     try {
       const savedPartners = localStorage.getItem('ap_moda_partners');
@@ -187,12 +180,8 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
         if (Array.isArray(parsed)) {
           localPartners = parsed;
         }
-      } else {
-        localPartners = defaultPartnersList;
       }
-    } catch(e) {
-      localPartners = defaultPartnersList;
-    }
+    } catch(e) {}
 
     const targetLoginLower = targetLogin.toLowerCase().trim().replace(/[@\s]/g, '');
     const cleanCouponInput = targetLogin.toUpperCase().trim();

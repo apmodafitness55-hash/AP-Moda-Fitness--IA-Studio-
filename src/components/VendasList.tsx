@@ -76,12 +76,7 @@ export default function VendasList({
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (e) {}
-    return [
-      { id: 'part-1', name: 'Marina Fitness Coach', couponCode: 'MARINAFIT10', commissionRate: 10 },
-      { id: 'part-2', name: 'Julia Rezende', couponCode: 'JU10', commissionRate: 8 },
-      { id: 'part-3', name: 'Amanda Runner', couponCode: 'AMANDAPRO', commissionRate: 12 },
-      { id: 'part-4', name: 'Patricia Cardoso', couponCode: 'PATRICIA10', commissionRate: 10 }
-    ];
+    return [];
   }, []);
 
   const [registeredPartners, setRegisteredPartners] = useState<any[]>(getRegisteredPartners);

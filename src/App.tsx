@@ -210,15 +210,20 @@ export default function App() {
       if (!Array.isArray(currentPartnersList)) currentPartnersList = [];
 
       // Purge mock partners from storage
+      const fakePartnerNames = ['carla oliveira', 'mariana santos', 'lucas silva', 'juliana costa', 'camila parceira', 'ana carolina', 'marina fitness coach', 'julia rezende', 'amanda runner', 'patricia cardoso'];
+      const fakePartnerIds = ['usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6', 'part-1', 'part-2', 'part-3', 'part-4'];
+      const fakeCoupons = ['CAMILA10', 'MARINAFIT10', 'JU10', 'AMANDAPRO', 'PATRICIA10'];
+
+      const initialLength = currentPartnersList.length;
       currentPartnersList = currentPartnersList.filter(p => 
-        p.id !== 'usr-6' && 
-        p.login?.toLowerCase() !== 'camila' && 
-        !p.name?.toLowerCase().includes('camila parceira') &&
-        p.couponCode?.toUpperCase() !== 'CAMILA10'
+        !fakePartnerIds.includes(p.id) && 
+        !fakePartnerNames.includes(p.name?.toLowerCase().trim()) &&
+        !fakeCoupons.includes(p.couponCode?.toUpperCase().trim()) &&
+        p.login?.toLowerCase() !== 'camila'
       );
 
+      let changed = currentPartnersList.length !== initialLength;
       const updatedPartnersList = [...currentPartnersList];
-      let changed = false;
 
       // Merge teamMembers with role === 'Parceiro'
       const teamPartners = teamMembers.filter(m => m.role === 'Parceiro' && !fakeNames.includes(m.name?.toLowerCase()));
@@ -498,23 +503,24 @@ export default function App() {
   // States with persistent localStorage fallback
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem('ap_moda_products');
+    const deletedList = ((): string[] => {
+      try {
+        const d = localStorage.getItem('ap_deleted_products');
+        return d ? JSON.parse(d) : [];
+      } catch (e) {
+        return [];
+      }
+    })();
+
     try {
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const parsedMap = new Map(parsed.map((p: Product) => [p.id, p]));
-          const merged = [...parsed];
-          for (const initP of INITIAL_PRODUCTS) {
-            if (!parsedMap.has(initP.id)) {
-              merged.push(initP);
-              parsedMap.set(initP.id, initP);
-            }
-          }
-          return merged;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((p: Product) => p && !deletedList.includes(p.id));
         }
       }
     } catch (e) {}
-    return INITIAL_PRODUCTS;
+    return INITIAL_PRODUCTS.filter((p: Product) => p && !deletedList.includes(p.id));
   });
 
   // State for online orders synced across delivery components
@@ -1266,19 +1272,14 @@ export default function App() {
 
       // 3. Sincroniza Catálogo de Produtos
       const dbProducts = await fetchProductsFromSupabase();
+      const deletedProductsList = getDirtyIds('ap_deleted_products');
       if (dbProducts && dbProducts.length > 0) {
-        const dbProductMap = new Map(dbProducts.map((p: Product) => [p.id, p]));
-        const mergedProducts = [...dbProducts];
-        for (const initP of INITIAL_PRODUCTS) {
-          if (!dbProductMap.has(initP.id)) {
-            mergedProducts.push(initP);
-            dbProductMap.set(initP.id, initP);
-          }
-        }
-        setProducts(mergedProducts);
-        localStorage.setItem('ap_moda_products', JSON.stringify(mergedProducts));
+        const cleanDbProducts = dbProducts.filter((p: Product) => p && !deletedProductsList.includes(p.id));
+        setProducts(cleanDbProducts);
+        localStorage.setItem('ap_moda_products', JSON.stringify(cleanDbProducts));
       } else {
-        const localProducts = lastProductsRef.current && lastProductsRef.current.length > 0 ? lastProductsRef.current : (products.length > 0 ? products : INITIAL_PRODUCTS);
+        const localProducts = (lastProductsRef.current && lastProductsRef.current.length > 0 ? lastProductsRef.current : products)
+          .filter((p: Product) => p && !deletedProductsList.includes(p.id));
         if (localProducts && localProducts.length > 0) {
           console.log('[Supabase Sync] Enviando seus produtos locais para o Supabase:', localProducts.length);
           await syncBulkProductsToSupabase(localProducts);
@@ -2028,7 +2029,7 @@ export default function App() {
         const dbMap = new Map(dbProducts.map(p => [p.id, p]));
         let localModified = false;
         let remoteModified = false;
-        const merged = [...currentProducts];
+        const merged = currentProducts.filter(p => p && !deletedProductsList.includes(p.id));
 
         // Retry deleting remote products if they are in the deleted queue
         for (const id of deletedProductsList) {
@@ -2057,7 +2058,7 @@ export default function App() {
           }
         }
 
-        const toUpload = currentProducts.filter(lp => dirtyProducts.includes(lp.id));
+        const toUpload = currentProducts.filter(lp => lp && dirtyProducts.includes(lp.id) && !deletedProductsList.includes(lp.id));
         if (toUpload.length > 0) {
           const success = await syncBulkProductsToSupabase(toUpload);
           if (success) {
@@ -2075,10 +2076,6 @@ export default function App() {
         if (remoteModified || localModified) {
           remoteStateModified = true;
         }
-
-        // Keep local deletion queue in sync with remote deletion success
-        const stillInDb = deletedProductsList.filter(id => dbMap.has(id));
-        saveDirtyIds('ap_deleted_products', stillInDb);
       }
 
       // 3. Sincronização do CRM de Clientes
@@ -3552,15 +3549,23 @@ export default function App() {
   };
 
   const handleDeleteProduct = async (productId: string) => {
-    setProducts(prev => prev.filter(p => p.id !== productId));
+    // 1. Immediately update state and localStorage
+    setProducts(prev => {
+      const updated = prev.filter(p => p.id !== productId);
+      try {
+        localStorage.setItem('ap_moda_products', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
     
-    // Track deletion queue to prevent resurrection
+    // 2. Track deletion queue persistently to prevent resurrection
     const deletedIds = getDirtyIds('ap_deleted_products');
     if (!deletedIds.includes(productId)) {
       deletedIds.push(productId);
       saveDirtyIds('ap_deleted_products', deletedIds);
     }
 
+    // 3. Delete from Supabase / proxy
     const config = getSupabaseConfig();
     if (config && !systemOffline) {
       try {

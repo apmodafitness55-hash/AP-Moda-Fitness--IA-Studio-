@@ -87,12 +87,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
         if (Array.isArray(parsed)) return parsed;
       }
     } catch(e) {}
-    return [
-      { id: 'part-1', name: 'Marina Fitness Coach', instagram: '@marina_fit', couponCode: 'MARINAFIT10', commissionRate: 10, salesCount: 0, totalGenerated: 0, availableBalance: 0 },
-      { id: 'part-2', name: 'Julia Rezende', instagram: '@jurezendedm', couponCode: 'JU10', commissionRate: 8, salesCount: 0, totalGenerated: 0, availableBalance: 0 },
-      { id: 'part-3', name: 'Amanda Runner', instagram: '@amandarun', couponCode: 'AMANDAPRO', commissionRate: 12, salesCount: 0, totalGenerated: 0, availableBalance: 0 },
-      { id: 'part-4', name: 'Patricia Cardoso', instagram: '@patriciacardoso', couponCode: 'PATRICIA10', commissionRate: 10, salesCount: 0, totalGenerated: 0, availableBalance: 0 }
-    ];
+    return [];
   });
 
   // Find the exact partner match for this logged user

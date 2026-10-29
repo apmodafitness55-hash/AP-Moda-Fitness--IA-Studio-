@@ -622,7 +622,14 @@ export default function CustomersCRM({
   const [partners, setPartners] = useState<Partner[]>(() => {
     try {
       const saved = localStorage.getItem('ap_moda_partners');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const fakePartnerNames = ['carla oliveira', 'mariana santos', 'lucas silva', 'juliana costa', 'camila parceira', 'ana carolina', 'marina fitness coach', 'julia rezende', 'amanda runner', 'patricia cardoso'];
+          const fakePartnerIds = ['usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6', 'part-1', 'part-2', 'part-3', 'part-4'];
+          return parsed.filter((p: any) => p && !fakePartnerIds.includes(p.id) && !fakePartnerNames.includes(p.name?.toLowerCase().trim()));
+        }
+      }
     } catch(e) {}
     return [];
   });
@@ -630,6 +637,27 @@ export default function CustomersCRM({
   useEffect(() => {
     localStorage.setItem('ap_moda_partners', JSON.stringify(partners));
   }, [partners]);
+
+  const handleDeletePartner = (partId: string, partName: string) => {
+    if (!confirm(`Deseja realmente excluir a parceira "${partName}"? Esta ação removerá a influenciadora definitivamente do sistema.`)) {
+      return;
+    }
+    const updated = partners.filter(p => p.id !== partId);
+    setPartners(updated);
+    try {
+      localStorage.setItem('ap_moda_partners', JSON.stringify(updated));
+      pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(updated));
+      window.dispatchEvent(new Event('ap-storage-synced'));
+    } catch (e) {}
+
+    // Also remove from teamMembers if exists
+    if (onUpdateTeamMembers && teamMembers.length > 0) {
+      const updatedTeam = teamMembers.filter(m => m.id !== partId && m.name?.toLowerCase().trim() !== partName.toLowerCase().trim());
+      if (updatedTeam.length !== teamMembers.length) {
+        onUpdateTeamMembers(updatedTeam);
+      }
+    }
+  };
 
   // Admin Retroactive Partner Linking State in CRM
   const [selectedPartnerForLinkingCRM, setSelectedPartnerForLinkingCRM] = useState<Partner | null>(null);
@@ -1878,23 +1906,38 @@ export default function CustomersCRM({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-4 text-right">
-                      <div>
-                        <span className="text-slate-350 font-bold block text-[9px] uppercase tracking-wider">Vendas</span>
-                        <span className="font-bold text-slate-700 font-mono mt-0.5 inline-block text-[11px]">{part.salesCount} ped</span>
+                    <div className="flex items-center gap-4">
+                      <div className="grid grid-cols-3 gap-4 text-right">
+                        <div>
+                          <span className="text-slate-350 font-bold block text-[9px] uppercase tracking-wider">Vendas</span>
+                          <span className="font-bold text-slate-700 font-mono mt-0.5 inline-block text-[11px]">{part.salesCount} ped</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-350 font-bold block text-[9px] uppercase tracking-wider">Faturamento</span>
+                          <span className="font-bold text-slate-700 font-mono mt-0.5 inline-block text-[11px]">{formatCurrency(part.totalGenerated)}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-350 font-bold block text-[9px] uppercase tracking-wider">Comissão ({part.commissionRate}%)</span>
+                          <span className="font-bold text-emerald-600 font-mono mt-0.5 inline-block text-[11px]">{formatCurrency(comissaoPaga)}</span>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-slate-350 font-bold block text-[9px] uppercase tracking-wider">Faturamento</span>
-                        <span className="font-bold text-slate-700 font-mono mt-0.5 inline-block text-[11px]">{formatCurrency(part.totalGenerated)}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-350 font-bold block text-[9px] uppercase tracking-wider">Comissão ({part.commissionRate}%)</span>
-                        <span className="font-bold text-emerald-600 font-mono mt-0.5 inline-block text-[11px]">{formatCurrency(comissaoPaga)}</span>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePartner(part.id, part.name)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer border-none"
+                        title={`Excluir parceira ${part.name}`}
+                      >
+                        <Trash2 size={15} />
+                      </button>
                     </div>
                   </div>
                 );
               })}
+              {partners.length === 0 && (
+                <div className="py-8 text-center text-slate-400 italic">
+                  Nenhuma parceira ou influenciadora cadastrada no momento. Use o formulário ao lado para cadastrar uma nova parceira.
+                </div>
+              )}
             </div>
           </div>
 

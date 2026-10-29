@@ -213,42 +213,52 @@ class SupabaseQueryBuilder {
   delete() {
     return {
       eq: async (col: string, val: any) => {
+        // Unconditionally delete from local database to prevent local resurrection on reload
+        try {
+          await new LocalQueryBuilder(this.path).delete().eq(col, val);
+        } catch (e) {}
+
         try {
           const { error } = await this.client.from(this.path).delete().eq(col, val);
           if (error) {
             console.warn(`[Supabase Delete Error in table ${this.path}]:`, error.message || error);
-            return new LocalQueryBuilder(this.path).delete().eq(col, val);
           }
           return { error: null };
         } catch (err: any) {
           console.warn(`[Supabase Delete Exception in table ${this.path}]:`, err.message || err);
-          return new LocalQueryBuilder(this.path).delete().eq(col, val);
+          return { error: null };
         }
       },
       neq: async (col: string, val: any) => {
         try {
+          await new LocalQueryBuilder(this.path).delete().neq(col, val);
+        } catch (e) {}
+
+        try {
           const { error } = await this.client.from(this.path).delete().neq(col, val);
           if (error) {
             console.warn(`[Supabase Delete Error in table ${this.path}]:`, error.message || error);
-            return new LocalQueryBuilder(this.path).delete().neq(col, val);
           }
           return { error: null };
         } catch (err: any) {
           console.warn(`[Supabase Delete Exception in table ${this.path}]:`, err.message || err);
-          return new LocalQueryBuilder(this.path).delete().neq(col, val);
+          return { error: null };
         }
       },
       in: async (col: string, vals: any[]) => {
         try {
+          await new LocalQueryBuilder(this.path).delete().in(col, vals);
+        } catch (e) {}
+
+        try {
           const { error } = await this.client.from(this.path).delete().in(col, vals);
           if (error) {
             console.warn(`[Supabase Delete Error in table ${this.path}]:`, error.message || error);
-            return new LocalQueryBuilder(this.path).delete().in(col, vals);
           }
           return { error: null };
         } catch (err: any) {
           console.warn(`[Supabase Delete Exception in table ${this.path}]:`, err.message || err);
-          return new LocalQueryBuilder(this.path).delete().in(col, vals);
+          return { error: null };
         }
       }
     };
@@ -2877,9 +2887,23 @@ app.post(['/api/proxy/team-members', '/api/proxy/team_members'], async (req, res
 
 app.delete(['/api/proxy/team-members/:id', '/api/proxy/team_members/:id'], async (req, res) => {
   try {
+    const memberId = req.params.id;
+    // 1. Purge from local_db.json
+    try {
+      const local = readLocalDb();
+      if (local && Array.isArray(local.ap_team_members)) {
+        local.ap_team_members = local.ap_team_members.filter((m: any) => m && String(m.id) !== String(memberId));
+        writeLocalDb(local);
+      }
+    } catch (e) {
+      console.warn('[Proxy Team DELETE Local DB Warn]:', e);
+    }
+
+    // 2. Delete from Supabase
     const db = getFirebaseServerDb();
-    const { error } = await db.from('ap_team_members').delete().eq('id', req.params.id);
-    if (error) throw error;
+    const { error } = await db.from('ap_team_members').delete().eq('id', memberId);
+    if (error) console.warn('[Proxy Team DELETE Supabase Warn]:', error.message || error);
+
     res.json({ success: true });
   } catch (err: any) {
     console.error('[Proxy Team DELETE] Erro:', err);
@@ -3277,9 +3301,23 @@ app.post('/api/proxy/products', async (req, res) => {
 
 app.delete('/api/proxy/products/:id', async (req, res) => {
   try {
+    const productId = req.params.id;
+    // 1. Purge from local_db.json
+    try {
+      const local = readLocalDb();
+      if (local && Array.isArray(local.ap_products)) {
+        local.ap_products = local.ap_products.filter((p: any) => p && String(p.id) !== String(productId));
+        writeLocalDb(local);
+      }
+    } catch (e) {
+      console.warn('[Proxy Products DELETE Local DB Warn]:', e);
+    }
+
+    // 2. Delete from Supabase
     const db = getFirebaseServerDb();
-    const { error } = await db.from('ap_products').delete().eq('id', req.params.id);
-    if (error) throw error;
+    const { error } = await db.from('ap_products').delete().eq('id', productId);
+    if (error) console.warn('[Proxy Products DELETE Supabase Warn]:', error.message || error);
+    
     res.json({ success: true });
   } catch (err: any) {
     console.error('[Proxy Products DELETE] Erro:', err);
