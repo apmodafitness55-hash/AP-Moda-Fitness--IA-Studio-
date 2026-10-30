@@ -22,7 +22,7 @@ export const DEFAULT_COUPONS: Coupon[] = [
   { code: 'FRETEGRATIS', type: 'percent', value: 0, minPurchase: 399, limitUses: 500, usedCount: 88, validUntil: '2026-12-31', maxPerCpf: 0, category: 'Todas' },
   { code: 'MACACAO20', type: 'percent', value: 20, minPurchase: 0, limitUses: 100, usedCount: 5, validUntil: '2026-12-31', maxPerCpf: 1, category: 'Macacões' },
   { code: 'LEGGING15', type: 'percent', value: 15, minPurchase: 0, limitUses: 100, usedCount: 8, validUntil: '2026-12-31', maxPerCpf: 1, category: 'Leggings' },
-  { code: 'CAMILA10', type: 'percent', value: 10, minPurchase: 0, limitUses: 500, usedCount: 14, validUntil: '2026-12-31', maxPerCpf: 1, category: 'Todas', partnerName: 'Camila Parceira' }
+  { code: 'PATRICIA10', type: 'percent', value: 10, minPurchase: 0, limitUses: 500, usedCount: 18, validUntil: '2026-12-31', maxPerCpf: 0, category: 'Todas', partnerName: 'Patricia Cardoso', partnerId: 'part-patricia' }
 ];
 
 export function getStoredCoupons(): Coupon[] {

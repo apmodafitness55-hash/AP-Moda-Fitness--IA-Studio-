@@ -778,13 +778,11 @@
       "price": 72.9,
       "compare_at_price": 89.9,
       "cost": 32,
-      "stock": 0,
+      "stock": 12,
       "minStock": 5,
       "salesCount": 14,
-      "image": "/optimized-images/macacao_curto_run.webp",
-      "images": [
-        "/optimized-images/macacao_curto_run.webp"
-      ],
+      "image": "",
+      "images": [],
       "description": "Macacão fitness curto Coleção Run de alta sustentação e modelagem impecável. Tecido com toque aveludado e compressão na medida certa.",
       "colors": [
         "Roxo",
@@ -806,13 +804,11 @@
       "price": 74.9,
       "compare_at_price": 94.9,
       "cost": 34,
-      "stock": 0,
+      "stock": 15,
       "minStock": 5,
       "salesCount": 18,
-      "image": "/optimized-images/macacao_longo_run.webp",
-      "images": [
-        "/optimized-images/macacao_longo_run.webp"
-      ],
+      "image": "",
+      "images": [],
       "description": "Macacão longo modelador Coleção Run. Cós duplo com alta compressão, valoriza a silhueta e proporciona conforto máximo nos treinos.",
       "colors": [
         "Marrom",
@@ -827,34 +823,6 @@
       "created_at": "2026-07-02T19:35:00.000Z"
     },
     {
-      "id": "prod-7",
-      "name": "Macacão Wave Sculpt Sem Costura",
-      "sku": "MAC-WAVE-007",
-      "category": "Macacões",
-      "price": 249.9,
-      "compare_at_price": 289.9,
-      "cost": 80,
-      "stock": 15,
-      "minStock": 5,
-      "salesCount": 22,
-      "image": "https://images.unsplash.com/photo-1518310383802-640c2de311b2?w=800&auto=format&fit=crop&q=80",
-      "images": [
-        "https://images.unsplash.com/photo-1518310383802-640c2de311b2?w=800&auto=format&fit=crop&q=80"
-      ],
-      "description": "Macacão premium com tecnologia seamless wave sculpt, ajuste anatômico perfeito e compressão equilibrada sem costuras incômodas.",
-      "colors": [
-        "Preto",
-        "Azul Marinho",
-        "Cinza Grafite"
-      ],
-      "sizes": [
-        "P",
-        "M",
-        "G"
-      ],
-      "created_at": "2026-06-25T14:20:00.000Z"
-    },
-    {
       "id": "prod-conj-top-calca-slim",
       "name": "conj top + calça slim",
       "sku": "CONJ-TOP-CALCA-SLIM",
@@ -865,10 +833,8 @@
       "stock": 10,
       "minStock": 5,
       "salesCount": 16,
-      "image": "/optimized-images/conj_top_calca_slim.webp",
-      "images": [
-        "/optimized-images/conj_top_calca_slim.webp"
-      ],
+      "image": "",
+      "images": [],
       "description": "Conjunto completo Top + Calça Slim Fit de alta compressão modeladora.",
       "colors": [
         "Preto",
@@ -880,170 +846,6 @@
         "M"
       ],
       "created_at": "2026-07-02T19:40:00.000Z"
-    },
-    {
-      "id": "prod-1",
-      "name": "Legging Glow Cós Anatômico",
-      "sku": "LEG-GLOW-001",
-      "category": "Leggings",
-      "price": 119.9,
-      "compare_at_price": 149.9,
-      "cost": 45,
-      "stock": 25,
-      "minStock": 5,
-      "salesCount": 38,
-      "image": "https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=800&auto=format&fit=crop&q=80",
-      "images": [
-        "https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=800&auto=format&fit=crop&q=80"
-      ],
-      "description": "Legging glow de alta compressão com cós anatômico modelador que não escorrega durante treinos pesados.",
-      "colors": [
-        "Preto",
-        "Azul Marinho",
-        "Cinza"
-      ],
-      "sizes": [
-        "P",
-        "M",
-        "G"
-      ],
-      "created_at": "2026-06-25T14:25:00.000Z"
-    },
-    {
-      "id": "prod-2",
-      "name": "Top Cross Alta Sustentação",
-      "sku": "TOP-CROSS-002",
-      "category": "Tops",
-      "price": 89.9,
-      "compare_at_price": 109.9,
-      "cost": 35,
-      "stock": 30,
-      "minStock": 5,
-      "salesCount": 42,
-      "image": "https://images.unsplash.com/photo-1518611012118-696072aa579a?w=800&auto=format&fit=crop&q=80",
-      "images": [
-        "https://images.unsplash.com/photo-1518611012118-696072aa579a?w=800&auto=format&fit=crop&q=80"
-      ],
-      "description": "Top fitness de alta sustentação com alças cruzadas nas costas e bojo removível para segurança total.",
-      "colors": [
-        "Preto",
-        "Vermelho Duo",
-        "Rosa"
-      ],
-      "sizes": [
-        "P",
-        "M",
-        "G"
-      ],
-      "created_at": "2026-06-25T14:30:00.000Z"
-    },
-    {
-      "id": "prod-3",
-      "name": "Shorts Seamless Sculpt",
-      "sku": "SHO-SCULPT-003",
-      "category": "Shorts",
-      "price": 99.9,
-      "compare_at_price": 129.9,
-      "cost": 40,
-      "stock": 20,
-      "minStock": 5,
-      "salesCount": 29,
-      "image": "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&auto=format&fit=crop&q=80",
-      "images": [
-        "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&auto=format&fit=crop&q=80"
-      ],
-      "description": "Shorts seamless sculpt com efeito modelador e zero transparência.",
-      "colors": [
-        "Preto",
-        "Bege",
-        "Cinza"
-      ],
-      "sizes": [
-        "P",
-        "M",
-        "G"
-      ],
-      "created_at": "2026-06-25T14:35:00.000Z"
-    },
-    {
-      "id": "prod-4",
-      "name": "Legging Ativa All-Black Cós Alto",
-      "sku": "LEG-ATIVA-004",
-      "category": "Leggings",
-      "price": 139.9,
-      "compare_at_price": 169.9,
-      "cost": 50,
-      "stock": 18,
-      "minStock": 5,
-      "salesCount": 25,
-      "image": "https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=800&auto=format&fit=crop&q=80",
-      "images": [
-        "https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=800&auto=format&fit=crop&q=80"
-      ],
-      "description": "Legging com compressão gradual e cós alto duplo para conforto supremo.",
-      "colors": [
-        "Preto"
-      ],
-      "sizes": [
-        "P",
-        "M",
-        "G"
-      ],
-      "created_at": "2026-06-25T14:40:00.000Z"
-    },
-    {
-      "id": "prod-5",
-      "name": "Top Sport Confort Alta Sustentação",
-      "sku": "TOP-SPORT-005",
-      "category": "Tops",
-      "price": 109.9,
-      "compare_at_price": 129.9,
-      "cost": 38,
-      "stock": 22,
-      "minStock": 5,
-      "salesCount": 31,
-      "image": "https://images.unsplash.com/photo-1554412933-514a83d2f3c8?w=800&auto=format&fit=crop&q=80",
-      "images": [
-        "https://images.unsplash.com/photo-1554412933-514a83d2f3c8?w=800&auto=format&fit=crop&q=80"
-      ],
-      "description": "Top de compressão sport confort com tecido respirável dry-tech.",
-      "colors": [
-        "Preto",
-        "Azul Marinho"
-      ],
-      "sizes": [
-        "P",
-        "M",
-        "G"
-      ],
-      "created_at": "2026-06-25T14:45:00.000Z"
-    },
-    {
-      "id": "prod-6",
-      "name": "Shorts Biker Anatômico Alta Compressão",
-      "sku": "SHO-BIKER-006",
-      "category": "Shorts",
-      "price": 89.9,
-      "compare_at_price": 109.9,
-      "cost": 35,
-      "stock": 16,
-      "minStock": 5,
-      "salesCount": 19,
-      "image": "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=800&auto=format&fit=crop&q=80",
-      "images": [
-        "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=800&auto=format&fit=crop&q=80"
-      ],
-      "description": "Shorts biker com comprimento ideal que não enrola na perna.",
-      "colors": [
-        "Preto",
-        "Cinza"
-      ],
-      "sizes": [
-        "P",
-        "M",
-        "G"
-      ],
-      "created_at": "2026-06-25T14:50:00.000Z"
     }
   ],
   "ap_clients": [
@@ -1791,6 +1593,16 @@
       "key": "ap_moda_company_info",
       "value": "{\"name\":\"AP Moda Fitness\",\"subName\":\"AP Moda Fitness - Confecções Femininas\",\"cnpj\":\"67.074.681/0001-03\",\"addressLine1\":\"Travessa Jose Jorge, 51, Centro\",\"addressLine2\":\"Sao Jose de Mipibu  - RN\",\"phone\":\"(84) 99198-2963\",\"slogan\":\"Onde o seu limite vira ponto de partida\",\"website\":\"www.apmodafitness.com.br\",\"instructions\":\"Para solicitar Nota Fiscal oficial, fale conosco via WhatsApp\",\"pixKey\":\"67.074.681/0001-03\"}",
       "updated_at": "2026-06-28T14:49:55.053+00:00"
+    },
+    {
+      "key": "ap_coupons",
+      "value": "[{\"code\":\"PRIMEIRACOMPRA\",\"type\":\"percent\",\"value\":10,\"minPurchase\":0,\"limitUses\":1000,\"usedCount\":12,\"validUntil\":\"2026-12-31\",\"maxPerCpf\":1,\"isFirstPurchase\":true,\"category\":\"Todas\"},{\"code\":\"FITNESS10\",\"type\":\"percent\",\"value\":10,\"minPurchase\":150,\"limitUses\":100,\"usedCount\":32,\"validUntil\":\"2026-06-30\",\"maxPerCpf\":1,\"category\":\"Todas\"},{\"code\":\"BEMVINDA50\",\"type\":\"fixed\",\"value\":50,\"minPurchase\":300,\"limitUses\":50,\"usedCount\":15,\"validUntil\":\"2026-07-15\",\"maxPerCpf\":1,\"category\":\"Todas\"},{\"code\":\"FRETEGRATIS\",\"type\":\"percent\",\"value\":0,\"minPurchase\":399,\"limitUses\":500,\"usedCount\":88,\"validUntil\":\"2026-12-31\",\"maxPerCpf\":0,\"category\":\"Todas\"},{\"code\":\"MACACAO20\",\"type\":\"percent\",\"value\":20,\"minPurchase\":0,\"limitUses\":100,\"usedCount\":5,\"validUntil\":\"2026-12-31\",\"maxPerCpf\":1,\"category\":\"Macacões\"},{\"code\":\"LEGGING15\",\"type\":\"percent\",\"value\":15,\"minPurchase\":0,\"limitUses\":100,\"usedCount\":8,\"validUntil\":\"2026-12-31\",\"maxPerCpf\":1,\"category\":\"Leggings\"},{\"code\":\"PATRICIA10\",\"type\":\"percent\",\"value\":10,\"minPurchase\":0,\"limitUses\":500,\"usedCount\":18,\"validUntil\":\"2026-12-31\",\"maxPerCpf\":0,\"category\":\"Todas\",\"partnerName\":\"Patricia Cardoso\",\"partnerId\":\"part-patricia\"}]",
+      "created_at": "2026-10-29T21:23:50.822Z"
+    },
+    {
+      "key": "ap_moda_partners",
+      "value": "[{\"id\":\"part-patricia\",\"name\":\"Patricia Cardoso\",\"login\":\"patriciacardoso\",\"password\":\"123\",\"instagram\":\"@patriciacardoso\",\"couponCode\":\"PATRICIA10\",\"commissionRate\":10,\"salesCount\":18,\"totalGenerated\":2890,\"availableBalance\":289}]",
+      "created_at": "2026-10-29T21:23:50.822Z"
     }
   ]
 }

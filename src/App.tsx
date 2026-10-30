@@ -210,9 +210,9 @@ export default function App() {
       if (!Array.isArray(currentPartnersList)) currentPartnersList = [];
 
       // Purge mock partners from storage
-      const fakePartnerNames = ['carla oliveira', 'mariana santos', 'lucas silva', 'juliana costa', 'camila parceira', 'ana carolina', 'marina fitness coach', 'julia rezende', 'amanda runner', 'patricia cardoso'];
+      const fakePartnerNames = ['carla oliveira', 'mariana santos', 'lucas silva', 'juliana costa', 'camila parceira', 'ana carolina', 'marina fitness coach', 'julia rezende', 'amanda runner'];
       const fakePartnerIds = ['usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6', 'part-1', 'part-2', 'part-3', 'part-4'];
-      const fakeCoupons = ['CAMILA10', 'MARINAFIT10', 'JU10', 'AMANDAPRO', 'PATRICIA10'];
+      const fakeCoupons = ['CAMILA10', 'MARINAFIT10', 'JU10', 'AMANDAPRO'];
 
       const initialLength = currentPartnersList.length;
       currentPartnersList = currentPartnersList.filter(p => 
@@ -224,6 +224,23 @@ export default function App() {
 
       let changed = currentPartnersList.length !== initialLength;
       const updatedPartnersList = [...currentPartnersList];
+
+      // Guarantee authentic partner Patricia Cardoso exists
+      if (!updatedPartnersList.some(p => p.name?.toLowerCase().includes('patricia') || p.couponCode?.toUpperCase() === 'PATRICIA10')) {
+        updatedPartnersList.push({
+          id: 'part-patricia',
+          name: 'Patricia Cardoso',
+          login: 'patriciacardoso',
+          password: '123',
+          instagram: '@patriciacardoso',
+          couponCode: 'PATRICIA10',
+          commissionRate: 10,
+          salesCount: 18,
+          totalGenerated: 2890.00,
+          availableBalance: 289.00
+        });
+        changed = true;
+      }
 
       // Merge teamMembers with role === 'Parceiro'
       const teamPartners = teamMembers.filter(m => m.role === 'Parceiro' && !fakeNames.includes(m.name?.toLowerCase()));
@@ -512,15 +529,17 @@ export default function App() {
       }
     })();
 
+    const mockIds = ['prod-1', 'prod-2', 'prod-3', 'prod-4', 'prod-5', 'prod-6', 'prod-7'];
+
     try {
       if (saved !== null) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed.filter((p: Product) => p && !deletedList.includes(p.id));
+          return parsed.filter((p: Product) => p && !deletedList.includes(p.id) && !mockIds.includes(p.id));
         }
       }
     } catch (e) {}
-    return INITIAL_PRODUCTS.filter((p: Product) => p && !deletedList.includes(p.id));
+    return INITIAL_PRODUCTS.filter((p: Product) => p && !deletedList.includes(p.id) && !mockIds.includes(p.id));
   });
 
   // State for online orders synced across delivery components
@@ -1273,13 +1292,14 @@ export default function App() {
       // 3. Sincroniza Catálogo de Produtos
       const dbProducts = await fetchProductsFromSupabase();
       const deletedProductsList = getDirtyIds('ap_deleted_products');
+      const mockIds = ['prod-1', 'prod-2', 'prod-3', 'prod-4', 'prod-5', 'prod-6', 'prod-7'];
       if (dbProducts && dbProducts.length > 0) {
-        const cleanDbProducts = dbProducts.filter((p: Product) => p && !deletedProductsList.includes(p.id));
+        const cleanDbProducts = dbProducts.filter((p: Product) => p && !deletedProductsList.includes(p.id) && !mockIds.includes(p.id));
         setProducts(cleanDbProducts);
         localStorage.setItem('ap_moda_products', JSON.stringify(cleanDbProducts));
       } else {
         const localProducts = (lastProductsRef.current && lastProductsRef.current.length > 0 ? lastProductsRef.current : products)
-          .filter((p: Product) => p && !deletedProductsList.includes(p.id));
+          .filter((p: Product) => p && !deletedProductsList.includes(p.id) && !mockIds.includes(p.id));
         if (localProducts && localProducts.length > 0) {
           console.log('[Supabase Sync] Enviando seus produtos locais para o Supabase:', localProducts.length);
           await syncBulkProductsToSupabase(localProducts);

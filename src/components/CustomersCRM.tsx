@@ -625,13 +625,39 @@ export default function CustomersCRM({
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const fakePartnerNames = ['carla oliveira', 'mariana santos', 'lucas silva', 'juliana costa', 'camila parceira', 'ana carolina', 'marina fitness coach', 'julia rezende', 'amanda runner', 'patricia cardoso'];
+          const fakePartnerNames = ['carla oliveira', 'mariana santos', 'lucas silva', 'juliana costa', 'camila parceira', 'ana carolina', 'marina fitness coach', 'julia rezende', 'amanda runner'];
           const fakePartnerIds = ['usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6', 'part-1', 'part-2', 'part-3', 'part-4'];
-          return parsed.filter((p: any) => p && !fakePartnerIds.includes(p.id) && !fakePartnerNames.includes(p.name?.toLowerCase().trim()));
+          const filtered = parsed.filter((p: any) => p && !fakePartnerIds.includes(p.id) && !fakePartnerNames.includes(p.name?.toLowerCase().trim()));
+          if (!filtered.some((p: any) => p.name?.toLowerCase().includes('patricia') || p.couponCode?.toUpperCase() === 'PATRICIA10')) {
+            filtered.push({
+              id: 'part-patricia',
+              name: 'Patricia Cardoso',
+              login: 'patriciacardoso',
+              password: '123',
+              instagram: '@patriciacardoso',
+              couponCode: 'PATRICIA10',
+              commissionRate: 10,
+              salesCount: 18,
+              totalGenerated: 2890.00,
+              availableBalance: 289.00
+            });
+          }
+          return filtered;
         }
       }
     } catch(e) {}
-    return [];
+    return [{
+      id: 'part-patricia',
+      name: 'Patricia Cardoso',
+      login: 'patriciacardoso',
+      password: '123',
+      instagram: '@patriciacardoso',
+      couponCode: 'PATRICIA10',
+      commissionRate: 10,
+      salesCount: 18,
+      totalGenerated: 2890.00,
+      availableBalance: 289.00
+    }];
   });
 
   useEffect(() => {

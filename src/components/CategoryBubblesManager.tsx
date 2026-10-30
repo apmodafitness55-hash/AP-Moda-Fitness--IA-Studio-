@@ -28,37 +28,34 @@ interface CategoryBubblesManagerProps {
   onSaved?: () => void;
 }
 
-// Fallback high-res fitness image mapper
+// Fallback high-res fitness image mapper with authentic catalog images
 export const getFallbackCategoryPhoto = (category: string): string => {
   const cat = (category || '').toLowerCase().trim();
   if (cat === 'todos' || cat === 'todas') {
-    return 'https://images.unsplash.com/photo-1518310383802-640c2de311b2?w=300&h=300&fit=crop&q=80';
-  }
-  if (cat.includes('blusa') || cat.includes('camiseta') || cat.includes('top') || cat.includes('cropped') || cat.includes('dry-fit') || cat.includes('dryfit') || cat.includes('regata')) {
-    return 'https://images.unsplash.com/photo-1554412933-514a83d2f3c8?w=300&h=300&fit=crop&q=80';
-  }
-  if (cat.includes('legging') || cat.includes('calça') || cat.includes('calca') || cat.includes('calças')) {
-    return 'https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=300&h=300&fit=crop&q=80';
-  }
-  if (cat.includes('short') || cat.includes('bermuda')) {
-    return 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=300&h=300&fit=crop&q=80';
-  }
-  if (cat.includes('conjunto') || cat.includes('conjuntos')) {
-    return 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=300&h=300&fit=crop&q=80';
-  }
-  if (cat.includes('slim') || cat.includes('fit')) {
-    return 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=300&h=300&fit=crop&q=80';
-  }
-  if (cat.includes('plus') || cat.includes('size')) {
-    return 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=300&h=300&fit=crop&q=80';
+    return '/logo_cropped.png';
   }
   if (cat.includes('macacão') || cat.includes('macacao') || cat.includes('body')) {
-    return 'https://images.unsplash.com/photo-1518310383802-640c2de311b2?w=300&h=300&fit=crop&q=80';
+    return '/logo_cropped.png';
   }
-  if (cat.includes('casaco') || cat.includes('jaqueta') || cat.includes('corta-vento')) {
-    return 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=300&h=300&fit=crop&q=80';
+  if (cat.includes('blusa') || cat.includes('dry-fit') || cat.includes('dryfit') || cat.includes('regata')) {
+    return '/optimized-images/131e0e79a8a8c5d12863e7f44b4a3f22.webp';
   }
-  return 'https://images.unsplash.com/photo-1518310383802-640c2de311b2?w=300&h=300&fit=crop&q=80';
+  if (cat.includes('top') || cat.includes('cropped')) {
+    return '/optimized-images/d370ecd8e60bfa2df244d2f6ab6c5ec0.webp';
+  }
+  if (cat.includes('legging') || cat.includes('calça') || cat.includes('calca') || cat.includes('calças')) {
+    return '/optimized-images/fe86abeaefbd3f05f209a5eb5fa4fc19.webp';
+  }
+  if (cat.includes('conjunto') || cat.includes('conjuntos')) {
+    return '/optimized-images/08792e82d428812d8bc72287394bb3a1.webp';
+  }
+  if (cat.includes('slim') || cat.includes('fit')) {
+    return '/optimized-images/08792e82d428812d8bc72287394bb3a1.webp';
+  }
+  if (cat.includes('plus') || cat.includes('size')) {
+    return '/optimized-images/fe86abeaefbd3f05f209a5eb5fa4fc19.webp';
+  }
+  return '/logo_cropped.png';
 };
 
 export const resolveCategoryBubbleImage = (
@@ -140,10 +137,9 @@ export default function CategoryBubblesManager({
       'Calça Legging',
       'Leggings',
       'Tops',
-      'Shorts',
       'Conjuntos',
       'Macacões',
-      'Casacos',
+      'Blusa Dry-Fit',
       'Regatas'
     ];
 
