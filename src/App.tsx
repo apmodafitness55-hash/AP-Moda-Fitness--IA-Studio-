@@ -1774,6 +1774,10 @@ export default function App() {
   const handleUpdateProductsList = useCallback(async (updatedList: Product[] | ((prev: Product[]) => Product[])) => {
     setProducts(prev => {
       const newList = typeof updatedList === 'function' ? updatedList(prev) : updatedList;
+      try {
+        localStorage.setItem('ap_moda_products', JSON.stringify(newList));
+      } catch (e) {}
+
       const prevMap = new Map(prev.map(p => [p.id, p]));
       const changedProducts = newList.filter(p => {
         const prevP = prevMap.get(p.id);
@@ -1781,6 +1785,10 @@ export default function App() {
       });
 
       if (changedProducts.length > 0) {
+        const changedIds = changedProducts.map(cp => cp.id);
+        const currentDirty = getDirtyIds('ap_dirty_products');
+        saveDirtyIds('ap_dirty_products', Array.from(new Set([...currentDirty, ...changedIds])));
+
         const config = getSupabaseConfig();
         if (config && !systemOffline) {
           syncBulkProductsToSupabase(changedProducts).then(success => {
@@ -3539,7 +3547,19 @@ export default function App() {
   };
 
   const handleAddProduct = async (newProd: Product) => {
-    setProducts(prev => [newProd, ...prev]);
+    setProducts(prev => {
+      const updated = [newProd, ...prev];
+      try {
+        localStorage.setItem('ap_moda_products', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    const currentDirty = getDirtyIds('ap_dirty_products');
+    if (!currentDirty.includes(newProd.id)) {
+      saveDirtyIds('ap_dirty_products', [...currentDirty, newProd.id]);
+    }
+
     const config = getSupabaseConfig();
     if (config && !systemOffline) {
       try {
@@ -3547,14 +3567,25 @@ export default function App() {
         const remaining = getDirtyIds('ap_dirty_products').filter(id => id !== newProd.id);
         saveDirtyIds('ap_dirty_products', remaining);
       } catch (e) {
-        console.warn('Immediate product upload failed:', e);
-        throw e;
+        console.warn('Immediate product upload failed, saved in local offline queue:', e);
       }
     }
   };
 
   const handleUpdateProduct = async (updatedProd: Product) => {
-    setProducts(prev => prev.map(p => p.id === updatedProd.id ? updatedProd : p));
+    setProducts(prev => {
+      const updated = prev.map(p => p.id === updatedProd.id ? updatedProd : p);
+      try {
+        localStorage.setItem('ap_moda_products', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    const currentDirty = getDirtyIds('ap_dirty_products');
+    if (!currentDirty.includes(updatedProd.id)) {
+      saveDirtyIds('ap_dirty_products', [...currentDirty, updatedProd.id]);
+    }
+
     const config = getSupabaseConfig();
     if (config && !systemOffline) {
       try {
@@ -3562,8 +3593,7 @@ export default function App() {
         const remaining = getDirtyIds('ap_dirty_products').filter(id => id !== updatedProd.id);
         saveDirtyIds('ap_dirty_products', remaining);
       } catch (e) {
-        console.warn('Immediate product update failed:', e);
-        throw e;
+        console.warn('Immediate product update failed, saved in local offline queue:', e);
       }
     }
   };

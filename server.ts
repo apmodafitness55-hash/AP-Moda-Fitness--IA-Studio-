@@ -1141,14 +1141,15 @@ app.get('/api/proxy/cdn-image', async (req, res) => {
     } catch (err: any) {
       cdnInFlight.delete(cacheKey);
       console.warn(`[CDN Image Fetch Error] ${targetUrl}:`, err.message);
-      // Resilient fallback: Redirect browser directly to the image URL so user's client loads it directly!
-      return res.redirect(302, targetUrl);
+      // Resilient fallback: Redirect browser directly to the image URL so user's client loads it directly ONLY IF it is an actual direct image URL
+      if (targetUrl.includes('i.ibb.co') || targetUrl.includes('googleusercontent.com') || /\.(jpg|jpeg|png|webp|avif|gif)(\?.*)?$/i.test(targetUrl)) {
+        return res.redirect(302, targetUrl);
+      }
+      res.setHeader('Content-Type', 'image/svg+xml');
+      return res.send(CDN_FALLBACK_SVG);
     }
   } catch (err) {
     console.error('[CDN Image Unhandled Error]:', err);
-    if (req.query.url && typeof req.query.url === 'string') {
-      return res.redirect(302, (req.query.url as string).trim());
-    }
     res.setHeader('Content-Type', 'image/svg+xml');
     res.send(CDN_FALLBACK_SVG);
   }
@@ -2044,7 +2045,7 @@ app.post('/api/proxy/upload-image', async (req, res) => {
     // Tentar upload via ImgBB se a chave estiver configurada
     try {
       const apiKey = await getImgbbApiKeyFromDb();
-      if (apiKey && apiKey !== '18601b3928fe35b4d0d517fe002c2df7') {
+      if (apiKey) {
         const body = new URLSearchParams();
         body.append('image', base64Data);
         if (name) body.append('name', name);
@@ -3043,14 +3044,14 @@ app.get('/api/proxy/products', async (req, res) => {
   }
 });
 
-app.get('/api/proxy/resolve-image-url', async (req, res) => {
+app.all('/api/proxy/resolve-image-url', async (req, res) => {
   try {
-    const { url } = req.query;
-    if (!url || typeof url !== 'string') {
+    const rawUrl = (req.method === 'POST' ? req.body?.url : req.query.url) as string;
+    if (!rawUrl || typeof rawUrl !== 'string') {
       return res.status(400).json({ error: 'URL é obrigatória.' });
     }
-    const resolved = await resolveDirectImageUrl(url);
-    res.json({ original: url, resolved });
+    const resolved = await resolveDirectImageUrl(rawUrl);
+    res.json({ original: rawUrl, resolved, success: true });
   } catch (err: any) {
     console.error('[Proxy Resolve Image URL] Erro:', err);
     res.status(500).json({ error: err.message || 'Erro ao resolver link da imagem.' });
@@ -3060,6 +3061,27 @@ app.get('/api/proxy/resolve-image-url', async (req, res) => {
 async function resolveDirectImageUrl(url: string): Promise<string> {
   if (!url || typeof url !== 'string') return url;
   const trimmed = url.trim();
+
+  // 0. Instant extract from HTML embed or BBCode (e.g. copied directly from ImgBB)
+  const directIbbInSnippet = trimmed.match(/https?:\/\/i\.ibb\.co\/[a-zA-Z0-9_\-\.\/]+/i);
+  if (directIbbInSnippet && directIbbInSnippet[0]) {
+    return directIbbInSnippet[0].replace(/[),;.\s]+$/, '');
+  }
+
+  const htmlImgMatch = trimmed.match(/<img[^>]+src=["']([^"']+)["']/i);
+  if (htmlImgMatch && htmlImgMatch[1]) {
+    return resolveDirectImageUrl(htmlImgMatch[1]);
+  }
+
+  const bbcodeImgMatch = trimmed.match(/\[img\](.*?)\[\/img\]/i);
+  if (bbcodeImgMatch && bbcodeImgMatch[1]) {
+    return resolveDirectImageUrl(bbcodeImgMatch[1]);
+  }
+
+  // Already a direct high-speed CDN image
+  if (trimmed.includes('i.ibb.co/')) {
+    return trimmed;
+  }
 
   // 1. Google Drive share / view links -> Google's high-speed user content CDN
   const gdriveMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
@@ -3082,7 +3104,7 @@ async function resolveDirectImageUrl(url: string): Promise<string> {
     return `https://i.imgur.com/${imgurMatch[1]}.jpg`;
   }
 
-  // 4. ImgBB viewer link resolution (e.g. ibb.co/XYZ or imgbb.com/XYZ without direct i.ibb.co)
+  // 4. ImgBB viewer link resolution (e.g. ibb.co/XYZ or imgbb.com/XYZ)
   const isImgbbViewer = (trimmed.includes('ibb.co/') || trimmed.includes('imgbb.com/')) && 
                         !trimmed.includes('i.ibb.co/') && 
                         !/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(trimmed);
@@ -3091,9 +3113,12 @@ async function resolveDirectImageUrl(url: string): Promise<string> {
       console.log(`[ImgBB Resolver] Resolvendo link do visualizador: ${trimmed}`);
       const response = await fetchWithTimeout(trimmed, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Referer': 'https://imgbb.com/'
         }
-      }, 10000);
+      }, 8000);
 
       if (response.ok) {
         const html = await response.text();

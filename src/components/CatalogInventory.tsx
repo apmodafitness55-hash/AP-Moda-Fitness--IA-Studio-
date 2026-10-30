@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { Product } from '../types';
 import ImageUploader from './ImageUploader';
-import { getOptimizedImageUrl, handleImageFallback, getProductMainImage } from '../utils/imageUtils';
+import { getOptimizedImageUrl, handleImageFallback, getProductMainImage, extractImageUrlsFromText } from '../utils/imageUtils';
 
 interface CatalogInventoryProps {
   products: Product[];
@@ -481,9 +481,9 @@ export default function CatalogInventory({
   const [isResolvingNew, setIsResolvingNew] = useState(false);
   const [isResolvingEdit, setIsResolvingEdit] = useState(false);
 
-  const resolveImageAndAdd = async (url: string, type: 'new' | 'edit') => {
-    const trimmed = url.trim();
-    if (!trimmed) return;
+  const resolveImageAndAdd = async (rawInput: string, type: 'new' | 'edit') => {
+    const trimmedInput = rawInput.trim();
+    if (!trimmedInput) return;
 
     if (type === 'new') {
       setIsResolvingNew(true);
@@ -492,50 +492,70 @@ export default function CatalogInventory({
     }
 
     try {
-      const response = await fetch(`/api/proxy/resolve-image-url?url=${encodeURIComponent(trimmed)}`);
-      if (response.ok) {
-        const result = await response.json();
-        if (result && result.resolved) {
-          if (type === 'new') {
-            setNewImages(prev => {
-              if (prev.includes(result.resolved)) return prev;
-              return [...prev, result.resolved];
-            });
+      // 1. Try instant client-side extraction (works immediately for i.ibb.co, Google Drive, HTML embeds, BBCode, direct image files)
+      const extractedUrls = extractImageUrlsFromText(trimmedInput);
+      
+      const directUrlsToAdd: string[] = [];
+      const viewerUrlsToResolve: string[] = [];
+
+      if (extractedUrls.length > 0) {
+        for (const u of extractedUrls) {
+          if (u.includes('ibb.co/') && !u.includes('i.ibb.co/')) {
+            viewerUrlsToResolve.push(u);
           } else {
-            setEditImages(prev => {
-              if (prev.includes(result.resolved)) return prev;
-              return [...prev, result.resolved];
-            });
+            directUrlsToAdd.push(u);
           }
-          return;
+        }
+      } else {
+        // Fallback: if no direct regex matched, treat raw input as URL to resolve
+        viewerUrlsToResolve.push(trimmedInput);
+      }
+
+      // Add all direct URLs immediately to state without needing any network roundtrip
+      if (directUrlsToAdd.length > 0) {
+        if (type === 'new') {
+          setNewImages(prev => Array.from(new Set([...prev, ...directUrlsToAdd])));
+        } else {
+          setEditImages(prev => Array.from(new Set([...prev, ...directUrlsToAdd])));
         }
       }
-      
-      // Fallback to original trimmed link if resolution endpoint fails
-      if (type === 'new') {
-        setNewImages(prev => {
-          if (prev.includes(trimmed)) return prev;
-          return [...prev, trimmed];
-        });
-      } else {
-        setEditImages(prev => {
-          if (prev.includes(trimmed)) return prev;
-          return [...prev, trimmed];
-        });
+
+      // If there are viewer URLs that need resolving via the server proxy
+      if (viewerUrlsToResolve.length > 0) {
+        for (const vUrl of viewerUrlsToResolve) {
+          try {
+            const response = await fetch('/api/proxy/resolve-image-url', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: vUrl })
+            });
+            if (response.ok) {
+              const result = await response.json();
+              if (result && result.resolved) {
+                const finalUrl = result.resolved;
+                if (type === 'new') {
+                  setNewImages(prev => prev.includes(finalUrl) ? prev : [...prev, finalUrl]);
+                } else {
+                  setEditImages(prev => prev.includes(finalUrl) ? prev : [...prev, finalUrl]);
+                }
+                continue;
+              }
+            }
+          } catch (fetchErr) {
+            console.warn('[Proxy Resolve Warning]:', fetchErr);
+          }
+          // If server could not resolve, only add if it looks like a valid URL
+          if (vUrl.startsWith('http://') || vUrl.startsWith('https://')) {
+            if (type === 'new') {
+              setNewImages(prev => prev.includes(vUrl) ? prev : [...prev, vUrl]);
+            } else {
+              setEditImages(prev => prev.includes(vUrl) ? prev : [...prev, vUrl]);
+            }
+          }
+        }
       }
     } catch (err) {
       console.error('[Client Resolve Image URL Error]:', err);
-      if (type === 'new') {
-        setNewImages(prev => {
-          if (prev.includes(trimmed)) return prev;
-          return [...prev, trimmed];
-        });
-      } else {
-        setEditImages(prev => {
-          if (prev.includes(trimmed)) return prev;
-          return [...prev, trimmed];
-        });
-      }
     } finally {
       if (type === 'new') {
         setIsResolvingNew(false);
@@ -698,8 +718,10 @@ export default function CatalogInventory({
         cost: newCost,
         stock: newStock,
         minStock: newMinStock,
-        image: newImages[0] || newImage,
-        images: newImages.length > 0 ? newImages : [newImage],
+        image: (newImages.map(img => (typeof img === 'string' ? img.trim() : '')).filter(Boolean))[0] || (typeof newImage === 'string' ? newImage.trim() : ''),
+        images: (newImages.map(img => (typeof img === 'string' ? img.trim() : '')).filter(Boolean)).length > 0 
+          ? newImages.map(img => (typeof img === 'string' ? img.trim() : '')).filter(Boolean) 
+          : ((typeof newImage === 'string' && newImage.trim()) ? [newImage.trim()] : []),
         salesCount: 0,
         description: newDescription.trim(),
         videoUrl: newVideoUrl.trim(),
@@ -763,8 +785,23 @@ export default function CatalogInventory({
     setEditCost(p.cost);
     setEditStock(p.stock);
     setEditMinStock(p.minStock);
-    setEditImage(p.image);
-    setEditImages(p.images || [p.image]);
+    setEditImage(p.image || '');
+    let initialImgs: string[] = [];
+    const rawImages: any = (p as any).images;
+    if (Array.isArray(rawImages) && rawImages.length > 0) {
+      initialImgs = rawImages.filter((img: any) => typeof img === 'string' && img.trim());
+    } else if (typeof rawImages === 'string' && rawImages.trim()) {
+      try {
+        const parsed = JSON.parse(rawImages);
+        if (Array.isArray(parsed)) initialImgs = parsed.filter((img: any) => typeof img === 'string' && img.trim());
+      } catch (e) {
+        initialImgs = [rawImages.trim()];
+      }
+    }
+    if (initialImgs.length === 0 && p.image && typeof p.image === 'string' && p.image.trim()) {
+      initialImgs = [p.image.trim()];
+    }
+    setEditImages(initialImgs);
     setEditDescription(p.description || '');
     setEditVideoUrl(p.videoUrl || '');
     setEditColors(p.colors ? p.colors.join(', ') : 'Preto');
@@ -853,6 +890,9 @@ export default function CatalogInventory({
         finalMeasurementSpecs[sz] = editMeasurementSpecs[normSz] || editMeasurementSpecs[sz] || getFallbackSpecsForSize(sz);
       });
 
+      const cleanEditImages = editImages.map(img => (typeof img === 'string' ? img.trim() : '')).filter(Boolean);
+      const primaryImage = cleanEditImages[0] || (typeof editImage === 'string' ? editImage.trim() : '');
+
       await onUpdateProduct({
         ...editingProduct,
         name: editName.trim(),
@@ -863,8 +903,8 @@ export default function CatalogInventory({
         cost: editCost,
         stock: editStock,
         minStock: editMinStock,
-        image: editImages[0] || editImage,
-        images: editImages.length > 0 ? editImages : [editImage],
+        image: primaryImage,
+        images: cleanEditImages.length > 0 ? cleanEditImages : (primaryImage ? [primaryImage] : []),
         description: editDescription.trim(),
         videoUrl: editVideoUrl.trim(),
         colors: colorsArray,
@@ -2416,7 +2456,13 @@ export default function CatalogInventory({
                 <div className="grid grid-cols-5 gap-2">
                   {newImages.map((img, idx) => (
                     <div key={idx} className="relative aspect-square rounded-lg border border-slate-200 overflow-hidden bg-slate-100 group shadow-xs">
-                      <img src={img} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <img 
+                        src={getOptimizedImageUrl(img, 200)} 
+                        alt={`Preview ${idx + 1}`} 
+                        className="w-full h-full object-cover" 
+                        referrerPolicy="no-referrer" 
+                        onError={handleImageFallback}
+                      />
                       <button
                         type="button"
                         onClick={() => {
@@ -2466,7 +2512,7 @@ export default function CatalogInventory({
                       id="new-product-image-add-input"
                       type="text"
                       disabled={isResolvingNew}
-                      placeholder={isResolvingNew ? "Convertendo link do ImgBB..." : "Cole o link da foto de um produto..."}
+                      placeholder={isResolvingNew ? "Processando imagem..." : "Cole o link da foto (i.ibb.co, ibb.co, Google Drive ou código HTML)..."}
                       className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-md text-slate-600 focus:outline-hidden focus:border-pink-500 transition-all font-mono text-[10px] disabled:bg-slate-100 disabled:text-slate-400"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
@@ -2501,6 +2547,7 @@ export default function CatalogInventory({
                       )}
                     </button>
                   </div>
+                  <span className="text-[9px] text-slate-400 block">💡 Aceita links do ImgBB (i.ibb.co ou ibb.co), Google Drive ou códigos de incorporação HTML/BBCode.</span>
                 </div>
               </div>
 
@@ -3050,7 +3097,13 @@ export default function CatalogInventory({
                 <div className="grid grid-cols-5 gap-2">
                   {editImages.map((img, idx) => (
                     <div key={idx} className="relative aspect-square rounded-lg border border-slate-200 overflow-hidden bg-slate-100 group shadow-xs">
-                      <img src={img} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <img 
+                        src={getOptimizedImageUrl(img, 200)} 
+                        alt={`Preview ${idx + 1}`} 
+                        className="w-full h-full object-cover" 
+                        referrerPolicy="no-referrer" 
+                        onError={handleImageFallback}
+                      />
                       <button
                         type="button"
                         onClick={() => {
@@ -3100,7 +3153,7 @@ export default function CatalogInventory({
                       id="edit-product-image-add-input"
                       type="text"
                       disabled={isResolvingEdit}
-                      placeholder={isResolvingEdit ? "Convertendo link do ImgBB..." : "Cole o link da foto de um produto..."}
+                      placeholder={isResolvingEdit ? "Processando imagem..." : "Cole o link da foto (i.ibb.co, ibb.co, Google Drive ou código HTML)..."}
                       className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-md text-slate-600 focus:outline-hidden focus:border-pink-500 transition-all font-mono text-[10px] disabled:bg-slate-100 disabled:text-slate-400"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
@@ -3135,6 +3188,7 @@ export default function CatalogInventory({
                       )}
                     </button>
                   </div>
+                  <span className="text-[9px] text-slate-400 block">💡 Aceita links do ImgBB (i.ibb.co ou ibb.co), Google Drive ou códigos de incorporação HTML/BBCode.</span>
                 </div>
               </div>
 

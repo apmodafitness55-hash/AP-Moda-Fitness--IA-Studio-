@@ -54,12 +54,79 @@ export const PRE_OPTIMIZED_IMAGES: Record<string, string> = {
 };
 
 /**
+ * Extracts all valid direct image URLs from raw text, HTML snippets, or BBCode
+ */
+export function extractImageUrlsFromText(input: string): string[] {
+  if (!input || typeof input !== 'string') return [];
+  const text = input.trim();
+  const urls: string[] = [];
+
+  // 1. Direct i.ibb.co URLs (including inside <a> or <img> tags or BBCode)
+  const ibbDirectMatches = text.match(/https?:\/\/i\.ibb\.co\/[a-zA-Z0-9_\-\.\/]+/gi);
+  if (ibbDirectMatches) {
+    ibbDirectMatches.forEach(u => urls.push(u.replace(/[),;.\s]+$/, '')));
+  }
+
+  // 2. Google Drive links
+  const gdriveMatches = text.matchAll(/https?:\/\/drive\.google\.com\/(?:file\/d\/([a-zA-Z0-9_-]+)|open\?id=([a-zA-Z0-9_-]+))/gi);
+  for (const m of gdriveMatches) {
+    const id = m[1] || m[2];
+    if (id) urls.push(`https://lh3.googleusercontent.com/d/${id}`);
+  }
+
+  // 3. HTML <img> tags src attributes
+  const htmlImgMatches = text.matchAll(/<img[^>]+src=["']([^"']+)["']/gi);
+  for (const m of htmlImgMatches) {
+    if (m[1]) urls.push(m[1].trim());
+  }
+
+  // 4. BBCode [img]...[/img]
+  const bbcodeMatches = text.matchAll(/\[img\](.*?)\[\/img\]/gi);
+  for (const m of bbcodeMatches) {
+    if (m[1]) urls.push(m[1].trim());
+  }
+
+  // 5. Standard image URLs with extensions (.jpg, .png, .webp, .jpeg, etc.)
+  const directImgMatches = text.match(/https?:\/\/[^\s"'<>\[\]]+?\.(?:jpg|jpeg|png|webp|avif|gif)(?:\?[^\s"'<>\[\]]*)?/gi);
+  if (directImgMatches) {
+    directImgMatches.forEach(u => urls.push(u.replace(/[),;.\s]+$/, '')));
+  }
+
+  // 6. ImgBB viewer links (e.g. ibb.co/XYZ) only if no direct i.ibb.co link was already extracted from the snippet
+  if (urls.length === 0) {
+    const ibbViewerMatches = text.match(/https?:\/\/(?:www\.)?(?:ibb\.co|imgbb\.com)\/[a-zA-Z0-9_-]+/gi);
+    if (ibbViewerMatches) {
+      ibbViewerMatches.forEach(u => urls.push(u.replace(/[),;.\s]+$/, '')));
+    }
+  }
+
+  // Deduplicate and filter out empty strings
+  return Array.from(new Set(urls.map(u => resolveClientDirectImageUrl(u)).filter(Boolean)));
+}
+
+/**
  * Resolves common external viewer URLs to direct raw image URLs right on the client
  */
 export function resolveClientDirectImageUrl(url?: string | null): string {
   if (!url || typeof url !== 'string') return '';
   let trimmed = url.trim();
   if (!trimmed) return '';
+
+  // 0. Direct extract if wrapped in HTML or BBCode
+  const directIbb = trimmed.match(/https?:\/\/i\.ibb\.co\/[a-zA-Z0-9_\-\.\/]+/i);
+  if (directIbb && directIbb[0]) {
+    return directIbb[0].replace(/[),;.\s]+$/, '');
+  }
+
+  const htmlImgSrc = trimmed.match(/<img[^>]+src=["']([^"']+)["']/i);
+  if (htmlImgSrc && htmlImgSrc[1]) {
+    return resolveClientDirectImageUrl(htmlImgSrc[1]);
+  }
+
+  const bbcodeImg = trimmed.match(/\[img\](.*?)\[\/img\]/i);
+  if (bbcodeImg && bbcodeImg[1]) {
+    return resolveClientDirectImageUrl(bbcodeImg[1]);
+  }
 
   // Google Drive share / preview links -> Google User Content CDN
   const gdriveMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
