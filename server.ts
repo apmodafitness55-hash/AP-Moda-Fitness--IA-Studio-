@@ -1017,6 +1017,12 @@ app.get('/api/proxy/cdn-image', async (req, res) => {
     const directUrl = await resolveDirectImageUrl(trimmedUrl);
     const targetUrl = directUrl || trimmedUrl;
 
+    // ImgBB CDN delivers directly to the client browser without datacenter IP blocking
+    if (targetUrl.includes('i.ibb.co') || targetUrl.includes('ibb.co.com')) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      return res.redirect(302, targetUrl);
+    }
+
     const width = Math.min(1600, Math.max(50, parseInt(req.query.w as string) || 800));
     const quality = Math.min(100, Math.max(20, parseInt(req.query.q as string) || 80));
 
@@ -3062,88 +3068,97 @@ async function resolveDirectImageUrl(url: string): Promise<string> {
   if (!url || typeof url !== 'string') return url;
   const trimmed = url.trim();
 
-  // 0. Instant extract from HTML embed or BBCode (e.g. copied directly from ImgBB)
-  const directIbbInSnippet = trimmed.match(/https?:\/\/i\.ibb\.co\/[a-zA-Z0-9_\-\.\/]+/i);
-  if (directIbbInSnippet && directIbbInSnippet[0]) {
-    return directIbbInSnippet[0].replace(/[),;.\s]+$/, '');
+  // Normalize protocol
+  let normalized = trimmed;
+  if (!normalized.startsWith('http://') && !normalized.startsWith('https://') && !normalized.startsWith('data:')) {
+    if (normalized.includes('ibb.co') || normalized.includes('imgbb.com') || normalized.includes('googleusercontent.com')) {
+      normalized = 'https://' + normalized;
+    }
   }
 
-  const htmlImgMatch = trimmed.match(/<img[^>]+src=["']([^"']+)["']/i);
+  // 0. Instant extract from HTML embed or BBCode (e.g. copied directly from ImgBB)
+  const directIbbInSnippet = normalized.match(/(?:https?:\/\/)?i\.ibb\.co(?:\.com)?\/[a-zA-Z0-9_\-\.\/]+/i);
+  if (directIbbInSnippet && directIbbInSnippet[0]) {
+    let clean = directIbbInSnippet[0].replace(/[),;.\s]+$/, '');
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      clean = 'https://' + clean;
+    }
+    return clean;
+  }
+
+  const htmlImgMatch = normalized.match(/<img[^>]+src=["']([^"']+)["']/i);
   if (htmlImgMatch && htmlImgMatch[1]) {
     return resolveDirectImageUrl(htmlImgMatch[1]);
   }
 
-  const bbcodeImgMatch = trimmed.match(/\[img\](.*?)\[\/img\]/i);
+  const bbcodeImgMatch = normalized.match(/\[img\](.*?)\[\/img\]/i);
   if (bbcodeImgMatch && bbcodeImgMatch[1]) {
     return resolveDirectImageUrl(bbcodeImgMatch[1]);
   }
 
   // Already a direct high-speed CDN image
-  if (trimmed.includes('i.ibb.co/')) {
-    return trimmed;
+  if (normalized.includes('i.ibb.co') || normalized.includes('i.ibb.co.com')) {
+    return normalized;
   }
 
   // 1. Google Drive share / view links -> Google's high-speed user content CDN
-  const gdriveMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if (trimmed.includes('drive.google.com') && gdriveMatch && gdriveMatch[1]) {
+  const gdriveMatch = normalized.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || normalized.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (normalized.includes('drive.google.com') && gdriveMatch && gdriveMatch[1]) {
     return `https://lh3.googleusercontent.com/d/${gdriveMatch[1]}`;
   }
 
   // 2. Dropbox share links -> Direct file raw download
-  if (trimmed.includes('dropbox.com')) {
-    if (trimmed.includes('dl=0')) return trimmed.replace('dl=0', 'raw=1');
-    if (!trimmed.includes('raw=1') && !trimmed.includes('dl=1')) {
-      return trimmed + (trimmed.includes('?') ? '&raw=1' : '?raw=1');
+  if (normalized.includes('dropbox.com')) {
+    if (normalized.includes('dl=0')) return normalized.replace('dl=0', 'raw=1');
+    if (!normalized.includes('raw=1') && !normalized.includes('dl=1')) {
+      return normalized + (normalized.includes('?') ? '&raw=1' : '?raw=1');
     }
-    return trimmed;
+    return normalized;
   }
 
   // 3. Imgur viewer links -> Direct i.imgur.com JPEG
-  const imgurMatch = trimmed.match(/^https?:\/\/(?:www\.)?imgur\.com\/([a-zA-Z0-9]+)$/);
+  const imgurMatch = normalized.match(/^https?:\/\/(?:www\.)?imgur\.com\/([a-zA-Z0-9]+)$/);
   if (imgurMatch && imgurMatch[1]) {
     return `https://i.imgur.com/${imgurMatch[1]}.jpg`;
   }
 
-  // 4. ImgBB viewer link resolution (e.g. ibb.co/XYZ or imgbb.com/XYZ)
-  const isImgbbViewer = (trimmed.includes('ibb.co/') || trimmed.includes('imgbb.com/')) && 
-                        !trimmed.includes('i.ibb.co/') && 
-                        !/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(trimmed);
+  // 4. ImgBB viewer link resolution (e.g. ibb.co/XYZ or imgbb.com/XYZ) with strict 1.5s timeout
+  const isImgbbViewer = (normalized.includes('ibb.co') || normalized.includes('imgbb.com')) && 
+                        !normalized.includes('i.ibb.co') && 
+                        !normalized.includes('i.ibb.co.com') && 
+                        !/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(normalized);
   if (isImgbbViewer) {
     try {
-      console.log(`[ImgBB Resolver] Resolvendo link do visualizador: ${trimmed}`);
-      const response = await fetchWithTimeout(trimmed, {
+      const response = await fetchWithTimeout(normalized, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
           'Referer': 'https://imgbb.com/'
         }
-      }, 8000);
+      }, 1500);
 
       if (response.ok) {
         const html = await response.text();
         const ogImageMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i) || 
                              html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i) ||
-                             html.match(/https:\/\/i\.ibb\.co\/[a-zA-Z0-9_/.-]+/);
+                             html.match(/https?:\/\/i\.ibb\.co(?:\.com)?\/[a-zA-Z0-9_/.-]+/i);
         if (ogImageMatch && ogImageMatch[1]) {
-          const directUrl = ogImageMatch[1].trim();
-          console.log(`[ImgBB Resolver] Link direto resolvido com sucesso: ${directUrl}`);
-          return directUrl;
+          return ogImageMatch[1].trim();
         } else if (ogImageMatch && ogImageMatch[0]) {
           return ogImageMatch[0].trim();
         }
       }
     } catch (err: any) {
-      console.warn(`[ImgBB Resolver] Erro ao tentar resolver link:`, err.message || err);
+      // Non-blocking fallback
     }
   }
 
   // 5. Postimages viewer links
-  if (trimmed.includes('postimg.cc/') && !trimmed.includes('i.postimg.cc/')) {
+  if (normalized.includes('postimg.cc/') && !normalized.includes('i.postimg.cc/')) {
     try {
-      const response = await fetchWithTimeout(trimmed, {
+      const response = await fetchWithTimeout(normalized, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-      }, 8000);
+      }, 3000);
       if (response.ok) {
         const html = await response.text();
         const ogMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i);
@@ -3152,7 +3167,7 @@ async function resolveDirectImageUrl(url: string): Promise<string> {
     } catch (err) {}
   }
 
-  return trimmed;
+  return normalized;
 }
 
 async function sanitizeAndCompressImage(val: string): Promise<string> {

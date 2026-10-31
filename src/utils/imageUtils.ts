@@ -61,14 +61,20 @@ export function extractImageUrlsFromText(input: string): string[] {
   const text = input.trim();
   const urls: string[] = [];
 
-  // 1. Direct i.ibb.co URLs (including inside <a> or <img> tags or BBCode)
-  const ibbDirectMatches = text.match(/https?:\/\/i\.ibb\.co\/[a-zA-Z0-9_\-\.\/]+/gi);
+  // 1. Direct i.ibb.co or i.ibb.co.com URLs (with or without https:// protocol, including inside <a> or <img> tags or BBCode)
+  const ibbDirectMatches = text.match(/(?:https?:\/\/)?i\.ibb\.co(?:\.com)?\/[a-zA-Z0-9_\-\.\/]+/gi);
   if (ibbDirectMatches) {
-    ibbDirectMatches.forEach(u => urls.push(u.replace(/[),;.\s]+$/, '')));
+    ibbDirectMatches.forEach(u => {
+      let clean = u.replace(/[),;.\s]+$/, '');
+      if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+        clean = 'https://' + clean;
+      }
+      urls.push(clean);
+    });
   }
 
   // 2. Google Drive links
-  const gdriveMatches = text.matchAll(/https?:\/\/drive\.google\.com\/(?:file\/d\/([a-zA-Z0-9_-]+)|open\?id=([a-zA-Z0-9_-]+))/gi);
+  const gdriveMatches = text.matchAll(/(?:https?:\/\/)?drive\.google\.com\/(?:file\/d\/([a-zA-Z0-9_-]+)|open\?id=([a-zA-Z0-9_-]+))/gi);
   for (const m of gdriveMatches) {
     const id = m[1] || m[2];
     if (id) urls.push(`https://lh3.googleusercontent.com/d/${id}`);
@@ -77,26 +83,44 @@ export function extractImageUrlsFromText(input: string): string[] {
   // 3. HTML <img> tags src attributes
   const htmlImgMatches = text.matchAll(/<img[^>]+src=["']([^"']+)["']/gi);
   for (const m of htmlImgMatches) {
-    if (m[1]) urls.push(m[1].trim());
+    if (m[1]) {
+      let clean = m[1].trim();
+      if (!clean.startsWith('http://') && !clean.startsWith('https://') && clean.includes('ibb.co')) {
+        clean = 'https://' + clean;
+      }
+      urls.push(clean);
+    }
   }
 
   // 4. BBCode [img]...[/img]
   const bbcodeMatches = text.matchAll(/\[img\](.*?)\[\/img\]/gi);
   for (const m of bbcodeMatches) {
-    if (m[1]) urls.push(m[1].trim());
+    if (m[1]) {
+      let clean = m[1].trim();
+      if (!clean.startsWith('http://') && !clean.startsWith('https://') && clean.includes('ibb.co')) {
+        clean = 'https://' + clean;
+      }
+      urls.push(clean);
+    }
   }
 
   // 5. Standard image URLs with extensions (.jpg, .png, .webp, .jpeg, etc.)
-  const directImgMatches = text.match(/https?:\/\/[^\s"'<>\[\]]+?\.(?:jpg|jpeg|png|webp|avif|gif)(?:\?[^\s"'<>\[\]]*)?/gi);
+  const directImgMatches = text.match(/(?:https?:\/\/)[^\s"'<>\[\]]+?\.(?:jpg|jpeg|png|webp|avif|gif)(?:\?[^\s"'<>\[\]]*)?/gi);
   if (directImgMatches) {
     directImgMatches.forEach(u => urls.push(u.replace(/[),;.\s]+$/, '')));
   }
 
-  // 6. ImgBB viewer links (e.g. ibb.co/XYZ) only if no direct i.ibb.co link was already extracted from the snippet
+  // 6. ImgBB viewer links (e.g. ibb.co/XYZ) only if no direct image was already extracted from the snippet
   if (urls.length === 0) {
-    const ibbViewerMatches = text.match(/https?:\/\/(?:www\.)?(?:ibb\.co|imgbb\.com)\/[a-zA-Z0-9_-]+/gi);
+    const ibbViewerMatches = text.match(/(?:https?:\/\/)?(?:www\.)?(?:ibb\.co(?:\.com)?|imgbb\.com)\/[a-zA-Z0-9_-]+/gi);
     if (ibbViewerMatches) {
-      ibbViewerMatches.forEach(u => urls.push(u.replace(/[),;.\s]+$/, '')));
+      ibbViewerMatches.forEach(u => {
+        let clean = u.replace(/[),;.\s]+$/, '');
+        if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+          clean = 'https://' + clean;
+        }
+        urls.push(clean);
+      });
     }
   }
 
@@ -113,9 +137,13 @@ export function resolveClientDirectImageUrl(url?: string | null): string {
   if (!trimmed) return '';
 
   // 0. Direct extract if wrapped in HTML or BBCode
-  const directIbb = trimmed.match(/https?:\/\/i\.ibb\.co\/[a-zA-Z0-9_\-\.\/]+/i);
+  const directIbb = trimmed.match(/(?:https?:\/\/)?i\.ibb\.co(?:\.com)?\/[a-zA-Z0-9_\-\.\/]+/i);
   if (directIbb && directIbb[0]) {
-    return directIbb[0].replace(/[),;.\s]+$/, '');
+    let clean = directIbb[0].replace(/[),;.\s]+$/, '');
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      clean = 'https://' + clean;
+    }
+    return clean;
   }
 
   const htmlImgSrc = trimmed.match(/<img[^>]+src=["']([^"']+)["']/i);
@@ -126,6 +154,13 @@ export function resolveClientDirectImageUrl(url?: string | null): string {
   const bbcodeImg = trimmed.match(/\[img\](.*?)\[\/img\]/i);
   if (bbcodeImg && bbcodeImg[1]) {
     return resolveClientDirectImageUrl(bbcodeImg[1]);
+  }
+
+  // Ensure protocol if user pasted raw domain like ibb.co/xyz or i.ibb.co/xyz
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://') && !trimmed.startsWith('data:')) {
+    if (trimmed.includes('ibb.co') || trimmed.includes('imgbb.com') || trimmed.includes('googleusercontent.com')) {
+      trimmed = 'https://' + trimmed;
+    }
   }
 
   // Google Drive share / preview links -> Google User Content CDN
@@ -211,7 +246,13 @@ export function getOptimizedImageUrl(
     return trimmed;
   }
 
-  // 4. External HTTP/HTTPS URLs (ImgBB, Unsplash, Google, etc.) -> Route through High-Speed CDN Proxy
+  // 4. ImgBB direct images -> SERVE DIRECTLY TO BROWSER!
+  // ImgBB CDN delivers directly to the user's browser in <50ms and avoids Cloud Run datacenter IP drops.
+  if (trimmed.includes('i.ibb.co') || trimmed.includes('ibb.co.com')) {
+    return trimmed;
+  }
+
+  // 5. External HTTP/HTTPS URLs (Unsplash, Google, etc.) -> Route through High-Speed CDN Proxy
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
     const w = targetWidth <= 200 ? 200 : targetWidth <= 600 ? 600 : targetWidth <= 900 ? 900 : 1200;
     return `/api/proxy/cdn-image?url=${encodeURIComponent(trimmed)}&w=${w}&q=${quality}`;

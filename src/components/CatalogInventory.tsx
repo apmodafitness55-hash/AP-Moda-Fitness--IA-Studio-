@@ -480,6 +480,7 @@ export default function CatalogInventory({
 
   const [isResolvingNew, setIsResolvingNew] = useState(false);
   const [isResolvingEdit, setIsResolvingEdit] = useState(false);
+  const [imageFeedback, setImageFeedback] = useState<{ type: 'new' | 'edit'; message: string; isError?: boolean } | null>(null);
 
   const resolveImageAndAdd = async (rawInput: string, type: 'new' | 'edit') => {
     const trimmedInput = rawInput.trim();
@@ -490,26 +491,47 @@ export default function CatalogInventory({
     } else {
       setIsResolvingEdit(true);
     }
+    setImageFeedback(null);
 
     try {
-      // 1. Try instant client-side extraction (works immediately for i.ibb.co, Google Drive, HTML embeds, BBCode, direct image files)
+      // 1. Try instant client-side extraction (works immediately for i.ibb.co, i.ibb.co.com, Google Drive, HTML embeds, BBCode, direct image files)
       const extractedUrls = extractImageUrlsFromText(trimmedInput);
       
       const directUrlsToAdd: string[] = [];
       const viewerUrlsToResolve: string[] = [];
 
+      const isDirectUrl = (url: string) => {
+        const lower = url.toLowerCase();
+        if (lower.includes('i.ibb.co') || lower.includes('i.ibb.co.com')) return true;
+        if (lower.includes('lh3.googleusercontent.com') || lower.includes('drive.google.com')) return true;
+        if (lower.includes('dropbox.com') && (lower.includes('raw=1') || lower.includes('dl=1'))) return true;
+        if (lower.includes('i.imgur.com') || lower.includes('postimg.cc')) return true;
+        if (/\.(jpg|jpeg|png|webp|avif|gif)(\?.*)?$/i.test(lower)) return true;
+        return false;
+      };
+
       if (extractedUrls.length > 0) {
         for (const u of extractedUrls) {
-          if (u.includes('ibb.co/') && !u.includes('i.ibb.co/')) {
-            viewerUrlsToResolve.push(u);
-          } else {
+          if (isDirectUrl(u)) {
             directUrlsToAdd.push(u);
+          } else {
+            viewerUrlsToResolve.push(u);
           }
         }
       } else {
-        // Fallback: if no direct regex matched, treat raw input as URL to resolve
-        viewerUrlsToResolve.push(trimmedInput);
+        // Fallback: check candidate with protocol if needed
+        let candidate = trimmedInput;
+        if (!candidate.startsWith('http://') && !candidate.startsWith('https://') && !candidate.startsWith('data:')) {
+          candidate = 'https://' + candidate;
+        }
+        if (isDirectUrl(candidate)) {
+          directUrlsToAdd.push(candidate);
+        } else {
+          viewerUrlsToResolve.push(candidate);
+        }
       }
+
+      let addedCount = 0;
 
       // Add all direct URLs immediately to state without needing any network roundtrip
       if (directUrlsToAdd.length > 0) {
@@ -518,6 +540,7 @@ export default function CatalogInventory({
         } else {
           setEditImages(prev => Array.from(new Set([...prev, ...directUrlsToAdd])));
         }
+        addedCount += directUrlsToAdd.length;
       }
 
       // If there are viewer URLs that need resolving via the server proxy
@@ -538,6 +561,7 @@ export default function CatalogInventory({
                 } else {
                   setEditImages(prev => prev.includes(finalUrl) ? prev : [...prev, finalUrl]);
                 }
+                addedCount++;
                 continue;
               }
             }
@@ -551,17 +575,40 @@ export default function CatalogInventory({
             } else {
               setEditImages(prev => prev.includes(vUrl) ? prev : [...prev, vUrl]);
             }
+            addedCount++;
           }
         }
       }
+
+      if (addedCount > 0) {
+        setImageFeedback({
+          type,
+          message: `✓ ${addedCount === 1 ? 'Foto adicionada' : `${addedCount} fotos adicionadas`} com sucesso!`,
+          isError: false
+        });
+      } else {
+        setImageFeedback({
+          type,
+          message: '⚠ Não foi possível identificar uma foto válida no link informado.',
+          isError: true
+        });
+      }
     } catch (err) {
       console.error('[Client Resolve Image URL Error]:', err);
+      setImageFeedback({
+        type,
+        message: '⚠ Erro ao processar o link da imagem.',
+        isError: true
+      });
     } finally {
       if (type === 'new') {
         setIsResolvingNew(false);
       } else {
         setIsResolvingEdit(false);
       }
+      setTimeout(() => {
+        setImageFeedback(prev => (prev?.type === type ? null : prev));
+      }, 4000);
     }
   };
 
@@ -708,6 +755,23 @@ export default function CatalogInventory({
         finalMeasurementSpecs[sz] = newMeasurementSpecs[normSz] || newMeasurementSpecs[sz] || getFallbackSpecsForSize(sz);
       });
 
+      // Auto-extract any link remaining in the input field if user didn't click "Adicionar"
+      const newImgInput = document.getElementById('new-product-image-add-input') as HTMLInputElement | null;
+      let allNewImages = [...newImages];
+      if (newImgInput && newImgInput.value.trim()) {
+        const pendingUrls = extractImageUrlsFromText(newImgInput.value.trim());
+        if (pendingUrls.length > 0) {
+          allNewImages = Array.from(new Set([...allNewImages, ...pendingUrls]));
+        } else if (newImgInput.value.trim().startsWith('http')) {
+          allNewImages = Array.from(new Set([...allNewImages, newImgInput.value.trim()]));
+        }
+      }
+
+      const cleanNewImages = allNewImages
+        .map(img => (typeof img === 'string' ? img.trim() : ''))
+        .filter(img => img && (img.startsWith('http') || img.startsWith('data:image/') || img.startsWith('/')));
+      const primaryImage = cleanNewImages[0] || (typeof newImage === 'string' && (newImage.startsWith('http') || newImage.startsWith('data:image/') || newImage.startsWith('/')) ? newImage.trim() : '');
+
       const newProd: Product = {
         id: `prod-${Date.now()}`,
         name: newName.trim(),
@@ -718,10 +782,8 @@ export default function CatalogInventory({
         cost: newCost,
         stock: newStock,
         minStock: newMinStock,
-        image: (newImages.map(img => (typeof img === 'string' ? img.trim() : '')).filter(Boolean))[0] || (typeof newImage === 'string' ? newImage.trim() : ''),
-        images: (newImages.map(img => (typeof img === 'string' ? img.trim() : '')).filter(Boolean)).length > 0 
-          ? newImages.map(img => (typeof img === 'string' ? img.trim() : '')).filter(Boolean) 
-          : ((typeof newImage === 'string' && newImage.trim()) ? [newImage.trim()] : []),
+        image: primaryImage,
+        images: cleanNewImages.length > 0 ? cleanNewImages : (primaryImage ? [primaryImage] : []),
         salesCount: 0,
         description: newDescription.trim(),
         videoUrl: newVideoUrl.trim(),
@@ -787,18 +849,21 @@ export default function CatalogInventory({
     setEditMinStock(p.minStock);
     setEditImage(p.image || '');
     let initialImgs: string[] = [];
+    const isValidUrl = (url: any) => typeof url === 'string' && url.trim().length > 0 && (url.startsWith('http') || url.startsWith('data:image/') || url.startsWith('/'));
     const rawImages: any = (p as any).images;
     if (Array.isArray(rawImages) && rawImages.length > 0) {
-      initialImgs = rawImages.filter((img: any) => typeof img === 'string' && img.trim());
+      initialImgs = rawImages.filter(isValidUrl).map((img: string) => img.trim());
     } else if (typeof rawImages === 'string' && rawImages.trim()) {
       try {
         const parsed = JSON.parse(rawImages);
-        if (Array.isArray(parsed)) initialImgs = parsed.filter((img: any) => typeof img === 'string' && img.trim());
+        if (Array.isArray(parsed)) {
+          initialImgs = parsed.filter(isValidUrl).map((img: string) => img.trim());
+        }
       } catch (e) {
-        initialImgs = [rawImages.trim()];
+        if (isValidUrl(rawImages)) initialImgs = [rawImages.trim()];
       }
     }
-    if (initialImgs.length === 0 && p.image && typeof p.image === 'string' && p.image.trim()) {
+    if (initialImgs.length === 0 && p.image && isValidUrl(p.image)) {
       initialImgs = [p.image.trim()];
     }
     setEditImages(initialImgs);
@@ -890,8 +955,22 @@ export default function CatalogInventory({
         finalMeasurementSpecs[sz] = editMeasurementSpecs[normSz] || editMeasurementSpecs[sz] || getFallbackSpecsForSize(sz);
       });
 
-      const cleanEditImages = editImages.map(img => (typeof img === 'string' ? img.trim() : '')).filter(Boolean);
-      const primaryImage = cleanEditImages[0] || (typeof editImage === 'string' ? editImage.trim() : '');
+      // Auto-extract any link remaining in the input field if user didn't click "Adicionar"
+      const editImgInput = document.getElementById('edit-product-image-add-input') as HTMLInputElement | null;
+      let allEditImages = [...editImages];
+      if (editImgInput && editImgInput.value.trim()) {
+        const pendingUrls = extractImageUrlsFromText(editImgInput.value.trim());
+        if (pendingUrls.length > 0) {
+          allEditImages = Array.from(new Set([...allEditImages, ...pendingUrls]));
+        } else if (editImgInput.value.trim().startsWith('http')) {
+          allEditImages = Array.from(new Set([...allEditImages, editImgInput.value.trim()]));
+        }
+      }
+
+      const cleanEditImages = allEditImages
+        .map(img => (typeof img === 'string' ? img.trim() : ''))
+        .filter(img => img && (img.startsWith('http') || img.startsWith('data:image/') || img.startsWith('/')));
+      const primaryImage = cleanEditImages[0] || (typeof editImage === 'string' && (editImage.startsWith('http') || editImage.startsWith('data:image/') || editImage.startsWith('/')) ? editImage.trim() : '');
 
       await onUpdateProduct({
         ...editingProduct,
@@ -2547,6 +2626,11 @@ export default function CatalogInventory({
                       )}
                     </button>
                   </div>
+                  {imageFeedback && imageFeedback.type === 'new' && (
+                    <div className={`text-xs px-2.5 py-1 rounded-md font-semibold ${imageFeedback.isError ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'} animate-fadeIn`}>
+                      {imageFeedback.message}
+                    </div>
+                  )}
                   <span className="text-[9px] text-slate-400 block">💡 Aceita links do ImgBB (i.ibb.co ou ibb.co), Google Drive ou códigos de incorporação HTML/BBCode.</span>
                 </div>
               </div>
@@ -3188,6 +3272,11 @@ export default function CatalogInventory({
                       )}
                     </button>
                   </div>
+                  {imageFeedback && imageFeedback.type === 'edit' && (
+                    <div className={`text-xs px-2.5 py-1 rounded-md font-semibold ${imageFeedback.isError ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'} animate-fadeIn`}>
+                      {imageFeedback.message}
+                    </div>
+                  )}
                   <span className="text-[9px] text-slate-400 block">💡 Aceita links do ImgBB (i.ibb.co ou ibb.co), Google Drive ou códigos de incorporação HTML/BBCode.</span>
                 </div>
               </div>
