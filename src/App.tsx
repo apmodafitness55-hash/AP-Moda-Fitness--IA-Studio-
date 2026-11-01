@@ -19,7 +19,8 @@ import {
   ShoppingBag,
   Sun,
   Moon,
-  CloudLightning
+  CloudLightning,
+  Phone
 } from 'lucide-react';
 
 import { ActiveTab, Product, Sale, Client, Transaction } from './types';
@@ -48,6 +49,7 @@ import PublicCatalog from './components/PublicCatalog';
 import LoginScreen from './components/LoginScreen';
 import PartnerPortal from './components/PartnerPortal';
 import CustomerPortal from './components/CustomerPortal';
+import QuickStoreSettingsModal from './components/QuickStoreSettingsModal';
 import SellerDashboard from './components/SellerDashboard';
 import SuppliersManagement from './components/SuppliersManagement';
 import StorefrontPaymentConfig from './components/StorefrontPaymentConfig';
@@ -89,6 +91,13 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>(ActiveTab.DASHBOARD);
   const [isDriverPortalOpen, setIsDriverPortalOpen] = useState(false);
+  const [isQuickStoreModalOpen, setIsQuickStoreModalOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOpen = () => setIsQuickStoreModalOpen(true);
+    window.addEventListener('open_quick_store_settings', handleOpen);
+    return () => window.removeEventListener('open_quick_store_settings', handleOpen);
+  }, []);
 
   // Lifted subtab states for side navigation direct access
   const [ordersLogisticsSubTab, setOrdersLogisticsSubTab] = useState<'pedidos' | 'trocas_crediario' | 'logistica' | 'condicional'>('pedidos');
@@ -1038,6 +1047,97 @@ export default function App() {
     prevOnlineOrdersRef.current = onlineOrders;
   }, [onlineOrders, getDirtyIds, saveDirtyIds]);
 
+  // Reconcile and auto-link any existing online orders to Sales and Transactions
+  useEffect(() => {
+    if (!onlineOrders || onlineOrders.length === 0) return;
+
+    setSales(prevSales => {
+      const existingSaleIds = new Set(prevSales.map(s => s.id));
+      const salesToAdd: Sale[] = [];
+
+      for (const o of onlineOrders) {
+        if (!existingSaleIds.has(o.id)) {
+          const saleItems = (o.items || []).map((it: any) => {
+            const matchedProd = products.find(p => p.id === it.productId) ||
+                                products.find(p => p.name && (p.name.toLowerCase() === (it.productName || '').toLowerCase() || it.productName?.toLowerCase()?.includes(p.name?.toLowerCase())));
+            return {
+              productId: matchedProd?.id || it.productId || `p-ext-${Date.now()}`,
+              name: it.productName || matchedProd?.name || 'Peça Fitness',
+              quantity: Number(it.quantity || 1),
+              price: Number(it.price || 0),
+              cost: matchedProd?.cost || Math.round((Number(it.price || 0)) * 0.45),
+              selectedColor: it.color || it.selectedColor || '',
+              selectedSize: it.size || it.selectedSize || ''
+            };
+          });
+
+          const newSale: Sale = {
+            id: o.id,
+            clientName: o.clientName || 'Cliente Online',
+            clientDoc: o.cpf || '',
+            channel: 'Loja Online',
+            items: saleItems,
+            total: Number(o.total || 0),
+            costTotal: saleItems.reduce((currSum: number, it: any) => currSum + (it.cost * it.quantity), 0),
+            status: 'Concluída',
+            createdAt: o.createdAt || new Date().toISOString(),
+            payments: [{ method: o.paymentMethod || 'Cartão/Pix Online', amount: Number(o.total || 0) }],
+            salesperson: o.motoboy || 'Loja Virtual',
+            trackingCode: o.trackingCode || '',
+            deliveryMethod: o.deliveryMethod || '',
+            address: o.address || '',
+            tipo_envio: o.deliveryMethod || 'correios',
+            status_logistico: o.status === 'Entregue' ? 'entregue' : 'pendente',
+            partner: o.partner || o.partnerName || undefined,
+            partnerName: o.partnerName || o.partner || undefined,
+            couponCode: o.couponCode || o.coupon || undefined,
+            notes: o.notes || undefined
+          };
+          salesToAdd.push(newSale);
+        }
+      }
+
+      if (salesToAdd.length > 0) {
+        const config = getSupabaseConfig();
+        if (config && !systemOffline) {
+          syncBulkSalesToSupabase(salesToAdd).catch(e => console.warn('Error syncing reconciled sales:', e));
+        }
+        return [...salesToAdd, ...prevSales];
+      }
+      return prevSales;
+    });
+
+    setTransactions(prevTx => {
+      const existingTxIds = new Set(prevTx.map(t => t.id));
+      const txToAdd: Transaction[] = [];
+
+      for (const o of onlineOrders) {
+        const txId = `tx-${o.id}`;
+        const alreadyHasTx = existingTxIds.has(txId) || prevTx.some(t => t.description && t.description.includes(o.id));
+        if (!alreadyHasTx) {
+          const newTx: Transaction = {
+            id: txId,
+            type: 'Inflow',
+            category: 'Venda Online',
+            description: `Pedido Loja Virtual #${o.id.toUpperCase()} - ${o.clientName} (${o.paymentMethod || 'Pix/Cartão'})`,
+            amount: Number(o.total || 0),
+            date: o.createdAt || new Date().toISOString()
+          };
+          txToAdd.push(newTx);
+        }
+      }
+
+      if (txToAdd.length > 0) {
+        const config = getSupabaseConfig();
+        if (config && !systemOffline) {
+          syncBulkTransactionsToSupabase(txToAdd).catch(e => console.warn('Error syncing reconciled tx:', e));
+        }
+        return [...txToAdd, ...prevTx];
+      }
+      return prevTx;
+    });
+  }, [onlineOrders]);
+
   useEffect(() => {
     localStorage.setItem('ap_moda_checkouts', JSON.stringify(checkouts));
     if (!isUpdatingFromSyncRef.current) {
@@ -1225,6 +1325,35 @@ export default function App() {
                 window.dispatchEvent(new Event('ap-storage-synced'));
               }
             } catch(e) {}
+          }
+
+          // Sync Store Configurations (phone, name, instagram, pix key, address, etc.)
+          const storeKeys = [
+            'ap_store_name',
+            'ap_store_phone',
+            'ap_store_slogan',
+            'ap_store_cnpj',
+            'ap_store_address',
+            'ap_store_city',
+            'ap_store_state',
+            'ap_store_instagram',
+            'ap_pix_key',
+            'ap_store_footer',
+            'ap_store_logo'
+          ];
+          let storeChanged = false;
+          for (const sKey of storeKeys) {
+            const cfg = dbConfigs.find((c: any) => c.key === sKey);
+            if (cfg && cfg.value !== undefined && cfg.value !== null) {
+              const valStr = typeof cfg.value === 'string' ? cfg.value : JSON.stringify(cfg.value);
+              if (valStr.trim().length > 0) {
+                localStorage.setItem(sKey, valStr);
+                storeChanged = true;
+              }
+            }
+          }
+          if (storeChanged) {
+            window.dispatchEvent(new Event('store_config_updated'));
           }
         }
       } catch (e) {
@@ -3923,6 +4052,74 @@ export default function App() {
       }
     }
 
+    // 1. AUTOMATE INTO SALES (for Dashboard Geral, Relatórios e Métricas de Vendas)
+    const saleItems = (newOrder.items || []).map((it: any) => {
+      const matchedProd = products.find(p => p.id === it.productId) ||
+                          products.find(p => p.name.toLowerCase() === (it.productName || '').toLowerCase());
+      return {
+        productId: matchedProd?.id || it.productId || `p-web-${Date.now()}`,
+        name: it.productName || matchedProd?.name || 'Peça Fitness',
+        quantity: Number(it.quantity || 1),
+        price: Number(it.price || 0),
+        cost: matchedProd?.cost || Math.round((Number(it.price || 0)) * 0.45),
+        selectedColor: it.color || it.selectedColor || '',
+        selectedSize: it.size || it.selectedSize || ''
+      };
+    });
+
+    const newSaleFromOrder: Sale = {
+      id: newOrder.id,
+      clientName: newOrder.clientName || 'Cliente Online',
+      clientDoc: newOrder.cpf || '',
+      channel: 'Loja Online',
+      items: saleItems,
+      total: Number(newOrder.total || 0),
+      costTotal: saleItems.reduce((acc: number, it: any) => acc + (it.cost * it.quantity), 0),
+      status: 'Concluída',
+      createdAt: newOrder.createdAt || new Date().toISOString(),
+      payments: [{ method: newOrder.paymentMethod || 'Cartão/Pix Online', amount: Number(newOrder.total || 0) }],
+      salesperson: newOrder.motoboy || 'Loja Virtual',
+      trackingCode: newOrder.trackingCode || '',
+      deliveryMethod: newOrder.deliveryMethod || '',
+      address: newOrder.address || '',
+      tipo_envio: newOrder.deliveryMethod || 'correios',
+      status_logistico: newOrder.status === 'Entregue' ? 'entregue' : 'pendente',
+      partner: newOrder.partner || newOrder.partnerName || undefined,
+      partnerName: newOrder.partnerName || newOrder.partner || undefined,
+      couponCode: newOrder.couponCode || newOrder.coupon || undefined,
+      notes: newOrder.notes || undefined
+    };
+
+    setSales(prevSales => {
+      if (prevSales.some(s => s.id === newOrder.id)) return prevSales;
+      return [newSaleFromOrder, ...prevSales];
+    });
+
+    // 2. AUTOMATE INTO TRANSACTIONS (for Fluxo de Caixa / Saldo de Caixa Real / PDV)
+    const newTxFromOrder: Transaction = {
+      id: `tx-${newOrder.id}`,
+      type: 'Inflow',
+      category: 'Venda Online',
+      description: `Pedido Loja Virtual #${newOrder.id.toUpperCase()} - ${newOrder.clientName} (${newOrder.paymentMethod || 'Pix/Cartão'})`,
+      amount: Number(newOrder.total || 0),
+      date: newOrder.createdAt || new Date().toISOString()
+    };
+
+    setTransactions(prevTx => {
+      if (prevTx.some(t => t.id === `tx-${newOrder.id}` || t.description?.includes(newOrder.id))) return prevTx;
+      return [newTxFromOrder, ...prevTx];
+    });
+
+    // 3. Mark entities as dirty for sync to Supabase ap_sales and ap_transactions
+    saveDirtyIds('ap_dirty_sales', Array.from(new Set([...getDirtyIds('ap_dirty_sales'), newSaleFromOrder.id])));
+    saveDirtyIds('ap_dirty_transactions', Array.from(new Set([...getDirtyIds('ap_dirty_transactions'), newTxFromOrder.id])));
+    const cfgOnline = getSupabaseConfig();
+    if (cfgOnline && !systemOffline) {
+      syncBulkSalesToSupabase([newSaleFromOrder]).catch(e => console.warn('Error syncing online sale:', e));
+      syncBulkTransactionsToSupabase([newTxFromOrder]).catch(e => console.warn('Error syncing online transaction:', e));
+      syncBulkOnlineOrdersToSupabase([newOrder]).catch(e => console.warn('Error syncing online order:', e));
+    }
+
     // Trigger real-time sale alert (Sound chime, Web Push, Flashing tab title, Toast, System notification, WhatsApp)
     triggerSaleAlert({
       id: newOrder.id,
@@ -4557,8 +4754,18 @@ export default function App() {
           </div>
 
           {/* Quick global search text & notification alerts */}
-          <div className="flex items-center gap-4">
-            
+          <div className="flex items-center gap-3">
+            {/* Quick Store Settings & WhatsApp Button */}
+            <button 
+              onClick={() => setIsQuickStoreModalOpen(true)}
+              className="flex items-center gap-1.5 font-bold text-xs px-3.5 py-2 rounded-xl border border-pink-200 bg-pink-50 hover:bg-pink-100 text-pink-700 transition-all active:scale-95 cursor-pointer shadow-xs"
+              title="Alterar WhatsApp da loja, nome, Instagram e Pix sem burocracia"
+            >
+              <Phone size={13} className="text-pink-600" />
+              <span className="hidden sm:inline">WhatsApp & Loja 📱</span>
+              <span className="sm:hidden">Loja 📱</span>
+            </button>
+
             {/* Manual Cloud Sync Button (Instantly connects multiple devices to the same data) */}
             <button 
               onClick={() => performSync(true)}
@@ -4916,6 +5123,12 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Direct Quick Store Settings Modal (WhatsApp, Nome da Loja, Pix, Instagram) */}
+      <QuickStoreSettingsModal 
+        isOpen={isQuickStoreModalOpen} 
+        onClose={() => setIsQuickStoreModalOpen(false)} 
+      />
       </div>
     </ErrorBoundary>
   );

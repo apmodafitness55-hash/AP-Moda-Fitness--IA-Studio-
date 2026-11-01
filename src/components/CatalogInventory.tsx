@@ -20,7 +20,10 @@ import {
   Maximize,
   Loader2,
   Share2,
-  Link2
+  Link2,
+  DollarSign,
+  Edit3,
+  SlidersHorizontal
 } from 'lucide-react';
 import { Product } from '../types';
 import ImageUploader from './ImageUploader';
@@ -477,6 +480,18 @@ export default function CatalogInventory({
   const [editWidth, setEditWidth] = useState(20);
   const [editHeight, setEditHeight] = useState(5);
   const [editLength, setEditLength] = useState(25);
+
+  // Fast / Inline Price Editing states
+  const [inlineEditingProductId, setInlineEditingProductId] = useState<string | null>(null);
+  const [inlinePriceVal, setInlinePriceVal] = useState<string>('');
+  const [inlineCompareAtVal, setInlineCompareAtVal] = useState<string>('');
+  const [inlineCostVal, setInlineCostVal] = useState<string>('');
+  const [isSavingInlinePrice, setIsSavingInlinePrice] = useState(false);
+  const [priceSuccessNotification, setPriceSuccessNotification] = useState<string | null>(null);
+
+  // Fast Price Micro-Modal state
+  const [quickPriceModalProduct, setQuickPriceModalProduct] = useState<Product | null>(null);
+  const [quickPriceForm, setQuickPriceForm] = useState({ price: 0, compareAt: 0, cost: 0 });
 
   const [isResolvingNew, setIsResolvingNew] = useState(false);
   const [isResolvingEdit, setIsResolvingEdit] = useState(false);
@@ -1008,6 +1023,107 @@ export default function CatalogInventory({
     }
   };
 
+  const handleStartInlineEdit = (p: Product) => {
+    setInlineEditingProductId(p.id);
+    setInlinePriceVal(String(p.price || 0));
+    setInlineCompareAtVal(p.compare_at_price ? String(p.compare_at_price) : '');
+    setInlineCostVal(String(p.cost || 0));
+  };
+
+  const handleCancelInlineEdit = () => {
+    setInlineEditingProductId(null);
+    setInlinePriceVal('');
+    setInlineCompareAtVal('');
+    setInlineCostVal('');
+  };
+
+  const handleSaveInlinePrice = async (p: Product) => {
+    const cleanStr = inlinePriceVal.replace('R$', '').replace(/\s/g, '').replace(',', '.');
+    const numPrice = parseFloat(cleanStr);
+    if (isNaN(numPrice) || numPrice < 0) {
+      alert('Por favor, informe um preço de venda válido.');
+      return;
+    }
+    const cleanCompare = inlineCompareAtVal.replace('R$', '').replace(/\s/g, '').replace(',', '.');
+    const numCompareAt = cleanCompare.trim() ? parseFloat(cleanCompare) : undefined;
+
+    const cleanCost = inlineCostVal.replace('R$', '').replace(/\s/g, '').replace(',', '.');
+    const numCost = cleanCost.trim() ? parseFloat(cleanCost) : p.cost;
+
+    setIsSavingInlinePrice(true);
+    try {
+      await onUpdateProduct({
+        ...p,
+        price: numPrice,
+        compare_at_price: numCompareAt !== undefined && !isNaN(numCompareAt) && numCompareAt > 0 ? numCompareAt : undefined,
+        cost: !isNaN(numCost) ? numCost : p.cost
+      });
+      setInlineEditingProductId(null);
+      setPriceSuccessNotification(`Preço de "${p.name}" alterado com sucesso para ${formatCurrency(numPrice)}!`);
+      setTimeout(() => setPriceSuccessNotification(null), 3500);
+    } catch (err: any) {
+      alert('Erro ao salvar novo preço: ' + (err?.message || err));
+    } finally {
+      setIsSavingInlinePrice(false);
+    }
+  };
+
+  const handleOpenQuickPriceModal = (p: Product) => {
+    setQuickPriceModalProduct(p);
+    setQuickPriceForm({
+      price: p.price || 0,
+      compareAt: p.compare_at_price || 0,
+      cost: p.cost || 0
+    });
+  };
+
+  const handleSaveQuickPriceModal = async () => {
+    if (!quickPriceModalProduct) return;
+    if (quickPriceForm.price < 0) {
+      alert('Preço de venda não pode ser negativo.');
+      return;
+    }
+    setIsSavingInlinePrice(true);
+    try {
+      await onUpdateProduct({
+        ...quickPriceModalProduct,
+        price: quickPriceForm.price,
+        compare_at_price: quickPriceForm.compareAt > 0 ? quickPriceForm.compareAt : undefined,
+        cost: quickPriceForm.cost
+      });
+      const prodName = quickPriceModalProduct.name;
+      const newPr = quickPriceForm.price;
+      setQuickPriceModalProduct(null);
+      setPriceSuccessNotification(`Preço de "${prodName}" atualizado para ${formatCurrency(newPr)}!`);
+      setTimeout(() => setPriceSuccessNotification(null), 3500);
+    } catch (err: any) {
+      alert('Erro ao salvar preço: ' + (err?.message || err));
+    } finally {
+      setIsSavingInlinePrice(false);
+    }
+  };
+
+  const handleQuickSavePriceFromModal = async () => {
+    if (!editingProduct) return;
+    setIsSaving(true);
+    try {
+      await onUpdateProduct({
+        ...editingProduct,
+        price: editPrice,
+        compare_at_price: editCompareAtPrice,
+        cost: editCost
+      });
+      setIsEditModalOpen(false);
+      setEditingProduct(null);
+      setPriceSuccessNotification(`Preço de "${editingProduct.name}" atualizado para ${formatCurrency(editPrice)}!`);
+      setTimeout(() => setPriceSuccessNotification(null), 3500);
+    } catch (e: any) {
+      alert('Erro ao salvar preço: ' + (e?.message || e));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
@@ -1020,14 +1136,24 @@ export default function CatalogInventory({
           <h2 className="text-2xl font-bold font-sans text-slate-800 tracking-tight">Produtos e Estoque</h2>
           <p className="text-slate-400 text-sm font-sans">Cadastre peças de moda fitness, monitore níveis críticos e reabasteça o estoque</p>
         </div>
-        <button 
-          id="add-product-modal-btn"
-          onClick={() => setIsAddModalOpen(true)}
-          className="inline-flex items-center gap-2 bg-pink-600 hover:bg-pink-700 font-sans font-medium text-white px-4 py-2 rounded-xl text-xs shadow-md shadow-pink-500/10 transition-all cursor-pointer"
-        >
-          <Plus size={16} />
-          <span>Cadastrar Produto</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            type="button"
+            onClick={() => window.dispatchEvent(new Event('open_quick_store_settings'))}
+            className="inline-flex items-center gap-1.5 bg-pink-50 hover:bg-pink-100 border border-pink-200 font-sans font-bold text-pink-700 px-3.5 py-2 rounded-xl text-xs transition-all cursor-pointer shadow-xs"
+            title="Alterar WhatsApp de contato da loja, nome, Instagram e Pix sem burocracia"
+          >
+            <span>📱 WhatsApp & Dados da Loja</span>
+          </button>
+          <button 
+            id="add-product-modal-btn"
+            onClick={() => setIsAddModalOpen(true)}
+            className="inline-flex items-center gap-2 bg-pink-600 hover:bg-pink-700 font-sans font-medium text-white px-4 py-2 rounded-xl text-xs shadow-md shadow-pink-500/10 transition-all cursor-pointer"
+          >
+            <Plus size={16} />
+            <span>Cadastrar Produto</span>
+          </button>
+        </div>
       </div>
 
       {/* Alertas de Reposição Crítica */}
@@ -1233,9 +1359,115 @@ export default function CatalogInventory({
                       </span>
                     </td>
 
-                    {/* Price & Cost */}
-                    <td className="p-4 text-right font-mono text-slate-500">{formatCurrency(p.cost)}</td>
-                    <td className="p-4 text-right font-mono font-bold text-slate-850">{formatCurrency(p.price)}</td>
+                    {/* Price & Cost - Fast Inline Editing */}
+                    <td className="p-4 text-right font-mono text-slate-500">
+                      {inlineEditingProductId === p.id ? (
+                        <div className="flex flex-col items-end gap-1">
+                          <label className="text-[8.5px] text-slate-400 font-bold uppercase">Custo</label>
+                          <div className="relative w-24">
+                            <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">R$</span>
+                            <input 
+                              type="number"
+                              step="0.01"
+                              value={inlineCostVal}
+                              onChange={(e) => setInlineCostVal(e.target.value)}
+                              className="w-full pl-6 pr-1.5 py-1 bg-white border border-slate-300 rounded text-xs font-mono font-bold text-slate-700 text-right focus:outline-hidden focus:border-pink-500"
+                              placeholder="0,00"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <span>{formatCurrency(p.cost)}</span>
+                      )}
+                    </td>
+
+                    <td className="p-4 text-right font-mono">
+                      {inlineEditingProductId === p.id ? (
+                        <div className="flex flex-col items-end gap-1.5 bg-pink-50/90 p-2.5 rounded-xl border-2 border-pink-400 shadow-lg min-w-[210px] animate-in fade-in zoom-in-95 duration-150">
+                          <div className="flex items-center justify-between w-full">
+                            <span className="text-[9px] text-pink-700 font-extrabold uppercase tracking-wide flex items-center gap-1">
+                              <DollarSign size={10} /> Preço de Venda
+                            </span>
+                            <span className="text-[8.5px] text-slate-400 font-sans">Enter salva</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-1.5 w-full">
+                            <div className="relative flex-1">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-pink-700 font-extrabold">R$</span>
+                              <input 
+                                type="number"
+                                step="0.01"
+                                autoFocus
+                                value={inlinePriceVal}
+                                onChange={(e) => setInlinePriceVal(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveInlinePrice(p);
+                                  if (e.key === 'Escape') handleCancelInlineEdit();
+                                }}
+                                className="w-full pl-7 pr-2 py-1.5 bg-white border border-pink-400 rounded-lg text-sm font-mono font-extrabold text-pink-900 text-right shadow-xs focus:outline-hidden focus:ring-2 focus:ring-pink-500"
+                                placeholder="0,00"
+                              />
+                            </div>
+                            
+                            <button 
+                              type="button"
+                              disabled={isSavingInlinePrice}
+                              onClick={() => handleSaveInlinePrice(p)}
+                              title="Salvar Preço Imediatamente (Enter)"
+                              className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all shadow-xs cursor-pointer flex items-center gap-1 font-sans text-xs font-bold disabled:opacity-50"
+                            >
+                              {isSavingInlinePrice ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                              <span>Salvar</span>
+                            </button>
+                            
+                            <button 
+                              type="button"
+                              disabled={isSavingInlinePrice}
+                              onClick={handleCancelInlineEdit}
+                              title="Cancelar (Esc)"
+                              className="p-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg transition-all cursor-pointer flex items-center justify-center"
+                            >
+                              <X size={13} />
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-1 w-full justify-end pt-1 border-t border-pink-200/60">
+                            <label className="text-[8.5px] text-slate-500 font-medium font-sans">Preço "De" (Promocional):</label>
+                            <input 
+                              type="number"
+                              step="0.01"
+                              value={inlineCompareAtVal}
+                              onChange={(e) => setInlineCompareAtVal(e.target.value)}
+                              placeholder="Sem promoção"
+                              className="w-24 px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono text-slate-600 text-right focus:outline-hidden"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div 
+                          onClick={() => handleStartInlineEdit(p)}
+                          className="group cursor-pointer inline-flex flex-col items-end hover:bg-pink-50/80 p-2 -m-2 rounded-xl transition-all border border-transparent hover:border-pink-300"
+                          title="Clique para editar o preço diretamente nesta tabela!"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-extrabold text-slate-900 text-sm group-hover:text-pink-600 transition-colors">
+                              {formatCurrency(p.price)}
+                            </span>
+                            <span className="bg-slate-100 group-hover:bg-pink-100 text-slate-400 group-hover:text-pink-600 p-1 rounded-md transition-all shadow-3xs" title="Clique para editar valor">
+                              <Edit3 size={11} />
+                            </span>
+                          </div>
+                          {p.compare_at_price && p.compare_at_price > p.price && (
+                            <div className="text-[10px] text-rose-500 line-through font-mono font-medium">
+                              De: {formatCurrency(p.compare_at_price)}
+                            </div>
+                          )}
+                          <span className="text-[8.5px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity font-sans">
+                            Clique p/ alterar
+                          </span>
+                        </div>
+                      )}
+                    </td>
 
                     {/* Stock level bar */}
                     <td className="p-4 text-center min-w-[140px]">
@@ -1257,9 +1489,18 @@ export default function CatalogInventory({
                       </div>
                     </td>
 
-                    {/* Restock action elements */}
+                    {/* Action elements */}
                     <td className="p-4 text-center">
                       <div className="inline-flex gap-1 bg-slate-50 p-1 border border-slate-150 rounded-lg">
+                        <button 
+                          onClick={() => handleOpenQuickPriceModal(p)}
+                          title="Alterar Preço de Venda, Custo e Promoção em 1 clique"
+                          className="px-2 py-1 text-[10px] font-extrabold font-sans text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded transition-all cursor-pointer flex items-center gap-1"
+                        >
+                          <DollarSign size={11} />
+                          <span>Preço</span>
+                        </button>
+                        <span className="w-px bg-slate-150 self-stretch my-1" />
                         <button 
                           onClick={() => {
                             const origin = typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost')
@@ -1287,7 +1528,7 @@ export default function CatalogInventory({
                         <span className="w-px bg-slate-150 self-stretch my-1" />
                         <button 
                           onClick={() => handleOpenEditModal(p)}
-                          title="Editar peça"
+                          title="Editar todas as configurações da peça"
                           className="px-2 py-1 text-[10px] font-bold font-sans text-slate-500 hover:text-pink-600 hover:bg-white rounded transition-all cursor-pointer"
                         >
                           Editar
@@ -2741,44 +2982,66 @@ export default function CatalogInventory({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4 text-xs">
-                <div className="space-y-1">
-                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Preço de Venda (R$)</label>
-                  <input 
-                    id="edit-product-price"
-                    type="number"
-                    step="0.01"
-                    required
-                    value={editPrice}
-                    onChange={(e) => setEditPrice(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono text-xs"
-                  />
+              {/* Preços com Atalho Rápido de Salvamento */}
+              <div className="bg-emerald-50/70 border border-emerald-200 p-3.5 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <DollarSign size={14} className="text-emerald-700" />
+                    <span className="font-extrabold text-[11px] text-emerald-900 uppercase tracking-wide">
+                      Preços & Margem
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={handleQuickSavePriceFromModal}
+                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg transition-all shadow-xs flex items-center gap-1 cursor-pointer border-none disabled:opacity-50"
+                    title="Salva os preços imediatamente sem precisar rolar até o final da página"
+                  >
+                    <Check size={11} />
+                    <span>Salvar Somente Preço</span>
+                  </button>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Preço Regular (Opcional)</label>
-                  <input 
-                    id="edit-product-compare-at"
-                    type="number"
-                    step="0.01"
-                    value={editCompareAtPrice ?? ''}
-                    onChange={(e) => setEditCompareAtPrice(e.target.value ? Number(e.target.value) : undefined)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono text-xs"
-                    placeholder="Sem desconto"
-                  />
-                </div>
+                <div className="grid grid-cols-3 gap-3 text-xs">
+                  <div className="space-y-1">
+                    <label className="text-emerald-950 font-bold uppercase text-[9px] tracking-wide block">Preço de Venda (R$) *</label>
+                    <input 
+                      id="edit-product-price"
+                      type="number"
+                      step="0.01"
+                      required
+                      value={editPrice}
+                      onChange={(e) => setEditPrice(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-lg text-emerald-950 focus:outline-hidden focus:border-emerald-600 transition-all font-bold font-mono text-xs shadow-2xs"
+                    />
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Custo de Fabr./Aq. (R$)</label>
-                  <input 
-                    id="edit-product-cost"
-                    type="number"
-                    step="0.01"
-                    required
-                    value={editCost}
-                    onChange={(e) => setEditCost(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono text-xs"
-                  />
+                  <div className="space-y-1">
+                    <label className="text-slate-600 font-bold uppercase text-[9px] tracking-wide block">Preço "De" (Promoção)</label>
+                    <input 
+                      id="edit-product-compare-at"
+                      type="number"
+                      step="0.01"
+                      value={editCompareAtPrice ?? ''}
+                      onChange={(e) => setEditCompareAtPrice(e.target.value ? Number(e.target.value) : undefined)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono text-xs"
+                      placeholder="Sem desconto"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-slate-600 font-bold uppercase text-[9px] tracking-wide block">Custo de Fabr./Aq. (R$)</label>
+                    <input 
+                      id="edit-product-cost"
+                      type="number"
+                      step="0.01"
+                      required
+                      value={editCost}
+                      onChange={(e) => setEditCost(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono text-xs"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -3420,6 +3683,180 @@ export default function CatalogInventory({
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* QUICK PRICE MICRO-MODAL (1-Click Price Changer) */}
+      {quickPriceModalProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
+            <div className="px-6 py-4 bg-gradient-to-r from-pink-600 to-rose-600 text-white flex justify-between items-center">
+              <div>
+                <div className="flex items-center gap-1.5 font-bold text-xs uppercase tracking-wider text-pink-100">
+                  <DollarSign size={14} className="text-white" />
+                  <span>Ajuste Rápido de Preço</span>
+                </div>
+                <h3 className="text-base font-extrabold truncate max-w-[280px] mt-0.5" title={quickPriceModalProduct.name}>
+                  {quickPriceModalProduct.name}
+                </h3>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setQuickPriceModalProduct(null)}
+                className="text-white/80 hover:text-white p-1.5 rounded-full hover:bg-white/10 transition-all cursor-pointer border-none"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSaveQuickPriceModal();
+              }}
+              className="p-6 space-y-4 text-xs font-sans text-slate-700"
+            >
+              {/* Product mini-preview */}
+              <div className="flex items-center gap-3 p-2.5 bg-slate-50 border border-slate-100 rounded-xl">
+                <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-200 shrink-0">
+                  <img 
+                    src={getOptimizedImageUrl(quickPriceModalProduct.image, 100)} 
+                    alt={quickPriceModalProduct.name}
+                    className="w-full h-full object-cover"
+                    onError={handleImageFallback}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-[10px] text-slate-400 font-mono block">SKU: {quickPriceModalProduct.sku}</span>
+                  <span className="font-bold text-xs text-slate-800 truncate block">{quickPriceModalProduct.name}</span>
+                  <span className="text-[10px] text-pink-600 font-bold block">{quickPriceModalProduct.category}</span>
+                </div>
+              </div>
+
+              {/* Preço de Venda Principal */}
+              <div className="space-y-1 bg-pink-50/60 p-3 rounded-xl border border-pink-200">
+                <label className="text-pink-900 font-extrabold uppercase text-[10px] tracking-wide block">
+                  Preço de Venda Final (R$) *
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-pink-700 font-extrabold text-sm">R$</span>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    required
+                    autoFocus
+                    value={quickPriceForm.price}
+                    onChange={(e) => setQuickPriceForm(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
+                    className="w-full pl-9 pr-3 py-2 bg-white border border-pink-300 rounded-lg text-lg font-mono font-extrabold text-pink-950 focus:outline-hidden focus:ring-2 focus:ring-pink-500 transition-all"
+                    placeholder="0,00"
+                  />
+                </div>
+                <p className="text-[9.5px] text-slate-500 font-sans leading-tight mt-1">
+                  Este é o valor cobrado tanto no PDV quanto no site da loja virtual.
+                </p>
+              </div>
+
+              {/* Preço Promocional "De / Por" */}
+              <div className="space-y-1">
+                <label className="text-slate-600 font-bold uppercase text-[9px] tracking-wide block">
+                  Preço Regular "De" (Opcional - Risco Promocional)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">R$</span>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    value={quickPriceForm.compareAt || ''}
+                    onChange={(e) => setQuickPriceForm(prev => ({ ...prev, compareAt: parseFloat(e.target.value) || 0 }))}
+                    className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-700 focus:outline-hidden focus:border-pink-500"
+                    placeholder="Ex: 189.90 (mostra riscado no site)"
+                  />
+                </div>
+              </div>
+
+              {/* Custo */}
+              <div className="space-y-1">
+                <label className="text-slate-600 font-bold uppercase text-[9px] tracking-wide block">
+                  Custo de Fabricação / Aquisição (R$)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">R$</span>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    value={quickPriceForm.cost}
+                    onChange={(e) => setQuickPriceForm(prev => ({ ...prev, cost: parseFloat(e.target.value) || 0 }))}
+                    className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-700 focus:outline-hidden focus:border-pink-500"
+                    placeholder="0,00"
+                  />
+                </div>
+              </div>
+
+              {/* Live Margin Calculation */}
+              <div className="p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-[9px] text-emerald-800 font-bold uppercase tracking-wider block">Lucro Bruto Estimado:</span>
+                  <span className="font-mono font-extrabold text-emerald-900 text-sm">
+                    {formatCurrency(Math.max(0, quickPriceForm.price - quickPriceForm.cost))}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[9px] text-emerald-800 font-bold uppercase tracking-wider block">Margem:</span>
+                  <span className="font-mono font-extrabold text-emerald-700 text-sm">
+                    {quickPriceForm.price > 0 ? `${(((quickPriceForm.price - quickPriceForm.cost) / quickPriceForm.price) * 100).toFixed(1)}%` : '0%'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => setQuickPriceModalProduct(null)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all cursor-pointer border-none text-center"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isSavingInlinePrice}
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-md shadow-emerald-600/20 cursor-pointer border-none flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  {isSavingInlinePrice ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Salvando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={14} />
+                      <span>Salvar Preço Agora</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Price Success Toast */}
+      {priceSuccessNotification && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-200 max-w-md">
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+            <Check size={18} />
+          </div>
+          <div className="flex-1 text-xs">
+            <span className="font-bold text-white block">Preço Atualizado</span>
+            <span className="text-slate-300 font-medium">{priceSuccessNotification}</span>
+          </div>
+          <button 
+            type="button" 
+            onClick={() => setPriceSuccessNotification(null)}
+            className="text-slate-400 hover:text-white p-1 cursor-pointer border-none bg-transparent"
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
     </div>

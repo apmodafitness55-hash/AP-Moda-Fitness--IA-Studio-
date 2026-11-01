@@ -729,6 +729,38 @@ export async function syncSystemConfigsWithSupabase(...args: any[]) {
         }
       }
 
+      // Sync Store Configurations (phone, name, instagram, pix key, etc.)
+      const storeConfigKeys = [
+        'ap_store_name',
+        'ap_store_phone',
+        'ap_store_slogan',
+        'ap_store_cnpj',
+        'ap_store_address',
+        'ap_store_city',
+        'ap_store_state',
+        'ap_store_instagram',
+        'ap_pix_key',
+        'ap_store_footer',
+        'ap_store_logo'
+      ];
+
+      let storeConfigChanged = false;
+      for (const key of storeConfigKeys) {
+        const item = configs.find((c: any) => c.key === key);
+        if (item && item.value !== undefined && item.value !== null) {
+          const remoteVal = typeof item.value === 'string' ? item.value : JSON.stringify(item.value);
+          const localVal = localStorage.getItem(key);
+          if (remoteVal !== localVal && remoteVal.trim().length > 0) {
+            localStorage.setItem(key, remoteVal);
+            localModified = true;
+            storeConfigChanged = true;
+          }
+        }
+      }
+      if (storeConfigChanged) {
+        window.dispatchEvent(new Event('store_config_updated'));
+      }
+
       // Sync ap_partner_withdraw_requests (Solicitações de Saque de Parceiras)
       const withdrawsCfg = configs.find((c: any) => c.key === 'ap_partner_withdraw_requests');
       if (withdrawsCfg && withdrawsCfg.value) {

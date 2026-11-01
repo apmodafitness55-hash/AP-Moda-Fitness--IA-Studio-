@@ -1,3 +1,5 @@
+import { pushSystemConfigToSupabase } from '../supabase';
+
 export interface StoreConfig {
   name: string;
   slogan: string;
@@ -68,7 +70,7 @@ export function getInstagramProfileUrl(input: string): string {
 
 export function getStoreConfig(): StoreConfig {
   const nameVal = localStorage.getItem('ap_store_name');
-  const name = (!nameVal || nameVal === 'AP Moda Fitness' ? 'AP2 Moda Fitness' : nameVal).trim();
+  const name = (nameVal && nameVal.trim() ? nameVal.trim() : 'AP2 Moda Fitness');
   const slogan = (localStorage.getItem('ap_store_slogan') || 'Onde o seu limite vira ponto de partida').trim();
   let cnpj = (localStorage.getItem('ap_store_cnpj') || '67.074.681/0001-03').trim();
   let address = (localStorage.getItem('ap_store_address') || 'Travessa Jose Jorge, 51, Centro').trim();
@@ -77,10 +79,9 @@ export function getStoreConfig(): StoreConfig {
   let phone = (localStorage.getItem('ap_store_phone') || '(84) 99198-2963').trim();
   const pixKey = (localStorage.getItem('ap_pix_key') || '67.074.681/0001-03').trim();
   const savedLogo = localStorage.getItem('ap_store_logo');
-  // Use custom uploaded logo from user if set, otherwise fallback to default /logo.png
   const logoUrl = (savedLogo && savedLogo.trim() && !savedLogo.includes('unsplash') ? savedLogo.trim() : '/logo.png').trim();
   
-  // Instagram handle (stored with reliable fallback to prevent opening generic home feed)
+  // Instagram handle
   const savedInstagram = localStorage.getItem('ap_store_instagram') || '@ap_moda_fitness2';
   const instagram = formatInstagramHandle(savedInstagram);
   const instagramUrl = getInstagramProfileUrl(savedInstagram);
@@ -90,24 +91,6 @@ export function getStoreConfig(): StoreConfig {
     : `Obrigado por escolher a ${name}! Peças lindas que elevam seu treino com estilo e alta performance.`;
 
   let footer = (localStorage.getItem('ap_store_footer') || defaultFooter).trim();
-  
-  // Clean out legacy mock data from footer if present
-  if (footer.includes('@ap_moda_fitness2') || footer.includes('@ap2_moda_fitness')) {
-    footer = defaultFooter;
-  }
-
-  // Clean out legacy mock data if present
-  if (cnpj.includes('12.345.678') || cnpj.includes('45.678.901')) {
-    cnpj = '67.074.681/0001-03';
-  }
-  if (address.toLowerCase().includes('copacabana') || address.toLowerCase().includes('paulista')) {
-    address = 'Travessa Jose Jorge, 51, Centro';
-    city = 'Sao Jose de Mipibu';
-    state = 'RN';
-  }
-  if (phone.includes('99123-4567') || phone.includes('98765-4321')) {
-    phone = '(84) 99198-2963';
-  }
 
   let fullAddress = address;
   if (city && !address.toLowerCase().includes(city.toLowerCase())) {
@@ -137,4 +120,28 @@ export function getStoreConfig(): StoreConfig {
     instagram,
     instagramUrl
   };
+}
+
+/**
+ * Updates store configuration both in localStorage and Supabase, and notifies all components immediately.
+ */
+export async function saveStoreConfig(updates: Record<string, string>): Promise<boolean> {
+  try {
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        localStorage.setItem(key, value);
+        // Sync asynchronously to Supabase cloud
+        pushSystemConfigToSupabase(key, value).catch(e => {
+          console.warn(`[StoreConfig] Failed to push ${key} to Supabase:`, e);
+        });
+      }
+    }
+    // Dispatch events so header, checkout, catalog, customer views and footer refresh instantly
+    window.dispatchEvent(new Event('store_config_updated'));
+    window.dispatchEvent(new Event('ap-storage-synced'));
+    return true;
+  } catch (err) {
+    console.error('[StoreConfig] Failed to save store config:', err);
+    return false;
+  }
 }
