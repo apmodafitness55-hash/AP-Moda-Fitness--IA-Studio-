@@ -258,8 +258,8 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
           const normId = normalizeId(s.id);
           if (!matched.some(m => normalizeId(m.id) === normId)) {
             const totalVal = Number(s.total || (s as any).value || (s as any).amount || 0);
-            const commRate = currentPartner.commissionRate || 10;
-            const commVal = (totalVal * commRate) / 100;
+            const commRate = (s as any).commissionRate || currentPartner.commissionRate || 10;
+            const commVal = Number((s as any).commissionAmount || ((totalVal * commRate) / 100));
             matched.push({
               id: s.id || `VND-${(s as any).number || Math.floor(1000 + Math.random() * 9000)}`,
               clientName: s.clientName || (s as any).customerName || (s as any).client || 'Cliente',
@@ -288,8 +288,8 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
           const normId = normalizeId(o.id);
           if (!matched.some(m => normalizeId(m.id) === normId)) {
             const totalVal = Number(o.total || (o as any).value || (o as any).amount || 0);
-            const commRate = currentPartner.commissionRate || 10;
-            const commVal = (totalVal * commRate) / 100;
+            const commRate = (o as any).commissionRate || currentPartner.commissionRate || 10;
+            const commVal = Number((o as any).commissionAmount || ((totalVal * commRate) / 100));
             matched.push({
               id: o.id || `PED-${(o as any).number || Math.floor(1000 + Math.random() * 9000)}`,
               clientName: o.clientName || (o as any).customerName || (o as any).client || 'Cliente Site',

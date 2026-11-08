@@ -63,7 +63,7 @@ interface SidebarProps {
   onSetLojaOnlineSubTab?: (subTab: 'compartilhar' | 'cupons' | 'vitrine' | 'recuperacao' | 'marketing') => void;
   onSetAiAgentsHubSubTab?: (subTab: 'descritor' | 'estilista' | 'whatsapp' | 'sentinela' | 'campanha' | 'consultoria' | 'tradutor' | 'precificador') => void;
   onSetGoogleWorkspaceSubTab?: (subTab: 'agenda' | 'tarefas' | 'docs' | 'gmail' | 'sheets' | 'drive' | 'config') => void;
-  onSetSettingsSystemSubTab?: (subTab: 'empresa' | 'integracoes' | 'seguranca' | 'roadmap' | 'vitrine') => void;
+  onSetSettingsSystemSubTab?: (subTab: 'empresa' | 'frete' | 'integracoes' | 'seguranca' | 'roadmap' | 'vitrine' | 'diagnostico' | 'hardware') => void;
   activeOrdersLogisticsSubTab?: 'pedidos' | 'trocas_crediario' | 'logistica' | 'condicional';
   activeCustomersCRMSubTab?: 'diretorio' | 'funil' | 'followup' | 'parceiros' | 'fidelidade';
   activeSuppliersManagementSubTab?: 'fornecedores' | 'compras';
@@ -71,7 +71,7 @@ interface SidebarProps {
   activeLojaOnlineSubTab?: 'compartilhar' | 'cupons' | 'vitrine' | 'recuperacao' | 'marketing';
   activeAiAgentsHubSubTab?: 'descritor' | 'estilista' | 'whatsapp' | 'sentinela' | 'campanha' | 'consultoria' | 'tradutor' | 'precificador';
   activeGoogleWorkspaceSubTab?: 'agenda' | 'tarefas' | 'docs' | 'gmail' | 'sheets' | 'drive' | 'config';
-  activeSettingsSystemSubTab?: 'empresa' | 'integracoes' | 'seguranca' | 'roadmap' | 'vitrine';
+  activeSettingsSystemSubTab?: 'empresa' | 'frete' | 'integracoes' | 'seguranca' | 'roadmap' | 'vitrine' | 'diagnostico' | 'hardware';
   pendingPartnerWithdrawsCount?: number;
 }
 
@@ -171,7 +171,8 @@ export default function Sidebar({
     {
       group: 'LOGÍSTICA',
       items: [
-        { id: 'PEDIDOS_LOGISTICA', label: 'Painel de Logística', icon: Compass, keywords: 'logistica entregas entregador rota de despacho', tab: ActiveTab.PEDIDOS, subTab: 'logistica' }
+        { id: 'PEDIDOS_LOGISTICA', label: 'Painel de Logística', icon: Compass, keywords: 'logistica entregas entregador rota de despacho', tab: ActiveTab.PEDIDOS, subTab: 'logistica' },
+        { id: 'LOGISTICA_FRETE', label: 'Taxas de Frete & Motoboy', icon: Truck, keywords: 'frete motoboy entrega taxas correios melhor envio regioes bairros valor', tab: ActiveTab.CONFIGURACOES, subTab: 'frete' }
       ]
     },
     {
@@ -643,7 +644,8 @@ export default function Sidebar({
                     (item.tab === ActiveTab.PEDIDOS && activeOrdersLogisticsSubTab === (item as any).subTab) ||
                     (item.tab === ActiveTab.CLIENTES && activeCustomersCRMSubTab === (item as any).subTab) ||
                     (item.tab === ActiveTab.FORNECEDORES && activeSuppliersManagementSubTab === (item as any).subTab) ||
-                    (item.tab === ActiveTab.PRODUTOS && activeProductsSubTab === (item as any).subTab)
+                    (item.tab === ActiveTab.PRODUTOS && activeProductsSubTab === (item as any).subTab) ||
+                    (item.tab === ActiveTab.CONFIGURACOES && activeSettingsSystemSubTab === (item as any).subTab)
                   );
 
                   const isActive = menuMode === 'classico' ? isClassicActive : isParentAccent;

@@ -13,6 +13,7 @@ export interface Coupon {
   category?: string; // Ex: "Macacões", "Leggings", "Tops", "Shorts", "Conjuntos" ou "Todas" / undefined
   partnerName?: string; // Nome do parceiro/influenciador vinculado
   partnerId?: string; // ID do parceiro no sistema
+  commissionRate?: number; // % de comissão da parceira (ex: 10)
 }
 
 export const DEFAULT_COUPONS: Coupon[] = [
@@ -22,7 +23,7 @@ export const DEFAULT_COUPONS: Coupon[] = [
   { code: 'FRETEGRATIS', type: 'percent', value: 0, minPurchase: 399, limitUses: 500, usedCount: 88, validUntil: '2026-12-31', maxPerCpf: 0, category: 'Todas' },
   { code: 'MACACAO20', type: 'percent', value: 20, minPurchase: 0, limitUses: 100, usedCount: 5, validUntil: '2026-12-31', maxPerCpf: 1, category: 'Macacões' },
   { code: 'LEGGING15', type: 'percent', value: 15, minPurchase: 0, limitUses: 100, usedCount: 8, validUntil: '2026-12-31', maxPerCpf: 1, category: 'Leggings' },
-  { code: 'PATRICIA10', type: 'percent', value: 10, minPurchase: 0, limitUses: 500, usedCount: 18, validUntil: '2026-12-31', maxPerCpf: 0, category: 'Todas', partnerName: 'Patricia Cardoso', partnerId: 'part-patricia' }
+  { code: 'PATRICIA10', type: 'percent', value: 10, minPurchase: 0, limitUses: 500, usedCount: 18, validUntil: '2026-12-31', maxPerCpf: 0, category: 'Todas', partnerName: 'Patricia Cardoso', partnerId: 'part-patricia', commissionRate: 10 }
 ];
 
 export function getStoredCoupons(): Coupon[] {
@@ -73,51 +74,63 @@ export function validateCouponForCpf(
       const savedP = localStorage.getItem('ap_moda_partners');
       if (savedP) {
         const partnersList: any[] = JSON.parse(savedP);
-        const foundPartner = partnersList.find(p => {
+        
+        // 1. First, check if cleanCode matches an official couponCode of a partner
+        const foundPartnerByCoupon = partnersList.find(p => {
           const pCoupon = (p.couponCode || '').toUpperCase().trim();
-          const pName = (p.name || '').toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-          const pLogin = (p.login || '').toUpperCase().trim();
-          const clean = cleanCode.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-
-          const firstName = pName.split(' ')[0] || '';
-
-          return (
-            (pCoupon && (pCoupon === clean || pCoupon.startsWith(clean) || clean.startsWith(pCoupon.replace(/10$/, '')))) ||
-            (pLogin && (pLogin === clean || (pLogin + '10') === clean || clean.startsWith(pLogin))) ||
-            (pName && (pName === clean || pName.includes(clean) || (firstName.length >= 3 && clean.includes(firstName))))
-          );
+          return pCoupon && pCoupon === cleanCode;
         });
-        if (foundPartner) {
+
+        if (foundPartnerByCoupon) {
           matchedCoupon = {
-            code: cleanCode,
+            code: (foundPartnerByCoupon.couponCode || cleanCode).toUpperCase(),
             type: 'percent',
-            value: foundPartner.discountPercent || foundPartner.commissionRate || 10,
+            value: foundPartnerByCoupon.discountPercent || 10,
             minPurchase: 0,
             limitUses: 1000,
             usedCount: 0,
             validUntil: '2026-12-31',
             maxPerCpf: 0,
             category: 'Todas',
-            partnerName: foundPartner.name
+            partnerName: foundPartnerByCoupon.name,
+            partnerId: foundPartnerByCoupon.id || `part-${(foundPartnerByCoupon.name || '').toLowerCase().replace(/\s+/g, '-')}`,
+            commissionRate: foundPartnerByCoupon.commissionRate || 10
           };
+        } else {
+          // 2. Check if the user accidentally typed the influencer's LOGIN or NAME instead of their official coupon
+          const foundPartnerByLoginOrName = partnersList.find(p => {
+            const pLogin = (p.login || '').toUpperCase().trim();
+            const pName = (p.name || '').toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+            const clean = cleanCode.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+            return (pLogin && pLogin === clean) || (pName && pName === clean);
+          });
+
+          if (foundPartnerByLoginOrName) {
+            const officialCode = foundPartnerByLoginOrName.couponCode || `${foundPartnerByLoginOrName.login?.toUpperCase()}10`;
+            return {
+              valid: false,
+              message: `O texto "${cleanCode}" é o usuário/nome da parceira. Utilize o cupom oficial dela: ${officialCode}`
+            };
+          }
         }
       }
     } catch(e) {}
-  } else if (!matchedCoupon.partnerName) {
-    // Check if matchedCoupon belongs to a partner in ap_moda_partners
+  } else {
+    // If coupon was found in ap_coupons, ensure partnerId and commissionRate are populated
     try {
       const savedP = localStorage.getItem('ap_moda_partners');
       if (savedP) {
         const partnersList: any[] = JSON.parse(savedP);
         const foundPartner = partnersList.find(p => {
           const pCoupon = (p.couponCode || '').toUpperCase().trim();
-          const pName = (p.name || '').toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-          const clean = cleanCode.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-          const firstName = pName.split(' ')[0] || '';
-          return pCoupon === clean || (firstName.length >= 3 && clean.includes(firstName));
+          const pName = (p.name || '').toUpperCase().trim();
+          return (pCoupon && pCoupon === matchedCoupon?.code.toUpperCase()) || 
+                 (matchedCoupon?.partnerName && pName === matchedCoupon.partnerName.toUpperCase());
         });
         if (foundPartner) {
-          matchedCoupon.partnerName = foundPartner.name;
+          if (!matchedCoupon.partnerName) matchedCoupon.partnerName = foundPartner.name;
+          if (!matchedCoupon.partnerId) matchedCoupon.partnerId = foundPartner.id || `part-${(foundPartner.name || '').toLowerCase().replace(/\s+/g, '-')}`;
+          if (!matchedCoupon.commissionRate) matchedCoupon.commissionRate = foundPartner.commissionRate || 10;
         }
       }
     } catch(e) {}

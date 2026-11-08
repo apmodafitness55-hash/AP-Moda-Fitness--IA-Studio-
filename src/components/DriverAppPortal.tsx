@@ -191,11 +191,41 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
     setSignatureSaved(false);
   };
 
-  // Launch Google Maps navigation
+  // Launch real turn-by-turn GPS navigation in Google Maps
   const handleOpenGoogleMaps = (address: string) => {
-    const encoded = encodeURIComponent(address);
-    const url = `https://www.google.com/maps/search/?api=1&query=${encoded}`;
-    window.open(url, '_blank');
+    if (!address) return;
+    const cleanAddr = address.replace(/^Retirada no Local|^A combinar/i, '').trim();
+    if (!cleanAddr) {
+      alert('Endereço não especificado para rota.');
+      return;
+    }
+    const encoded = encodeURIComponent(cleanAddr);
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${encoded}&travelmode=driving`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  // Launch real turn-by-turn GPS navigation in Waze
+  const handleOpenWaze = (address: string) => {
+    if (!address) return;
+    const cleanAddr = address.replace(/^Retirada no Local|^A combinar/i, '').trim();
+    if (!cleanAddr) {
+      alert('Endereço não especificado para rota.');
+      return;
+    }
+    const encoded = encodeURIComponent(cleanAddr);
+    const url = `https://waze.com/ul?q=${encoded}&navigate=yes`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  // Direct contact with customer via WhatsApp
+  const handleOpenWhatsAppClient = (phone: string, clientName: string, address: string) => {
+    const cleanPhone = (phone || '').replace(/\D/g, '');
+    if (!cleanPhone) {
+      alert('Telefone do cliente não informado.');
+      return;
+    }
+    const msg = encodeURIComponent(`Olá ${clientName || 'Cliente'}! Sou o entregador da AP Moda Fitness e estou a caminho do seu endereço com o seu pedido! 🏍️📦\n\n📍 Destino: ${address || 'Local informado'}`);
+    window.open(`https://wa.me/55${cleanPhone}?text=${msg}`, '_blank', 'noopener,noreferrer');
   };
 
   // Simulate routing GPS animation
@@ -509,47 +539,79 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
                           <span className="font-extrabold text-pink-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ord.total + (ord.deliveryFee || 0))}</span>
                         </div>
 
-                        <div className="flex gap-2">
+                        <div className="grid grid-cols-3 gap-1.5 pt-1">
                           <button
                             onClick={() => handleOpenGoogleMaps(ord.address)}
-                            className="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer border-0"
+                            className="py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer border-0"
+                            title="Abrir rota no Google Maps"
                           >
-                            <Navigation size={10} />
-                            <span>Abrir GPS</span>
+                            <Navigation size={10} className="text-pink-400" />
+                            <span>Maps</span>
                           </button>
                           
+                          <button
+                            onClick={() => handleOpenWaze(ord.address)}
+                            className="py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer border-0"
+                            title="Abrir rota no Waze"
+                          >
+                            <Compass size={10} className="text-cyan-400" />
+                            <span>Waze</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleOpenWhatsAppClient(ord.phone, ord.clientName, ord.address)}
+                            className="py-1.5 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer"
+                            title="Avisar cliente no WhatsApp"
+                          >
+                            <MessageSquare size={10} className="text-emerald-400" />
+                            <span>Whats</span>
+                          </button>
+                        </div>
+
+                        <div className="pt-1">
                           {statusLower === 'pago' || statusLower === 'pronto' || statusLower === 'pendente' ? (
                             <button
                               onClick={() => {
-                                // Direct order claim from the street
                                 if (!ord.motoboy || ord.motoboy.trim() === '') {
                                   ord.motoboy = selectedRider;
                                 }
                                 handleStartRoute(ord);
                               }}
-                              className="flex-1 py-1.5 bg-pink-600 hover:bg-pink-700 text-white text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer border-0"
+                              className="w-full py-2 bg-pink-600 hover:bg-pink-700 text-white text-[10px] font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer border-0 shadow-md"
                             >
-                              <span>Iniciar Entrega</span>
-                              <ChevronRight size={10} />
+                              <span>Iniciar Entrega & Ver no Mapa Real</span>
+                              <ChevronRight size={11} />
                             </button>
                           ) : statusLower === 'saiu para entrega' ? (
-                            <button
-                              onClick={() => {
-                                setActiveOrder(ord);
-                                setActiveStep('signature');
-                              }}
-                              className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer border-0"
-                            >
-                              <CheckCircle size={10} />
-                              <span>Marcar como Entregue</span>
-                            </button>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <button
+                                onClick={() => {
+                                  setActiveOrder(ord);
+                                  setActiveStep('delivery_detail');
+                                }}
+                                className="py-2 bg-pink-700 hover:bg-pink-800 text-white text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer border-0"
+                              >
+                                <Navigation size={10} />
+                                <span>Ver no Mapa</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setActiveOrder(ord);
+                                  setActiveStep('signature');
+                                }}
+                                className="py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer border-0 shadow-md"
+                              >
+                                <CheckCircle size={10} />
+                                <span>Concluir Entrega</span>
+                              </button>
+                            </div>
                           ) : (
                             <button
                               disabled
-                              className="flex-1 py-1.5 bg-slate-800/50 text-slate-600 text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 cursor-not-allowed border-0"
+                              className="w-full py-1.5 bg-slate-800/50 text-slate-500 text-[10px] font-bold rounded-lg flex items-center justify-center gap-1 cursor-not-allowed border-0"
                             >
                               <CheckCircle size={10} className="text-emerald-500" />
-                              <span>Entregue</span>
+                              <span>Entrega Concluída</span>
                             </button>
                           )}
                         </div>
@@ -581,100 +643,98 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
                 <span className="w-2 h-2 rounded-full bg-pink-500 animate-pulse" />
               </div>
 
-              {/* MAP SIMULATOR VISUAL CONTAINER */}
+              {/* REAL INTERACTIVE MAP CONTAINER */}
               <div className="flex-1 bg-slate-950 flex flex-col relative overflow-hidden select-none">
                 
-                {/* SVG vector custom visual path representation */}
-                <div className="absolute inset-0 z-0 opacity-40">
-                  <svg className="w-full h-full" viewBox="0 0 300 300" fill="none">
-                    {/* Road networks */}
-                    <path d="M 0 50 L 300 50 M 0 150 L 300 150 M 0 250 L 300 250" stroke="#334155" strokeWidth="6" />
-                    <path d="M 50 0 L 50 300 M 150 0 L 150 300 M 250 0 L 250 300" stroke="#334155" strokeWidth="6" />
-                    
-                    {/* Simulated Delivery Path */}
-                    <path d="M 50 150 L 150 150 L 150 50 L 250 50" stroke="#ec4899" strokeWidth="3" strokeDasharray="6 4" strokeLinecap="round" />
-                    
-                    {/* Base Store Marker */}
-                    <circle cx="50" cy="150" r="10" fill="#db2777" />
-                    <text x="35" y="132" fill="#fff" fontSize="9" fontWeight="bold">AP LOJA</text>
-
-                    {/* Customer Destination Marker */}
-                    <circle cx="250" cy="50" r="10" fill="#10b981" />
-                    <text x="215" y="32" fill="#10b981" fontSize="9" fontWeight="bold">CLIENTE</text>
-                  </svg>
+                {/* Embedded Real Google Maps View */}
+                <div className="absolute inset-0 z-0">
+                  <iframe
+                    title="Mapa de Entrega Real"
+                    src={`https://maps.google.com/maps?q=${encodeURIComponent(activeOrder.address)}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                    className="w-full h-full border-0 filter brightness-90 contrast-105"
+                    loading="lazy"
+                  />
                 </div>
 
-                {/* Simulated route status overlay */}
-                <div className="p-3 bg-slate-900/90 border-b border-slate-800 z-10 m-3 rounded-2xl flex items-center justify-between text-xs">
+                {/* Live Navigation Overlay */}
+                <div className="p-3 bg-slate-900/95 border border-slate-750 backdrop-blur-md z-10 m-2.5 rounded-2xl flex items-center justify-between text-xs shadow-xl">
                   <div className="flex items-center gap-2">
-                    <Navigation size={14} className="text-pink-400 animate-bounce" />
+                    <Navigation size={15} className="text-pink-500 animate-pulse shrink-0" />
                     <div>
-                      <p className="font-extrabold text-[11px]">Navegação Ativa (Simulada)</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Destino: {activeOrder.clientName}</p>
+                      <p className="font-extrabold text-[11px] text-white flex items-center gap-1.5">
+                        <span>Rota de Entrega Ativa</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                      </p>
+                      <p className="text-[10px] text-slate-300 font-medium truncate max-w-[170px]">
+                        {activeOrder.clientName}
+                      </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    {routeStep === 1 ? (
-                      <>
-                        <p className="font-mono font-bold text-pink-400 animate-pulse">{simulatedDistance} km</p>
-                        <p className="text-[9px] text-slate-400">Em curso...</p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="font-mono font-bold text-emerald-400 flex items-center gap-1 justify-end">
-                          <Check size={11} /> Chegou!
-                        </p>
-                        <p className="text-[9px] text-slate-400">Bater no local</p>
-                      </>
-                    )}
+                    <span className="px-2 py-0.5 rounded-full bg-pink-900/60 border border-pink-500/40 text-[9px] font-bold text-pink-300">
+                      GPS Ativo
+                    </span>
                   </div>
                 </div>
 
-                {/* Simulation controls panel */}
-                <div className="absolute bottom-3 inset-x-3 bg-slate-900/90 border border-slate-800 rounded-2xl p-3 z-10 space-y-2 flex flex-col">
+                {/* Real-world Navigation Controls Panel */}
+                <div className="absolute bottom-2 inset-x-2.5 bg-slate-900/95 border border-slate-800/90 backdrop-blur-md rounded-2xl p-3 z-10 space-y-2.5 flex flex-col shadow-2xl">
                   <div className="text-xs">
-                    <p className="text-slate-400 uppercase text-[8px] font-bold">Endereço de Entrega</p>
-                    <p className="font-bold text-slate-200 mt-0.5 leading-tight">{activeOrder.address}</p>
+                    <div className="flex justify-between items-center">
+                      <p className="text-slate-400 uppercase text-[8px] font-black tracking-wider">Endereço de Entrega</p>
+                      <span className="text-[9px] font-mono text-pink-400 font-bold">
+                        A Receber: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(activeOrder.total + (activeOrder.deliveryFee || 0))}
+                      </span>
+                    </div>
+                    <p className="font-bold text-slate-100 text-[11px] mt-1 leading-snug">{activeOrder.address}</p>
                     {activeOrder.notes && (
-                      <p className="p-1 px-2 border border-blue-900/50 bg-blue-950/40 text-[9px] text-blue-400 rounded mt-1.5 leading-snug">
+                      <p className="p-1.5 px-2 bg-slate-950/80 border border-slate-800 text-[9px] text-slate-300 rounded-lg mt-1.5 leading-snug">
                         📝 {activeOrder.notes}
                       </p>
                     )}
                   </div>
 
-                  <div className="flex justify-between items-center text-[10px] text-slate-400 border-t border-slate-800/80 pt-1.5">
-                    <span>A Cobrar:</span>
-                    <strong className="text-pink-400 text-xs font-mono">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(activeOrder.total + activeOrder.deliveryFee)}</strong>
-                  </div>
-
+                  {/* 1-Tap Navigation App Launchers */}
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => handleOpenGoogleMaps(activeOrder.address)}
-                      className="py-2 bg-pink-700 hover:bg-pink-800 text-white font-bold text-[10px] rounded-lg cursor-pointer flex items-center justify-center gap-1"
+                      className="py-2.5 bg-pink-600 hover:bg-pink-700 active:scale-95 text-white font-extrabold text-[11px] rounded-xl cursor-pointer flex items-center justify-center gap-1.5 transition-all shadow-md shadow-pink-900/20"
+                      title="Navegar no Google Maps com rota traçada e voz"
                     >
-                      <ExternalLink size={11} />
-                      <span>Abrir GPS Real</span>
+                      <Navigation size={13} className="text-white" />
+                      <span>Google Maps 🗺️</span>
                     </button>
 
-                    {routeStep === 2 ? (
-                      <button
-                        onClick={() => setActiveStep('signature')}
-                        className="py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg cursor-pointer flex items-center justify-center gap-1 animate-pulse"
-                      >
-                        <Compass size={11} />
-                        <span>Ir p/ Assinatura</span>
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          onUpdateOrderStatus(activeOrder.id, 'Saiu para Entrega');
-                          setRouteStep(2); // fast-forward arrived
-                        }}
-                        className="py-2 bg-pink-600 hover:bg-pink-700 text-white font-bold text-[10px] rounded-lg cursor-pointer"
-                      >
-                        Simular Chegada
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleOpenWaze(activeOrder.address)}
+                      className="py-2.5 bg-cyan-700 hover:bg-cyan-800 active:scale-95 text-white font-extrabold text-[11px] rounded-xl cursor-pointer flex items-center justify-center gap-1.5 transition-all shadow-md shadow-cyan-900/20"
+                      title="Navegar no Waze com alertas de trânsito em tempo real"
+                    >
+                      <Compass size={13} className="text-cyan-200" />
+                      <span>Waze 🚗</span>
+                    </button>
+                  </div>
+
+                  {/* Communication & Finish Action */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => handleOpenWhatsAppClient(activeOrder.phone, activeOrder.clientName, activeOrder.address)}
+                      className="py-2 bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-500/30 text-emerald-300 font-bold text-[10px] rounded-xl cursor-pointer flex items-center justify-center gap-1.5 transition-all"
+                    >
+                      <MessageSquare size={12} className="text-emerald-400" />
+                      <span>Avisar no WhatsApp</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        onUpdateOrderStatus(activeOrder.id, 'Saiu para Entrega');
+                        setActiveStep('signature');
+                      }}
+                      className="py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-[10px] rounded-xl cursor-pointer flex items-center justify-center gap-1.5 transition-all shadow-md"
+                    >
+                      <CheckCircle size={12} />
+                      <span>Assinar & Entregar</span>
+                    </button>
                   </div>
                 </div>
 

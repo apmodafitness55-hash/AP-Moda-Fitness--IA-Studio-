@@ -23,7 +23,8 @@ import {
   Link2,
   DollarSign,
   Edit3,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Truck
 } from 'lucide-react';
 import { Product } from '../types';
 import ImageUploader from './ImageUploader';
@@ -492,6 +493,10 @@ export default function CatalogInventory({
   // Fast Price Micro-Modal state
   const [quickPriceModalProduct, setQuickPriceModalProduct] = useState<Product | null>(null);
   const [quickPriceForm, setQuickPriceForm] = useState({ price: 0, compareAt: 0, cost: 0 });
+
+  // Fast Freight Micro-Modal state (1-Click Shipping Dimensions Editor)
+  const [quickFreightModalProduct, setQuickFreightModalProduct] = useState<Product | null>(null);
+  const [quickFreightForm, setQuickFreightForm] = useState({ weight: 0.35, width: 20, height: 5, length: 25 });
 
   const [isResolvingNew, setIsResolvingNew] = useState(false);
   const [isResolvingEdit, setIsResolvingEdit] = useState(false);
@@ -1124,9 +1129,62 @@ export default function CatalogInventory({
     }
   };
 
+  const handleOpenQuickFreightModal = (p: Product) => {
+    setQuickFreightModalProduct(p);
+    setQuickFreightForm({
+      weight: p.weight ?? 0.35,
+      width: p.width ?? 20,
+      height: p.height ?? 5,
+      length: p.length ?? 25
+    });
+  };
+
+  const handleSaveQuickFreightModal = async () => {
+    if (!quickFreightModalProduct) return;
+    setIsSaving(true);
+    try {
+      await onUpdateProduct({
+        ...quickFreightModalProduct,
+        weight: Number(quickFreightForm.weight) || 0.35,
+        width: Number(quickFreightForm.width) || 20,
+        height: Number(quickFreightForm.height) || 5,
+        length: Number(quickFreightForm.length) || 25
+      });
+      const prodName = quickFreightModalProduct.name;
+      setQuickFreightModalProduct(null);
+      setPriceSuccessNotification(`Dimensões de frete de "${prodName}" atualizadas com sucesso! (Peso: ${quickFreightForm.weight}kg)`);
+      setTimeout(() => setPriceSuccessNotification(null), 3500);
+    } catch (err: any) {
+      alert('Erro ao salvar frete: ' + (err?.message || err));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleQuickSaveFreightFromModal = async () => {
+    if (!editingProduct) return;
+    setIsSaving(true);
+    try {
+      await onUpdateProduct({
+        ...editingProduct,
+        weight: Number(editWeight) || 0.35,
+        width: Number(editWidth) || 20,
+        height: Number(editHeight) || 5,
+        length: Number(editLength) || 25
+      });
+      setPriceSuccessNotification(`Dimensões de frete de "${editingProduct.name}" gravadas com sucesso!`);
+      setTimeout(() => setPriceSuccessNotification(null), 3500);
+    } catch (e: any) {
+      alert('Erro ao salvar frete: ' + (e?.message || e));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
+
 
   return (
     <div className="space-y-6">
@@ -1499,6 +1557,15 @@ export default function CatalogInventory({
                         >
                           <DollarSign size={11} />
                           <span>Preço</span>
+                        </button>
+                        <span className="w-px bg-slate-150 self-stretch my-1" />
+                        <button 
+                          onClick={() => handleOpenQuickFreightModal(p)}
+                          title="Alterar Peso e Dimensões de Frete (Melhor Envio / Correios)"
+                          className="px-2 py-1 text-[10px] font-extrabold font-sans text-sky-700 bg-sky-50 hover:bg-sky-100 rounded transition-all cursor-pointer flex items-center gap-1"
+                        >
+                          <Truck size={11} />
+                          <span>Frete</span>
                         </button>
                         <span className="w-px bg-slate-150 self-stretch my-1" />
                         <button 
@@ -2259,11 +2326,11 @@ export default function CatalogInventory({
 
       {/* Add Product Modal Sheet */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-all">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-50 overflow-hidden" id="add-product-modal">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4 transition-all">
+          <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh]" id="add-product-modal">
             {/* Header */}
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
-              <span className="font-bold text-xs tracking-wider uppercase font-sans">Cadastrar Nova Peça Fitness</span>
+            <div className="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+              <span className="font-extrabold text-xs tracking-wider uppercase font-sans">Cadastrar Nova Peça Fitness</span>
               <button 
                 onClick={() => setIsAddModalOpen(false)}
                 className="text-slate-400 hover:text-white transition-colors text-xs"
@@ -2273,7 +2340,7 @@ export default function CatalogInventory({
             </div>
 
             {/* Form list fields */}
-            <form onSubmit={handleAddProductSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+            <form id="add-product-form" onSubmit={handleAddProductSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
               <div className="space-y-1 text-xs">
                 <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Nome Completo do Produto</label>
                 <input 
@@ -2876,51 +2943,89 @@ export default function CatalogInventory({
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-2 pt-4">
-                <button 
-                  type="button" 
-                  disabled={isSaving}
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-650 rounded-xl text-xs font-bold font-sans transition-all cursor-pointer text-center disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit"
-                  disabled={isSaving}
-                  className="flex-1 py-2.5 bg-pink-600 hover:bg-pink-700 text-white rounded-xl text-xs font-bold font-sans transition-all cursor-pointer text-center shadow-md shadow-pink-500/10 disabled:bg-slate-400 disabled:shadow-none disabled:cursor-not-allowed"
-                >
-                  {isSaving ? "Salvando..." : "Gravar Produto"}
-                </button>
-              </div>
             </form>
+
+            {/* Sticky Action Footer - Always visible on Notebook screens */}
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
+              <button 
+                type="button" 
+                disabled={isSaving}
+                onClick={() => setIsAddModalOpen(false)}
+                className="py-2.5 px-4 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-xl transition-all cursor-pointer border border-slate-250 text-xs shadow-2xs"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="submit"
+                form="add-product-form"
+                disabled={isSaving}
+                className="py-2.5 px-6 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-pink-600/20 disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Salvando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check size={14} />
+                    <span>Gravar Produto</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* Edit Product Modal Sheet */}
       {isEditModalOpen && editingProduct && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-all font-sans text-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-50 overflow-hidden animate-in fade-in zoom-in duration-200" id="edit-product-modal">
-            {/* Header */}
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
-              <span className="font-bold text-xs tracking-wider uppercase">Editar Peça Fitness</span>
-              <button 
-                type="button"
-                onClick={() => {
-                  setIsEditModalOpen(false);
-                  setEditingProduct(null);
-                }}
-                className="text-slate-400 hover:text-white transition-colors text-xs"
-              >
-                ✕
-              </button>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4 transition-all font-sans text-xs">
+          <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in duration-150" id="edit-product-modal">
+            {/* Header Sticky */}
+            <div className="p-4 bg-slate-900 text-white shrink-0">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="font-extrabold text-sm tracking-wide text-white">Editar Peça Fitness</span>
+                  <span className="text-[10px] bg-pink-500/20 text-pink-300 font-mono px-2 py-0.5 rounded-md border border-pink-500/30">
+                    {editingProduct.sku}
+                  </span>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setIsEditModalOpen(false);
+                    setEditingProduct(null);
+                  }}
+                  className="text-slate-400 hover:text-white p-1 rounded-md transition-colors text-xs"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Quick Section Anchors for Notebook/Desktop */}
+              <div className="flex flex-wrap gap-1.5 pt-2.5 text-[10px]">
+                <a href="#edit-sec-geral" className="px-2.5 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold transition-all">
+                  📋 Básico & Preço
+                </a>
+                <a href="#edit-sec-frete" className="px-2.5 py-0.5 rounded-md bg-sky-950/90 border border-sky-500/40 hover:bg-sky-900 text-sky-200 font-bold transition-all flex items-center gap-1">
+                  📦 Frete & Dimensões
+                </a>
+                <a href="#edit-sec-cores" className="px-2.5 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold transition-all">
+                  🎨 Cores & Estoque
+                </a>
+                <a href="#edit-sec-medidas" className="px-2.5 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold transition-all">
+                  📏 Provador & Medidas
+                </a>
+                <a href="#edit-sec-fotos" className="px-2.5 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold transition-all">
+                  🖼️ Fotos ({editImages.length})
+                </a>
+              </div>
             </div>
 
             {/* Form list fields */}
-            <form onSubmit={handleEditProductSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-              <div className="space-y-1">
+            <form id="edit-product-form" onSubmit={handleEditProductSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
+              <div id="edit-sec-geral" className="space-y-1">
                 <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Nome Completo do Produto</label>
                 <input 
                   id="edit-product-name"
@@ -3074,12 +3179,25 @@ export default function CatalogInventory({
               </div>
 
               {/* Dimensões & Peso para Frete (Melhor Envio / Correios) */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+              <div id="edit-sec-frete" className="bg-sky-50/70 border border-sky-200 rounded-xl p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-[10px] text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                    📦 Dimensões & Peso para Frete (Melhor Envio)
+                  <span className="font-extrabold text-[10px] text-sky-950 uppercase tracking-wider flex items-center gap-1.5">
+                    <Truck size={13} className="text-sky-600" />
+                    <span>Dimensões & Peso para Frete (Melhor Envio / Correios)</span>
                   </span>
-                  <span className="text-[9px] bg-pink-100 text-pink-700 font-semibold px-2 py-0.5 rounded-full">Etiquetas / Cotação</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isSaving}
+                      onClick={handleQuickSaveFreightFromModal}
+                      className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white font-bold text-[10px] rounded-lg transition-all shadow-xs flex items-center gap-1 cursor-pointer border-none disabled:opacity-50"
+                      title="Salva o frete imediatamente sem precisar salvar o produto inteiro"
+                    >
+                      <Check size={11} />
+                      <span>Salvar Somente Frete</span>
+                    </button>
+                    <span className="text-[9px] bg-sky-200 text-sky-800 font-bold px-2 py-0.5 rounded-full">Etiquetas / Cotação</span>
+                  </div>
                 </div>
                 <div className="grid grid-cols-4 gap-2 text-xs">
                   <div className="space-y-1">
@@ -3544,28 +3662,63 @@ export default function CatalogInventory({
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-2 pt-4">
-                <button 
-                  type="button" 
+            </form>
+
+            {/* Sticky Action Footer - Always visible on Notebook screens */}
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 shrink-0">
+              <button 
+                type="button" 
+                disabled={isSaving}
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setEditingProduct(null);
+                }}
+                className="py-2.5 px-4 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-xl transition-all cursor-pointer border border-slate-250 text-xs shadow-2xs"
+              >
+                Cancelar
+              </button>
+
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                <button
+                  type="button"
                   disabled={isSaving}
-                  onClick={() => {
-                    setIsEditModalOpen(false);
-                    setEditingProduct(null);
-                  }}
-                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-650 rounded-xl text-xs font-bold transition-all cursor-pointer text-center disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleQuickSaveFreightFromModal}
+                  className="py-2.5 px-3 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  title="Salvar apenas as dimensões de frete do produto"
                 >
-                  Cancelar
+                  <Truck size={13} className="text-sky-600" />
+                  <span>Salvar Frete</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={handleQuickSavePriceFromModal}
+                  className="py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  title="Salvar apenas os preços e custos"
+                >
+                  <DollarSign size={13} className="text-emerald-600" />
+                  <span>Salvar Preço</span>
                 </button>
                 <button 
                   type="submit"
+                  form="edit-product-form"
                   disabled={isSaving}
-                  className="flex-1 py-2.5 bg-pink-600 hover:bg-pink-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer text-center shadow-md shadow-pink-500/10 disabled:bg-slate-400 disabled:shadow-none disabled:cursor-not-allowed"
+                  className="py-2.5 px-5 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-pink-600/20 disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  {isSaving ? "Salvando..." : "Gravar Alterações"}
+                  {isSaving ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Salvando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={14} />
+                      <span>Gravar Alterações</span>
+                    </>
+                  )}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
@@ -3831,6 +3984,158 @@ export default function CatalogInventory({
                     <>
                       <Check size={14} />
                       <span>Salvar Preço Agora</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* QUICK FREIGHT MICRO-MODAL (1-Click Freight / Shipping Dimensions Changer) */}
+      {quickFreightModalProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
+            <div className="px-6 py-4 bg-gradient-to-r from-sky-600 to-indigo-600 text-white flex justify-between items-center">
+              <div>
+                <div className="flex items-center gap-1.5 font-bold text-xs uppercase tracking-wider text-sky-100">
+                  <Truck size={14} className="text-white" />
+                  <span>Ajuste Rápido de Frete & Dimensões</span>
+                </div>
+                <h3 className="text-base font-extrabold truncate max-w-[280px] mt-0.5" title={quickFreightModalProduct.name}>
+                  {quickFreightModalProduct.name}
+                </h3>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setQuickFreightModalProduct(null)}
+                className="text-white/80 hover:text-white p-1.5 rounded-full hover:bg-white/10 transition-all cursor-pointer border-none"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSaveQuickFreightModal();
+              }}
+              className="p-6 space-y-4 text-xs font-sans text-slate-700"
+            >
+              {/* Product mini-preview */}
+              <div className="flex items-center gap-3 p-2.5 bg-slate-50 border border-slate-100 rounded-xl">
+                <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-200 shrink-0">
+                  <img 
+                    src={getOptimizedImageUrl(quickFreightModalProduct.image, 100)} 
+                    alt={quickFreightModalProduct.name}
+                    className="w-full h-full object-cover"
+                    onError={handleImageFallback}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-[10px] text-slate-400 font-mono block">SKU: {quickFreightModalProduct.sku}</span>
+                  <span className="font-bold text-xs text-slate-800 truncate block">{quickFreightModalProduct.name}</span>
+                  <span className="text-[10px] text-sky-600 font-bold block">{quickFreightModalProduct.category}</span>
+                </div>
+              </div>
+
+              {/* Informative banner */}
+              <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl text-sky-900 text-[11px] leading-relaxed">
+                📦 <strong>Importante:</strong> Estes dados são usados automaticamente pelo <strong>Melhor Envio</strong> e <strong>Correios</strong> no cálculo do frete por CEP no carrinho de compras e na emissão de etiquetas.
+              </div>
+
+              {/* Peso em KG */}
+              <div className="space-y-1 bg-sky-50/60 p-3 rounded-xl border border-sky-200">
+                <label className="text-sky-950 font-extrabold uppercase text-[10px] tracking-wide block">
+                  Peso Unitário (kg) *
+                </label>
+                <div className="relative">
+                  <input 
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    required
+                    autoFocus
+                    value={quickFreightForm.weight}
+                    onChange={(e) => setQuickFreightForm(prev => ({ ...prev, weight: parseFloat(e.target.value) || 0.01 }))}
+                    className="w-full px-3 py-2 bg-white border border-sky-300 rounded-lg text-sm font-mono font-extrabold text-sky-950 focus:outline-hidden focus:ring-2 focus:ring-sky-500 transition-all"
+                    placeholder="0.35"
+                  />
+                </div>
+                <span className="text-[9.5px] text-slate-500 font-sans block mt-0.5">
+                  Ex: 0.35 = 350 gramas | 0.20 = 200 gramas (peças leves como croppeds)
+                </span>
+              </div>
+
+              {/* Dimensões em CM */}
+              <div className="space-y-1.5">
+                <label className="text-slate-600 font-bold uppercase text-[9.5px] tracking-wide block">
+                  Dimensões do Pacote Embalado (cm)
+                </label>
+                <div className="grid grid-cols-3 gap-2.5">
+                  <div className="space-y-1">
+                    <span className="text-[8.5px] font-bold text-slate-500 uppercase block">Comprimento</span>
+                    <input 
+                      type="number"
+                      step="1"
+                      min="1"
+                      required
+                      value={quickFreightForm.length}
+                      onChange={(e) => setQuickFreightForm(prev => ({ ...prev, length: parseInt(e.target.value) || 1 }))}
+                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-mono font-bold text-xs focus:outline-hidden focus:border-sky-500 text-center"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[8.5px] font-bold text-slate-500 uppercase block">Largura</span>
+                    <input 
+                      type="number"
+                      step="1"
+                      min="1"
+                      required
+                      value={quickFreightForm.width}
+                      onChange={(e) => setQuickFreightForm(prev => ({ ...prev, width: parseInt(e.target.value) || 1 }))}
+                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-mono font-bold text-xs focus:outline-hidden focus:border-sky-500 text-center"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[8.5px] font-bold text-slate-500 uppercase block">Altura</span>
+                    <input 
+                      type="number"
+                      step="1"
+                      min="1"
+                      required
+                      value={quickFreightForm.height}
+                      onChange={(e) => setQuickFreightForm(prev => ({ ...prev, height: parseInt(e.target.value) || 1 }))}
+                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-mono font-bold text-xs focus:outline-hidden focus:border-sky-500 text-center"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => setQuickFreightModalProduct(null)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all cursor-pointer border-none text-center"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isSaving}
+                  className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl transition-all shadow-md shadow-sky-600/20 cursor-pointer border-none flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Salvando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={14} />
+                      <span>Salvar Frete Agora</span>
                     </>
                   )}
                 </button>

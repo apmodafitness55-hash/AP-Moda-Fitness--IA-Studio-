@@ -97,6 +97,8 @@ export interface Sale {
   partnerName?: string;
   partnerId?: string;
   partner?: string;
+  commissionRate?: number;
+  commissionAmount?: number;
   notes?: string;
 }
 

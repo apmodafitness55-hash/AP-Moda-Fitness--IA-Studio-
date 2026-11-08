@@ -58,7 +58,9 @@ import {
   Globe,
   Instagram,
   ExternalLink,
-  Check
+  Check,
+  Phone,
+  Package
 } from 'lucide-react';
 import ImageUploader from './ImageUploader';
 import CategoryBubblesManager from './CategoryBubblesManager';
@@ -99,8 +101,8 @@ interface SettingsSystemProps {
   onDeleteMotoboy?: (name: string) => void;
   teamMembers?: any[];
   onUpdateTeamMembers?: (updated: any[]) => void;
-  activeSubTab?: 'empresa' | 'integracoes' | 'seguranca' | 'roadmap' | 'vitrine' | 'diagnostico' | 'hardware';
-  setActiveSubTab?: (subTab: 'empresa' | 'integracoes' | 'seguranca' | 'roadmap' | 'vitrine' | 'diagnostico' | 'hardware') => void;
+  activeSubTab?: 'empresa' | 'frete' | 'integracoes' | 'seguranca' | 'roadmap' | 'vitrine' | 'diagnostico' | 'hardware';
+  setActiveSubTab?: (subTab: 'empresa' | 'frete' | 'integracoes' | 'seguranca' | 'roadmap' | 'vitrine' | 'diagnostico' | 'hardware') => void;
 }
 
 interface AuditLog {
@@ -133,7 +135,7 @@ export default function SettingsSystem({
   activeSubTab: propActiveSubTab,
   setActiveSubTab: propSetActiveSubTab
 }: SettingsSystemProps) {
-  const [internalActiveSubTab, setInternalActiveSubTab] = useState<'empresa' | 'integracoes' | 'seguranca' | 'roadmap' | 'vitrine' | 'diagnostico' | 'hardware'>('empresa');
+  const [internalActiveSubTab, setInternalActiveSubTab] = useState<'empresa' | 'frete' | 'integracoes' | 'seguranca' | 'roadmap' | 'vitrine' | 'diagnostico' | 'hardware'>('empresa');
   const activeSubTab = propActiveSubTab || internalActiveSubTab;
   const setActiveSubTab = propSetActiveSubTab || setInternalActiveSubTab;
 
@@ -461,7 +463,11 @@ export default function SettingsSystem({
     };
 
     window.addEventListener('ap-storage-synced', handleStorageSynced);
-    return () => window.removeEventListener('ap-storage-synced', handleStorageSynced);
+    window.addEventListener('store_config_updated', handleStorageSynced);
+    return () => {
+      window.removeEventListener('ap-storage-synced', handleStorageSynced);
+      window.removeEventListener('store_config_updated', handleStorageSynced);
+    };
   }, []);
 
   // Integrations states
@@ -1053,18 +1059,26 @@ export default function SettingsSystem({
   // Synchronize Settings to LocalStorage
   const handleSaveStoreSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem('ap_store_name', storeName);
-    localStorage.setItem('ap_commission_rate', sellerCommissionRate);
-    localStorage.setItem('ap_store_slogan', storeSlogan);
-    localStorage.setItem('ap_store_cnpj', storeCnpj);
-    localStorage.setItem('ap_store_address', storeAddress);
-    localStorage.setItem('ap_store_city', storeCity);
-    localStorage.setItem('ap_store_state', storeState);
-    localStorage.setItem('ap_store_phone', storePhone);
-    localStorage.setItem('ap_store_instagram', storeInstagram);
-    localStorage.setItem('ap_pix_key', storePixKey);
-    localStorage.setItem('ap_store_footer', storeFooter);
-    localStorage.setItem('ap_store_logo', storeLogoUrl);
+    const now = Date.now().toString();
+    const configEntries: Record<string, string> = {
+      ap_store_name: storeName,
+      ap_commission_rate: sellerCommissionRate,
+      ap_store_slogan: storeSlogan,
+      ap_store_cnpj: storeCnpj,
+      ap_store_address: storeAddress,
+      ap_store_city: storeCity,
+      ap_store_state: storeState,
+      ap_store_phone: storePhone,
+      ap_store_instagram: storeInstagram,
+      ap_pix_key: storePixKey,
+      ap_store_footer: storeFooter,
+      ap_store_logo: storeLogoUrl
+    };
+
+    for (const [k, v] of Object.entries(configEntries)) {
+      localStorage.setItem(k, v);
+      localStorage.setItem(`ap_config_saved_at_${k}`, now);
+    }
 
     // Keep ap_moda_payment_config and ap_moda_company_info updated as well
     try {
@@ -1621,7 +1635,18 @@ export default function SettingsSystem({
               : 'border-transparent text-slate-450 hover:text-slate-700'}`}
         >
           <Sliders size={14} />
-          <span>Dados da Boutique & Logo</span>
+          <span>Dados da Boutique & Telefone</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('frete')}
+          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
+            ${activeSubTab === 'frete' 
+              ? 'border-pink-600 text-pink-600' 
+              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+        >
+          <Truck size={14} />
+          <span>Frete, Motoboy & Entregas 🚚</span>
         </button>
         <button
           type="button"
@@ -1697,12 +1722,36 @@ export default function SettingsSystem({
           
           {/* Main Edit Profile Form */}
           <div className="lg:col-span-2 bg-white border border-slate-100 rounded-2xl shadow-xs p-5">
-            <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-1.5 pb-2 border-b border-slate-50">
-              <MapPin size={16} className="text-pink-600" />
-              <span>Perfil Institucional e Comprovantes</span>
-            </h3>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                <MapPin size={16} className="text-pink-600" />
+                <span>Perfil Institucional e Comprovantes</span>
+              </h3>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('frete')}
+                  className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="Configurar taxas de motoboy e regras de frete"
+                >
+                  <Truck size={13} className="text-sky-600" />
+                  <span>Configurar Frete & Motoboy</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    const form = document.getElementById('store-settings-form') as HTMLFormElement;
+                    if (form) form.requestSubmit();
+                  }}
+                  className="px-4 py-1.5 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white font-bold text-xs rounded-xl shadow-md shadow-pink-600/20 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Save size={13} />
+                  <span>Salvar Dados Agora</span>
+                </button>
+              </div>
+            </div>
 
-            <form onSubmit={handleSaveStoreSettings} className="space-y-4">
+            <form id="store-settings-form" onSubmit={handleSaveStoreSettings} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-slate-405 font-semibold mb-1">Razão Social / Nome da Loja</label>
@@ -1776,15 +1825,45 @@ export default function SettingsSystem({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-405 font-semibold mb-1">WhatsApp de Contato</label>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-pink-900 font-extrabold uppercase text-[9.5px] tracking-wide flex items-center gap-1">
+                      <Phone size={12} className="text-pink-600" />
+                      <span>WhatsApp Oficial de Atendimento *</span>
+                    </label>
+                    <div className="flex items-center gap-2 text-[10px]">
+                      {storePhone && (
+                        <a
+                          href={`https://wa.me/${storePhone.replace(/\D/g, '')}?text=Teste%20AP2`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-emerald-700 hover:underline font-bold flex items-center gap-0.5"
+                          title="Testar conversa no WhatsApp"
+                        >
+                          <span>Testar</span>
+                          <ExternalLink size={9} />
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setStorePhone('(84) 99198-2963')}
+                        className="text-pink-600 hover:underline font-bold bg-transparent border-0 cursor-pointer p-0"
+                      >
+                        Padrão AP2
+                      </button>
+                    </div>
+                  </div>
                   <input
                     type="text"
                     required
                     value={storePhone}
                     onChange={(e) => setStorePhone(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2.5 font-medium text-slate-755 focus:outline-hidden font-mono"
+                    placeholder="(84) 99198-2963"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800 focus:outline-hidden font-mono text-xs focus:border-pink-500"
                   />
+                  <p className="text-[9px] text-slate-400">
+                    Utilizado no catálogo, no fechamento de pedidos e nos botões de atendimento de todo o site.
+                  </p>
                 </div>
                 <div>
                   <label className="block text-slate-405 font-semibold mb-1">Chave Pix de Recebimento</label>
@@ -2214,6 +2293,247 @@ export default function SettingsSystem({
             </div>
           </div>
 
+        </div>
+      )}
+
+      {/* Sub-tab: Frete & Entregas (Dedicated Notebook-Friendly Freight Dashboard) */}
+      {activeSubTab === 'frete' && (
+        <div className="space-y-6 font-sans text-xs">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-sky-600 via-indigo-600 to-pink-600 text-white rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0">
+                <Truck size={24} className="text-white" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold tracking-tight">Gestão Central de Frete & Entregas</h3>
+                <p className="text-sky-100 text-xs">
+                  Ajuste taxas de motoboy por região, integração com Melhor Envio e regras de frete da loja
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleRestoreDefaultRegions}
+                className="px-3.5 py-2 bg-white/10 hover:bg-white/20 border border-white/25 text-white font-bold rounded-xl text-xs transition cursor-pointer backdrop-blur-xs"
+              >
+                Restaurar Padrão Natal
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Coluna 1 e 2: Taxas e Regiões de Motoboy */}
+            <div className="lg:col-span-2 bg-white border border-slate-150 rounded-2xl shadow-xs p-5 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div>
+                  <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
+                    <Truck size={17} className="text-pink-600" />
+                    <span>Taxas de Entrega por Motoboy (Bairros e Cidades)</span>
+                  </h4>
+                  <p className="text-slate-400 text-[11px] mt-0.5">
+                    Estas regiões aparecem automaticamente para o cliente escolher na finalização da compra no site.
+                  </p>
+                </div>
+                <span className="text-[10px] font-mono font-bold bg-pink-50 text-pink-700 px-2.5 py-1 rounded-lg border border-pink-200">
+                  {motoboyRegions.length} Regiões Ativas
+                </span>
+              </div>
+
+              {/* Form to Add/Edit Region */}
+              <form onSubmit={handleSaveRegion} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-slate-700 text-xs uppercase tracking-wide">
+                    {editingRegionId ? '📝 Editar Taxa da Região' : '➕ Cadastrar Nova Região de Entrega'}
+                  </span>
+                  {editingRegionId && (
+                    <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-md">
+                      Modo Edição
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-slate-600 font-bold text-[10px] uppercase mb-1">Cidade</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={newRegionCity}
+                      onChange={(e) => setNewRegionCity(e.target.value)}
+                      placeholder="Ex: Natal ou Parnamirim"
+                      className="w-full bg-white border border-slate-200 rounded-lg p-2 font-medium focus:outline-hidden focus:border-pink-500 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 font-bold text-[10px] uppercase mb-1">Bairro(s) ou Área de Abrangência</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={newRegionName}
+                      onChange={(e) => setNewRegionName(e.target.value)}
+                      placeholder="Ex: Zona Sul (Capim Macio, Ponta Negra)"
+                      className="w-full bg-white border border-slate-200 rounded-lg p-2 font-medium focus:outline-hidden focus:border-pink-500 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 font-bold text-[10px] uppercase mb-1">Taxa do Motoboy (R$)</label>
+                    <input 
+                      type="number" 
+                      required
+                      min="0"
+                      step="0.01"
+                      value={newRegionPrice}
+                      onChange={(e) => setNewRegionPrice(Number(e.target.value))}
+                      placeholder="Ex: 15.00"
+                      className="w-full bg-white border border-slate-200 rounded-lg p-2 font-mono font-bold text-slate-800 focus:outline-hidden focus:border-pink-500 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 justify-end pt-1">
+                  {editingRegionId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingRegionId(null);
+                        setNewRegionCity('Natal');
+                        setNewRegionName('');
+                        setNewRegionPrice(15);
+                      }}
+                      className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-lg text-xs transition cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-lg text-xs transition cursor-pointer shadow-sm shadow-pink-500/20 flex items-center gap-1.5"
+                  >
+                    <Check size={14} />
+                    <span>{editingRegionId ? 'Atualizar Taxa' : 'Salvar Região'}</span>
+                  </button>
+                </div>
+              </form>
+
+              {/* Table list of Regions */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white max-h-96 overflow-y-auto">
+                <table className="w-full border-collapse text-left text-xs font-sans">
+                  <thead className="sticky top-0 bg-slate-100 z-10">
+                    <tr className="text-slate-600 font-bold border-b border-slate-200 uppercase text-[9px] tracking-wider">
+                      <th className="p-3">Cidade</th>
+                      <th className="p-3">Região / Bairro</th>
+                      <th className="p-3 text-right">Taxa Motoboy</th>
+                      <th className="p-3 text-center">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {motoboyRegions.map((reg) => (
+                      <tr key={reg.id} className="hover:bg-slate-50/70 font-medium text-slate-700">
+                        <td className="p-3 font-bold text-slate-900">{reg.city}</td>
+                        <td className="p-3">{reg.name}</td>
+                        <td className="p-3 text-right font-mono font-bold text-emerald-700 text-sm">
+                          {Number(reg.price) === 0 ? 'A Combinar' : `R$ ${Number(reg.price).toFixed(2)}`}
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleEditRegion(reg)}
+                              className="p-1.5 text-slate-500 hover:text-pink-600 hover:bg-pink-50 rounded-md transition cursor-pointer"
+                              title="Editar região"
+                            >
+                              <Edit size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteRegion(reg.id)}
+                              className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-md transition cursor-pointer"
+                              title="Excluir região"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Coluna 3: Melhor Envio & Políticas de Frete */}
+            <div className="space-y-5">
+              {/* Card Melhor Envio */}
+              <div className="bg-white border border-slate-150 rounded-2xl shadow-xs p-5 space-y-3.5">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                  <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5">
+                    <Package size={16} className="text-sky-600" />
+                    <span>Melhor Envio (Correios & Fretes)</span>
+                  </h4>
+                  <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full ${melhorEnvioToken ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-650'}`}>
+                    {melhorEnvioToken ? 'Conectado' : 'Chave Opcional'}
+                  </span>
+                </div>
+
+                <p className="text-slate-400 text-[11px] leading-relaxed">
+                  Permite cotação instantânea de PAC, SEDEX e Jadlog por CEP em todo o Brasil diretamente no carrinho.
+                </p>
+
+                <div className="space-y-1.5">
+                  <label className="text-slate-600 font-bold uppercase text-[9.5px] block">Token API / Chave de Acesso</label>
+                  <input
+                    type="password"
+                    value={melhorEnvioToken}
+                    onChange={(e) => {
+                      setMelhorEnvioToken(e.target.value);
+                      localStorage.setItem('ap_melhor_envio_token', e.target.value.trim());
+                      pushSystemConfigToSupabase('ap_melhor_envio_token', e.target.value.trim());
+                    }}
+                    placeholder="Cole seu token do Melhor Envio..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-mono font-medium focus:outline-hidden focus:border-sky-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <span className="text-slate-700 font-bold text-xs">Modo Sandbox (Testes)</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !melhorEnvioSandbox;
+                      setMelhorEnvioSandbox(next);
+                      localStorage.setItem('ap_melhor_envio_sandbox', String(next));
+                      pushSystemConfigToSupabase('ap_melhor_envio_sandbox', String(next));
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${melhorEnvioSandbox ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-slate-200 text-slate-700 border-slate-300'}`}
+                  >
+                    {melhorEnvioSandbox ? 'Ativo (Sandbox)' : 'Desativado (Produção)'}
+                  </button>
+                </div>
+
+                <div className="p-3 bg-sky-50 rounded-xl border border-sky-200 text-[11px] text-sky-950 leading-relaxed">
+                  💡 <strong>CEP de Origem da Loja:</strong> As cotações são calculadas partindo do CEP de São José de Mipibu / Natal (RN). Para alterar o endereço físico de expedição, acerte na aba "Dados da Boutique".
+                </div>
+              </div>
+
+              {/* Guia Rápido de Dimensões dos Produtos */}
+              <div className="bg-white border border-slate-150 rounded-2xl shadow-xs p-5 space-y-3">
+                <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5 pb-2 border-b border-slate-100">
+                  <Sparkles size={16} className="text-pink-600" />
+                  <span>Dica de Frete para os Produtos</span>
+                </h4>
+                <p className="text-slate-500 text-[11px] leading-relaxed">
+                  Para que os Correios e o Melhor Envio calculem o frete perfeitamente:
+                </p>
+                <ul className="space-y-1.5 text-[11px] text-slate-600 list-disc pl-4">
+                  <li><strong>Peso padrão fitness:</strong> ~0.35 kg (350 gramas por legging ou conjunto).</li>
+                  <li><strong>Dimensões pacote padrão:</strong> 25cm (comprimento) x 20cm (largura) x 5cm (altura).</li>
+                  <li>Você pode ajustar peso e dimensões individuais clicando no botão <strong>"Frete"</strong> direto na tabela de produtos!</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

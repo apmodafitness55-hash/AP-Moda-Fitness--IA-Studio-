@@ -2620,6 +2620,13 @@ app.post('/api/proxy/sales', async (req, res) => {
 
     const { error } = await db.from('ap_sales').upsert(payloads, { onConflict: 'id' });
     if (error) console.warn('[Proxy Sales POST Supabase]', error.message);
+
+    for (const item of raw) {
+      if (item && item.id) {
+        broadcastRealtimeNotification('NEW_SALE', item);
+      }
+    }
+
     res.json({ success: true });
   } catch (err: any) {
     console.error('[Proxy Sales POST] Erro:', err);
@@ -2676,6 +2683,55 @@ app.post('/api/proxy/transactions', async (req, res) => {
     res.status(500).json({ error: err.message || 'Erro ao sincronizar transações.' });
   }
 });
+
+// ==========================================
+// REAL-TIME NOTIFICATIONS STREAM (Server-Sent Events)
+// Instant order & sale delivery to all active store devices in <500ms
+// ==========================================
+const orderSseClients = new Set<express.Response>();
+
+app.get('/api/stream/orders', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (typeof (res as any).flushHeaders === 'function') {
+    (res as any).flushHeaders();
+  }
+
+  orderSseClients.add(res);
+  console.log(`[SSE Stream] Novo dispositivo conectado para notificações em tempo real. Total ativos: ${orderSseClients.size}`);
+
+  res.write(`data: ${JSON.stringify({ type: 'CONNECTED', timestamp: Date.now() })}\n\n`);
+
+  req.on('close', () => {
+    orderSseClients.delete(res);
+    console.log(`[SSE Stream] Conexão encerrada. Total ativos restantes: ${orderSseClients.size}`);
+  });
+});
+
+// Periodic ping to keep SSE connections alive across proxies and firewalls
+setInterval(() => {
+  for (const client of orderSseClients) {
+    try {
+      client.write(': ping\n\n');
+    } catch (e) {
+      orderSseClients.delete(client);
+    }
+  }
+}, 20000);
+
+export function broadcastRealtimeNotification(eventType: 'NEW_ORDER' | 'NEW_SALE', data: any) {
+  const payload = JSON.stringify({ type: eventType, data, timestamp: Date.now() });
+  console.log(`[SSE Broadcast] Transmitindo alerta "${eventType}" para ${orderSseClients.size} dispositivo(s)...`);
+  for (const client of orderSseClients) {
+    try {
+      client.write(`data: ${payload}\n\n`);
+    } catch (e) {
+      orderSseClients.delete(client);
+    }
+  }
+}
 
 // Proxy for Online Orders
 app.get(['/api/proxy/online-orders', '/api/proxy/online_orders'], async (req, res) => {
@@ -2736,6 +2792,14 @@ app.post(['/api/proxy/online-orders', '/api/proxy/online_orders'], async (req, r
 
     const { error } = await db.from('ap_online_orders').upsert(payloads, { onConflict: 'id' });
     if (error) console.warn('[Proxy Online Orders POST Supabase]', error.message);
+
+    // Broadcast new order immediately to all active store devices via SSE
+    for (const item of raw) {
+      if (item && item.id) {
+        broadcastRealtimeNotification('NEW_ORDER', item);
+      }
+    }
+
     res.json({ success: true });
   } catch (err: any) {
     console.error('[Proxy Online Orders POST] Erro:', err);
@@ -3332,6 +3396,26 @@ app.post('/api/proxy/products', async (req, res) => {
 
     const { error } = await db.from('ap_products').upsert(finalPayloads, { onConflict: 'id' });
     if (error) throw error;
+
+    // Keep local_db.json cache in sync so local fallback is never stale or empty
+    try {
+      const local = readLocalDb();
+      if (local && Array.isArray(local.ap_products)) {
+        for (const p of items) {
+          if (!p || !p.id) continue;
+          const idx = local.ap_products.findIndex((lp: any) => lp && String(lp.id) === String(p.id));
+          if (idx >= 0) {
+            local.ap_products[idx] = { ...local.ap_products[idx], ...p };
+          } else {
+            local.ap_products.push(p);
+          }
+        }
+        writeLocalDb(local);
+      }
+    } catch (localDbErr) {
+      console.warn('[Proxy Products POST] Warning writing local cache:', localDbErr);
+    }
+
     res.json({ success: true });
   } catch (err: any) {
     console.error('[Proxy Products POST] Erro:', err);

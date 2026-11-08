@@ -20,12 +20,13 @@ import {
   Sun,
   Moon,
   CloudLightning,
-  Phone
+  Phone,
+  Truck
 } from 'lucide-react';
 
 import { ActiveTab, Product, Sale, Client, Transaction } from './types';
 import { INITIAL_PRODUCTS, INITIAL_CLIENTS, INITIAL_SALES, INITIAL_TRANSACTIONS, INITIAL_TEAM_MEMBERS, INITIAL_ONLINE_ORDERS } from './data/mockData';
-import { playSaleSuccessSound, playNotificationSound } from './lib/audioFeedback';
+import { playSaleSuccessSound, playOrderAlarmSound, playNotificationSound, unlockAudioContext } from './lib/audioFeedback';
 import { getStoredPartnerWithdrawRequests, syncPartnerWithdrawRequestsWithServer, PartnerWithdrawRequest } from './utils/partnerUtils';
 
 import Sidebar from './components/Sidebar';
@@ -54,6 +55,7 @@ import SellerDashboard from './components/SellerDashboard';
 import SuppliersManagement from './components/SuppliersManagement';
 import StorefrontPaymentConfig from './components/StorefrontPaymentConfig';
 import ErrorBoundary from './components/ErrorBoundary';
+import { PWAInstallButton } from './components/PWAInstallButton';
 import { 
   getSupabaseConfig, 
   getSupabaseClient,
@@ -107,7 +109,7 @@ export default function App() {
   const [lojaOnlineSubTab, setLojaOnlineSubTab] = useState<'compartilhar' | 'cupons' | 'vitrine' | 'recuperacao' | 'marketing'>('compartilhar');
   const [aiAgentsHubSubTab, setAiAgentsHubSubTab] = useState<'descritor' | 'estilista' | 'whatsapp' | 'sentinela' | 'campanha' | 'consultoria' | 'tradutor' | 'precificador'>('descritor');
   const [googleWorkspaceSubTab, setGoogleWorkspaceSubTab] = useState<'agenda' | 'tarefas' | 'docs' | 'gmail' | 'sheets' | 'drive' | 'config'>('config');
-  const [settingsSystemSubTab, setSettingsSystemSubTab] = useState<'empresa' | 'integracoes' | 'seguranca' | 'roadmap' | 'vitrine'>('empresa');
+  const [settingsSystemSubTab, setSettingsSystemSubTab] = useState<'empresa' | 'frete' | 'integracoes' | 'seguranca' | 'roadmap' | 'vitrine' | 'diagnostico' | 'hardware'>('empresa');
 
   // Controle de Usuários e Acessos (Equipe)
   // Controle de Usuários e Acessos (Equipe)
@@ -425,11 +427,17 @@ export default function App() {
   };
 
   const isCustomerView = useMemo(() => {
-    // Force admin view if "?admin=true" or if on "/painel" or "/admin" paths
-    if (window.location.search.includes('admin=true')) {
+    // Force non-customer view if admin, driver, or partner routes
+    if (window.location.search.includes('admin=true') || window.location.search.includes('portal=')) {
       return false;
     }
-    if (currentPath === '/painel' || currentPath === '/admin') {
+    if (currentPath === '/painel' || currentPath === '/admin' || currentPath === '/login') {
+      return false;
+    }
+    if (currentPath === '/entregador' || currentPath === '/motoboy' || currentPath === '/driver') {
+      return false;
+    }
+    if (currentPath === '/parceiro' || currentPath === '/influenciador' || currentPath === '/influencer') {
       return false;
     }
     // Default to customer view on root "/" or any other paths
@@ -669,6 +677,59 @@ export default function App() {
   } | null>(null);
 
   const alertedSaleIdsRef = useRef<Set<string>>(new Set());
+  const hasInitializedAlertedIdsRef = useRef(false);
+
+  // Urgent Order Modal state - centers on screen with sound alarm until dismissed
+  const [urgentOrderAlert, setUrgentOrderAlert] = useState<{
+    id: string;
+    clientName: string;
+    total: number;
+    phone?: string;
+    address?: string;
+    deliveryMethod?: string;
+    items?: any[];
+    source?: string;
+    paymentMethod?: string;
+    createdAt?: string;
+  } | null>(null);
+
+  // Repeating audio chime while urgentOrderAlert is active (ensures staff hears from across the room)
+  useEffect(() => {
+    if (!urgentOrderAlert) return;
+    try {
+      playOrderAlarmSound();
+    } catch (e) {}
+
+    const interval = setInterval(() => {
+      try {
+        playOrderAlarmSound();
+      } catch (e) {}
+    }, 7500);
+
+    return () => clearInterval(interval);
+  }, [urgentOrderAlert]);
+
+  // Seed alerted IDs on startup so existing orders don't blast alarms on boot
+  useEffect(() => {
+    if (!hasInitializedAlertedIdsRef.current) {
+      const initialIds = new Set<string>();
+      try {
+        const storedSales = localStorage.getItem('ap_moda_sales');
+        if (storedSales) {
+          const parsed = JSON.parse(storedSales);
+          if (Array.isArray(parsed)) parsed.forEach((s: any) => s && s.id && initialIds.add(s.id));
+        }
+        const storedOrders = localStorage.getItem('ap_moda_online_orders');
+        if (storedOrders) {
+          const parsed = JSON.parse(storedOrders);
+          if (Array.isArray(parsed)) parsed.forEach((o: any) => o && o.id && initialIds.add(o.id));
+        }
+      } catch (e) {}
+      alertedSaleIdsRef.current = initialIds;
+      hasInitializedAlertedIdsRef.current = true;
+    }
+  }, []);
+
   const [newWithdrawToast, setNewWithdrawToast] = useState<{
     id: string;
     partnerName: string;
@@ -697,14 +758,15 @@ export default function App() {
   });
 
   const handleRequestNotificationPermission = async () => {
+    unlockAudioContext();
     if (typeof window !== 'undefined' && 'Notification' in window) {
       try {
         const res = await Notification.requestPermission();
         setNotificationPermission(res);
         if (res === 'granted') {
-          playSaleSuccessSound();
-          new Notification('🎉 Notificações de Venda Ativas!', {
-            body: 'Tudo pronto! Você receberá avisos sonoros e na tela sempre que uma venda for realizada na sua loja virtual.',
+          playOrderAlarmSound();
+          new Notification('🎉 Notificações de Venda Ativas! - AP Moda Fitness', {
+            body: 'Tudo pronto! Você receberá avisos sonoros e alertas na tela sempre que uma venda for realizada na sua loja virtual.',
             icon: '/icon.png'
           });
         } else if (res === 'denied') {
@@ -718,7 +780,14 @@ export default function App() {
     }
   };
 
-  const triggerSaleAlert = useCallback((saleData: { id: string; clientName: string; total: number; source?: string; itemsCount?: number }) => {
+  const triggerSaleAlert = useCallback((saleData: { 
+    id: string; 
+    clientName: string; 
+    total: number; 
+    source?: string; 
+    itemsCount?: number;
+    orderData?: any;
+  }) => {
     if (!saleData || !saleData.id) return;
 
     // Deduplicate alerts for the same sale ID
@@ -727,19 +796,19 @@ export default function App() {
     }
     alertedSaleIdsRef.current.add(saleData.id);
 
-    // 1. Play loud, cheerful cash-register chime sound
+    // 1. Play loud, cheerful order alert sound
     try {
-      playSaleSuccessSound();
+      playOrderAlarmSound();
     } catch (err) {
-      console.warn('Could not play sale chime sound:', err);
+      console.warn('Could not play order alarm sound:', err);
     }
 
     // 2. Desktop Web Push Notification
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
       try {
         const formattedValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(saleData.total || 0);
-        const notification = new Notification('🎉 Nova Venda na AP Moda Fitness!', {
-          body: `Cliente: ${saleData.clientName || 'Cliente'}\nValor: ${formattedValue} (${saleData.source || 'Loja Virtual'})\nClique para visualizar no painel de logística.`,
+        const notification = new Notification('🚨 NOVO PEDIDO RECEBIDO! - AP Moda Fitness', {
+          body: `📦 Cliente: ${saleData.clientName || 'Cliente'}\n💰 Valor: ${formattedValue} (${saleData.source || 'Site'})\nToque aqui para abrir a logística e preparar o envio!`,
           icon: '/icon.png',
           tag: `sale-${saleData.id}`,
           requireInteraction: true
@@ -747,6 +816,7 @@ export default function App() {
         notification.onclick = () => {
           window.focus();
           setActiveTab(ActiveTab.PEDIDOS);
+          setUrgentOrderAlert(null);
         };
       } catch (e) {
         console.warn('Failed to display web notification:', e);
@@ -760,13 +830,13 @@ export default function App() {
       const interval = setInterval(() => {
         count++;
         document.title = (count % 2 === 0) 
-          ? `🔔 (1 NOVA VENDA!) AP Moda Fitness` 
-          : `🛍️ R$ ${(saleData.total || 0).toFixed(2)} - Novo Pedido!`;
-        if (count >= 14) {
+          ? `🚨 (NOVO PEDIDO NO SITE!) AP Moda Fitness` 
+          : `📦 R$ ${(saleData.total || 0).toFixed(2)} - PREPARAR ENVIO!`;
+        if (count >= 20) {
           clearInterval(interval);
           document.title = originalTitle;
         }
-      }, 900);
+      }, 800);
 
       const resetTitle = () => {
         clearInterval(interval);
@@ -778,23 +848,42 @@ export default function App() {
       window.addEventListener('click', resetTitle);
     }
 
-    // 4. Floating On-Screen Toast Alert
+    // 4. Center-Screen Urgent Order Alert Modal
+    const orderInfo = saleData.orderData;
+    let itemsList: any[] = [];
+    if (orderInfo && orderInfo.items) {
+      itemsList = typeof orderInfo.items === 'string' ? JSON.parse(orderInfo.items) : orderInfo.items;
+    }
+    setUrgentOrderAlert({
+      id: saleData.id,
+      clientName: saleData.clientName,
+      total: saleData.total,
+      phone: orderInfo?.phone || '',
+      address: orderInfo?.address || '',
+      deliveryMethod: orderInfo?.deliveryMethod || orderInfo?.selectedFreightName || 'Envio / Entrega',
+      items: itemsList,
+      source: saleData.source || 'Loja Virtual',
+      paymentMethod: orderInfo?.paymentMethod || 'Online',
+      createdAt: orderInfo?.createdAt || new Date().toISOString()
+    });
+
+    // 5. Floating On-Screen Toast Alert
     setNewSaleToast(saleData);
     setTimeout(() => {
       setNewSaleToast(prev => (prev?.id === saleData.id ? null : prev));
     }, 15000);
 
-    // 5. System Notification List Item
+    // 6. System Notification List Item
     const newNotify = {
       id: Date.now(),
-      title: `🎉 Nova Venda: ${saleData.source || 'Loja Virtual'}!`,
-      detail: `${saleData.clientName || 'Cliente'} comprou R$ ${(saleData.total || 0).toFixed(2)}. Pedido gravado na aba Logística.`,
+      title: `🚨 NOVO PEDIDO NO SITE: ${saleData.clientName || 'Cliente'}!`,
+      detail: `${saleData.clientName || 'Cliente'} comprou R$ ${(saleData.total || 0).toFixed(2)}. Pedido gravado na aba Logística para envio.`,
       read: false,
       type: 'sale' as const
     };
     setNotifications(prev => [newNotify, ...prev]);
 
-    // 6. WhatsApp Business API notification trigger
+    // 7. WhatsApp Business API notification trigger
     triggerWhatsAppAlert('sale_completed', saleData);
   }, []);
 
@@ -1903,6 +1992,7 @@ export default function App() {
   const handleUpdateProductsList = useCallback(async (updatedList: Product[] | ((prev: Product[]) => Product[])) => {
     setProducts(prev => {
       const newList = typeof updatedList === 'function' ? updatedList(prev) : updatedList;
+      lastProductsRef.current = newList;
       try {
         localStorage.setItem('ap_moda_products', JSON.stringify(newList));
       } catch (e) {}
@@ -2207,15 +2297,48 @@ export default function App() {
             merged.push(dbP);
             localModified = true;
           } else if (!dirtyProducts.includes(dbP.id)) {
-            if (JSON.stringify(localP) !== JSON.stringify(dbP)) {
+            // SAFE INTELLIGENT MERGE:
+            // 1. Image Protection: Never wipe local images if remote returned empty/missing images
+            const localHasImages = (Array.isArray(localP.images) && localP.images.length > 0) || (Boolean(localP.image) && localP.image.trim() !== '');
+            const remoteHasImages = (Array.isArray(dbP.images) && dbP.images.length > 0) || (Boolean(dbP.image) && dbP.image.trim() !== '');
+
+            const safeDbP = { ...dbP };
+            let queueToUpload = false;
+
+            if (localHasImages && !remoteHasImages) {
+              safeDbP.image = localP.image;
+              safeDbP.images = localP.images || (localP.image ? [localP.image] : []);
+              queueToUpload = true;
+            } else if (localHasImages && remoteHasImages) {
+              if (!safeDbP.image && localP.image) safeDbP.image = localP.image;
+              if ((!safeDbP.images || safeDbP.images.length === 0) && localP.images && localP.images.length > 0) {
+                safeDbP.images = localP.images;
+              }
+            }
+
+            // 2. Zero-Stock Protection: If user zeroed stock locally (out of stock), never revive phantom stock from db
+            if (localP.stock === 0 && dbP.stock > 0) {
+              safeDbP.stock = 0;
+              queueToUpload = true;
+            }
+
+            if (queueToUpload) {
+              const currentDirty = getDirtyIds('ap_dirty_products');
+              if (!currentDirty.includes(localP.id)) {
+                saveDirtyIds('ap_dirty_products', [...currentDirty, localP.id]);
+              }
+            }
+
+            if (JSON.stringify(localP) !== JSON.stringify(safeDbP)) {
               const idx = merged.findIndex(x => x.id === dbP.id);
-              if (idx >= 0) merged[idx] = dbP;
+              if (idx >= 0) merged[idx] = safeDbP;
               localModified = true;
             }
           }
         }
 
-        const toUpload = currentProducts.filter(lp => lp && dirtyProducts.includes(lp.id) && !deletedProductsList.includes(lp.id));
+        const activeDirtyProducts = getDirtyIds('ap_dirty_products');
+        const toUpload = merged.filter(lp => lp && activeDirtyProducts.includes(lp.id) && !deletedProductsList.includes(lp.id));
         if (toUpload.length > 0) {
           const success = await syncBulkProductsToSupabase(toUpload);
           if (success) {
@@ -2353,6 +2476,15 @@ export default function App() {
           if (!localS) {
             merged.push(effectiveDbS);
             localModified = true;
+            if (hasInitializedAlertedIdsRef.current && !alertedSaleIdsRef.current.has(dbS.id)) {
+              triggerSaleAlert({
+                id: dbS.id,
+                clientName: dbS.clientName || 'Cliente',
+                total: Number(dbS.total || 0),
+                source: dbS.channel || 'Loja Virtual / PDV',
+                itemsCount: Array.isArray(dbS.items) ? dbS.items.length : 1
+              });
+            }
           } else if (!remainingDirty.includes(dbS.id)) {
             if (JSON.stringify(localS) !== JSON.stringify(effectiveDbS)) {
               const idx = merged.findIndex(x => x.id === dbS.id);
@@ -2430,6 +2562,61 @@ export default function App() {
           if (!localO) {
             merged.push(dbO);
             localModified = true;
+            if (hasInitializedAlertedIdsRef.current && !alertedSaleIdsRef.current.has(dbO.id)) {
+              triggerSaleAlert({
+                id: dbO.id,
+                clientName: dbO.clientName || 'Cliente Online',
+                total: Number(dbO.total || 0),
+                source: 'Loja Virtual (Site)',
+                itemsCount: Array.isArray(dbO.items) ? dbO.items.length : 1,
+                orderData: dbO
+              });
+            }
+
+            // Automate into sales and transactions on admin notebook
+            setSales(prevSales => {
+              if (prevSales.some(s => s.id === dbO.id)) return prevSales;
+              const autoSale: Sale = {
+                id: dbO.id,
+                clientName: dbO.clientName || 'Cliente Online',
+                clientDoc: dbO.cpf || '',
+                channel: 'Loja Online',
+                items: (dbO.items || []).map((it: any) => ({
+                  productId: it.productId || `p-${Date.now()}`,
+                  name: it.productName || 'Peça Fitness',
+                  quantity: Number(it.quantity || 1),
+                  price: Number(it.price || 0),
+                  cost: Math.round(Number(it.price || 0) * 0.45)
+                })),
+                total: Number(dbO.total || 0),
+                costTotal: (dbO.items || []).reduce((acc: number, it: any) => acc + (Math.round(Number(it.price || 0) * 0.45) * Number(it.quantity || 1)), 0),
+                status: 'Concluída',
+                createdAt: dbO.createdAt || new Date().toISOString(),
+                payments: [{ method: dbO.paymentMethod || 'Pix/Cartão Online', amount: Number(dbO.total || 0) }],
+                salesperson: dbO.motoboy || 'Loja Virtual',
+                partner: dbO.partner || dbO.partnerName,
+                partnerName: dbO.partnerName || dbO.partner,
+                partnerId: dbO.partnerId,
+                partnerCoupon: dbO.partnerCoupon || dbO.couponCode,
+                commissionRate: dbO.commissionRate,
+                commissionAmount: dbO.commissionAmount,
+                couponCode: dbO.couponCode || dbO.coupon
+              };
+              return [autoSale, ...prevSales];
+            });
+
+            setTransactions(prevTx => {
+              if (prevTx.some(t => t.id === `tx-${dbO.id}` || t.description?.includes(dbO.id))) return prevTx;
+              const autoTx: Transaction = {
+                id: `tx-${dbO.id}`,
+                type: 'Inflow',
+                category: 'Venda Online',
+                description: `Pedido Loja Virtual #${dbO.id.toUpperCase()} - ${dbO.clientName} (${dbO.paymentMethod || 'Pix/Cartão'})`,
+                amount: Number(dbO.total || 0),
+                date: dbO.createdAt || new Date().toISOString()
+              };
+              return [autoTx, ...prevTx];
+            });
           } else if (!dirtyOrders.includes(dbO.id)) {
             if (JSON.stringify(localO) !== JSON.stringify(dbO)) {
               const idx = merged.findIndex(x => x.id === dbO.id);
@@ -2578,6 +2765,91 @@ export default function App() {
       window.removeEventListener('focus', handleFocus);
     };
   }, [systemOffline, performSync]);
+
+  // Conexão em Tempo Real (SSE) para Recepção Instantânea de Novos Pedidos e Vendas (<500ms)
+  useEffect(() => {
+    if (typeof window === 'undefined' || systemOffline) return;
+
+    let eventSource: EventSource | null = null;
+    let reconnectTimer: any = null;
+
+    const connectOrderStream = () => {
+      try {
+        eventSource = new EventSource('/api/stream/orders');
+
+        eventSource.onopen = () => {
+          console.log('[SSE Stream] Conectado ao canal de transmissão ao vivo de pedidos e vendas!');
+        };
+
+        eventSource.onmessage = (event) => {
+          try {
+            if (!event.data || event.data.trim() === '') return;
+            const payload = JSON.parse(event.data);
+
+            if (payload.type === 'NEW_ORDER' && payload.data) {
+              const order = payload.data;
+              console.log('[SSE Stream] Alerta instantâneo de NOVO PEDIDO recebido:', order);
+
+              // Atualiza lista local de pedidos
+              setOnlineOrders(prev => {
+                if (prev.some(o => o.id === order.id)) return prev;
+                return [order, ...prev];
+              });
+
+              // Dispara alarme sonoro, notificação web push e modal de preparação de envio
+              triggerSaleAlert({
+                id: order.id,
+                clientName: order.clientName || order.clientname || 'Cliente da Loja Virtual',
+                total: Number(order.total || 0),
+                source: 'Loja Virtual (Site)',
+                itemsCount: Array.isArray(order.items) ? order.items.length : 1,
+                orderData: order
+              });
+            } else if (payload.type === 'NEW_SALE' && payload.data) {
+              const sale = payload.data;
+              console.log('[SSE Stream] Alerta instantâneo de NOVA VENDA recebido:', sale);
+
+              setSales(prev => {
+                if (prev.some(s => s.id === sale.id)) return prev;
+                return [sale, ...prev];
+              });
+
+              triggerSaleAlert({
+                id: sale.id,
+                clientName: sale.clientName || 'Cliente',
+                total: Number(sale.total || 0),
+                source: sale.channel || 'PDV / Loja Virtual',
+                itemsCount: Array.isArray(sale.items) ? sale.items.length : 1
+              });
+            }
+          } catch (err) {
+            console.warn('[SSE Stream] Erro ao processar mensagem do servidor:', err);
+          }
+        };
+
+        eventSource.onerror = () => {
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+          }
+          clearTimeout(reconnectTimer);
+          reconnectTimer = setTimeout(connectOrderStream, 4000);
+        };
+      } catch (err) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(connectOrderStream, 4000);
+      }
+    };
+
+    connectOrderStream();
+
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+      clearTimeout(reconnectTimer);
+    };
+  }, [systemOffline, triggerSaleAlert]);
 
   // Assinatura em Tempo Real (Realtime) do Supabase para Sincronização Instantânea Multidispositivo
   useEffect(() => {
@@ -3676,6 +3948,7 @@ export default function App() {
   };
 
   const handleAddProduct = async (newProd: Product) => {
+    lastProductsRef.current = [newProd, ...(lastProductsRef.current || [])];
     setProducts(prev => {
       const updated = [newProd, ...prev];
       try {
@@ -3702,6 +3975,7 @@ export default function App() {
   };
 
   const handleUpdateProduct = async (updatedProd: Product) => {
+    lastProductsRef.current = (lastProductsRef.current || []).map(p => p.id === updatedProd.id ? updatedProd : p);
     setProducts(prev => {
       const updated = prev.map(p => p.id === updatedProd.id ? updatedProd : p);
       try {
@@ -3728,6 +4002,7 @@ export default function App() {
   };
 
   const handleDeleteProduct = async (productId: string) => {
+    lastProductsRef.current = (lastProductsRef.current || []).filter(p => p.id !== productId);
     // 1. Immediately update state and localStorage
     setProducts(prev => {
       const updated = prev.filter(p => p.id !== productId);
@@ -4086,6 +4361,10 @@ export default function App() {
       status_logistico: newOrder.status === 'Entregue' ? 'entregue' : 'pendente',
       partner: newOrder.partner || newOrder.partnerName || undefined,
       partnerName: newOrder.partnerName || newOrder.partner || undefined,
+      partnerId: newOrder.partnerId || undefined,
+      partnerCoupon: newOrder.partnerCoupon || newOrder.couponCode || newOrder.coupon || undefined,
+      commissionRate: newOrder.commissionRate,
+      commissionAmount: newOrder.commissionAmount,
       couponCode: newOrder.couponCode || newOrder.coupon || undefined,
       notes: newOrder.notes || undefined
     };
@@ -4298,6 +4577,8 @@ export default function App() {
       case ActiveTab.CONFIGURACOES:
         return (
           <SettingsSystem 
+            activeSubTab={settingsSystemSubTab}
+            setActiveSubTab={setSettingsSystemSubTab}
             onResetData={handleResetData}
             onLoadDemoData={handleLoadDemoData}
             onClearAllData={handleClearAllData}
@@ -4375,6 +4656,7 @@ export default function App() {
         onAddClient={handleAddClient}
         onUpdateClients={handleUpdateClientsList}
         onExitCustomerView={() => navigateTo('/painel')}
+        onNavigate={navigateTo}
         currentUser={currentUser}
         sales={sales}
         onlineOrders={onlineOrders}
@@ -4410,11 +4692,25 @@ export default function App() {
     );
   }
 
-  if (currentUser?.role === 'Parceiro') {
+  if (
+    currentUser?.role === 'Parceiro' || 
+    currentPath === '/parceiro' || 
+    currentPath === '/influenciador' || 
+    currentPath === '/influencer' ||
+    window.location.search.includes('portal=partner')
+  ) {
     return (
       <PartnerPortal 
-        currentUser={currentUser}
-        onLogout={() => setCurrentUser(null)}
+        currentUser={currentUser || {
+          id: 'part-convidado',
+          name: 'Parceiro AP Moda',
+          login: 'parceiro',
+          role: 'Parceiro'
+        }}
+        onLogout={() => {
+          setCurrentUser(null);
+          navigateTo('/');
+        }}
         onlineOrders={onlineOrders}
         sales={sales}
         products={products}
@@ -4424,15 +4720,28 @@ export default function App() {
     );
   }
 
-  if (currentUser?.role === 'Entregador' || isDriverPortalOpen) {
+  if (
+    currentUser?.role === 'Entregador' || 
+    isDriverPortalOpen || 
+    currentPath === '/entregador' || 
+    currentPath === '/motoboy' || 
+    currentPath === '/driver' ||
+    window.location.search.includes('portal=driver')
+  ) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
         <DriverAppPortal 
           onlineOrders={onlineOrders}
           onUpdateOrderStatus={handleUpdateOnlineOrderStatus}
-          onExitPortal={() => setIsDriverPortalOpen(false)}
+          onExitPortal={() => {
+            setIsDriverPortalOpen(false);
+            navigateTo('/');
+          }}
           currentUser={currentUser}
-          onLogout={() => setCurrentUser(null)}
+          onLogout={() => {
+            setCurrentUser(null);
+            navigateTo('/');
+          }}
           motoboys={motoboys}
         />
       </div>
@@ -4539,6 +4848,151 @@ export default function App() {
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-slate-50 flex" id="main-app-container">
+        {/* ============================================================== */}
+        {/* URGENT ONLINE ORDER DISPATCH MODAL (LOUD AUDIO & ACTIONABLE)   */}
+        {/* ============================================================== */}
+        {urgentOrderAlert && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-slate-900 border-2 border-emerald-500 rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden animate-in zoom-in-95 duration-200">
+              {/* Header with sound waves & urgent badge */}
+              <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white p-5 relative">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-2xl animate-bounce shadow-md">
+                      📦
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="bg-emerald-300 text-emerald-950 text-[10px] font-black uppercase px-2 py-0.5 rounded-full font-mono animate-pulse">
+                          Ao Vivo • Novo Pedido!
+                        </span>
+                        <span className="text-xs text-emerald-100 font-mono font-bold">
+                          #{urgentOrderAlert.id}
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-black tracking-tight mt-0.5">
+                        NOVO PEDIDO NO SITE!
+                      </h3>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setUrgentOrderAlert(null)}
+                    className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-sm font-bold transition-colors cursor-pointer"
+                    title="Silenciar e Fechar Alarme"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <p className="text-xs text-emerald-100/90 mt-2 font-medium">
+                  🚨 Uma venda acabou de ser realizada na Loja Virtual! Prepare os itens abaixo para envio rápido:
+                </p>
+              </div>
+
+              {/* Order Content */}
+              <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                {/* Client and Value Row */}
+                <div className="grid grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">Cliente</span>
+                    <p className="font-extrabold text-sm text-slate-900 dark:text-white truncate">
+                      {urgentOrderAlert.clientName}
+                    </p>
+                    {urgentOrderAlert.phone && (
+                      <p className="text-xs text-slate-500 font-mono mt-0.5">
+                        📱 {urgentOrderAlert.phone}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">Valor Total</span>
+                    <p className="font-black text-lg text-emerald-600 dark:text-emerald-400">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(urgentOrderAlert.total || 0)}
+                    </p>
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      Pgto: {urgentOrderAlert.paymentMethod || 'Online'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Delivery and Address */}
+                <div className="bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 p-3.5 rounded-2xl">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm">🚚</span>
+                    <span className="text-xs font-black uppercase text-amber-900 dark:text-amber-300">
+                      Forma de Envio: {urgentOrderAlert.deliveryMethod}
+                    </span>
+                  </div>
+                  {urgentOrderAlert.address && (
+                    <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-mono">
+                      📍 {urgentOrderAlert.address}
+                    </p>
+                  )}
+                </div>
+
+                {/* Items List */}
+                {urgentOrderAlert.items && urgentOrderAlert.items.length > 0 && (
+                  <div>
+                    <span className="text-[11px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider">
+                      Peças a Separar no Estoque ({urgentOrderAlert.items.length}):
+                    </span>
+                    <div className="mt-2 space-y-1.5 divide-y divide-slate-100 dark:divide-slate-800">
+                      {urgentOrderAlert.items.map((it: any, idx: number) => (
+                        <div key={idx} className="pt-1.5 first:pt-0 flex items-center justify-between text-xs">
+                          <div>
+                            <span className="font-extrabold text-slate-900 dark:text-white">
+                              {it.quantity || 1}x {it.productName || it.name || 'Peça Fitness'}
+                            </span>
+                            {(it.color || it.size) && (
+                              <span className="text-slate-500 ml-1.5 font-medium">
+                                [{it.color ? `Cor: ${it.color}` : ''}{it.color && it.size ? ' | ' : ''}{it.size ? `Tam: ${it.size}` : ''}]
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">
+                            R$ {Number(it.price || 0).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="p-5 bg-slate-50 dark:bg-slate-850 border-t border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row gap-2.5">
+                <button
+                  onClick={() => {
+                    setActiveTab(ActiveTab.PEDIDOS);
+                    setUrgentOrderAlert(null);
+                  }}
+                  className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-xs rounded-2xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>📦 Ir para Logística & Preparar Envio</span>
+                </button>
+                {urgentOrderAlert.phone && (
+                  <button
+                    onClick={() => {
+                      const clean = urgentOrderAlert.phone?.replace(/\D/g, '') || '';
+                      const msg = encodeURIComponent(`Olá ${urgentOrderAlert.clientName}! Confirmamos o recebimento do seu pedido #${urgentOrderAlert.id} na AP Moda Fitness! Já estamos separando e preparando o seu pacote com todo carinho para envio. 🌸✨`);
+                      window.open(`https://wa.me/55${clean}?text=${msg}`, '_blank');
+                    }}
+                    className="py-3 px-4 bg-green-500 hover:bg-green-600 active:scale-95 text-white font-extrabold text-xs rounded-2xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    title="Avisar cliente pelo WhatsApp"
+                  >
+                    <span>💬 WhatsApp do Cliente</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setUrgentOrderAlert(null)}
+                  className="py-3 px-4 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-2xl transition-all cursor-pointer"
+                >
+                  ✓ Ciente
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Floating Toast Alert Banner for Real-Time Sales */}
         {newSaleToast && (
           <div className="fixed top-4 right-4 z-50 bg-gradient-to-r from-emerald-600 via-teal-700 to-emerald-800 text-white p-4 rounded-2xl shadow-2xl border border-emerald-300/40 max-w-sm w-full animate-in slide-in-from-top-6 duration-300">
@@ -4755,6 +5209,22 @@ export default function App() {
 
           {/* Quick global search text & notification alerts */}
           <div className="flex items-center gap-3">
+            {/* Audio & Notification permission activator */}
+            {notificationPermission !== 'granted' && (
+              <button 
+                onClick={handleRequestNotificationPermission}
+                className="flex items-center gap-1.5 font-bold text-xs px-3 py-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 transition-all active:scale-95 cursor-pointer shadow-xs animate-pulse"
+                title="Clique para ativar avisos sonoros e notificações na tela do computador/celular sempre que um pedido do site chegar"
+              >
+                <Bell size={13} className="text-amber-600 animate-bounce" />
+                <span className="hidden lg:inline">Ativar Alertas Sonoros de Venda 🔔</span>
+                <span className="lg:hidden">Ativar Alertas 🔔</span>
+              </button>
+            )}
+
+            {/* PWA App Install Button (Android, iOS and Desktop) */}
+            <PWAInstallButton />
+
             {/* Quick Store Settings & WhatsApp Button */}
             <button 
               onClick={() => setIsQuickStoreModalOpen(true)}
@@ -4764,6 +5234,20 @@ export default function App() {
               <Phone size={13} className="text-pink-600" />
               <span className="hidden sm:inline">WhatsApp & Loja 📱</span>
               <span className="sm:hidden">Loja 📱</span>
+            </button>
+
+            {/* Quick Freight & Deliveries Button */}
+            <button 
+              onClick={() => {
+                setActiveTab(ActiveTab.CONFIGURACOES);
+                setSettingsSystemSubTab('frete');
+              }}
+              className="flex items-center gap-1.5 font-bold text-xs px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-all active:scale-95 cursor-pointer shadow-xs"
+              title="Ajustar frete, taxas de motoboy e regras de entrega"
+            >
+              <Truck size={13} className="text-indigo-600" />
+              <span className="hidden sm:inline">Frete & Entregas 🚚</span>
+              <span className="sm:hidden">Frete 🚚</span>
             </button>
 
             {/* Manual Cloud Sync Button (Instantly connects multiple devices to the same data) */}

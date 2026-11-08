@@ -228,6 +228,7 @@ interface PublicCatalogProps {
   onAddClient: (newClient: Client) => void;
   onUpdateClients?: (updatedList: Client[]) => void;
   onExitCustomerView?: () => void;
+  onNavigate?: (path: string) => void;
   currentUser?: any;
   sales?: any[];
   onlineOrders?: any[];
@@ -241,6 +242,7 @@ export default function PublicCatalog({
   onAddClient, 
   onUpdateClients,
   onExitCustomerView,
+  onNavigate,
   currentUser,
   sales = [],
   onlineOrders = []
@@ -1166,7 +1168,17 @@ export default function PublicCatalog({
       return '';
     }
   });
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercent: number; fixedDiscount: number; category?: string; maxPerCpf?: number; isFirstPurchase?: boolean; partnerName?: string } | null>(() => {
+  const [appliedCoupon, setAppliedCoupon] = useState<{ 
+    code: string; 
+    discountPercent: number; 
+    fixedDiscount: number; 
+    category?: string; 
+    maxPerCpf?: number; 
+    isFirstPurchase?: boolean; 
+    partnerName?: string;
+    partnerId?: string;
+    commissionRate?: number;
+  } | null>(() => {
     try {
       const saved = localStorage.getItem('ap_applied_coupon');
       if (saved) return JSON.parse(saved);
@@ -2668,7 +2680,9 @@ export default function PublicCatalog({
           category: couponObj.category,
           maxPerCpf: couponObj.maxPerCpf ?? 1,
           isFirstPurchase: couponObj.isFirstPurchase ?? false,
-          partnerName: couponObj.partnerName
+          partnerName: couponObj.partnerName,
+          partnerId: couponObj.partnerId,
+          commissionRate: couponObj.commissionRate
         });
 
         const replaceNotice = previousCouponCode && previousCouponCode.toUpperCase() !== couponObj.code.toUpperCase()
@@ -3260,6 +3274,10 @@ export default function PublicCatalog({
         coupon: appliedCoupon?.code || couponCode.trim().toUpperCase() || undefined,
         partnerCoupon: appliedCoupon?.code || couponCode.trim().toUpperCase() || undefined,
         partnerName: appliedCoupon?.partnerName || undefined,
+        partnerId: appliedCoupon?.partnerId || undefined,
+        partner: appliedCoupon?.partnerName || undefined,
+        commissionRate: appliedCoupon?.commissionRate || 10,
+        commissionAmount: appliedCoupon?.partnerName ? Number(((cartTotal - deliveryFee) * ((appliedCoupon?.commissionRate || 10) / 100)).toFixed(2)) : 0,
         notes: `Cor: ${cart.map(c=>c.color).join(', ')} | CPF: ${clientCpf.trim()} | Pg: ${paymentMethod === 'pix' ? 'PIX' : `Cartão (${cardInstallments}x)`}${appliedCoupon?.code ? ` | Cupom: ${appliedCoupon.code}` : ''}${appliedCoupon?.partnerName ? ` | Parceiro: ${appliedCoupon.partnerName}` : ''} | Obs: ${clientNotes.trim()}`
       };
       
@@ -4604,27 +4622,51 @@ export default function PublicCatalog({
           </div>
 
           {/* Bottom Copyright & Direct Links */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-400">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-400">
             <p className="text-center sm:text-left">
               © {new Date().getFullYear()} {storeBrandConfig.name}. Todos os direitos reservados.
             </p>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2.5 sm:gap-3">
+              <button
+                onClick={() => onNavigate ? onNavigate('/entregador') : (window.location.href = '/entregador')}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition font-bold text-[10px] cursor-pointer border-0"
+                title="Acesso direto às rotas para motoboys e entregadores"
+              >
+                <span>🏍️ App do Entregador</span>
+              </button>
+
+              <button
+                onClick={() => onNavigate ? onNavigate('/parceiro') : (window.location.href = '/parceiro')}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-pink-50 hover:bg-pink-100 text-pink-700 transition font-bold text-[10px] cursor-pointer border-0"
+                title="Portal exclusivo de comissões para parceiras e influenciadoras"
+              >
+                <span>👑 Portal de Influenciadoras</span>
+              </button>
+
+              <button
+                onClick={() => onExitCustomerView ? onExitCustomerView() : (window.location.href = '/painel')}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition font-medium text-[10px] cursor-pointer border-0"
+                title="Acesso administrativo interno do lojista"
+              >
+                <span>🔒 Acesso Lojista</span>
+              </button>
+
               <a 
                 href={storeBrandConfig.instagramUrl || `https://www.instagram.com/${(storeBrandConfig.instagram || '@ap_moda_fitness2').replace(/^@+/, '')}/`}
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 transition font-medium"
+                className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 transition font-medium text-[10px]"
               >
-                <Instagram size={13} />
+                <Instagram size={12} />
                 <span>Instagram</span>
               </a>
               <a 
                 href={getWhatsAppUrl(storeBrandConfig.phone)} 
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 transition font-medium"
+                className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 transition font-medium text-[10px]"
               >
-                <MessageCircle size={13} />
+                <MessageCircle size={12} />
                 <span>WhatsApp</span>
               </a>
             </div>

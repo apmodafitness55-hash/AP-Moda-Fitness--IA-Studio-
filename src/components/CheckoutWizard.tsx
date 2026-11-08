@@ -972,17 +972,18 @@ export function CheckoutWizard({
                     </div>
                   )}
 
-                  {/* Big WhatsApp CTA to submit proof of payment */}
+                  {/* Big WhatsApp CTA to notify store and submit proof of payment */}
                   <button
                     type="button"
                     onClick={() => {
-                      const whatsappUrl = getWhatsAppUrl(completedOrder.phone, completedOrder.orderMsg);
+                      const storePhone = localStorage.getItem('ap_store_phone') || '84991982963';
+                      const whatsappUrl = getWhatsAppUrl(storePhone, completedOrder.orderMsg);
                       window.open(whatsappUrl, '_blank');
                     }}
                     className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-600/15 transition-all flex items-center justify-center gap-2 cursor-pointer border-none active:scale-97"
                   >
                     <MessageCircle size={15} />
-                    <span>Enviar Comprovante via WhatsApp 💬</span>
+                    <span>Enviar Pedido e Comprovante para o WhatsApp da Loja 💬</span>
                   </button>
                 </div>
               ) : (
@@ -1003,6 +1004,19 @@ export function CheckoutWizard({
                     <CreditCard size={15} />
                     <span>Concluir Pagamento no InfinitePay 💳</span>
                     <ExternalLink size={13} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const storePhone = localStorage.getItem('ap_store_phone') || '84991982963';
+                      const whatsappUrl = getWhatsAppUrl(storePhone, completedOrder.orderMsg);
+                      window.open(whatsappUrl, '_blank');
+                    }}
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer border-none active:scale-97"
+                  >
+                    <MessageCircle size={14} />
+                    <span>Notificar Loja pelo WhatsApp 💬</span>
                   </button>
                 </div>
               )}

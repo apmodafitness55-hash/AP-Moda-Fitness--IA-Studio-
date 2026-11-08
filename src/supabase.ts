@@ -169,20 +169,30 @@ CREATE TABLE IF NOT EXISTS card_terminals (
 
 -- ==========================================
 -- 10. ATIVAÇÃO DE RLS E POLÍTICAS DE SEGURANÇA
--- Resolve os avisos de segurança do Supabase Advisor garantindo que RLS está habilitado,
--- mas que a aplicação (anon / authenticated) consegue ler/escrever normalmente.
+-- Garante que todas as tabelas existem antes de aplicar as políticas
 -- ==========================================
 
+-- Criar tabelas caso ainda não existam no banco:
+CREATE TABLE IF NOT EXISTS public.ap_system_configs (key text PRIMARY KEY, value text, created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL);
+CREATE TABLE IF NOT EXISTS public.ap_products (id text PRIMARY KEY, name text, price numeric, created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL);
+CREATE TABLE IF NOT EXISTS public.ap_clients (id text PRIMARY KEY, name text, phone text, created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL);
+CREATE TABLE IF NOT EXISTS public.ap_sales (id text PRIMARY KEY, client_name text, total numeric, created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL);
+CREATE TABLE IF NOT EXISTS public.ap_transactions (id text PRIMARY KEY, description text, amount numeric, type text, created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL);
+CREATE TABLE IF NOT EXISTS public.ap_online_orders (id text PRIMARY KEY, client_name text, total numeric, status text, created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL);
+CREATE TABLE IF NOT EXISTS public.ap_checkouts (id text PRIMARY KEY, client_name text, total numeric, status text, created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL, updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()));
+CREATE TABLE IF NOT EXISTS public.ap_team_members (id text PRIMARY KEY, name text, login text UNIQUE NOT NULL, password text, role text, "createdAt" timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL);
+CREATE TABLE IF NOT EXISTS public.card_terminals (id text PRIMARY KEY, name text, fee_percentage numeric, status text, created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL);
+
 -- Habilitar RLS em todas as tabelas
-ALTER TABLE IF EXISTS public.ap_system_configs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.ap_products ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.ap_clients ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.ap_sales ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.ap_transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.ap_online_orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.ap_checkouts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.ap_team_members ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.card_terminals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ap_system_configs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ap_products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ap_clients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ap_sales ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ap_transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ap_online_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ap_checkouts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ap_team_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.card_terminals ENABLE ROW LEVEL SECURITY;
 
 -- Criar políticas de acesso irrestrito para anon/authenticated (CRUD Completo)
 -- Isso evita qualquer quebra de fluxo na aplicação mantendo as tabelas seguras sob RLS.
@@ -230,7 +240,32 @@ CREATE POLICY "Permitir todo acesso para membros do time" ON public.ap_team_memb
 -- Políticas para card_terminals
 DROP POLICY IF EXISTS "Permitir todo acesso para maquininhas" ON public.card_terminals;
 CREATE POLICY "Permitir todo acesso para maquininhas" ON public.card_terminals
-  FOR ALL USING (true) WITH CHECK (true);`;
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- Ativar Publicação em Tempo Real (Realtime WebSockets) para Alertas e Sincronização Instantânea
+DO $$
+BEGIN
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.ap_online_orders;
+  EXCEPTION WHEN others THEN NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.ap_sales;
+  EXCEPTION WHEN others THEN NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.ap_products;
+  EXCEPTION WHEN others THEN NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.ap_transactions;
+  EXCEPTION WHEN others THEN NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.ap_system_configs;
+  EXCEPTION WHEN others THEN NULL;
+  END;
+END $$;`;
 
 export function getSupabaseConfig() {
   return {
@@ -750,7 +785,15 @@ export async function syncSystemConfigsWithSupabase(...args: any[]) {
         if (item && item.value !== undefined && item.value !== null) {
           const remoteVal = typeof item.value === 'string' ? item.value : JSON.stringify(item.value);
           const localVal = localStorage.getItem(key);
-          if (remoteVal !== localVal && remoteVal.trim().length > 0) {
+          const lastSavedAt = Number(localStorage.getItem('ap_config_saved_at_' + key) || 0);
+          const isRecentlyEditedLocally = Date.now() - lastSavedAt < 60000; // 60s window protection
+
+          if (isRecentlyEditedLocally) {
+            // Local value is fresh! If remote is different, sync local to Supabase
+            if (localVal && remoteVal !== localVal) {
+              pushSystemConfigToSupabase(key, localVal).catch(() => {});
+            }
+          } else if (remoteVal !== localVal && remoteVal.trim().length > 0) {
             localStorage.setItem(key, remoteVal);
             localModified = true;
             storeConfigChanged = true;

@@ -127,15 +127,36 @@ export function getStoreConfig(): StoreConfig {
  */
 export async function saveStoreConfig(updates: Record<string, string>): Promise<boolean> {
   try {
+    const now = Date.now().toString();
     for (const [key, value] of Object.entries(updates)) {
       if (value !== undefined) {
         localStorage.setItem(key, value);
+        localStorage.setItem(`ap_config_saved_at_${key}`, now);
         // Sync asynchronously to Supabase cloud
         pushSystemConfigToSupabase(key, value).catch(e => {
           console.warn(`[StoreConfig] Failed to push ${key} to Supabase:`, e);
         });
       }
     }
+
+    // Keep ap_moda_company_info updated as well
+    try {
+      const companyInfoSaved = localStorage.getItem('ap_moda_company_info');
+      const parsedCompany = companyInfoSaved ? JSON.parse(companyInfoSaved) : {};
+      if (updates.ap_store_name) parsedCompany.name = updates.ap_store_name;
+      if (updates.ap_store_phone) parsedCompany.phone = updates.ap_store_phone;
+      if (updates.ap_store_instagram) parsedCompany.instagram = updates.ap_store_instagram;
+      if (updates.ap_pix_key) parsedCompany.pixKey = updates.ap_pix_key;
+      if (updates.ap_store_address) parsedCompany.addressLine1 = updates.ap_store_address;
+      if (updates.ap_store_city || updates.ap_store_state) {
+        parsedCompany.addressLine2 = `${updates.ap_store_city || localStorage.getItem('ap_store_city') || ''} - ${updates.ap_store_state || localStorage.getItem('ap_store_state') || ''}`;
+      }
+      if (updates.ap_store_slogan) parsedCompany.slogan = updates.ap_store_slogan;
+      localStorage.setItem('ap_moda_company_info', JSON.stringify(parsedCompany));
+      localStorage.setItem('ap_config_saved_at_ap_moda_company_info', now);
+      pushSystemConfigToSupabase('ap_moda_company_info', JSON.stringify(parsedCompany)).catch(() => {});
+    } catch (err) {}
+
     // Dispatch events so header, checkout, catalog, customer views and footer refresh instantly
     window.dispatchEvent(new Event('store_config_updated'));
     window.dispatchEvent(new Event('ap-storage-synced'));
@@ -145,3 +166,4 @@ export async function saveStoreConfig(updates: Record<string, string>): Promise<
     return false;
   }
 }
+
