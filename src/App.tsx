@@ -5141,10 +5141,10 @@ export default function App() {
       <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
         
         {/* Top Sticky Header */}
-        <header className="sticky top-0 bg-white border-b border-slate-100 z-30 px-4 md:px-6 h-16 flex items-center justify-between shadow-xs">
+        <header className="sticky top-0 bg-white border-b border-slate-100 z-30 px-3 sm:px-4 md:px-6 h-16 flex items-center justify-between shadow-xs">
           
           {/* Mobile hamburger menu toggle */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button 
               id="sidebar-toggle-btn"
               onClick={() => setIsSidebarOpen(true)}
@@ -5208,12 +5208,12 @@ export default function App() {
           </div>
 
           {/* Quick global search text & notification alerts */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 overflow-x-auto no-scrollbar py-1 max-w-[calc(100vw-65px)] sm:max-w-none">
             {/* Audio & Notification permission activator */}
             {notificationPermission !== 'granted' && (
               <button 
                 onClick={handleRequestNotificationPermission}
-                className="flex items-center gap-1.5 font-bold text-xs px-3 py-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 transition-all active:scale-95 cursor-pointer shadow-xs animate-pulse"
+                className="flex items-center gap-1.5 font-bold text-[11px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 transition-all active:scale-95 cursor-pointer shadow-xs animate-pulse shrink-0"
                 title="Clique para ativar avisos sonoros e notificações na tela do computador/celular sempre que um pedido do site chegar"
               >
                 <Bell size={13} className="text-amber-600 animate-bounce" />
@@ -5223,12 +5223,14 @@ export default function App() {
             )}
 
             {/* PWA App Install Button (Android, iOS and Desktop) */}
-            <PWAInstallButton />
+            <div className="shrink-0">
+              <PWAInstallButton />
+            </div>
 
             {/* Quick Store Settings & WhatsApp Button */}
             <button 
               onClick={() => setIsQuickStoreModalOpen(true)}
-              className="flex items-center gap-1.5 font-bold text-xs px-3.5 py-2 rounded-xl border border-pink-200 bg-pink-50 hover:bg-pink-100 text-pink-700 transition-all active:scale-95 cursor-pointer shadow-xs"
+              className="flex items-center gap-1.5 font-bold text-[11px] sm:text-xs px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl border border-pink-200 bg-pink-50 hover:bg-pink-100 text-pink-700 transition-all active:scale-95 cursor-pointer shadow-xs shrink-0"
               title="Alterar WhatsApp da loja, nome, Instagram e Pix sem burocracia"
             >
               <Phone size={13} className="text-pink-600" />
@@ -5242,7 +5244,7 @@ export default function App() {
                 setActiveTab(ActiveTab.CONFIGURACOES);
                 setSettingsSystemSubTab('frete');
               }}
-              className="flex items-center gap-1.5 font-bold text-xs px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-all active:scale-95 cursor-pointer shadow-xs"
+              className="flex items-center gap-1.5 font-bold text-[11px] sm:text-xs px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-all active:scale-95 cursor-pointer shadow-xs shrink-0"
               title="Ajustar frete, taxas de motoboy e regras de entrega"
             >
               <Truck size={13} className="text-indigo-600" />
@@ -5254,7 +5256,7 @@ export default function App() {
             <button 
               onClick={() => performSync(true)}
               disabled={isSyncingNow}
-              className={`flex items-center gap-1.5 font-bold text-xs px-3.5 py-2.5 sm:py-2 rounded-xl border-none cursor-pointer transition-all active:scale-95 text-white shadow-md ${
+              className={`flex items-center gap-1.5 font-bold text-[11px] sm:text-xs px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl border-none cursor-pointer transition-all active:scale-95 text-white shadow-md shrink-0 ${
                 isSyncingNow 
                   ? 'bg-amber-500 hover:bg-amber-600 animate-pulse cursor-not-allowed shadow-amber-500/25' 
                   : systemOffline
@@ -5269,7 +5271,7 @@ export default function App() {
             </button>
 
             {/* Search mock bar */}
-            <div className="relative hidden md:block w-64">
+            <div className="relative hidden md:block w-64 shrink-0">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
                 <Search size={14} />
               </span>

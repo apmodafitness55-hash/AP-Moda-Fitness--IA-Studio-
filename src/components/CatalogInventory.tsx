@@ -1346,11 +1346,12 @@ export default function CatalogInventory({
           <span className="text-[10px] text-slate-400 font-medium font-sans">Dica: clique em (+10) ou (-1) para ajustar estoques</span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs font-sans">
+        {/* DESKTOP TABLE VIEW (Visible on tablet/desktop >= 768px and desktop mode) */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs font-sans table-auto">
             <thead>
               <tr className="bg-slate-50/70 border-b border-slate-50 text-slate-400 font-bold uppercase text-[10px] tracking-wider select-none">
-                <th className="p-4">Item</th>
+                <th className="p-4 min-w-[220px]">Item</th>
                 <th className="p-4">SKU</th>
                 <th className="p-4">Categoria</th>
                 <th className="p-4 text-right">Custo</th>
@@ -1366,41 +1367,78 @@ export default function CatalogInventory({
 
                 return (
                   <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
-                    {/* Item Image and Name */}
-                    <td className="p-4 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-100 bg-slate-50 shrink-0">
-                        <img src={getOptimizedImageUrl(getProductMainImage(p), 160)} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={handleImageFallback} />
-                      </div>
-                      <div>
-                        <span className="font-semibold text-slate-800 text-xs block leading-tight">{p.name}</span>
-                        <span className="text-[10px] text-slate-400 font-normal mt-1 block">Vendidos: {p.salesCount} un</span>
-                        
-                        {/* Alertas de Variações Críticas */}
-                        {criticalVariations.filter(v => v.productId === p.id).length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1.5 max-w-[280px]">
-                            {criticalVariations.filter(v => v.productId === p.id).map((cv, idx) => (
-                              <span key={idx} className="inline-flex items-center gap-1 bg-red-50 text-red-700 border border-red-100 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide select-none">
-                                ⚠️ {cv.color} - {cv.size}: {cv.stock} un
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        {p.colorStocks && Object.keys(p.colorStocks).length > 0 && (!criticalVariations.some(v => v.productId === p.id)) && (
-                          <div className="flex flex-wrap gap-1 mt-1.5 max-w-[260px]">
-                            {Object.entries(p.colorStocks).map(([color, qty]) => (
-                              <span key={color} className="inline-flex items-center gap-1 bg-slate-50 text-slate-500 border border-slate-100 rounded-md px-1.5 py-0.5 text-[9px] font-medium font-mono leading-none">
-                                <span className="w-1.5 h-1.5 rounded-full border border-slate-200" style={{ backgroundColor: colorToHex(color) }} />
-                                {color}: <strong className="text-slate-700 font-bold">{qty}</strong>
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                    {/* Item Image and Name - No flex on td to avoid browser table collapse */}
+                    <td className="p-3 sm:p-4 align-top">
+                      <div className="flex items-start gap-3 min-w-[210px] max-w-[280px]">
+                        <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-100 bg-slate-50 shrink-0 mt-0.5">
+                          <img 
+                            src={getOptimizedImageUrl(getProductMainImage(p), 160)} 
+                            alt={p.name} 
+                            className="w-full h-full object-cover" 
+                            referrerPolicy="no-referrer" 
+                            onError={handleImageFallback} 
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <span className="font-semibold text-slate-800 text-xs block leading-tight truncate" title={p.name}>
+                            {p.name}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-normal mt-0.5 block">
+                            Vendidos: {p.salesCount} un
+                          </span>
+                          
+                          {/* Alertas de Variações Críticas - Máximo de 2 badges ou resumo compacto */}
+                          {(() => {
+                            const pCrit = criticalVariations.filter(v => v.productId === p.id);
+                            if (pCrit.length === 0) {
+                              if (p.colorStocks && Object.keys(p.colorStocks).length > 0) {
+                                const colors = Object.entries(p.colorStocks);
+                                return (
+                                  <div className="flex flex-wrap items-center gap-1 mt-1 max-w-[240px]">
+                                    {colors.slice(0, 3).map(([color, qty]) => (
+                                      <span key={color} className="inline-flex items-center gap-1 bg-slate-50 text-slate-500 border border-slate-100 rounded px-1.5 py-0.5 text-[9px] font-medium font-mono leading-none">
+                                        <span className="w-1.5 h-1.5 rounded-full border border-slate-200" style={{ backgroundColor: colorToHex(color) }} />
+                                        {color}: <strong className="text-slate-700 font-bold">{qty}</strong>
+                                      </span>
+                                    ))}
+                                    {colors.length > 3 && (
+                                      <span className="text-[9px] text-slate-400 font-mono">+{colors.length - 3} cores</span>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }
+                            if (pCrit.length <= 2) {
+                              return (
+                                <div className="flex flex-wrap gap-1 mt-1 max-w-[240px]">
+                                  {pCrit.map((cv, idx) => (
+                                    <span key={idx} className="inline-flex items-center gap-1 bg-red-50 text-red-700 border border-red-100 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide select-none">
+                                      ⚠️ {cv.color} - {cv.size}: {cv.stock} un
+                                    </span>
+                                  ))}
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="mt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setInternalSubTab('grade')}
+                                  className="inline-flex items-center gap-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide cursor-pointer transition-colors"
+                                  title="Clique para ver e ajustar o estoque na Grade de Variações"
+                                >
+                                  ⚠️ {pCrit.length} variações baixas (ex: {pCrit[0].color} {pCrit[0].size}: {pCrit[0].stock}un) 🔍
+                                </button>
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </div>
                     </td>
 
                     {/* Sku & Freight Specs */}
-                    <td className="p-4">
+                    <td className="p-4 align-top">
                       <div className="font-mono text-[10px] font-bold text-slate-500">{p.sku}</div>
                       <div className="mt-1 text-[9px] text-slate-400 font-mono flex items-center gap-1" title="Peso e Dimensões da Embalagem para cálculo de Frete">
                         <span className="text-[10px]">📦</span>
@@ -1411,14 +1449,14 @@ export default function CatalogInventory({
                     </td>
 
                     {/* Category Label */}
-                    <td className="p-4">
+                    <td className="p-4 align-top">
                       <span className="bg-slate-100 text-slate-600 border border-slate-200 font-semibold px-2 py-0.5 rounded text-[10px]">
                         {p.category}
                       </span>
                     </td>
 
                     {/* Price & Cost - Fast Inline Editing */}
-                    <td className="p-4 text-right font-mono text-slate-500">
+                    <td className="p-4 text-right font-mono text-slate-500 align-top">
                       {inlineEditingProductId === p.id ? (
                         <div className="flex flex-col items-end gap-1">
                           <label className="text-[8.5px] text-slate-400 font-bold uppercase">Custo</label>
@@ -1439,7 +1477,7 @@ export default function CatalogInventory({
                       )}
                     </td>
 
-                    <td className="p-4 text-right font-mono">
+                    <td className="p-4 text-right font-mono align-top">
                       {inlineEditingProductId === p.id ? (
                         <div className="flex flex-col items-end gap-1.5 bg-pink-50/90 p-2.5 rounded-xl border-2 border-pink-400 shadow-lg min-w-[210px] animate-in fade-in zoom-in-95 duration-150">
                           <div className="flex items-center justify-between w-full">
@@ -1528,7 +1566,7 @@ export default function CatalogInventory({
                     </td>
 
                     {/* Stock level bar */}
-                    <td className="p-4 text-center min-w-[140px]">
+                    <td className="p-4 text-center min-w-[140px] align-top">
                       <div className="flex flex-col items-center gap-1.5">
                         <div className="flex items-center gap-2">
                           <span className={`font-mono font-bold text-xs ${isOutOfStock ? 'text-rose-500 animate-pulse' : isLowStock ? 'text-amber-500' : 'text-slate-700'}`}>
@@ -1548,7 +1586,7 @@ export default function CatalogInventory({
                     </td>
 
                     {/* Action elements */}
-                    <td className="p-4 text-center">
+                    <td className="p-4 text-center align-top">
                       <div className="inline-flex gap-1 bg-slate-50 p-1 border border-slate-150 rounded-lg">
                         <button 
                           onClick={() => handleOpenQuickPriceModal(p)}
@@ -1634,6 +1672,190 @@ export default function CatalogInventory({
               })}
             </tbody>
           </table>
+        </div>
+
+        {/* MOBILE CARDS VIEW (Visible only on mobile screens < 768px for perfect touch usability) */}
+        <div className="md:hidden divide-y divide-slate-100 bg-white">
+          {filteredProducts.map((p) => {
+            const isLowStock = p.stock < p.minStock;
+            const isOutOfStock = p.stock === 0;
+            const pCrit = criticalVariations.filter(v => v.productId === p.id);
+
+            return (
+              <div key={`mob-card-${p.id}`} className="p-4 space-y-3 transition-colors hover:bg-slate-50/50">
+                {/* Header: Photo, Name, Category */}
+                <div className="flex items-start gap-3">
+                  <div className="w-14 h-14 rounded-xl overflow-hidden border border-slate-100 bg-slate-50 shrink-0 shadow-2xs">
+                    <img 
+                      src={getOptimizedImageUrl(getProductMainImage(p), 180)} 
+                      alt={p.name} 
+                      className="w-full h-full object-cover" 
+                      referrerPolicy="no-referrer" 
+                      onError={handleImageFallback} 
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-1.5">
+                      <h4 className="font-bold text-slate-800 text-xs sm:text-sm leading-snug line-clamp-2">
+                        {p.name}
+                      </h4>
+                      <span className="bg-slate-100 text-slate-600 border border-slate-200 font-semibold px-2 py-0.5 rounded text-[10px] shrink-0">
+                        {p.category}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[10px] text-slate-400 font-mono">
+                      <span className="font-bold text-slate-500">{p.sku}</span>
+                      <span>•</span>
+                      <span>📦 {p.weight ?? 0.35}kg</span>
+                      <span>•</span>
+                      <span>Vendidos: {p.salesCount} un</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Critical variation alert banner if low stock */}
+                {pCrit.length > 0 && (
+                  <div className="bg-red-50/90 border border-red-200/80 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <AlertTriangle size={13} className="text-red-600 shrink-0 animate-pulse" />
+                      <span className="text-[10.5px] font-bold text-red-800 truncate">
+                        {pCrit.length === 1 
+                          ? `Baixo: ${pCrit[0].color} - ${pCrit[0].size} (${pCrit[0].stock} un)`
+                          : `⚠️ ${pCrit.length} variações críticas (≤ 3 un)`}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setInternalSubTab('grade')}
+                      className="text-[10px] font-bold text-red-700 bg-white border border-red-200 px-2 py-1 rounded-lg shrink-0 hover:bg-red-50 cursor-pointer shadow-3xs"
+                    >
+                      Ver Grade 🔍
+                    </button>
+                  </div>
+                )}
+
+                {/* Stock Level & Touch Steppers */}
+                <div className="flex items-center justify-between gap-2 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                  <div className="flex flex-col">
+                    <span className="text-[9px] uppercase font-bold text-slate-400">Estoque Total</span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className={`font-mono font-extrabold text-sm ${isOutOfStock ? 'text-rose-600' : isLowStock ? 'text-amber-600' : 'text-slate-800'}`}>
+                        {p.stock} peças
+                      </span>
+                      {isLowStock && (
+                        <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
+                          Repor
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Quick restock buttons */}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleRestock(p.id, -1)}
+                      className="w-9 h-8 rounded-lg bg-white border border-slate-200 hover:border-rose-400 hover:text-rose-600 text-slate-700 font-bold text-xs flex items-center justify-center transition-all active:scale-95 shadow-3xs cursor-pointer"
+                      title="Subtrair 1 unidade"
+                    >
+                      -1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRestock(p.id, 1)}
+                      className="w-9 h-8 rounded-lg bg-white border border-slate-200 hover:border-emerald-400 hover:text-emerald-600 text-slate-700 font-bold text-xs flex items-center justify-center transition-all active:scale-95 shadow-3xs cursor-pointer"
+                      title="Adicionar 1 unidade"
+                    >
+                      +1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRestock(p.id, 10)}
+                      className="px-2.5 h-8 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 font-extrabold text-xs flex items-center justify-center transition-all active:scale-95 shadow-3xs cursor-pointer hover:bg-emerald-100"
+                      title="Repor 10 unidades"
+                    >
+                      +10
+                    </button>
+                  </div>
+                </div>
+
+                {/* Price, Cost & Margin */}
+                <div className="flex items-center justify-between text-xs pt-0.5 px-0.5">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-slate-400 text-[10px]">Preço:</span>
+                    <span className="font-extrabold text-slate-900 text-sm font-mono">
+                      {formatCurrency(p.price)}
+                    </span>
+                    {p.compare_at_price && p.compare_at_price > p.price && (
+                      <span className="text-[10px] text-rose-500 line-through font-mono">
+                        De: {formatCurrency(p.compare_at_price)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-mono">
+                    Custo: <strong className="text-slate-600">{formatCurrency(p.cost)}</strong>
+                  </div>
+                </div>
+
+                {/* Touch Actions Bar */}
+                <div className="grid grid-cols-5 gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenQuickPriceModal(p)}
+                    className="py-2 px-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer shadow-3xs"
+                  >
+                    <DollarSign size={13} className="text-emerald-600" />
+                    <span>Preço</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenQuickFreightModal(p)}
+                    className="py-2 px-1 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer shadow-3xs"
+                  >
+                    <Truck size={13} className="text-sky-600" />
+                    <span>Frete</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const origin = typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost')
+                        ? window.location.origin
+                        : 'https://www.apmodafitness2.com.br';
+                      const shareUrl = `${origin}/?p=${p.id}`;
+                      if (navigator.clipboard) {
+                        navigator.clipboard.writeText(shareUrl);
+                      }
+                      alert(`Link copiado com sucesso!\n\n${shareUrl}`);
+                    }}
+                    className="py-2 px-1 bg-pink-50 hover:bg-pink-100 text-pink-700 border border-pink-200 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer shadow-3xs"
+                  >
+                    <Link2 size={13} className="text-pink-600" />
+                    <span>Link</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditModal(p)}
+                    className="py-2 px-1 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer shadow-3xs"
+                  >
+                    <Edit3 size={13} className="text-slate-600" />
+                    <span>Editar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Deseja mesmo arquivar a peça "${p.name}"?`)) {
+                        onDeleteProduct(p.id);
+                      }
+                    }}
+                    className="py-2 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer shadow-3xs"
+                  >
+                    <Trash2 size={13} className="text-rose-600" />
+                    <span>Excluir</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
         </>
