@@ -460,6 +460,7 @@ export default function CatalogInventory({
 
   // Editing product modal states
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editModalTab, setEditModalTab] = useState<'basico' | 'frete' | 'cores' | 'medidas' | 'fotos'>('basico');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editName, setEditName] = useState('');
   const [editSku, setEditSku] = useState('');
@@ -909,6 +910,7 @@ export default function CatalogInventory({
     setEditColorStocks(p.colorStocks || {});
     setEditSizeColorStocks(p.sizeColorStocks || {});
     setEditMeasurementSpecs(p.measurementSpecs || {});
+    setEditModalTab('basico');
     setIsEditModalOpen(true);
   };
 
@@ -3225,30 +3227,76 @@ export default function CatalogInventory({
                 </button>
               </div>
 
-              {/* Quick Section Anchors for Notebook/Desktop */}
-              <div className="flex flex-wrap gap-1.5 pt-2.5 text-[10px]">
-                <a href="#edit-sec-geral" className="px-2.5 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold transition-all">
-                  📋 Básico & Preço
-                </a>
-                <a href="#edit-sec-frete" className="px-2.5 py-0.5 rounded-md bg-sky-950/90 border border-sky-500/40 hover:bg-sky-900 text-sky-200 font-bold transition-all flex items-center gap-1">
-                  📦 Frete & Dimensões
-                </a>
-                <a href="#edit-sec-cores" className="px-2.5 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold transition-all">
-                  🎨 Cores & Estoque
-                </a>
-                <a href="#edit-sec-medidas" className="px-2.5 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold transition-all">
-                  📏 Provador & Medidas
-                </a>
-                <a href="#edit-sec-fotos" className="px-2.5 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold transition-all">
-                  🖼️ Fotos ({editImages.length})
-                </a>
+              {/* Interactive Tabs for Mobile & Desktop */}
+              <div className="flex items-center gap-1.5 pt-2.5 text-[11px] overflow-x-auto no-scrollbar">
+                <button
+                  type="button"
+                  onClick={() => setEditModalTab('basico')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                    editModalTab === 'basico'
+                      ? 'bg-pink-600 text-white shadow-sm'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  <span>📋 Básico & Preço</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditModalTab('frete')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                    editModalTab === 'frete'
+                      ? 'bg-sky-600 text-white shadow-sm'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  <Truck size={13} />
+                  <span>Frete & Dimensões</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditModalTab('cores')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                    editModalTab === 'cores'
+                      ? 'bg-pink-600 text-white shadow-sm'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  <span>🎨 Cores & Estoque</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditModalTab('medidas')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                    editModalTab === 'medidas'
+                      ? 'bg-pink-600 text-white shadow-sm'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  <Ruler size={13} />
+                  <span>Provador & Medidas</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditModalTab('fotos')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                    editModalTab === 'fotos'
+                      ? 'bg-pink-600 text-white shadow-sm'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  <span>🖼️ Fotos ({editImages.length})</span>
+                </button>
               </div>
             </div>
 
-            {/* Form list fields */}
-            <form id="edit-product-form" onSubmit={handleEditProductSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
-              <div id="edit-sec-geral" className="space-y-1">
-                <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Nome Completo do Produto</label>
+            {/* Form list fields with clean tab switching */}
+            <form id="edit-product-form" onSubmit={handleEditProductSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
+              
+              {/* ABA 1: BÁSICO & PREÇO */}
+              {editModalTab === 'basico' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  <div id="edit-sec-geral" className="space-y-1">
+                    <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Nome Completo do Produto</label>
                 <input 
                   id="edit-product-name"
                   type="text"
@@ -3400,505 +3448,571 @@ export default function CatalogInventory({
                 </div>
               </div>
 
-              {/* Dimensões & Peso para Frete (Melhor Envio / Correios) */}
-              <div id="edit-sec-frete" className="bg-sky-50/70 border border-sky-200 rounded-xl p-3.5 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-extrabold text-[10px] text-sky-950 uppercase tracking-wider flex items-center gap-1.5">
-                    <Truck size={13} className="text-sky-600" />
-                    <span>Dimensões & Peso para Frete (Melhor Envio / Correios)</span>
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={isSaving}
-                      onClick={handleQuickSaveFreightFromModal}
-                      className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white font-bold text-[10px] rounded-lg transition-all shadow-xs flex items-center gap-1 cursor-pointer border-none disabled:opacity-50"
-                      title="Salva o frete imediatamente sem precisar salvar o produto inteiro"
-                    >
-                      <Check size={11} />
-                      <span>Salvar Somente Frete</span>
-                    </button>
-                    <span className="text-[9px] bg-sky-200 text-sky-800 font-bold px-2 py-0.5 rounded-full">Etiquetas / Cotação</span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-4 gap-2 text-xs">
-                  <div className="space-y-1">
-                    <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Peso (kg)</label>
-                    <input 
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      required
-                      placeholder="0.35"
-                      value={editWeight}
-                      onChange={(e) => setEditWeight(Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
-                    />
-                    <span className="text-[8px] text-slate-400 block leading-none">Ex: 0.35 = 350g</span>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Compr. (cm)</label>
-                    <input 
-                      type="number"
-                      step="1"
-                      min="1"
-                      required
-                      placeholder="25"
-                      value={editLength}
-                      onChange={(e) => setEditLength(Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
+                  <div className="space-y-1 text-xs">
+                    <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Descrição Detalhada (Aparece no Site)</label>
+                    <textarea 
+                      placeholder="Descreva detalhes premium da peça: tecido, toque gelado, compressão, se fica transparente..."
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder-slate-450 focus:outline-hidden focus:border-pink-500 transition-all font-medium h-20 resize-none"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Largura (cm)</label>
-                    <input 
-                      type="number"
-                      step="1"
-                      min="1"
-                      required
-                      placeholder="20"
-                      value={editWidth}
-                      onChange={(e) => setEditWidth(Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Altura (cm)</label>
-                    <input 
-                      type="number"
-                      step="1"
-                      min="1"
-                      required
-                      placeholder="5"
-                      value={editHeight}
-                      onChange={(e) => setEditHeight(Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
-                    />
-                  </div>
-                </div>
-              </div>
 
-              <div className="space-y-1 text-xs">
-                <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Descrição Detalhada (Aparece no Site)</label>
-                <textarea 
-                  placeholder="Descreva detalhes premium da peça: tecido, toque gelado, compressão, se fica transparente..."
-                  value={editDescription}
-                  onChange={(e) => setEditDescription(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder-slate-450 focus:outline-hidden focus:border-pink-500 transition-all font-medium h-16 resize-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 text-xs">
-                <div className="space-y-1">
-                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Cores Disponíveis (Gerais)</label>
-                  <input 
-                    type="text"
-                    placeholder="Preto, Pink Glow, Azul Celeste"
-                    value={editColors}
-                    onChange={(e) => setEditColors(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Tamanhos Disponíveis</label>
-                  <input 
-                    type="text"
-                    placeholder="P, M, G, GG"
-                    value={editSizes}
-                    onChange={(e) => setEditSizes(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono"
-                  />
-                </div>
-              </div>
-
-              {/* Seletor Dinâmico de Cores (Edição) */}
-              {editColors.split(',').map(c => c.trim()).filter(Boolean).length > 0 && (
-                <div className="mt-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1 animate-in fade-in duration-200">
-                  <div className="font-extrabold text-[8px] text-slate-500 uppercase tracking-wider">Ajustar Tons de Cores (Seletor Dinâmico):</div>
-                  <div className="flex flex-wrap gap-2">
-                    {editColors.split(',').map(c => c.trim()).filter(Boolean).map(color => {
-                      const normColor = color.toLowerCase().trim();
-                      const hex = customColorMap[normColor] || colorToHex(color);
-                      const displayHex = hex.startsWith('#') ? hex : '#cccccc';
-                      return (
-                        <div key={color} className="flex items-center gap-1.5 bg-white border border-slate-150 px-2 py-0.5 rounded-lg shadow-3xs hover:border-pink-200 transition-all">
-                          <input
-                            type="color"
-                            value={displayHex}
-                            onChange={(e) => handleColorHexChange(color, e.target.value)}
-                            className="w-5 h-5 rounded-md cursor-pointer border-none bg-transparent shrink-0 p-0"
-                            title={`Escolher tom para ${color}`}
-                          />
-                          <span className="text-[9px] font-bold text-slate-700 capitalize truncate max-w-[80px]">{color}</span>
-                        </div>
-                      );
-                    })}
+                  <div className="space-y-1 text-xs">
+                    <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Link de Vídeo MP4 ou YouTube (Showcase)</label>
+                    <input 
+                      type="text"
+                      placeholder="Ex: https://www.w3schools.com/html/movie.mp4"
+                      value={editVideoUrl}
+                      onChange={(e) => setEditVideoUrl(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono text-xs"
+                    />
                   </div>
                 </div>
               )}
 
-              {/* Tabela de Medidas de Referência (Provador Virtual - Edição) */}
-              {editSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).length > 0 && (
-                <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="font-extrabold text-[9px] text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                      <Ruler size={11} className="text-pink-600" />
-                      Tabela de Medidas de Referência (cm)
+              {/* ABA 2: FRETE & DIMENSÕES */}
+              {editModalTab === 'frete' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  {/* Dimensões & Peso para Frete (Melhor Envio / Correios) */}
+                  <div id="edit-sec-frete" className="bg-sky-50/70 border border-sky-200 rounded-xl p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-[10px] text-sky-950 uppercase tracking-wider flex items-center gap-1.5">
+                        <Truck size={13} className="text-sky-600" />
+                        <span>Dimensões & Peso para Frete (Melhor Envio / Correios)</span>
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={isSaving}
+                          onClick={handleQuickSaveFreightFromModal}
+                          className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white font-bold text-[10px] rounded-lg transition-all shadow-xs flex items-center gap-1 cursor-pointer border-none disabled:opacity-50"
+                          title="Salva o frete imediatamente sem precisar salvar o produto inteiro"
+                        >
+                          <Check size={11} />
+                          <span>Salvar Somente Frete</span>
+                        </button>
+                        <span className="text-[9px] bg-sky-200 text-sky-800 font-bold px-2 py-0.5 rounded-full">Etiquetas / Cotação</span>
+                      </div>
                     </div>
-                    <span className="text-[8px] text-slate-400 font-bold">Provador Virtual</span>
-                  </div>
-                  <p className="text-[8.5px] text-slate-400">Insira as faixas de medida recomendadas para cada tamanho.</p>
-                  <div className="space-y-2.5 max-h-40 overflow-y-auto pr-1">
-                    {editSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).map(sz => {
-                      const normSz = sz.toUpperCase().trim();
-                      const currentSpec = editMeasurementSpecs[normSz] || editMeasurementSpecs[sz] || getFallbackSpecsForSize(sz);
-                      
-                      const updateSpec = (field: 'bustoMin' | 'bustoMax' | 'cinturaMin' | 'cinturaMax' | 'quadrilMin' | 'quadrilMax', value: number) => {
-                        setEditMeasurementSpecs(prev => ({
-                          ...prev,
-                          [sz]: {
-                            ...(prev[sz] || getFallbackSpecsForSize(sz)),
-                            [field]: value
-                          }
-                        }));
-                      };
-
-                      return (
-                        <div key={sz} className="p-2 bg-white rounded-lg border border-slate-150 space-y-1.5">
-                          <div className="flex justify-between items-center text-[10px] font-extrabold text-slate-700 bg-slate-100/60 px-1.5 py-0.5 rounded">
-                            <span>Tamanho {sz}</span>
-                            <span className="text-[8px] text-pink-600">Recomendado padrão ativo</span>
-                          </div>
-                          <div className="grid grid-cols-3 gap-2 text-[9px]">
-                            <div>
-                              <span className="block text-slate-400 uppercase font-bold text-[7.5px] mb-0.5">Busto (cm)</span>
-                              <div className="flex items-center gap-1">
-                                <input
-                                  type="number"
-                                  value={currentSpec.bustoMin}
-                                  onChange={(e) => updateSpec('bustoMin', Number(e.target.value))}
-                                  className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
-                                  placeholder="Mín"
-                                />
-                                <span className="text-slate-350">-</span>
-                                <input
-                                  type="number"
-                                  value={currentSpec.bustoMax}
-                                  onChange={(e) => updateSpec('bustoMax', Number(e.target.value))}
-                                  className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
-                                  placeholder="Máx"
-                                />
-                              </div>
-                            </div>
-
-                            <div>
-                              <span className="block text-slate-400 uppercase font-bold text-[7.5px] mb-0.5">Cintura (cm)</span>
-                              <div className="flex items-center gap-1">
-                                <input
-                                  type="number"
-                                  value={currentSpec.cinturaMin}
-                                  onChange={(e) => updateSpec('cinturaMin', Number(e.target.value))}
-                                  className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
-                                  placeholder="Mín"
-                                />
-                                <span className="text-slate-350">-</span>
-                                <input
-                                  type="number"
-                                  value={currentSpec.cinturaMax}
-                                  onChange={(e) => updateSpec('cinturaMax', Number(e.target.value))}
-                                  className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
-                                  placeholder="Máx"
-                                />
-                              </div>
-                            </div>
-
-                            <div>
-                              <span className="block text-slate-400 uppercase font-bold text-[7.5px] mb-0.5">Quadril (cm)</span>
-                              <div className="flex items-center gap-1">
-                                <input
-                                  type="number"
-                                  value={currentSpec.quadrilMin}
-                                  onChange={(e) => updateSpec('quadrilMin', Number(e.target.value))}
-                                  className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
-                                  placeholder="Mín"
-                                />
-                                <span className="text-slate-350">-</span>
-                                <input
-                                  type="number"
-                                  value={currentSpec.quadrilMax}
-                                  onChange={(e) => updateSpec('quadrilMax', Number(e.target.value))}
-                                  className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
-                                  placeholder="Máx"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {editSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).length > 0 ? (
-                <div className="space-y-3 mt-1 border border-pink-100 bg-pink-50/10 p-3 rounded-xl text-xs animate-fadeIn">
-                  <div className="flex items-center gap-1.5 text-pink-700 font-bold uppercase text-[9px] tracking-widest">
-                    <Sparkles size={11} className="text-pink-600 animate-pulse" />
-                    <span>Estoque por Tamanho e Cor</span>
-                  </div>
-                  <p className="text-[9px] text-slate-400 leading-normal">
-                    Informe a quantidade de peças para cada combinação de tamanho e cor. O estoque total será calculado automaticamente.
-                  </p>
-                  
-                  <div className="space-y-3 pt-1">
-                    {editSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).map(sz => {
-                      const generalColors = editColors.split(',').map(c => c.trim()).filter(Boolean);
-                      const sizeColorsArr = editSizeColors[sz]
-                        ? editSizeColors[sz].split(',').map(c => c.trim()).filter(c => generalColors.includes(c))
-                        : generalColors;
-
-                      if (sizeColorsArr.length === 0) return null;
-
-                      return (
-                        <div key={sz} className="border border-slate-100 bg-white p-2.5 rounded-lg shadow-2xs">
-                          <div className="font-extrabold text-[10px] text-slate-800 bg-slate-150 px-2 py-0.5 rounded-md inline-block mb-2">
-                            TAMANHO {sz}
-                          </div>
-                          
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {sizeColorsArr.map(color => (
-                              <div key={color} className="flex items-center justify-between gap-2 bg-slate-50/50 p-2 rounded-lg border border-slate-100">
-                                <div className="flex items-center gap-1.5 truncate">
-                                  <span className="w-2.5 h-2.5 rounded-full border border-slate-200 shrink-0" style={{ backgroundColor: colorToHex(color) }} />
-                                  <span className="font-semibold text-[10px] text-slate-700 truncate">{color}</span>
-                                </div>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  placeholder="0"
-                                  value={editSizeColorStocks[sz]?.[color] !== undefined ? editSizeColorStocks[sz][color] : 0}
-                                  onChange={(e) => {
-                                    const val = Math.max(0, parseInt(e.target.value) || 0);
-                                    setEditSizeColorStocks(prev => ({
-                                      ...prev,
-                                      [sz]: {
-                                        ...(prev[sz] || {}),
-                                        [color]: val
-                                      }
-                                    }));
-                                  }}
-                                  className="w-16 px-2 py-0.5 bg-white border border-slate-200 rounded-md text-slate-705 text-[10px] font-medium font-mono focus:outline-hidden focus:border-pink-500 text-center"
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                editColors.split(',').map(c => c.trim()).filter(Boolean).length > 0 && (
-                  <div className="space-y-2 mt-1 border border-pink-100 bg-pink-50/10 p-3 rounded-xl text-xs">
-                    <div className="flex items-center gap-1.5 text-pink-700 font-bold uppercase text-[9px] tracking-widest">
-                      <Sparkles size={11} className="text-pink-600 animate-pulse" />
-                      <span>Estoque por Cor</span>
-                    </div>
-                    <p className="text-[9px] text-slate-400 leading-normal">
-                      Informe a quantidade de peças para cada cor informada acima. A soma total irá definir o estoque do produto automaticamente.
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                      {editColors.split(',').map(c => c.trim()).filter(Boolean).map(color => (
-                        <div key={color} className="flex items-center justify-between gap-2 bg-white p-2 rounded-lg border border-slate-150 shadow-2xs">
-                          <div className="flex items-center gap-1.5 truncate">
-                            <span className="w-2.5 h-2.5 rounded-full border border-slate-200 shrink-0 animate-pulse" style={{ backgroundColor: colorToHex(color) }} />
-                            <span className="font-semibold text-[10px] text-slate-700 truncate">{color}</span>
-                          </div>
-                          <input
-                            type="number"
-                            min="0"
-                            placeholder="0"
-                            value={editColorStocks[color] !== undefined ? editColorStocks[color] : 0}
-                            onChange={(e) => {
-                              const val = Math.max(0, parseInt(e.target.value) || 0);
-                              setEditColorStocks(prev => ({
-                                ...prev,
-                                [color]: val
-                              }));
-                            }}
-                            className="w-16 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-md text-slate-705 text-[10px] font-medium font-mono focus:outline-hidden focus:border-pink-500 text-center"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              )}
-
-              {editSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).length > 0 && (
-                <div className="space-y-2 mt-1 border border-slate-100 bg-slate-50/50 p-3 rounded-xl text-xs">
-                  <div className="flex items-center gap-1.5 text-slate-700 font-bold uppercase text-[9px] tracking-widest">
-                    <Sparkles size={11} className="text-pink-600 animate-pulse" />
-                    <span>CORES ESPECÍFICAS POR TAMANHO (OPCIONAL)</span>
-                  </div>
-                  <p className="text-[9px] text-slate-400 leading-normal">
-                    Associe cores a cada tamanho. Se configurado, o cliente verá apenas as cores vinculadas ao selecionar o respectivo tamanho. Digite as cores separadas por vírgula.
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                    {editSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).map(sz => (
-                      <div key={sz} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-150 shadow-2xs">
-                        <span className="font-extrabold text-[10px] text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md min-w-[28px] text-center">{sz}</span>
-                        <input
-                          type="text"
-                          placeholder="Ex: Azul Marinho, Preto, Vermelho"
-                          value={editSizeColors[sz] || ''}
-                          onChange={(e) => {
-                            setEditSizeColors(prev => ({
-                              ...prev,
-                              [sz]: e.target.value
-                            }));
-                          }}
-                          className="flex-1 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-md text-slate-705 focus:outline-hidden focus:border-pink-500 transition-all text-[10px] font-medium font-mono"
+                    <div className="grid grid-cols-4 gap-2 text-xs">
+                      <div className="space-y-1">
+                        <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Peso (kg)</label>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          required
+                          placeholder="0.35"
+                          value={editWeight}
+                          onChange={(e) => setEditWeight(Number(e.target.value))}
+                          className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
+                        />
+                        <span className="text-[8px] text-slate-400 block leading-none">Ex: 0.35 = 350g</span>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Compr. (cm)</label>
+                        <input 
+                          type="number"
+                          step="1"
+                          min="1"
+                          required
+                          placeholder="25"
+                          value={editLength}
+                          onChange={(e) => setEditLength(Number(e.target.value))}
+                          className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
                         />
                       </div>
-                    ))}
+                      <div className="space-y-1">
+                        <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Largura (cm)</label>
+                        <input 
+                          type="number"
+                          step="1"
+                          min="1"
+                          required
+                          placeholder="20"
+                          value={editWidth}
+                          onChange={(e) => setEditWidth(Number(e.target.value))}
+                          className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Altura (cm)</label>
+                        <input 
+                          type="number"
+                          step="1"
+                          min="1"
+                          required
+                          placeholder="5"
+                          value={editHeight}
+                          onChange={(e) => setEditHeight(Number(e.target.value))}
+                          className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
 
-              <div className="space-y-1 text-xs">
-                <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Link de Vídeo MP4 ou YouTube (Showcase)</label>
-                <input 
-                  type="text"
-                  placeholder="Ex: https://www.w3schools.com/html/movie.mp4"
-                  value={editVideoUrl}
-                  onChange={(e) => setEditVideoUrl(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono text-xs"
-                />
-              </div>
-
-              <div className="space-y-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <label className="text-slate-600 font-extrabold uppercase text-[10px] tracking-wide block">Galeria de Fotos do Produto (Múltiplas Fotos)</label>
-                
-                {/* Previews grid */}
-                <div className="grid grid-cols-5 gap-2">
-                  {editImages.map((img, idx) => (
-                    <div key={idx} className="relative aspect-square rounded-lg border border-slate-200 overflow-hidden bg-slate-100 group shadow-xs">
-                      <img 
-                        src={getOptimizedImageUrl(img, 200)} 
-                        alt={`Preview ${idx + 1}`} 
-                        className="w-full h-full object-cover" 
-                        referrerPolicy="no-referrer" 
-                        onError={handleImageFallback}
+              {/* ABA: CORES & ESTOQUE */}
+              {editModalTab === 'cores' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div className="space-y-1">
+                      <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Cores Disponíveis (Gerais)</label>
+                      <input 
+                        type="text"
+                        placeholder="Preto, Pink Glow, Azul Celeste"
+                        value={editColors}
+                        onChange={(e) => setEditColors(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono"
                       />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const updated = editImages.filter((_, i) => i !== idx);
-                          setEditImages(updated);
-                        }}
-                        className="absolute top-1 right-1 bg-rose-600 hover:bg-rose-700 text-white p-1 rounded-full cursor-pointer transition-all shadow-md flex items-center justify-center border-none"
-                        title="Remover esta foto"
-                      >
-                        <X size={10} />
-                      </button>
-                      {idx === 0 && (
-                        <span className="absolute bottom-0 inset-x-0 bg-pink-600/90 text-white font-extrabold text-[8px] text-center tracking-wider py-0.5 uppercase">CAPA</span>
-                      )}
                     </div>
-                  ))}
-                  {editImages.length === 0 && (
-                    <div className="col-span-5 py-4 text-center text-slate-400 font-medium text-xs">
-                      Nenhuma foto adicionada. Adicione pelo menos uma foto abaixo.
+                    <div className="space-y-1">
+                      <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Tamanhos Disponíveis</label>
+                      <input 
+                        type="text"
+                        placeholder="P, M, G, GG"
+                        value={editSizes}
+                        onChange={(e) => setEditSizes(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono"
+                      />
                     </div>
-                  )}
-                </div>
-
-                {/* Direct File Picker / Uploader */}
-                <div className="bg-pink-50/50 border border-pink-100 p-2.5 rounded-lg text-[9.5px] leading-snug text-slate-700 flex items-start gap-1.5 font-sans my-1 select-none">
-                  <span className="text-pink-600">💡</span>
-                  <p><strong>Dimensões Recomendadas para Moda/Fitness:</strong> Prefira fotos na proporção <strong>4:5 Vertical</strong> (ex: 800×1000 px) ou <strong>1:1 Quadrada</strong> (ex: 800×800 px) para valorizar as peças no caimento corporal e na vitrine.</p>
-                </div>
-
-                <div className="space-y-1">
-                  <span className="text-[10px] text-slate-500 font-bold block">1. Enviar nova foto direto do aparelho:</span>
-                  <ImageUploader 
-                    onUploadSuccess={(url) => {
-                      if (url) {
-                        setEditImages(prev => [...prev, url]);
-                      }
-                    }} 
-                    currentImageUrl=""
-                  />
-                </div>
-                
-                {/* Manual Link Input */}
-                <div className="space-y-1.5 pt-1.5 border-t border-slate-200/60 font-sans">
-                  <span className="text-[10px] text-slate-500 font-bold block">2. Ou cole o link de uma foto da internet:</span>
-                  <div className="flex gap-2">
-                    <input 
-                      id="edit-product-image-add-input"
-                      type="text"
-                      disabled={isResolvingEdit}
-                      placeholder={isResolvingEdit ? "Processando imagem..." : "Cole o link da foto (i.ibb.co, ibb.co, Google Drive ou código HTML)..."}
-                      className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-md text-slate-600 focus:outline-hidden focus:border-pink-500 transition-all font-mono text-[10px] disabled:bg-slate-100 disabled:text-slate-400"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          const val = (e.target as HTMLInputElement).value.trim();
-                          if (val) {
-                            resolveImageAndAdd(val, 'edit');
-                            (e.target as HTMLInputElement).value = '';
-                          }
-                        }
-                      }}
-                    />
-                    <button 
-                      type="button" 
-                      disabled={isResolvingEdit}
-                      onClick={(e) => {
-                        const input = document.getElementById('edit-product-image-add-input') as HTMLInputElement;
-                        if (input && input.value.trim()) {
-                          resolveImageAndAdd(input.value.trim(), 'edit');
-                          input.value = '';
-                        }
-                      }}
-                      className="px-3 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-md transition-all cursor-pointer text-xs border-none flex items-center gap-1 disabled:bg-pink-400/80 disabled:cursor-not-allowed"
-                    >
-                      {isResolvingEdit ? (
-                        <>
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          <span>Aguarde...</span>
-                        </>
-                      ) : (
-                        <span>Adicionar</span>
-                      )}
-                    </button>
                   </div>
-                  {imageFeedback && imageFeedback.type === 'edit' && (
-                    <div className={`text-xs px-2.5 py-1 rounded-md font-semibold ${imageFeedback.isError ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'} animate-fadeIn`}>
-                      {imageFeedback.message}
+
+                  {/* Seletor Dinâmico de Cores (Edição) */}
+                  {editColors.split(',').map(c => c.trim()).filter(Boolean).length > 0 && (
+                    <div className="mt-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1 animate-in fade-in duration-200">
+                      <div className="font-extrabold text-[8px] text-slate-500 uppercase tracking-wider">Ajustar Tons de Cores (Seletor Dinâmico):</div>
+                      <div className="flex flex-wrap gap-2">
+                        {editColors.split(',').map(c => c.trim()).filter(Boolean).map(color => {
+                          const normColor = color.toLowerCase().trim();
+                          const hex = customColorMap[normColor] || colorToHex(color);
+                          const displayHex = hex.startsWith('#') ? hex : '#cccccc';
+                          return (
+                            <div key={color} className="flex items-center gap-1.5 bg-white border border-slate-150 px-2 py-0.5 rounded-lg shadow-3xs hover:border-pink-200 transition-all">
+                              <input
+                                type="color"
+                                value={displayHex}
+                                onChange={(e) => handleColorHexChange(color, e.target.value)}
+                                className="w-5 h-5 rounded-md cursor-pointer border-none bg-transparent shrink-0 p-0"
+                                title={`Escolher tom para ${color}`}
+                              />
+                              <span className="text-[9px] font-bold text-slate-700 capitalize truncate max-w-[80px]">{color}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
-                  <span className="text-[9px] text-slate-400 block">💡 Aceita links do ImgBB (i.ibb.co ou ibb.co), Google Drive ou códigos de incorporação HTML/BBCode.</span>
+
+                  {/* Estoque por Tamanho e Cor */}
+                  {editSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).length > 0 ? (
+                    <div className="space-y-3 mt-1 border border-pink-100 bg-pink-50/10 p-3 rounded-xl text-xs animate-fadeIn">
+                      <div className="flex items-center gap-1.5 text-pink-700 font-bold uppercase text-[9px] tracking-widest">
+                        <Sparkles size={11} className="text-pink-600 animate-pulse" />
+                        <span>Estoque por Tamanho e Cor</span>
+                      </div>
+                      <p className="text-[9px] text-slate-400 leading-normal">
+                        Informe a quantidade de peças para cada combinação de tamanho e cor. O estoque total será calculado automaticamente.
+                      </p>
+                      
+                      <div className="space-y-3 pt-1">
+                        {editSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).map(sz => {
+                          const generalColors = editColors.split(',').map(c => c.trim()).filter(Boolean);
+                          const sizeColorsArr = editSizeColors[sz]
+                            ? editSizeColors[sz].split(',').map(c => c.trim()).filter(c => generalColors.includes(c))
+                            : generalColors;
+
+                          if (sizeColorsArr.length === 0) return null;
+
+                          return (
+                            <div key={sz} className="border border-slate-100 bg-white p-2.5 rounded-lg shadow-2xs">
+                              <div className="font-extrabold text-[10px] text-slate-800 bg-slate-150 px-2 py-0.5 rounded-md inline-block mb-2">
+                                TAMANHO {sz}
+                              </div>
+                              
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {sizeColorsArr.map(color => (
+                                  <div key={color} className="flex items-center justify-between gap-2 bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                                    <div className="flex items-center gap-1.5 truncate">
+                                      <span className="w-2.5 h-2.5 rounded-full border border-slate-200 shrink-0" style={{ backgroundColor: colorToHex(color) }} />
+                                      <span className="font-semibold text-[10px] text-slate-700 truncate">{color}</span>
+                                    </div>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      placeholder="0"
+                                      value={editSizeColorStocks[sz]?.[color] !== undefined ? editSizeColorStocks[sz][color] : 0}
+                                      onChange={(e) => {
+                                        const val = Math.max(0, parseInt(e.target.value) || 0);
+                                        setEditSizeColorStocks(prev => ({
+                                          ...prev,
+                                          [sz]: {
+                                            ...(prev[sz] || {}),
+                                            [color]: val
+                                          }
+                                        }));
+                                      }}
+                                      className="w-16 px-2 py-0.5 bg-white border border-slate-200 rounded-md text-slate-705 text-[10px] font-medium font-mono focus:outline-hidden focus:border-pink-500 text-center"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    editColors.split(',').map(c => c.trim()).filter(Boolean).length > 0 && (
+                      <div className="space-y-2 mt-1 border border-pink-100 bg-pink-50/10 p-3 rounded-xl text-xs">
+                        <div className="flex items-center gap-1.5 text-pink-700 font-bold uppercase text-[9px] tracking-widest">
+                          <Sparkles size={11} className="text-pink-600 animate-pulse" />
+                          <span>Estoque por Cor</span>
+                        </div>
+                        <p className="text-[9px] text-slate-400 leading-normal">
+                          Informe a quantidade de peças para cada cor informada acima. A soma total irá definir o estoque do produto automaticamente.
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                          {editColors.split(',').map(c => c.trim()).filter(Boolean).map(color => (
+                            <div key={color} className="flex items-center justify-between gap-2 bg-white p-2 rounded-lg border border-slate-150 shadow-2xs">
+                              <div className="flex items-center gap-1.5 truncate">
+                                <span className="w-2.5 h-2.5 rounded-full border border-slate-200 shrink-0 animate-pulse" style={{ backgroundColor: colorToHex(color) }} />
+                                <span className="font-semibold text-[10px] text-slate-700 truncate">{color}</span>
+                              </div>
+                              <input
+                                type="number"
+                                min="0"
+                                placeholder="0"
+                                value={editColorStocks[color] !== undefined ? editColorStocks[color] : 0}
+                                onChange={(e) => {
+                                  const val = Math.max(0, parseInt(e.target.value) || 0);
+                                  setEditColorStocks(prev => ({
+                                    ...prev,
+                                    [color]: val
+                                  }));
+                                }}
+                                className="w-16 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-md text-slate-705 text-[10px] font-medium font-mono focus:outline-hidden focus:border-pink-500 text-center"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  )}
+
+                  {/* Cores Específicas por Tamanho */}
+                  {editSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).length > 0 && (
+                    <div className="space-y-2 mt-1 border border-slate-100 bg-slate-50/50 p-3 rounded-xl text-xs">
+                      <div className="flex items-center gap-1.5 text-slate-700 font-bold uppercase text-[9px] tracking-widest">
+                        <Sparkles size={11} className="text-pink-600 animate-pulse" />
+                        <span>CORES ESPECÍFICAS POR TAMANHO (OPCIONAL)</span>
+                      </div>
+                      <p className="text-[9px] text-slate-400 leading-normal">
+                        Associe cores a cada tamanho. Se configurado, o cliente verá apenas as cores vinculadas ao selecionar o respectivo tamanho. Digite as cores separadas por vírgula.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                        {editSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).map(sz => (
+                          <div key={sz} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-150 shadow-2xs">
+                            <span className="font-extrabold text-[10px] text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md min-w-[28px] text-center">{sz}</span>
+                            <input
+                              type="text"
+                              placeholder="Ex: Azul Marinho, Preto, Vermelho"
+                              value={editSizeColors[sz] || ''}
+                              onChange={(e) => {
+                                setEditSizeColors(prev => ({
+                                  ...prev,
+                                  [sz]: e.target.value
+                                }));
+                              }}
+                              className="flex-1 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-md text-slate-705 focus:outline-hidden focus:border-pink-500 transition-all text-[10px] font-medium font-mono"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
+
+              {/* ABA: PROVADOR & MEDIDAS */}
+              {editModalTab === 'medidas' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  {editSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).length > 0 ? (
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="font-extrabold text-[9px] text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                          <Ruler size={11} className="text-pink-600" />
+                          Tabela de Medidas de Referência (cm)
+                        </div>
+                        <span className="text-[8px] text-slate-400 font-bold">Provador Virtual</span>
+                      </div>
+                      <p className="text-[8.5px] text-slate-400">Insira as faixas de medida recomendadas para cada tamanho da peça.</p>
+                      <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                        {editSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).map(sz => {
+                          const normSz = sz.toUpperCase().trim();
+                          const currentSpec = editMeasurementSpecs[normSz] || editMeasurementSpecs[sz] || getFallbackSpecsForSize(sz);
+                          
+                          const updateSpec = (field: 'bustoMin' | 'bustoMax' | 'cinturaMin' | 'cinturaMax' | 'quadrilMin' | 'quadrilMax', value: number) => {
+                            setEditMeasurementSpecs(prev => ({
+                              ...prev,
+                              [sz]: {
+                                ...(prev[sz] || getFallbackSpecsForSize(sz)),
+                                [field]: value
+                              }
+                            }));
+                          };
+
+                          return (
+                            <div key={sz} className="p-2 bg-white rounded-lg border border-slate-150 space-y-1.5">
+                              <div className="flex justify-between items-center text-[10px] font-extrabold text-slate-700 bg-slate-100/60 px-1.5 py-0.5 rounded">
+                                <span>Tamanho {sz}</span>
+                                <span className="text-[8px] text-pink-600">Recomendado padrão ativo</span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 text-[9px]">
+                                <div>
+                                  <span className="block text-slate-400 uppercase font-bold text-[7.5px] mb-0.5">Busto (cm)</span>
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="number"
+                                      value={currentSpec.bustoMin}
+                                      onChange={(e) => updateSpec('bustoMin', Number(e.target.value))}
+                                      className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
+                                      placeholder="Mín"
+                                    />
+                                    <span className="text-slate-350">-</span>
+                                    <input
+                                      type="number"
+                                      value={currentSpec.bustoMax}
+                                      onChange={(e) => updateSpec('bustoMax', Number(e.target.value))}
+                                      className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
+                                      placeholder="Máx"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <span className="block text-slate-400 uppercase font-bold text-[7.5px] mb-0.5">Cintura (cm)</span>
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="number"
+                                      value={currentSpec.cinturaMin}
+                                      onChange={(e) => updateSpec('cinturaMin', Number(e.target.value))}
+                                      className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
+                                      placeholder="Mín"
+                                    />
+                                    <span className="text-slate-350">-</span>
+                                    <input
+                                      type="number"
+                                      value={currentSpec.cinturaMax}
+                                      onChange={(e) => updateSpec('cinturaMax', Number(e.target.value))}
+                                      className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
+                                      placeholder="Máx"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <span className="block text-slate-400 uppercase font-bold text-[7.5px] mb-0.5">Quadril (cm)</span>
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="number"
+                                      value={currentSpec.quadrilMin}
+                                      onChange={(e) => updateSpec('quadrilMin', Number(e.target.value))}
+                                      className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
+                                      placeholder="Mín"
+                                    />
+                                    <span className="text-slate-350">-</span>
+                                    <input
+                                      type="number"
+                                      value={currentSpec.quadrilMax}
+                                      onChange={(e) => updateSpec('quadrilMax', Number(e.target.value))}
+                                      className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
+                                      placeholder="Máx"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-6 bg-slate-50 rounded-xl text-center text-slate-400 text-xs">
+                      Cadastre tamanhos (ex: P, M, G) na aba "Cores & Estoque" para configurar a tabela de medidas do provador virtual.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ABA: FOTOS & VÍDEO */}
+              {editModalTab === 'fotos' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  <div className="space-y-1 text-xs">
+                    <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Link de Vídeo MP4 ou YouTube (Showcase)</label>
+                    <input 
+                      type="text"
+                      placeholder="Ex: https://www.w3schools.com/html/movie.mp4"
+                      value={editVideoUrl}
+                      onChange={(e) => setEditVideoUrl(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <label className="text-slate-600 font-extrabold uppercase text-[10px] tracking-wide block">Galeria de Fotos do Produto (Múltiplas Fotos)</label>
+                    
+                    {/* Previews grid */}
+                    <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                      {editImages.map((img, idx) => (
+                        <div key={idx} className="relative aspect-square rounded-lg border border-slate-200 overflow-hidden bg-slate-100 group shadow-xs">
+                          <img 
+                            src={getOptimizedImageUrl(img, 200)} 
+                            alt={`Preview ${idx + 1}`} 
+                            className="w-full h-full object-cover" 
+                            referrerPolicy="no-referrer" 
+                            onError={handleImageFallback}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = editImages.filter((_, i) => i !== idx);
+                              setEditImages(updated);
+                            }}
+                            className="absolute top-1 right-1 bg-rose-600 hover:bg-rose-700 text-white p-1 rounded-full cursor-pointer transition-all shadow-md flex items-center justify-center border-none"
+                            title="Remover esta foto"
+                          >
+                            <X size={10} />
+                          </button>
+                          {idx === 0 && (
+                            <span className="absolute bottom-0 inset-x-0 bg-pink-600/90 text-white font-extrabold text-[8px] text-center tracking-wider py-0.5 uppercase">CAPA</span>
+                          )}
+                        </div>
+                      ))}
+                      {editImages.length === 0 && (
+                        <div className="col-span-5 py-4 text-center text-slate-400 font-medium text-xs">
+                          Nenhuma foto adicionada. Adicione pelo menos uma foto abaixo.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Direct File Picker / Uploader */}
+                    <div className="bg-pink-50/50 border border-pink-100 p-2.5 rounded-lg text-[9.5px] leading-snug text-slate-700 flex items-start gap-1.5 font-sans my-1 select-none">
+                      <span className="text-pink-600">💡</span>
+                      <p><strong>Dimensões Recomendadas para Moda/Fitness:</strong> Prefira fotos na proporção <strong>4:5 Vertical</strong> (ex: 800×1000 px) ou <strong>1:1 Quadrada</strong> (ex: 800×800 px) para valorizar as peças no caimento corporal e na vitrine.</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-500 font-bold block">1. Enviar nova foto direto do aparelho:</span>
+                      <ImageUploader 
+                        onUploadSuccess={(url) => {
+                          if (url) {
+                            setEditImages(prev => [...prev, url]);
+                          }
+                        }} 
+                        currentImageUrl=""
+                      />
+                    </div>
+                    
+                    {/* Manual Link Input */}
+                    <div className="space-y-1.5 pt-1.5 border-t border-slate-200/60 font-sans">
+                      <span className="text-[10px] text-slate-500 font-bold block">2. Ou cole o link de uma foto da internet:</span>
+                      <div className="flex gap-2">
+                        <input 
+                          id="edit-product-image-add-input"
+                          type="text"
+                          disabled={isResolvingEdit}
+                          placeholder={isResolvingEdit ? "Processando imagem..." : "Cole o link da foto (i.ibb.co, ibb.co, Google Drive ou código HTML)..."}
+                          className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-md text-slate-600 focus:outline-hidden focus:border-pink-500 transition-all font-mono text-[10px] disabled:bg-slate-100 disabled:text-slate-400"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const val = (e.target as HTMLInputElement).value.trim();
+                              if (val) {
+                                resolveImageAndAdd(val, 'edit');
+                                (e.target as HTMLInputElement).value = '';
+                              }
+                            }
+                          }}
+                        />
+                        <button 
+                          type="button" 
+                          disabled={isResolvingEdit}
+                          onClick={(e) => {
+                            const input = document.getElementById('edit-product-image-add-input') as HTMLInputElement;
+                            if (input && input.value.trim()) {
+                              resolveImageAndAdd(input.value.trim(), 'edit');
+                              input.value = '';
+                            }
+                          }}
+                          className="px-3 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-md transition-all cursor-pointer text-xs border-none flex items-center gap-1 disabled:bg-pink-400/80 disabled:cursor-not-allowed"
+                        >
+                          {isResolvingEdit ? (
+                            <>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <span>Aguarde...</span>
+                            </>
+                          ) : (
+                            <span>Adicionar</span>
+                          )}
+                        </button>
+                      </div>
+                      {imageFeedback && imageFeedback.type === 'edit' && (
+                        <div className={`text-xs px-2.5 py-1 rounded-md font-semibold ${imageFeedback.isError ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'} animate-fadeIn`}>
+                          {imageFeedback.message}
+                        </div>
+                      )}
+                      <span className="text-[9px] text-slate-400 block">💡 Aceita links do ImgBB (i.ibb.co ou ibb.co), Google Drive ou códigos de incorporação HTML/BBCode.</span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
             </form>
 
             {/* Sticky Action Footer - Always visible on Notebook screens */}
             <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 shrink-0">
-              <button 
-                type="button" 
-                disabled={isSaving}
-                onClick={() => {
-                  setIsEditModalOpen(false);
-                  setEditingProduct(null);
-                }}
-                className="py-2.5 px-4 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-xl transition-all cursor-pointer border border-slate-250 text-xs shadow-2xs"
-              >
-                Cancelar
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  type="button" 
+                  disabled={isSaving}
+                  onClick={() => {
+                    setIsEditModalOpen(false);
+                    setEditingProduct(null);
+                  }}
+                  className="py-2.5 px-3.5 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-xl transition-all cursor-pointer border border-slate-250 text-xs shadow-2xs"
+                >
+                  Cancelar
+                </button>
+                {editModalTab !== 'basico' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const tabList = ['basico', 'frete', 'cores', 'medidas', 'fotos'] as const;
+                      const idx = tabList.indexOf(editModalTab);
+                      if (idx > 0) setEditModalTab(tabList[idx - 1]);
+                    }}
+                    className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 border border-slate-200"
+                  >
+                    <span>← Anterior</span>
+                  </button>
+                )}
+                {editModalTab !== 'fotos' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const tabList = ['basico', 'frete', 'cores', 'medidas', 'fotos'] as const;
+                      const idx = tabList.indexOf(editModalTab);
+                      if (idx < tabList.length - 1) setEditModalTab(tabList[idx + 1]);
+                    }}
+                    className="py-2.5 px-3 bg-pink-50 hover:bg-pink-100 text-pink-700 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border border-pink-200"
+                  >
+                    <span>Próximo Passo →</span>
+                  </button>
+                )}
+              </div>
 
               <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
                 <button

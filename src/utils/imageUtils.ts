@@ -269,20 +269,32 @@ export function getOptimizedImageUrl(
 export function handleImageFallback(e: React.SyntheticEvent<HTMLImageElement, Event>) {
   const target = e.currentTarget;
 
-  // Tier 1 recovery: If it failed via the CDN proxy, fallback immediately to the original direct image URL!
+  // Tier 1 recovery: If it failed loading a local /optimized-images asset, revert immediately to original upstream URL
+  if (target.src && target.src.includes('/optimized-images/')) {
+    const filename = target.src.split('/').pop()?.split('?')[0];
+    if (filename) {
+      for (const [origUrl, mapped] of Object.entries(PRE_OPTIMIZED_IMAGES)) {
+        if (mapped === filename && target.src !== origUrl) {
+          target.src = origUrl;
+          return;
+        }
+      }
+    }
+  }
+
+  // Tier 2 recovery: If it failed via the CDN proxy, fallback immediately to the original direct image URL
   if (target.src && target.src.includes('/api/proxy/cdn-image')) {
     try {
       const urlObj = new URL(target.src, window.location.origin);
       const originalUrl = urlObj.searchParams.get('url');
       if (originalUrl && originalUrl !== target.src) {
-        // Switch to direct image loading
         target.src = originalUrl;
         return;
       }
     } catch (err) {}
   }
 
-  // Tier 2 recovery: If already at fallback, stop infinite loop
+  // Tier 3 recovery: If already at fallback, stop infinite loop
   if (target.src !== AP_FALLBACK_IMAGE) {
     target.onerror = null;
     target.src = AP_FALLBACK_IMAGE;
