@@ -290,7 +290,7 @@ export default function ImageUploader({ onUploadSuccess, currentImageUrl, classN
             {uploadedUrl && (
               <div className="flex items-center gap-2 pt-1">
                 <span className="text-[10px] text-slate-400">Imagem ativa:</span>
-                <div className="w-8 h-8 rounded-md overflow-hidden border border-slate-150 bg-white">
+                <div className="w-8 h-8 rounded-md overflow-hidden border border-slate-100 bg-white">
                   <img src={uploadedUrl} alt="Preview Active" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 </div>
               </div>

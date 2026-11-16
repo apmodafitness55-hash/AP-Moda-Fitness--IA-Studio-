@@ -74,8 +74,10 @@ import {
   syncBulkSalesToSupabase,
   fetchTransactionsFromSupabase,
   syncBulkTransactionsToSupabase,
+  deleteTransactionFromSupabase,
   fetchOnlineOrdersFromSupabase,
   syncBulkOnlineOrdersToSupabase,
+  deleteOnlineOrderFromSupabase,
   fetchCheckoutsFromSupabase,
   syncBulkCheckoutsToSupabase,
   syncSystemConfigsWithSupabase,
@@ -1136,16 +1138,41 @@ export default function App() {
     prevOnlineOrdersRef.current = onlineOrders;
   }, [onlineOrders, getDirtyIds, saveDirtyIds]);
 
-  // Reconcile and auto-link any existing online orders to Sales and Transactions
+  // Reconcile and auto-link paid online orders to Sales and Transactions (never mark pending/canceled as paid revenue)
   useEffect(() => {
     if (!onlineOrders || onlineOrders.length === 0) return;
 
+    const isOrderPaid = (o: any) =>
+      o.status_pagamento === 'pago' ||
+      o.status === 'Pago' ||
+      o.status === 'Concluído' ||
+      o.status === 'Entregue';
+
+    const isOrderCanceled = (o: any) =>
+      o.status === 'Cancelado' || o.status === 'Recusado';
+
     setSales(prevSales => {
-      const existingSaleIds = new Set(prevSales.map(s => s.id));
+      const existingById = new Map(prevSales.map(s => [s.id, s]));
       const salesToAdd: Sale[] = [];
+      let statusChanged = false;
+      const updatedPrev = prevSales.map(s => {
+        const linkedOrder = onlineOrders.find(o => o.id === s.id);
+        if (linkedOrder) {
+          if (isOrderCanceled(linkedOrder) && s.status !== 'Cancelada') {
+            statusChanged = true;
+            return { ...s, status: 'Cancelada' as const };
+          }
+          if (isOrderPaid(linkedOrder) && s.status !== 'Concluída') {
+            statusChanged = true;
+            return { ...s, status: 'Concluída' as const, status_logistico: linkedOrder.status === 'Entregue' ? 'entregue' : (s.status_logistico || 'pendente') };
+          }
+        }
+        return s;
+      });
 
       for (const o of onlineOrders) {
-        if (!existingSaleIds.has(o.id)) {
+        if (!isOrderPaid(o) || isOrderCanceled(o)) continue;
+        if (!existingById.has(o.id)) {
           const saleItems = (o.items || []).map((it: any) => {
             const matchedProd = products.find(p => p.id === it.productId) ||
                                 products.find(p => p.name && (p.name.toLowerCase() === (it.productName || '').toLowerCase() || it.productName?.toLowerCase()?.includes(p.name?.toLowerCase())));
@@ -1179,19 +1206,21 @@ export default function App() {
             status_logistico: o.status === 'Entregue' ? 'entregue' : 'pendente',
             partner: o.partner || o.partnerName || undefined,
             partnerName: o.partnerName || o.partner || undefined,
+            partnerId: o.partnerId || undefined,
             couponCode: o.couponCode || o.coupon || undefined,
+            partnerCoupon: o.partnerCoupon || o.couponCode || o.coupon || undefined,
             notes: o.notes || undefined
           };
           salesToAdd.push(newSale);
         }
       }
 
-      if (salesToAdd.length > 0) {
+      if (salesToAdd.length > 0 || statusChanged) {
         const config = getSupabaseConfig();
-        if (config && !systemOffline) {
+        if (config && !systemOffline && salesToAdd.length > 0) {
           syncBulkSalesToSupabase(salesToAdd).catch(e => console.warn('Error syncing reconciled sales:', e));
         }
-        return [...salesToAdd, ...prevSales];
+        return [...salesToAdd, ...updatedPrev];
       }
       return prevSales;
     });
@@ -1201,8 +1230,9 @@ export default function App() {
       const txToAdd: Transaction[] = [];
 
       for (const o of onlineOrders) {
+        if (!isOrderPaid(o) || isOrderCanceled(o)) continue;
         const txId = `tx-${o.id}`;
-        const alreadyHasTx = existingTxIds.has(txId) || prevTx.some(t => t.description && t.description.includes(o.id));
+        const alreadyHasTx = existingTxIds.has(txId) || prevTx.some(t => t.description && t.description.includes(o.id.toUpperCase()));
         if (!alreadyHasTx) {
           const newTx: Transaction = {
             id: txId,
@@ -1210,7 +1240,8 @@ export default function App() {
             category: 'Venda Online',
             description: `Pedido Loja Virtual #${o.id.toUpperCase()} - ${o.clientName} (${o.paymentMethod || 'Pix/Cartão'})`,
             amount: Number(o.total || 0),
-            date: o.createdAt || new Date().toISOString()
+            date: o.createdAt || new Date().toISOString(),
+            status: 'pago'
           };
           txToAdd.push(newTx);
         }
@@ -2505,14 +2536,22 @@ export default function App() {
       const dbTransactions = await fetchTransactionsFromSupabase();
       if (dbTransactions) {
         const dirtyTransactions = getDirtyIds('ap_dirty_transactions');
+        const deletedTransactions = getDirtyIds('ap_deleted_transactions');
         const currentTransactions = lastTransactionsRef.current;
         const localMap = new Map(currentTransactions.map(t => [t.id, t]));
         const dbMap = new Map(dbTransactions.map(t => [t.id, t]));
         let localModified = false;
         let remoteModified = false;
-        const merged = [...currentTransactions];
+        const merged = currentTransactions.filter(t => !deletedTransactions.includes(t.id));
+
+        for (const delId of deletedTransactions) {
+          if (dbMap.has(delId)) {
+            await deleteTransactionFromSupabase(delId);
+          }
+        }
 
         for (const dbT of dbTransactions) {
+          if (deletedTransactions.includes(dbT.id)) continue;
           const localT = localMap.get(dbT.id);
           if (!localT) {
             merged.push(dbT);
@@ -2526,7 +2565,7 @@ export default function App() {
           }
         }
 
-        const toUpload = currentTransactions.filter(lt => dirtyTransactions.includes(lt.id));
+        const toUpload = currentTransactions.filter(lt => dirtyTransactions.includes(lt.id) && !deletedTransactions.includes(lt.id));
         if (toUpload.length > 0) {
           const success = await syncBulkTransactionsToSupabase(toUpload);
           if (success) {
@@ -2550,14 +2589,22 @@ export default function App() {
       const dbOrders = await fetchOnlineOrdersFromSupabase();
       if (dbOrders) {
         const dirtyOrders = getDirtyIds('ap_dirty_online_orders');
+        const deletedOrders = getDirtyIds('ap_deleted_online_orders');
         const currentOrders = lastOnlineOrdersRef.current;
         const localMap = new Map(currentOrders.map(o => [o.id, o]));
         const dbMap = new Map(dbOrders.map(o => [o.id, o]));
         let localModified = false;
         let remoteModified = false;
-        const merged = [...currentOrders];
+        const merged = currentOrders.filter(o => !deletedOrders.includes(o.id));
+
+        for (const delId of deletedOrders) {
+          if (dbMap.has(delId)) {
+            await deleteOnlineOrderFromSupabase(delId);
+          }
+        }
 
         for (const dbO of dbOrders) {
+          if (deletedOrders.includes(dbO.id)) continue;
           const localO = localMap.get(dbO.id);
           if (!localO) {
             merged.push(dbO);
@@ -2573,50 +2620,57 @@ export default function App() {
               });
             }
 
-            // Automate into sales and transactions on admin notebook
-            setSales(prevSales => {
-              if (prevSales.some(s => s.id === dbO.id)) return prevSales;
-              const autoSale: Sale = {
-                id: dbO.id,
-                clientName: dbO.clientName || 'Cliente Online',
-                clientDoc: dbO.cpf || '',
-                channel: 'Loja Online',
-                items: (dbO.items || []).map((it: any) => ({
-                  productId: it.productId || `p-${Date.now()}`,
-                  name: it.productName || 'Peça Fitness',
-                  quantity: Number(it.quantity || 1),
-                  price: Number(it.price || 0),
-                  cost: Math.round(Number(it.price || 0) * 0.45)
-                })),
-                total: Number(dbO.total || 0),
-                costTotal: (dbO.items || []).reduce((acc: number, it: any) => acc + (Math.round(Number(it.price || 0) * 0.45) * Number(it.quantity || 1)), 0),
-                status: 'Concluída',
-                createdAt: dbO.createdAt || new Date().toISOString(),
-                payments: [{ method: dbO.paymentMethod || 'Pix/Cartão Online', amount: Number(dbO.total || 0) }],
-                salesperson: dbO.motoboy || 'Loja Virtual',
-                partner: dbO.partner || dbO.partnerName,
-                partnerName: dbO.partnerName || dbO.partner,
-                partnerId: dbO.partnerId,
-                partnerCoupon: dbO.partnerCoupon || dbO.couponCode,
-                commissionRate: dbO.commissionRate,
-                commissionAmount: dbO.commissionAmount,
-                couponCode: dbO.couponCode || dbO.coupon
-              };
-              return [autoSale, ...prevSales];
-            });
+            const dbOrderPaid = dbO.status_pagamento === 'pago' || dbO.status === 'Pago' || dbO.status === 'Concluído' || dbO.status === 'Entregue';
+            const dbOrderCanceled = dbO.status === 'Cancelado' || dbO.status === 'Recusado';
 
-            setTransactions(prevTx => {
-              if (prevTx.some(t => t.id === `tx-${dbO.id}` || t.description?.includes(dbO.id))) return prevTx;
-              const autoTx: Transaction = {
-                id: `tx-${dbO.id}`,
-                type: 'Inflow',
-                category: 'Venda Online',
-                description: `Pedido Loja Virtual #${dbO.id.toUpperCase()} - ${dbO.clientName} (${dbO.paymentMethod || 'Pix/Cartão'})`,
-                amount: Number(dbO.total || 0),
-                date: dbO.createdAt || new Date().toISOString()
-              };
-              return [autoTx, ...prevTx];
-            });
+            if (dbOrderPaid && !dbOrderCanceled) {
+              setSales(prevSales => {
+                if (prevSales.some(s => s.id === dbO.id)) return prevSales;
+                const autoSale: Sale = {
+                  id: dbO.id,
+                  clientName: dbO.clientName || 'Cliente Online',
+                  clientDoc: dbO.cpf || '',
+                  channel: 'Loja Online',
+                  items: (dbO.items || []).map((it: any) => ({
+                    productId: it.productId || `p-${Date.now()}`,
+                    name: it.productName || 'Peça Fitness',
+                    quantity: Number(it.quantity || 1),
+                    price: Number(it.price || 0),
+                    cost: Math.round(Number(it.price || 0) * 0.45),
+                    selectedColor: it.color || it.selectedColor || '',
+                    selectedSize: it.size || it.selectedSize || ''
+                  })),
+                  total: Number(dbO.total || 0),
+                  costTotal: (dbO.items || []).reduce((acc: number, it: any) => acc + (Math.round(Number(it.price || 0) * 0.45) * Number(it.quantity || 1)), 0),
+                  status: 'Concluída',
+                  createdAt: dbO.createdAt || new Date().toISOString(),
+                  payments: [{ method: dbO.paymentMethod || 'Pix/Cartão Online', amount: Number(dbO.total || 0) }],
+                  salesperson: dbO.motoboy || 'Loja Virtual',
+                  partner: dbO.partner || dbO.partnerName,
+                  partnerName: dbO.partnerName || dbO.partner,
+                  partnerId: dbO.partnerId,
+                  partnerCoupon: dbO.partnerCoupon || dbO.couponCode,
+                  commissionRate: dbO.commissionRate,
+                  commissionAmount: dbO.commissionAmount,
+                  couponCode: dbO.couponCode || dbO.coupon
+                };
+                return [autoSale, ...prevSales];
+              });
+
+              setTransactions(prevTx => {
+                if (prevTx.some(t => t.id === `tx-${dbO.id}` || t.description?.includes(dbO.id.toUpperCase()))) return prevTx;
+                const autoTx: Transaction = {
+                  id: `tx-${dbO.id}`,
+                  type: 'Inflow',
+                  category: 'Venda Online',
+                  description: `Pedido Loja Virtual #${dbO.id.toUpperCase()} - ${dbO.clientName} (${dbO.paymentMethod || 'Pix/Cartão'})`,
+                  amount: Number(dbO.total || 0),
+                  date: dbO.createdAt || new Date().toISOString(),
+                  status: 'pago'
+                };
+                return [autoTx, ...prevTx];
+              });
+            }
           } else if (!dirtyOrders.includes(dbO.id)) {
             if (JSON.stringify(localO) !== JSON.stringify(dbO)) {
               const idx = merged.findIndex(x => x.id === dbO.id);
@@ -2626,7 +2680,7 @@ export default function App() {
           }
         }
 
-        const toUpload = currentOrders.filter(lo => dirtyOrders.includes(lo.id));
+        const toUpload = currentOrders.filter(lo => dirtyOrders.includes(lo.id) && !deletedOrders.includes(lo.id));
         if (toUpload.length > 0) {
           const success = await syncBulkOnlineOrdersToSupabase(toUpload);
           if (success) {
@@ -3492,33 +3546,46 @@ export default function App() {
 
   // Handlers
   const handleAddSale = (newSale: Sale, skipStockDeduction = false) => {
-    setSales(prev => [newSale, ...prev]);
+    if (lastSalesRef.current.some(s => s.id === newSale.id)) {
+      return;
+    }
+    setSales(prev => (prev.some(s => s.id === newSale.id) ? prev : [newSale, ...prev]));
 
-    // Update product stock counts if not skipped
+    // Update product stock counts if not skipped (aggregate ALL matching line items / variants!)
     let updatedProducts: Product[] = [];
     if (!skipStockDeduction) {
       setProducts(prevProducts => {
         const newList = prevProducts.map(prod => {
-          const itemSold = newSale.items.find(it => it.productId === prod.id || (it.name && it.name.toLowerCase().includes(prod.name.toLowerCase())));
-          if (itemSold) {
-            const sz = (itemSold as any).selectedSize || (itemSold as any).size;
-            const col = (itemSold as any).selectedColor || (itemSold as any).color;
-            
-            let updatedColorStocks = prod.colorStocks ? { ...prod.colorStocks } : {};
-            let updatedSizeColorStocks = prod.sizeColorStocks ? JSON.parse(JSON.stringify(prod.sizeColorStocks)) : {};
+          const itemsSold = newSale.items.filter(it =>
+            it.productId === prod.id ||
+            (it.name && (
+              it.name.toLowerCase() === prod.name.toLowerCase() ||
+              it.name.toLowerCase().includes(prod.name.toLowerCase())
+            ))
+          );
+          if (itemsSold.length > 0) {
+            const updatedColorStocks = prod.colorStocks ? { ...prod.colorStocks } : {};
+            const updatedSizeColorStocks = prod.sizeColorStocks ? JSON.parse(JSON.stringify(prod.sizeColorStocks)) : {};
+            let totalDeducted = 0;
 
-            if (sz && col && updatedSizeColorStocks[sz] && updatedSizeColorStocks[sz][col] !== undefined) {
-              updatedSizeColorStocks[sz][col] = Math.max(0, updatedSizeColorStocks[sz][col] - itemSold.quantity);
-            }
+            for (const itemSold of itemsSold) {
+              const qty = Number(itemSold.quantity || 0);
+              totalDeducted += qty;
+              const sz = (itemSold as any).selectedSize || (itemSold as any).size;
+              const col = (itemSold as any).selectedColor || (itemSold as any).color;
 
-            if (col && updatedColorStocks[col] !== undefined) {
-              updatedColorStocks[col] = Math.max(0, updatedColorStocks[col] - itemSold.quantity);
+              if (sz && col && updatedSizeColorStocks[sz] && updatedSizeColorStocks[sz][col] !== undefined) {
+                updatedSizeColorStocks[sz][col] = Math.max(0, updatedSizeColorStocks[sz][col] - qty);
+              }
+              if (col && updatedColorStocks[col] !== undefined) {
+                updatedColorStocks[col] = Math.max(0, updatedColorStocks[col] - qty);
+              }
             }
 
             const updatedProd = {
               ...prod,
-              stock: Math.max(0, prod.stock - itemSold.quantity),
-              salesCount: prod.salesCount + itemSold.quantity,
+              stock: Math.max(0, prod.stock - totalDeducted),
+              salesCount: prod.salesCount + totalDeducted,
               colorStocks: updatedColorStocks,
               sizeColorStocks: updatedSizeColorStocks
             };
@@ -3536,15 +3603,21 @@ export default function App() {
       ? ` (${newSale.payments.map(p => `${p.method}: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.amount)}`).join(' + ')})`
       : '';
 
+    const deterministicTxId = `tx-${newSale.id}`;
     const newTx: Transaction = {
-      id: `t-${Date.now()}`,
+      id: deterministicTxId,
       type: 'Inflow',
       category: 'Venda',
       description: `Venda ${newSale.id.toUpperCase()} para ${newSale.clientName}${paymentDetailStr}`,
       amount: newSale.total,
-      date: newSale.createdAt
+      date: newSale.createdAt,
+      status: newSale.status === 'Pendente' ? 'pendente' : 'pago'
     };
-    setTransactions(prev => [newTx, ...prev]);
+    setTransactions(prev => (
+      prev.some(t => t.id === deterministicTxId || (t.description && t.description.includes(newSale.id.toUpperCase())))
+        ? prev
+        : [newTx, ...prev]
+    ));
 
     // Load VIP rules configuration from localStorage
     let vipRules: any = null;
@@ -3604,10 +3677,11 @@ export default function App() {
       return newList;
     });
 
-    // Update Partner statistics if coupon or partner associated
+    // Update Partner statistics ONLY when explicit partnerId, partnerName, or real couponCode matches (never partner login)
     const couponCodeForPartner = (newSale.couponCode || newSale.coupon || newSale.partnerCoupon || '').trim().toUpperCase();
     const partnerNameForSale = (newSale.partnerName || newSale.partner || '').trim().toLowerCase();
-    if (couponCodeForPartner || partnerNameForSale) {
+    const partnerIdForSale = (newSale.partnerId || '').trim();
+    if (couponCodeForPartner || partnerNameForSale || partnerIdForSale) {
       try {
         const savedP = localStorage.getItem('ap_moda_partners');
         let partnersList: any[] = savedP ? JSON.parse(savedP) : [];
@@ -3615,14 +3689,16 @@ export default function App() {
           let updated = false;
           partnersList = partnersList.map(p => {
             const pCoupon = (p.couponCode || '').trim().toUpperCase();
-            const pLogin = (p.login || '').trim().toUpperCase();
             const pName = (p.name || '').trim().toLowerCase();
-            const pId = p.id;
+            const pId = String(p.id || '').trim();
 
-            const matchesCoupon = couponCodeForPartner && (pCoupon === couponCodeForPartner || pLogin === couponCodeForPartner || (pLogin && pLogin + '10' === couponCodeForPartner));
-            const matchesName = partnerNameForSale && (pName === partnerNameForSale || pId === partnerNameForSale);
+            const matchesCoupon = Boolean(couponCodeForPartner && pCoupon && pCoupon === couponCodeForPartner);
+            const matchesPartner = Boolean(
+              (partnerIdForSale && pId === partnerIdForSale) ||
+              (partnerNameForSale && (pName === partnerNameForSale || pId.toLowerCase() === partnerNameForSale))
+            );
 
-            if (matchesCoupon || matchesName) {
+            if (matchesCoupon || matchesPartner) {
               updated = true;
               const commRate = p.commissionRate || 10;
               const saleAmount = Number(newSale.total || 0);
@@ -3811,34 +3887,37 @@ export default function App() {
             let restoredProducts: Product[] = [];
             setProducts(prevProducts => {
               return prevProducts.map(prod => {
-                const itemInOrder = o.items.find((it: any) => 
-                  it.productId === prod.id || 
+                const itemsInOrder = (o.items || []).filter((it: any) =>
+                  it.productId === prod.id ||
                   (it.productName && (
-                    it.productName === prod.name || 
+                    it.productName === prod.name ||
                     it.productName.toLowerCase().startsWith(prod.name.toLowerCase()) ||
                     prod.name.toLowerCase().startsWith(it.productName.toLowerCase())
                   ))
                 );
-                if (itemInOrder) {
-                  const sz = itemInOrder.size || itemInOrder.selectedSize || '';
-                  const col = itemInOrder.color || itemInOrder.selectedColor || '';
-                  const qty = Number(itemInOrder.quantity || 1);
+                if (itemsInOrder.length > 0) {
+                  const updatedColorStocks = prod.colorStocks ? { ...prod.colorStocks } : {};
+                  const updatedSizeColorStocks = prod.sizeColorStocks ? JSON.parse(JSON.stringify(prod.sizeColorStocks)) : {};
+                  let totalRestored = 0;
 
-                  let updatedColorStocks = prod.colorStocks ? { ...prod.colorStocks } : {};
-                  let updatedSizeColorStocks = prod.sizeColorStocks ? JSON.parse(JSON.stringify(prod.sizeColorStocks)) : {};
+                  for (const itemInOrder of itemsInOrder) {
+                    const sz = itemInOrder.size || itemInOrder.selectedSize || '';
+                    const col = itemInOrder.color || itemInOrder.selectedColor || '';
+                    const qty = Number(itemInOrder.quantity || 1);
+                    totalRestored += qty;
 
-                  if (sz && col && updatedSizeColorStocks[sz] && updatedSizeColorStocks[sz][col] !== undefined) {
-                    updatedSizeColorStocks[sz][col] = updatedSizeColorStocks[sz][col] + qty;
-                  }
-
-                  if (col && updatedColorStocks[col] !== undefined) {
-                    updatedColorStocks[col] = updatedColorStocks[col] + qty;
+                    if (sz && col && updatedSizeColorStocks[sz] && updatedSizeColorStocks[sz][col] !== undefined) {
+                      updatedSizeColorStocks[sz][col] = updatedSizeColorStocks[sz][col] + qty;
+                    }
+                    if (col && updatedColorStocks[col] !== undefined) {
+                      updatedColorStocks[col] = updatedColorStocks[col] + qty;
+                    }
                   }
 
                   const restoredProd = {
                     ...prod,
-                    stock: prod.stock + qty,
-                    salesCount: Math.max(0, (prod.salesCount || 0) - qty),
+                    stock: prod.stock + totalRestored,
+                    salesCount: Math.max(0, (prod.salesCount || 0) - totalRestored),
                     colorStocks: updatedColorStocks,
                     sizeColorStocks: updatedSizeColorStocks
                   };
@@ -4819,7 +4898,7 @@ export default function App() {
           </div>
 
           <div className="space-y-4">
-            <p className="text-[11px] text-slate-400 italic bg-slate-850/40 p-3 rounded-lg border border-slate-800 text-center">
+            <p className="text-[11px] text-slate-400 italic bg-slate-800/40 p-3 rounded-lg border border-slate-800 text-center">
               "{syncProgress.details}"
             </p>
 
@@ -4959,7 +5038,7 @@ export default function App() {
               </div>
 
               {/* Action Buttons */}
-              <div className="p-5 bg-slate-50 dark:bg-slate-850 border-t border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row gap-2.5">
+              <div className="p-5 bg-slate-50 dark:bg-slate-800 border-t border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row gap-2.5">
                 <button
                   onClick={() => {
                     setActiveTab(ActiveTab.PEDIDOS);
@@ -5138,170 +5217,174 @@ export default function App() {
       />
 
       {/* Main Screen content block (shifted on desktop) */}
-      <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
+      <div className="flex-1 lg:pl-64 flex flex-col min-w-0 max-w-full overflow-x-hidden">
         
         {/* Top Sticky Header */}
-        <header className="sticky top-0 bg-white border-b border-slate-100 z-30 px-3 sm:px-4 md:px-6 h-16 flex items-center justify-between shadow-xs">
+        <header className="sticky top-0 bg-white border-b border-slate-100 z-30 px-2.5 sm:px-4 md:px-6 min-h-16 py-1.5 flex items-center justify-between gap-2 shadow-xs">
           
-          {/* Mobile hamburger menu toggle */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {/* Left: Hamburger + Primary Vitrine / Driver shortcuts */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             <button 
               id="sidebar-toggle-btn"
               onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden p-1.5 text-slate-500 hover:text-pink-600 hover:bg-slate-55 rounded-md transition-all cursor-pointer"
+              className="lg:hidden p-1.5 text-slate-500 hover:text-pink-600 hover:bg-slate-50 rounded-md transition-all cursor-pointer"
+              aria-label="Abrir Menu"
             >
               <Menu size={20} />
             </button>
 
-            {/* Quick stats indicator */}
-            <div className="hidden sm:flex items-center gap-2 text-slate-400 text-xs font-medium">
+            {/* Quick stats & primary links */}
+            <div className="hidden sm:flex items-center gap-1.5 xl:gap-2 text-slate-400 text-xs font-medium">
               {systemOffline ? (
-                <div className="flex items-center gap-1.5 bg-amber-500/10 text-amber-500 px-2.5 py-0.5 rounded-full border border-amber-500/30 font-bold text-[10px] animate-pulse" title="Você está operando offline. Todos os dados estão sendo salvos localmente!">
+                <div className="flex items-center gap-1.5 bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded-full border border-amber-500/30 font-bold text-[10px] animate-pulse" title="Você está operando offline. Todos os dados estão sendo salvos localmente!">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
-                  <span>Modo Offline Ativo ⚡</span>
+                  <span className="hidden xl:inline">Modo Offline Ativo ⚡</span>
+                  <span className="xl:hidden">Offline</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2.5 py-0.5 rounded-full border border-emerald-500/20 font-bold text-[10px]" title="Conectado à internet com segurança. Sincronização em tempo real!">
+                <div className="hidden md:flex items-center gap-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20 font-bold text-[10px]" title="Conectado à internet com segurança. Sincronização em tempo real!">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>Conexão Segura</span>
+                  <span className="hidden xl:inline">Conexão Segura</span>
+                  <span className="xl:hidden">Online</span>
                 </div>
               )}
-              <span className="text-slate-200">|</span>
               <button 
                 onClick={() => navigateTo('/')}
-                className="bg-pink-600 hover:bg-pink-700 active:scale-95 text-white flex items-center gap-1.5 font-bold text-xs px-3 py-1 bg-pink-600/90 rounded-full transition-all shadow-sm shadow-pink-600/20 cursor-pointer animate-pulse border-none"
+                className="bg-pink-600 hover:bg-pink-700 active:scale-95 text-white flex items-center gap-1 font-bold text-[11px] xl:text-xs px-2.5 py-1 rounded-full transition-all shadow-sm shadow-pink-600/20 cursor-pointer border-none whitespace-nowrap"
                 title="Navegar no catálogo moderno como se fosse sua cliente"
               >
                 <ShoppingBag size={11} />
-                <span>Ver Vitrine Cliente 🌸</span>
+                <span className="hidden xl:inline">Ver Vitrine Cliente 🌸</span>
+                <span className="xl:hidden">Vitrine 🌸</span>
               </button>
-              <span className="text-slate-200">|</span>
               <button 
                 onClick={() => setIsDriverPortalOpen(true)}
-                className="hover:text-pink-600 flex items-center gap-1 font-semibold text-slate-550 transition-colors cursor-pointer"
+                className="hidden xl:flex hover:text-pink-600 items-center gap-1 font-semibold text-slate-600 transition-colors cursor-pointer whitespace-nowrap"
                 title="Ativar modo App do Entregador isolado"
               >
-                🏍️ App Entregador
+                🏍️ Entregador
               </button>
-              <span className="text-slate-200">|</span>
               <button 
                 onClick={() => setSimulateOffline(!simulateOffline)}
                 title={simulateOffline ? "Reconectar sinal de Internet" : "Simular queda de Internet ou Energia"}
-                className={`flex items-center gap-1.5 font-bold text-[11px] px-2 py-0.5 rounded-lg transition-all cursor-pointer ${
+                className={`hidden 2xl:flex items-center gap-1 font-bold text-[11px] px-2 py-0.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                   simulateOffline 
                     ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 animate-pulse' 
                     : 'text-slate-500 hover:text-amber-500 dark:hover:text-amber-400 hover:bg-amber-500/5'
                 }`}
               >
-                <span>🔌 {simulateOffline ? "Reconectar Internet" : "Simular Offline"}</span>
+                <span>🔌 {simulateOffline ? "Reconectar" : "Simular Offline"}</span>
               </button>
-              <span className="text-slate-200">|</span>
               <button 
                 onClick={handleResetData}
                 title="Restaurar dados originais"
-                className="hover:text-pink-600 flex items-center gap-1 font-semibold transition-colors cursor-pointer"
+                className="hidden 2xl:flex hover:text-pink-600 items-center gap-1 font-semibold transition-colors cursor-pointer whitespace-nowrap"
               >
                 <RefreshCw size={12} />
-                Restaurar Fábrica
+                Restaurar
               </button>
             </div>
           </div>
 
-          {/* Quick global search text & notification alerts */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5 overflow-x-auto no-scrollbar py-1 max-w-[calc(100vw-65px)] sm:max-w-none">
-            {/* Audio & Notification permission activator */}
-            {notificationPermission !== 'granted' && (
+          {/* Right: Scrollable Action Pills + Pinned Bell / Theme / Profile (dropdown outside overflow-x-auto) */}
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0">
+              {/* Audio & Notification permission activator */}
+              {notificationPermission !== 'granted' && (
+                <button 
+                  onClick={handleRequestNotificationPermission}
+                  className="flex items-center gap-1 font-bold text-[11px] px-2 sm:px-2.5 py-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 transition-all active:scale-95 cursor-pointer shadow-xs shrink-0 whitespace-nowrap"
+                  title="Clique para ativar avisos sonoros e notificações na tela do computador/celular sempre que um pedido do site chegar"
+                >
+                  <Bell size={13} className="text-amber-600" />
+                  <span className="hidden xl:inline">Alertas Sonoros 🔔</span>
+                  <span className="xl:hidden">Alertas</span>
+                </button>
+              )}
+
+              {/* PWA App Install Button */}
+              <div className="shrink-0">
+                <PWAInstallButton />
+              </div>
+
+              {/* Quick Store Settings & WhatsApp Button */}
               <button 
-                onClick={handleRequestNotificationPermission}
-                className="flex items-center gap-1.5 font-bold text-[11px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 transition-all active:scale-95 cursor-pointer shadow-xs animate-pulse shrink-0"
-                title="Clique para ativar avisos sonoros e notificações na tela do computador/celular sempre que um pedido do site chegar"
+                onClick={() => setIsQuickStoreModalOpen(true)}
+                className="flex items-center gap-1 font-bold text-[11px] px-2 sm:px-3 py-1.5 rounded-xl border border-pink-200 bg-pink-50 hover:bg-pink-100 text-pink-700 transition-all active:scale-95 cursor-pointer shadow-xs shrink-0 whitespace-nowrap"
+                title="Alterar WhatsApp da loja, nome, Instagram e Pix sem burocracia"
               >
-                <Bell size={13} className="text-amber-600 animate-bounce" />
-                <span className="hidden lg:inline">Ativar Alertas Sonoros de Venda 🔔</span>
-                <span className="lg:hidden">Ativar Alertas 🔔</span>
-              </button>
-            )}
-
-            {/* PWA App Install Button (Android, iOS and Desktop) */}
-            <div className="shrink-0">
-              <PWAInstallButton />
-            </div>
-
-            {/* Quick Store Settings & WhatsApp Button */}
-            <button 
-              onClick={() => setIsQuickStoreModalOpen(true)}
-              className="flex items-center gap-1.5 font-bold text-[11px] sm:text-xs px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl border border-pink-200 bg-pink-50 hover:bg-pink-100 text-pink-700 transition-all active:scale-95 cursor-pointer shadow-xs shrink-0"
-              title="Alterar WhatsApp da loja, nome, Instagram e Pix sem burocracia"
-            >
-              <Phone size={13} className="text-pink-600" />
-              <span className="hidden sm:inline">WhatsApp & Loja 📱</span>
-              <span className="sm:hidden">Loja 📱</span>
-            </button>
-
-            {/* Quick Freight & Deliveries Button */}
-            <button 
-              onClick={() => {
-                setActiveTab(ActiveTab.CONFIGURACOES);
-                setSettingsSystemSubTab('frete');
-              }}
-              className="flex items-center gap-1.5 font-bold text-[11px] sm:text-xs px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-all active:scale-95 cursor-pointer shadow-xs shrink-0"
-              title="Ajustar frete, taxas de motoboy e regras de entrega"
-            >
-              <Truck size={13} className="text-indigo-600" />
-              <span className="hidden sm:inline">Frete & Entregas 🚚</span>
-              <span className="sm:hidden">Frete 🚚</span>
-            </button>
-
-            {/* Manual Cloud Sync Button (Instantly connects multiple devices to the same data) */}
-            <button 
-              onClick={() => performSync(true)}
-              disabled={isSyncingNow}
-              className={`flex items-center gap-1.5 font-bold text-[11px] sm:text-xs px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl border-none cursor-pointer transition-all active:scale-95 text-white shadow-md shrink-0 ${
-                isSyncingNow 
-                  ? 'bg-amber-500 hover:bg-amber-600 animate-pulse cursor-not-allowed shadow-amber-500/25' 
-                  : systemOffline
-                    ? 'bg-slate-400 hover:bg-slate-500 shadow-slate-450/25'
-                    : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/25'
-              }`}
-              title="Clique para sincronizar, parear e compartilhar os dados em tempo real com todos os celulares e tablets conectados"
-            >
-              <CloudLightning size={14} className={isSyncingNow ? 'animate-spin text-white' : 'text-emerald-100'} />
-              <span className="hidden sm:inline">{isSyncingNow ? 'Sincronizando...' : 'Sincronizar Vários Aparelhos ☁️'}</span>
-              <span className="sm:hidden">{isSyncingNow ? 'Sincronizando...' : 'Sincronizar ☁️'}</span>
-            </button>
-
-            {/* Search mock bar */}
-            <div className="relative hidden md:block w-64 shrink-0">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                <Search size={14} />
-              </span>
-              <input 
-                id="global-search-input"
-                type="text" 
-                placeholder="Buscar produtos, clientes, vendas..." 
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-150 rounded-lg text-xs font-sans text-slate-650 placeholder-slate-400 focus:outline-hidden"
-                onClick={() => alert("Dica: Use as buscas específicas de cada menu (PDV, Estoque ou CRM) para encontrar as informações com filtros avançados e fáceis!")}
-              />
-            </div>
-
-            {/* Notifications ring with dropdown */}
-            <div className="relative">
-              <button 
-                id="notification-bell-btn"
-                onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-                className="p-1.5 text-slate-500 hover:text-pink-600 hover:bg-slate-50 rounded-xl transition-all cursor-pointer relative"
-              >
-                <Bell size={18} />
-                {unreadNotificationsCount > 0 && (
-                  <span className="absolute top-1 right-1 w-4 h-4 bg-pink-600 text-[9px] font-bold text-white rounded-full flex items-center justify-center animate-bounce">
-                    {unreadNotificationsCount}
-                  </span>
-                )}
+                <Phone size={13} className="text-pink-600" />
+                <span className="hidden xl:inline">WhatsApp & Loja 📱</span>
+                <span className="xl:hidden">Loja</span>
               </button>
 
-              {/* Notification bubble menu */}
-              {isNotificationsOpen && (
-                <div id="notifications-menu" className="absolute right-0 mt-3 bg-white border border-slate-100 rounded-xl shadow-xl w-80 p-3 z-50 text-xs space-y-2 text-left animate-in fade-in-50 duration-200">
+              {/* Quick Freight & Deliveries Button */}
+              <button 
+                onClick={() => {
+                  setActiveTab(ActiveTab.CONFIGURACOES);
+                  setSettingsSystemSubTab('frete');
+                }}
+                className="flex items-center gap-1 font-bold text-[11px] px-2 sm:px-3 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-all active:scale-95 cursor-pointer shadow-xs shrink-0 whitespace-nowrap"
+                title="Ajustar frete, taxas de motoboy e regras de entrega"
+              >
+                <Truck size={13} className="text-indigo-600" />
+                <span className="hidden xl:inline">Frete & Entregas 🚚</span>
+                <span className="xl:hidden">Frete</span>
+              </button>
+
+              {/* Manual Cloud Sync Button */}
+              <button 
+                onClick={() => performSync(true)}
+                disabled={isSyncingNow}
+                className={`flex items-center gap-1 font-bold text-[11px] px-2 sm:px-3 py-1.5 rounded-xl border-none cursor-pointer transition-all active:scale-95 text-white shadow-sm shrink-0 whitespace-nowrap ${
+                  isSyncingNow 
+                    ? 'bg-amber-500 hover:bg-amber-600 animate-pulse cursor-not-allowed shadow-amber-500/25' 
+                    : systemOffline
+                      ? 'bg-slate-400 hover:bg-slate-500 shadow-slate-400/25'
+                      : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/25'
+                }`}
+                title="Clique para sincronizar, parear e compartilhar os dados em tempo real com todos os celulares e tablets conectados"
+              >
+                <CloudLightning size={13} className={isSyncingNow ? 'animate-spin text-white' : 'text-emerald-100'} />
+                <span className="hidden xl:inline">{isSyncingNow ? 'Sincronizando...' : 'Sincronizar Nuvem ☁️'}</span>
+                <span className="xl:hidden">{isSyncingNow ? 'Sincr...' : 'Sincronizar'}</span>
+              </button>
+
+              {/* Search mock bar (desktop xl+) */}
+              <div className="relative hidden xl:block w-48 2xl:w-60 shrink-0">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400">
+                  <Search size={13} />
+                </span>
+                <input 
+                  id="global-search-input"
+                  type="text" 
+                  placeholder="Buscar no sistema..." 
+                  className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-sans text-slate-600 placeholder-slate-400 focus:outline-hidden"
+                  onClick={() => alert("Dica: Use as buscas específicas de cada menu (PDV, Estoque ou CRM) para encontrar as informações com filtros avançados e fáceis!")}
+                />
+              </div>
+            </div>
+
+            {/* Pinned Right Utilities (ALWAYS visible & dropdown never clipped by overflow) */}
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 pl-1 border-l border-slate-100">
+              {/* Notifications ring with dropdown */}
+              <div className="relative">
+                <button 
+                  id="notification-bell-btn"
+                  onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                  className="p-1.5 text-slate-500 hover:text-pink-600 hover:bg-slate-50 rounded-xl transition-all cursor-pointer relative"
+                >
+                  <Bell size={18} />
+                  {unreadNotificationsCount > 0 && (
+                    <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-pink-600 text-[9px] font-bold text-white rounded-full flex items-center justify-center animate-bounce">
+                      {unreadNotificationsCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Notification bubble menu */}
+                {isNotificationsOpen && (
+                  <div id="notifications-menu" className="absolute right-0 mt-3 bg-white border border-slate-100 rounded-xl shadow-xl w-[min(20rem,calc(100vw-1.5rem))] p-3 z-50 text-xs space-y-2 text-left animate-in fade-in-50 duration-200">
                   <div className="flex justify-between items-center border-b border-slate-50 pb-2">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-slate-800 flex items-center gap-1.5"><span>Alertas</span><span className="bg-pink-100 text-pink-700 text-[9px] font-mono px-1.5 py-0.2 rounded-full">Vendas & Saques</span></span>
@@ -5456,10 +5539,10 @@ export default function App() {
               )}
             </div>
 
-            {/* Toggle Dark Mode Button */}
+            {/* Dark mode & User profile */}
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className="p-1.5 text-slate-500 hover:text-pink-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer flex items-center justify-center"
+              className="p-1.5 text-slate-500 hover:text-pink-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0"
               title={darkMode ? "Ativar Modo Claro ☀️" : "Ativar Modo Escuro 🌙"}
             >
               {darkMode ? (
@@ -5469,8 +5552,7 @@ export default function App() {
               )}
             </button>
 
-            {/* User Profile matching screenshot */}
-            <div className="flex items-center gap-2.5 pl-2 border-l border-slate-100 font-sans">
+            <div className="flex items-center gap-2 pl-1.5 border-l border-slate-100 font-sans shrink-0">
               <div className="w-8 h-8 rounded-lg bg-pink-100 text-pink-600 font-extrabold text-xs flex items-center justify-center uppercase overflow-hidden border border-pink-200">
                 {currentUser?.avatar ? (
                   <img src={currentUser.avatar} alt={currentUser.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -5478,12 +5560,12 @@ export default function App() {
                   currentUser?.name ? currentUser.name.slice(0, 2) : 'AP'
                 )}
               </div>
-              <div className="hidden sm:block text-left select-none">
+              <div className="hidden 2xl:block text-left select-none">
                 <p className="text-xs font-bold text-slate-700 leading-none">{currentUser?.name || 'Administrador'}</p>
                 <p className="text-[10px] text-slate-400 font-mono mt-0.5">{currentUser?.role || 'Acesso Geral'}</p>
               </div>
             </div>
-
+            </div>
           </div>
         </header>
 
@@ -5556,7 +5638,7 @@ export default function App() {
         )}
 
         {/* Dynamic Page container */}
-        <main className="flex-grow p-4 md:p-6 overflow-y-auto max-w-7xl mx-auto w-full">
+        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-y-auto overflow-x-hidden max-w-7xl mx-auto w-full min-w-0">
           {renderCurrentView()}
         </main>
       </div>

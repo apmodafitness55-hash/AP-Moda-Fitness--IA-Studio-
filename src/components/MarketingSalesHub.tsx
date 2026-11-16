@@ -301,7 +301,7 @@ Que tal escolhermos o seu look hoje com R$ 50 de desconto usando o cupom BEMVIND
   return (
     <div className="space-y-6 font-sans">
       {/* Header Panel */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white rounded-3xl p-6 shadow-sm border border-slate-800 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white rounded-3xl p-6 shadow-sm border border-slate-800 relative overflow-hidden">
         <div className="absolute right-0 top-0 w-64 h-64 bg-pink-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute left-1/3 bottom-0 w-48 h-48 bg-purple-500/5 rounded-full blur-2xl pointer-events-none" />
         
@@ -340,7 +340,7 @@ Que tal escolhermos o seu look hoje com R$ 50 de desconto usando o cupom BEMVIND
               : 'bg-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          <Video size={14} className={activeSection === 'reels' ? 'text-pink-600' : 'text-slate-450'} />
+          <Video size={14} className={activeSection === 'reels' ? 'text-pink-600' : 'text-slate-400'} />
           <span>Roteiros Reels</span>
         </button>
         <button
@@ -352,7 +352,7 @@ Que tal escolhermos o seu look hoje com R$ 50 de desconto usando o cupom BEMVIND
               : 'bg-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          <Instagram size={14} className={activeSection === 'stories' ? 'text-pink-600' : 'text-slate-450'} />
+          <Instagram size={14} className={activeSection === 'stories' ? 'text-pink-600' : 'text-slate-400'} />
           <span>Dinâmicas de Stories</span>
         </button>
         <button
@@ -364,7 +364,7 @@ Que tal escolhermos o seu look hoje com R$ 50 de desconto usando o cupom BEMVIND
               : 'bg-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          <MessageSquare size={14} className={activeSection === 'conversao' ? 'text-pink-600' : 'text-slate-450'} />
+          <MessageSquare size={14} className={activeSection === 'conversao' ? 'text-pink-600' : 'text-slate-400'} />
           <span>Ganchos WhatsApp</span>
         </button>
       </div>
@@ -389,7 +389,7 @@ Que tal escolhermos o seu look hoje com R$ 50 de desconto usando o cupom BEMVIND
                 <div 
                   key={script.id} 
                   className={`bg-white border rounded-3xl transition-all overflow-hidden ${
-                    isExpanded ? 'border-pink-500/40 shadow-xs' : 'border-slate-200 hover:border-slate-350'
+                    isExpanded ? 'border-pink-500/40 shadow-xs' : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
                   {/* Header summary row */}
@@ -402,11 +402,11 @@ Que tal escolhermos o seu look hoje com R$ 50 de desconto usando o cupom BEMVIND
                         <span className="bg-pink-100 text-pink-700 font-sans text-[8.5px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
                           {script.badge}
                         </span>
-                        <span className="text-[9.5px] text-slate-450 font-semibold flex items-center gap-1">
+                        <span className="text-[9.5px] text-slate-400 font-semibold flex items-center gap-1">
                           <Play size={10} className="text-slate-400" /> Vibe: {script.vibe}
                         </span>
                       </div>
-                      <h4 className="text-xs sm:text-sm font-extrabold text-slate-850 leading-tight">
+                      <h4 className="text-xs sm:text-sm font-extrabold text-slate-800 leading-tight">
                         {script.title}
                       </h4>
                     </div>
@@ -419,7 +419,7 @@ Que tal escolhermos o seu look hoje com R$ 50 de desconto usando o cupom BEMVIND
                   {isExpanded && (
                     <div className="border-t border-slate-100 p-5 space-y-5 animate-in fade-in duration-200">
                       {/* Contextual Info */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 rounded-2xl p-3.5 border border-slate-150 text-[10.5px]">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 rounded-2xl p-3.5 border border-slate-100 text-[10.5px]">
                         <div>
                           <span className="font-bold text-slate-500 uppercase tracking-wider text-[8.5px] block mb-0.5">Áudio Sugerido</span>
                           <p className="text-slate-800 font-semibold">{script.audio}</p>
@@ -432,14 +432,14 @@ Que tal escolhermos o seu look hoje com R$ 50 de desconto usando o cupom BEMVIND
 
                       {/* Scene Breakdown */}
                       <div className="space-y-3">
-                        <h5 className="font-extrabold text-[10px] text-slate-450 uppercase tracking-wider">Roteiro de Cenas & Gravação</h5>
+                        <h5 className="font-extrabold text-[10px] text-slate-400 uppercase tracking-wider">Roteiro de Cenas & Gravação</h5>
                         <div className="relative border-l-2 border-pink-100 pl-4 ml-2 space-y-4">
                           {script.scenes.map((scene, idx) => (
                             <div key={idx} className="relative space-y-1">
                               <span className="absolute -left-[23px] top-0 w-3 h-3 rounded-full bg-pink-500 border-2 border-white shadow-xs" />
                               <div className="flex items-center gap-2">
                                 <span className="text-[10px] font-bold text-pink-600">Cena {idx + 1}</span>
-                                <span className="text-[9px] font-mono text-slate-450 bg-slate-100 px-1.5 py-0.25 rounded-md">{scene.timing}</span>
+                                <span className="text-[9px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.25 rounded-md">{scene.timing}</span>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[10.5px]">
                                 <div className="bg-slate-50/60 p-2.5 rounded-xl border border-slate-100">
@@ -459,7 +459,7 @@ Que tal escolhermos o seu look hoje com R$ 50 de desconto usando o cupom BEMVIND
                       {/* Caption Box with Copy Button */}
                       <div className="space-y-2 pt-2 border-t border-slate-100">
                         <div className="flex justify-between items-center">
-                          <h5 className="font-extrabold text-[10px] text-slate-450 uppercase tracking-wider">Legenda Sugerida (Pronta para Copy)</h5>
+                          <h5 className="font-extrabold text-[10px] text-slate-400 uppercase tracking-wider">Legenda Sugerida (Pronta para Copy)</h5>
                           <button
                             type="button"
                             onClick={() => handleCopy(script.caption, script.id)}
@@ -508,7 +508,7 @@ Que tal escolhermos o seu look hoje com R$ 50 de desconto usando o cupom BEMVIND
             {storiesDynamics.map((dynamic) => (
               <div key={dynamic.id} className="bg-white border border-slate-200 rounded-3xl p-5 space-y-4 hover:shadow-xs transition">
                 <div className="space-y-1 border-b border-slate-100 pb-3">
-                  <h4 className="text-sm font-extrabold text-slate-850 flex items-center gap-2">
+                  <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
                     <Sparkles size={14} className="text-pink-500 shrink-0" />
                     {dynamic.title}
                   </h4>
@@ -520,7 +520,7 @@ Que tal escolhermos o seu look hoje com R$ 50 de desconto usando o cupom BEMVIND
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {dynamic.stories.map((story, index) => (
-                    <div key={index} className="bg-slate-50 rounded-2xl p-4 border border-slate-150 flex flex-col justify-between space-y-3">
+                    <div key={index} className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex flex-col justify-between space-y-3">
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="bg-slate-900 text-white font-sans text-[8px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider">
@@ -530,11 +530,11 @@ Que tal escolhermos o seu look hoje com R$ 50 de desconto usando o cupom BEMVIND
                             {story.type}
                           </span>
                         </div>
-                        <div className="text-[10px] text-slate-450 font-semibold leading-snug">
+                        <div className="text-[10px] text-slate-400 font-semibold leading-snug">
                           <span className="font-bold text-slate-600 block text-[8px] uppercase tracking-wider">Sugestão de Visual/Design:</span>
                           {story.design}
                         </div>
-                        <div className="bg-white rounded-xl p-3 border border-slate-100 text-[10.5px] text-slate-850 font-medium italic relative min-h-[80px] flex items-center">
+                        <div className="bg-white rounded-xl p-3 border border-slate-100 text-[10.5px] text-slate-800 font-medium italic relative min-h-[80px] flex items-center">
                           “{story.copy}”
                         </div>
                         {story.interaction && (
@@ -594,7 +594,7 @@ Que tal escolhermos o seu look hoje com R$ 50 de desconto usando o cupom BEMVIND
                     <span className="bg-emerald-100 text-emerald-800 font-sans text-[8px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider border border-emerald-200/30">
                       {hook.channel}
                     </span>
-                    <h4 className="text-xs sm:text-sm font-extrabold text-slate-850">
+                    <h4 className="text-xs sm:text-sm font-extrabold text-slate-800">
                       {hook.title}
                     </h4>
                   </div>
@@ -617,12 +617,12 @@ Que tal escolhermos o seu look hoje com R$ 50 de desconto usando o cupom BEMVIND
                   </button>
                 </div>
 
-                <div className="bg-slate-50 rounded-2xl p-3 border border-slate-150 text-[10px] text-slate-500 font-semibold leading-relaxed">
+                <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 text-[10px] text-slate-500 font-semibold leading-relaxed">
                   <span className="font-extrabold text-slate-700 uppercase text-[8.5px] tracking-wider block mb-0.5">Cenário de Aplicação comercial:</span>
                   {hook.scenario}
                 </div>
 
-                <div className="bg-slate-950 text-emerald-100 rounded-2xl p-4 font-mono text-[10.5px] leading-relaxed max-h-64 overflow-y-auto border border-slate-850 whitespace-pre-wrap text-left scrollbar-thin">
+                <div className="bg-slate-950 text-emerald-100 rounded-2xl p-4 font-mono text-[10.5px] leading-relaxed max-h-64 overflow-y-auto border border-slate-800 whitespace-pre-wrap text-left scrollbar-thin">
                   {hook.message}
                 </div>
               </div>

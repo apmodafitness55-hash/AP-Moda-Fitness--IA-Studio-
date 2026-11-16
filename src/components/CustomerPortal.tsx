@@ -339,7 +339,7 @@ export default function CustomerPortal({
             </div>
             <p className="text-xs text-slate-400">É um imenso prazer ter você no nosso clube de fidelidade exclusivo. Veja seus bônus acumulados abaixo.</p>
           </div>
-          <div className="flex items-center gap-3.5 bg-slate-950 p-3 rounded-xl border border-slate-850/60 self-start md:self-auto font-mono">
+          <div className="flex items-center gap-3.5 bg-slate-950 p-3 rounded-xl border border-slate-800/60 self-start md:self-auto font-mono">
             <div className="text-center px-1">
               <p className="text-[9px] text-slate-500 uppercase font-bold tracking-wider">Compras</p>
               <p className="text-sm font-extrabold text-blue-400">{clientSales.length}</p>
@@ -353,7 +353,7 @@ export default function CustomerPortal({
         </div>
 
         {/* Dynamic Navigation Tabs inside VIP Dashboard */}
-        <div className="flex overflow-x-auto whitespace-nowrap scrollbar-none bg-slate-950 border border-slate-850 p-1.5 rounded-xl gap-1">
+        <div className="flex overflow-x-auto whitespace-nowrap scrollbar-none bg-slate-950 border border-slate-800 p-1.5 rounded-xl gap-1">
           <button
             id="tab-vip"
             onClick={() => setActiveTab('vip')}
@@ -494,20 +494,20 @@ export default function CustomerPortal({
                 </div>
 
                 {/* Brief milestone description */}
-                <div className="grid grid-cols-3 gap-2.5 pt-2 border-t border-slate-850/60 text-center font-mono">
-                  <div className={`p-2 rounded-xl text-[9px] border ${totalPurchasesAmount < 600 ? 'bg-rose-950/20 border-rose-900/30 text-rose-300' : 'bg-slate-950 border-slate-850 text-slate-400'}`}>
+                <div className="grid grid-cols-3 gap-2.5 pt-2 border-t border-slate-800/60 text-center font-mono">
+                  <div className={`p-2 rounded-xl text-[9px] border ${totalPurchasesAmount < 600 ? 'bg-rose-950/20 border-rose-900/30 text-rose-300' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>
                     <p className="font-bold">BRONZE VIP</p>
-                    <p className="text-slate-550 text-[8px] mt-0.5">Até R$ 599</p>
+                    <p className="text-slate-500 text-[8px] mt-0.5">Até R$ 599</p>
                     <p className="font-extrabold text-[8.5px] mt-1 text-slate-300">5% Cashback</p>
                   </div>
-                  <div className={`p-2 rounded-xl text-[9px] border ${totalPurchasesAmount >= 600 && totalPurchasesAmount < 1500 ? 'bg-amber-950/20 border-amber-900/30 text-amber-300 font-bold' : 'bg-slate-950 border-slate-850 text-slate-400'}`}>
+                  <div className={`p-2 rounded-xl text-[9px] border ${totalPurchasesAmount >= 600 && totalPurchasesAmount < 1500 ? 'bg-amber-950/20 border-amber-900/30 text-amber-300 font-bold' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>
                     <p className="font-bold">OURO GOLD</p>
-                    <p className="text-slate-550 text-[8px] mt-0.5">R$ 600 a R$ 1499</p>
+                    <p className="text-slate-500 text-[8px] mt-0.5">R$ 600 a R$ 1499</p>
                     <p className="font-extrabold text-[8.5px] mt-1 text-slate-300">10% Cashback</p>
                   </div>
-                  <div className={`p-2 rounded-xl text-[9px] border ${totalPurchasesAmount >= 1500 ? 'bg-purple-950/20 border-purple-900/30 text-purple-300 font-bold animate-pulse' : 'bg-slate-950 border-slate-850 text-slate-400'}`}>
+                  <div className={`p-2 rounded-xl text-[9px] border ${totalPurchasesAmount >= 1500 ? 'bg-purple-950/20 border-purple-900/30 text-purple-300 font-bold animate-pulse' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>
                     <p className="font-bold">BLACK PLATINUM</p>
-                    <p className="text-slate-550 text-[8px] mt-0.5">Acima de R$ 1500</p>
+                    <p className="text-slate-500 text-[8px] mt-0.5">Acima de R$ 1500</p>
                     <p className="font-extrabold text-[8.5px] mt-1 text-slate-300">15% Cashback</p>
                   </div>
                 </div>
@@ -537,7 +537,7 @@ export default function CustomerPortal({
                     </svg>
                     {/* Small inner logo */}
                     <div className="absolute inset-x-0 inset-y-0 m-auto w-7 h-7 bg-white rounded-lg flex items-center justify-center shadow">
-                      <span className="text-[8px] font-black text-pink-650 tracking-tighter">AP</span>
+                      <span className="text-[8px] font-black text-pink-600 tracking-tighter">AP</span>
                     </div>
                   </div>
                   <div className="text-[8px] font-bold text-slate-500 font-mono mt-1 text-center select-all">
@@ -548,7 +548,7 @@ export default function CustomerPortal({
 
               {/* Referral & Recommendation bonus */}
               <div className="bg-slate-900 border border-pink-900/30 p-5 rounded-2xl relative overflow-hidden">
-                <div className="absolute right-0 top-0 bg-pink-950/20 border-l border-b border-pink-850/40 text-pink-400 font-mono text-[8px] font-bold tracking-widest px-2.5 py-1 px-1.5 uppercase rounded-bl-xl flex items-center gap-1">
+                <div className="absolute right-0 top-0 bg-pink-950/20 border-l border-b border-pink-800/40 text-pink-400 font-mono text-[8px] font-bold tracking-widest px-2.5 py-1 px-1.5 uppercase rounded-bl-xl flex items-center gap-1">
                   <Gift size={9} /> Bônus Ativo
                 </div>
                 
@@ -559,7 +559,7 @@ export default function CustomerPortal({
                   Seus amigos ganham <strong>10% OFF</strong> no primeiro pedido online com seu cupom, e você recebe <strong>R$ 15,00 em saldo de cashback</strong> para compras após o faturamento bem-sucedido deles!
                 </p>
 
-                <div className="mt-4 flex items-center bg-slate-950 p-2.5 rounded-xl border border-slate-850 px-2 select-all">
+                <div className="mt-4 flex items-center bg-slate-950 p-2.5 rounded-xl border border-slate-800 px-2 select-all">
                   <div className="flex-1 truncate">
                     <span className="text-[8.5px] uppercase font-bold text-slate-500 block leading-none font-mono">SEU CUPOM DE INDICAÇÃO</span>
                     <span className="text-xs font-bold text-pink-400 font-mono mt-1 block">{referralCode}</span>
@@ -578,7 +578,7 @@ export default function CustomerPortal({
         {/* Tab 2: Purchase History */}
         {activeTab === 'compras' && (
           <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-5 md:p-6 space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-850 pb-3">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
               <div>
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider">Histórico de Compras Registradas</h3>
                 <p className="text-[10px] text-slate-400 mt-0.5">Visualize todos os seus pedidos presenciais e online integrados na nossa central.</p>
@@ -590,7 +590,7 @@ export default function CustomerPortal({
 
             {clientSales.length === 0 ? (
               <div className="text-center py-12 space-y-3.5">
-                <div className="w-12 h-12 bg-slate-950 border border-slate-850 rounded-full flex items-center justify-center mx-auto text-slate-500">
+                <div className="w-12 h-12 bg-slate-950 border border-slate-800 rounded-full flex items-center justify-center mx-auto text-slate-500">
                   <ShoppingBag size={18} />
                 </div>
                 <div className="space-y-1">
@@ -611,7 +611,7 @@ export default function CustomerPortal({
                   return (
                     <div 
                       key={sale.id}
-                      className="bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-slate-800 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
+                      className="bg-slate-950 border border-slate-800 rounded-2xl p-4 hover:border-slate-800 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
                     >
                       {/* Left Block: ID & Products */}
                       <div className="space-y-2">
@@ -635,14 +635,14 @@ export default function CustomerPortal({
                         <div className="space-y-1 pl-1">
                           {sale.items?.map((item, idx) => (
                             <p key={idx} className="text-xs text-slate-300 leading-normal font-sans">
-                              🌸 <span className="font-bold">{item.name}</span> <span className="text-[10px] text-slate-405 font-mono">({formattingBRL(item.price)} × {item.quantity})</span>
+                              🌸 <span className="font-bold">{item.name}</span> <span className="text-[10px] text-slate-400 font-mono">({formattingBRL(item.price)} × {item.quantity})</span>
                             </p>
                           ))}
                         </div>
                       </div>
 
                       {/* Right Block: Total value & commissions info */}
-                      <div className="md:text-right border-t md:border-t-0 border-slate-850 pt-2.5 md:pt-0 flex md:flex-col justify-between items-center md:items-end gap-1.5 font-mono">
+                      <div className="md:text-right border-t md:border-t-0 border-slate-800 pt-2.5 md:pt-0 flex md:flex-col justify-between items-center md:items-end gap-1.5 font-mono">
                         <div>
                           <p className="text-[8px] text-slate-500 uppercase tracking-widest leading-none font-bold">TOTAL DO PEDIDO</p>
                           <p className="text-sm font-extrabold text-white mt-1">{formattingBRL(sale.total)}</p>
@@ -671,7 +671,7 @@ export default function CustomerPortal({
         {/* Tab 3: Biometric measurements self-service */}
         {activeTab === 'medidas' && (
           <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-5 md:p-6">
-            <div className="border-b border-slate-850 pb-3 flex justify-between items-center">
+            <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
               <div>
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider">Perfil Biométrico de Medidas</h3>
                 <p className="text-[10px] text-slate-400 mt-0.5">Edite e mantenha suas medidas atualizadas para receber as melhores recomendações de tamanhos da nossa equipe.</p>
@@ -684,7 +684,7 @@ export default function CustomerPortal({
             <form onSubmit={handleSaveMeasurements} className="mt-6 space-y-6">
               
               {/* Informative advice banner */}
-              <div className="p-3 bg-pink-950/20 border border-pink-905/30 rounded-2xl flex items-start gap-2.5">
+              <div className="p-3 bg-pink-950/20 border border-pink-900/30 rounded-2xl flex items-start gap-2.5">
                 <Ruler size={16} className="text-pink-400 shrink-0 mt-0.5 animate-bounce" />
                 <p className="text-[10.5px] text-pink-300 leading-normal">
                   <strong>Por que preencher suas medidas?</strong> Nossa consultoria usa suas dimensões (busto, cintura, quadril) para comparar com as tabelas de elasticidade de leggings, tops e conjuntos esportivos, garantindo o caimento sublime sem apertar ou marcar!
@@ -703,7 +703,7 @@ export default function CustomerPortal({
                       value={busto}
                       onChange={(e) => setBusto(e.target.value)}
                       placeholder="Ex: 92"
-                      className="w-full bg-slate-950 border border-slate-850 rounded-xl p-3 text-white font-medium focus:outline-none focus:border-pink-500 transition-all font-mono"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-medium focus:outline-none focus:border-pink-500 transition-all font-mono"
                     />
                     <span className="absolute right-3 top-3 text-[9px] font-bold text-slate-500 font-mono">cm</span>
                   </div>
@@ -718,7 +718,7 @@ export default function CustomerPortal({
                       value={cintura}
                       onChange={(e) => setCintura(e.target.value)}
                       placeholder="Ex: 68"
-                      className="w-full bg-slate-950 border border-slate-850 rounded-xl p-3 text-white font-medium focus:outline-none focus:border-pink-500 transition-all font-mono"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-medium focus:outline-none focus:border-pink-500 transition-all font-mono"
                     />
                     <span className="absolute right-3 top-3 text-[9px] font-bold text-slate-500 font-mono">cm</span>
                   </div>
@@ -733,7 +733,7 @@ export default function CustomerPortal({
                       value={quadril}
                       onChange={(e) => setQuadril(e.target.value)}
                       placeholder="Ex: 98"
-                      className="w-full bg-slate-950 border border-slate-850 rounded-xl p-3 text-white font-medium focus:outline-none focus:border-pink-500 transition-all font-mono"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-medium focus:outline-none focus:border-pink-500 transition-all font-mono"
                     />
                     <span className="absolute right-3 top-3 text-[9px] font-bold text-slate-500 font-mono">cm</span>
                   </div>
@@ -748,7 +748,7 @@ export default function CustomerPortal({
                       value={coxa}
                       onChange={(e) => setCoxa(e.target.value)}
                       placeholder="Ex: 58"
-                      className="w-full bg-slate-950 border border-slate-850 rounded-xl p-3 text-white font-medium focus:outline-none focus:border-pink-500 transition-all font-mono"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-medium focus:outline-none focus:border-pink-500 transition-all font-mono"
                     />
                     <span className="absolute right-3 top-3 text-[9px] font-bold text-slate-500 font-mono">cm</span>
                   </div>
@@ -763,7 +763,7 @@ export default function CustomerPortal({
                       value={altura}
                       onChange={(e) => setAltura(e.target.value)}
                       placeholder="Ex: 165"
-                      className="w-full bg-slate-950 border border-slate-850 rounded-xl p-3 text-white font-medium focus:outline-none focus:border-pink-500 transition-all font-mono"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-medium focus:outline-none focus:border-pink-500 transition-all font-mono"
                     />
                     <span className="absolute right-3 top-3 text-[9px] font-bold text-slate-500 font-mono">cm</span>
                   </div>
@@ -778,7 +778,7 @@ export default function CustomerPortal({
                       value={peso}
                       onChange={(e) => setPeso(e.target.value)}
                       placeholder="Ex: 62"
-                      className="w-full bg-slate-950 border border-slate-850 rounded-xl p-3 text-white font-medium focus:outline-none focus:border-pink-500 transition-all font-mono"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-medium focus:outline-none focus:border-pink-500 transition-all font-mono"
                     />
                     <span className="absolute right-3 top-3 text-[9px] font-bold text-slate-500 font-mono">kg</span>
                   </div>
@@ -787,7 +787,7 @@ export default function CustomerPortal({
               </div>
 
               {/* Confirm / Save action */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-t border-slate-850 pt-5 gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-t border-slate-800 pt-5 gap-3">
                 <p className="text-[9px] text-slate-500 font-mono leading-normal">
                   Última sincronização com banco de dados de CRM: {clientData.createdAt ? new Date(clientData.createdAt).toLocaleDateString('pt-BR') : 'Hoje'}
                 </p>
@@ -822,7 +822,7 @@ export default function CustomerPortal({
             </form>
 
             {/* Provador Virtual Inteligente Panel */}
-            <div className="border-t border-slate-850 mt-8 pt-6 space-y-4">
+            <div className="border-t border-slate-800 mt-8 pt-6 space-y-4">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-pink-500/10 text-pink-400 rounded-xl">
                   <Sparkles size={16} className="animate-pulse" />
@@ -834,20 +834,20 @@ export default function CustomerPortal({
               </div>
 
               {!cintura || !quadril ? (
-                <div className="p-5 bg-slate-950/40 border border-slate-850 text-center rounded-2xl">
+                <div className="p-5 bg-slate-950/40 border border-slate-800 text-center rounded-2xl">
                   <p className="text-xs text-slate-500">Insira sua Cintura e Quadril no formulário de Biometria acima para ativar a previsão biométrica de caimento.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Size calculation report */}
-                  <div className="bg-slate-950 border border-slate-850 p-4 rounded-2xl flex flex-col justify-between">
+                  <div className="bg-slate-950 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between">
                     <div className="space-y-3">
                       <span className="text-[9px] font-mono uppercase bg-pink-950/40 text-pink-300 border border-pink-900/35 px-2 py-0.5 rounded-md font-bold">
                         Diagnóstio de Shape
                       </span>
                       
                       <div className="flex items-center gap-5">
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-pink-600 to-rose-600 flex flex-col items-center justify-center text-white border border-pink-450/20 shadow-lg shadow-pink-600/15 shrink-0">
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-pink-600 to-rose-600 flex flex-col items-center justify-center text-white border border-pink-400/20 shadow-lg shadow-pink-600/15 shrink-0">
                           <span className="text-[10px] font-bold leading-none">TAMANHO</span>
                           <span className="text-lg font-black leading-none mt-0.5">
                             {Number(quadril) < 94 ? 'PP' : Number(quadril) < 100 ? 'P' : Number(quadril) < 108 ? 'M' : Number(quadril) < 116 ? 'G' : 'GG'}
@@ -863,14 +863,14 @@ export default function CustomerPortal({
                       </div>
                     </div>
 
-                    <div className="mt-4 border-t border-slate-850/65 pt-3 flex justify-between items-center text-[10px] font-mono">
+                    <div className="mt-4 border-t border-slate-800/65 pt-3 flex justify-between items-center text-[10px] font-mono">
                       <span className="text-slate-500">Precisão da Previsão do Caimento</span>
                       <span className="text-emerald-400 font-bold">98.4% (Mapeamento Premium de Alta Fidelidade)</span>
                     </div>
                   </div>
 
                   {/* Elasticity advisory */}
-                  <div className="bg-slate-950 border border-slate-850 p-4 rounded-2xl space-y-3 text-left">
+                  <div className="bg-slate-950 border border-slate-800 p-4 rounded-2xl space-y-3 text-left">
                     <span className="text-[9px] font-mono uppercase bg-indigo-950/40 text-indigo-300 border border-indigo-900/35 px-2 py-0.5 rounded-md font-bold">
                       Recomendação Detalhada por Tipo de Tecido
                     </span>
@@ -880,7 +880,7 @@ export default function CustomerPortal({
                       <div className="flex items-center justify-between text-xs p-1.5 rounded-lg bg-slate-900/30">
                         <div>
                           <p className="font-bold text-slate-200">Leggings Cirrê Brilhantes</p>
-                          <p className="text-[9.5px] text-slate-450">Estrutura mais firme, efeito modelador</p>
+                          <p className="text-[9.5px] text-slate-400">Estrutura mais firme, efeito modelador</p>
                         </div>
                         <span className="bg-pink-950 text-pink-300 px-1.5 py-0.5 rounded text-[9.5px] font-extrabold font-mono border border-pink-900/40">
                           Recomendado: {Number(quadril) < 94 ? 'PP' : Number(quadril) < 100 ? 'P' : Number(quadril) < 108 ? 'M' : Number(quadril) < 116 ? 'G' : 'GG'}
@@ -891,7 +891,7 @@ export default function CustomerPortal({
                       <div className="flex items-center justify-between text-xs p-1.5 rounded-lg bg-slate-900/30">
                         <div>
                           <p className="font-bold text-slate-200">Tecidos Bioativos (Fio Emana/Poliamida)</p>
-                          <p className="text-[9.5px] text-slate-450">Toque gelado com ótima tolerância de stretch</p>
+                          <p className="text-[9.5px] text-slate-400">Toque gelado com ótima tolerância de stretch</p>
                         </div>
                         <span className="bg-sky-950 text-sky-300 px-1.5 py-0.5 rounded text-[9.5px] font-extrabold font-mono border border-sky-900/40">
                           Recomendado: {Number(quadril) < 100 ? 'P' : Number(quadril) < 108 ? 'M' : 'G'}
@@ -902,7 +902,7 @@ export default function CustomerPortal({
                       <div className="flex items-center justify-between text-xs p-1.5 rounded-lg bg-slate-900/30">
                         <div>
                           <p className="font-bold text-slate-300">Tops e Croppeds Ativos</p>
-                          <p className="text-[9.5px] text-slate-450">Elasticidade segura com bojo removível integrado</p>
+                          <p className="text-[9.5px] text-slate-400">Elasticidade segura com bojo removível integrado</p>
                         </div>
                         <span className="bg-amber-950 text-amber-300 px-1.5 py-0.5 rounded text-[9.5px] font-extrabold font-mono border border-amber-900/40">
                           Recomendado: {Number(busto) < 86 ? 'P' : Number(busto) < 94 ? 'M' : 'G'}
@@ -923,7 +923,7 @@ export default function CustomerPortal({
             {/* Left Col: Desafios de Bem-Estar */}
             <div className="lg:col-span-12 xl:col-span-7 lg:space-y-6 space-y-6 lg:col-span-7">
               <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-5 md:p-6 space-y-4">
-                <div className="border-b border-slate-850 pb-3 flex justify-between items-center">
+                <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
                   <div>
                     <h3 className="text-sm font-bold text-white uppercase tracking-wider">Desafios Saudáveis de Fidelidade</h3>
                     <p className="text-[10px] text-slate-400 mt-0.5">Complete hábitos de bem-estar ou engajamento e resgate bônus em dinheiro real direto no seu saldo de cashback!</p>
@@ -936,7 +936,7 @@ export default function CustomerPortal({
                 <div className="space-y-4">
                   
                   {/* Challenge 1 */}
-                  <div className="bg-slate-950 border border-slate-850 p-4 rounded-2xl space-y-3 text-left">
+                  <div className="bg-slate-950 border border-slate-800 p-4 rounded-2xl space-y-3 text-left">
                     <div className="flex justify-between items-start gap-2">
                       <div className="space-y-1">
                         <h4 className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
@@ -957,9 +957,9 @@ export default function CustomerPortal({
                         <span className="text-slate-500">Progresso do Treino</span>
                         <span className="text-slate-300 font-bold">{challengeProgress.t1 || 0}/4 treinos</span>
                       </div>
-                      <div className="w-full h-2.5 bg-slate-910 rounded-full overflow-hidden border border-slate-850">
+                      <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
                         <div 
-                          className="h-full bg-gradient-to-r from-orange-550 to-pink-500 rounded-full transition-all duration-300"
+                          className="h-full bg-gradient-to-r from-orange-500 to-pink-500 rounded-full transition-all duration-300"
                           style={{ width: `${Math.min(100, ((challengeProgress.t1 || 0) / 4) * 100)}%` }}
                         />
                       </div>
@@ -970,7 +970,7 @@ export default function CustomerPortal({
                         type="button"
                         onClick={() => handleRegisterProgress('t1', 4)}
                         disabled={(challengeProgress.t1 || 0) >= 4}
-                        className="text-[10px] font-bold text-slate-300 bg-slate-900 hover:bg-slate-850 disabled:opacity-40 px-3 py-1.5 rounded-lg border border-slate-800 transition-colors cursor-pointer"
+                        className="text-[10px] font-bold text-slate-300 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 px-3 py-1.5 rounded-lg border border-slate-800 transition-colors cursor-pointer"
                       >
                         {(challengeProgress.t1 || 0) >= 4 ? 'Metas batidas!' : 'Registrar Conclusão de Treino'}
                       </button>
@@ -984,7 +984,7 @@ export default function CustomerPortal({
                           type="button"
                           onClick={() => handleClaimReward('t1', 15)}
                           disabled={(challengeProgress.t1 || 0) < 4}
-                          className="text-[10px] font-black text-slate-950 bg-gradient-to-r from-green-450 to-emerald-500 hover:opacity-90 disabled:opacity-40 disabled:bg-slate-800 disabled:text-slate-500 px-4 py-1.5 rounded-lg transition-colors cursor-pointer border-0 shadow-sm"
+                          className="text-[10px] font-black text-slate-950 bg-gradient-to-r from-green-400 to-emerald-500 hover:opacity-90 disabled:opacity-40 disabled:bg-slate-800 disabled:text-slate-500 px-4 py-1.5 rounded-lg transition-colors cursor-pointer border-0 shadow-sm"
                         >
                           Resgatar R$ 15,00
                         </button>
@@ -993,7 +993,7 @@ export default function CustomerPortal({
                   </div>
 
                   {/* Challenge 2 */}
-                  <div className="bg-slate-950 border border-slate-850 p-4 rounded-2xl space-y-3 text-left">
+                  <div className="bg-slate-950 border border-slate-800 p-4 rounded-2xl space-y-3 text-left">
                     <div className="flex justify-between items-start gap-2">
                       <div className="space-y-1">
                         <h4 className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
@@ -1014,7 +1014,7 @@ export default function CustomerPortal({
                         <span className="text-slate-500">Postagem e Marcação</span>
                         <span className="text-slate-300 font-bold">{challengeProgress.t2 || 0}/1 story</span>
                       </div>
-                      <div className="w-full h-2.5 bg-slate-910 rounded-full overflow-hidden border border-slate-850">
+                      <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
                         <div 
                           className="h-full bg-gradient-to-r from-pink-500 to-rose-500 rounded-full transition-all duration-300"
                           style={{ width: `${Math.min(100, ((challengeProgress.t2 || 0) / 1) * 100)}%` }}
@@ -1027,7 +1027,7 @@ export default function CustomerPortal({
                         type="button"
                         onClick={() => handleRegisterProgress('t2', 1)}
                         disabled={(challengeProgress.t2 || 0) >= 1}
-                        className="text-[10px] font-bold text-slate-300 bg-slate-900 hover:bg-slate-850 disabled:opacity-40 px-3 py-1.5 rounded-lg border border-slate-800 transition-colors cursor-pointer"
+                        className="text-[10px] font-bold text-slate-300 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 px-3 py-1.5 rounded-lg border border-slate-800 transition-colors cursor-pointer"
                       >
                         {(challengeProgress.t2 || 0) >= 1 ? 'Foto Sincronizada!' : 'Já postei o Look! Validar'}
                       </button>
@@ -1041,7 +1041,7 @@ export default function CustomerPortal({
                           type="button"
                           onClick={() => handleClaimReward('t2', 20)}
                           disabled={(challengeProgress.t2 || 0) < 1}
-                          className="text-[10px] font-black text-slate-950 bg-gradient-to-r from-green-450 to-emerald-500 hover:opacity-90 disabled:opacity-40 disabled:bg-slate-800 disabled:text-slate-500 px-4 py-1.5 rounded-lg transition-colors cursor-pointer border-0 shadow-sm"
+                          className="text-[10px] font-black text-slate-950 bg-gradient-to-r from-green-400 to-emerald-500 hover:opacity-90 disabled:opacity-40 disabled:bg-slate-800 disabled:text-slate-500 px-4 py-1.5 rounded-lg transition-colors cursor-pointer border-0 shadow-sm"
                         >
                           Resgatar R$ 20,00
                         </button>
@@ -1050,11 +1050,11 @@ export default function CustomerPortal({
                   </div>
 
                   {/* Challenge 3 */}
-                  <div className="bg-slate-950 border border-slate-850 p-4 rounded-2xl space-y-3 text-left">
+                  <div className="bg-slate-950 border border-slate-800 p-4 rounded-2xl space-y-3 text-left">
                     <div className="flex justify-between items-start gap-2">
                       <div className="space-y-1">
                         <h4 className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
-                          <Trophy size={14} className="text-yellow-555" />
+                          <Trophy size={14} className="text-yellow-500" />
                           Desafio 3: Madrinha Fitness
                         </h4>
                         <p className="text-[10.5px] text-slate-400 leading-normal">
@@ -1071,7 +1071,7 @@ export default function CustomerPortal({
                         <span className="text-slate-500">Inscrições Concluídas</span>
                         <span className="text-slate-300 font-bold">{challengeProgress.t3 || 0}/1 amiga</span>
                       </div>
-                      <div className="w-full h-2.5 bg-slate-910 rounded-full overflow-hidden border border-slate-850">
+                      <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
                         <div 
                           className="h-full bg-gradient-to-r from-pink-500 to-rose-500 rounded-full transition-all duration-300"
                           style={{ width: `${Math.min(100, ((challengeProgress.t3 || 0) / 1) * 100)}%` }}
@@ -1084,7 +1084,7 @@ export default function CustomerPortal({
                         type="button"
                         onClick={() => handleRegisterProgress('t3', 1)}
                         disabled={(challengeProgress.t3 || 0) >= 1}
-                        className="text-[10px] font-bold text-slate-300 bg-slate-900 hover:bg-slate-850 disabled:opacity-40 px-3 py-1.5 rounded-lg border border-slate-800 transition-colors cursor-pointer"
+                        className="text-[10px] font-bold text-slate-300 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 px-3 py-1.5 rounded-lg border border-slate-800 transition-colors cursor-pointer"
                       >
                         {(challengeProgress.t3 || 0) >= 1 ? 'Concluído!' : 'Simular Indicação Ativa'}
                       </button>
@@ -1098,7 +1098,7 @@ export default function CustomerPortal({
                           type="button"
                           onClick={() => handleClaimReward('t3', 10)}
                           disabled={(challengeProgress.t3 || 0) < 1}
-                          className="text-[10px] font-black text-slate-950 bg-gradient-to-r from-green-450 to-emerald-500 hover:opacity-90 disabled:opacity-40 disabled:bg-slate-800 disabled:text-slate-500 px-4 py-1.5 rounded-lg transition-colors cursor-pointer border-0 shadow-sm"
+                          className="text-[10px] font-black text-slate-950 bg-gradient-to-r from-green-400 to-emerald-500 hover:opacity-90 disabled:opacity-40 disabled:bg-slate-800 disabled:text-slate-500 px-4 py-1.5 rounded-lg transition-colors cursor-pointer border-0 shadow-sm"
                         >
                           Resgatar R$ 10,00
                         </button>
@@ -1137,7 +1137,7 @@ export default function CustomerPortal({
                 )}
 
                 {scratchState === 'scratching' && (
-                  <div className="w-full max-w-[260px] aspect-[4/3] bg-slate-950 border border-slate-850 rounded-2xl flex flex-col items-center justify-center shadow-xl">
+                  <div className="w-full max-w-[260px] aspect-[4/3] bg-slate-950 border border-slate-800 rounded-2xl flex flex-col items-center justify-center shadow-xl">
                     <RefreshCw size={24} className="text-pink-500 animate-spin" />
                     <p className="text-slate-400 text-[10px] font-bold font-mono mt-2">Raspando & Validando cashback...</p>
                   </div>
@@ -1168,7 +1168,7 @@ export default function CustomerPortal({
                     localStorage.removeItem(`ap_moda_scratch_state_${clientData.id}`);
                     localStorage.removeItem(`ap_moda_scratch_reward_${clientData.id}`);
                   }}
-                  className="text-[9px] font-semibold text-slate-500 hover:text-slate-450 font-mono underline cursor-pointer"
+                  className="text-[9px] font-semibold text-slate-500 hover:text-slate-400 font-mono underline cursor-pointer"
                 >
                   Sorteiro de Amanhã (Limpar Ticket)
                 </button>
@@ -1181,7 +1181,7 @@ export default function CustomerPortal({
         {/* Tab 4: Rules / Regras */}
         {activeTab === 'regras' && (
           <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-5 md:p-6 space-y-6">
-            <div className="border-b border-slate-850 pb-3">
+            <div className="border-b border-slate-800 pb-3">
               <h3 className="text-sm font-bold text-white uppercase tracking-wider">Regulamento do Clube de Fidelidade VIP</h3>
               <p className="text-[10px] text-slate-400 mt-0.5">Entenda as diretrizes fundamentais de resgates, acúmulos, vigências de créditos.</p>
             </div>
@@ -1210,12 +1210,12 @@ export default function CustomerPortal({
               </div>
             </div>
 
-            <div className="p-4 bg-slate-950 border border-slate-850 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="space-y-1.5 text-center sm:text-left">
                 <h4 className="text-xs font-bold text-white flex items-center justify-center sm:justify-start gap-1.5 uppercase">
                   <Phone size={13} className="text-pink-500" /> Atendimento de Suporte VIP
                 </h4>
-                <p className="text-[10px] text-slate-405 leading-relaxed max-w-lg">Ficou com alguma dúvida sobre seu saldo, notas de faturamento ou deseja agendar um provador condicional especializado? Fale conosco no chat direto.</p>
+                <p className="text-[10px] text-slate-400 leading-relaxed max-w-lg">Ficou com alguma dúvida sobre seu saldo, notas de faturamento ou deseja agendar um provador condicional especializado? Fale conosco no chat direto.</p>
               </div>
               <div className="flex gap-2 font-mono">
                 <span className="bg-slate-900 border border-slate-800 text-[10px] font-bold text-slate-300 px-3 py-1.5 rounded-xl flex items-center gap-1 select-all">
@@ -1231,7 +1231,7 @@ export default function CustomerPortal({
       {/* Mini Brand Footer */}
       <footer id="customer-vip-footer" className="bg-slate-950 border-t border-slate-900/60 py-6 text-center text-slate-500 text-[10px] font-mono select-none space-y-1">
         <p>AP VIP LOYALTY ENGINE • SEGURANÇA SSL CRIPTOGRAFADO</p>
-        <p className="text-slate-650">© 2026 AP MODA FITNESS. TODOS OS DIREITOS RESERVADOS.</p>
+        <p className="text-slate-600">© 2026 AP MODA FITNESS. TODOS OS DIREITOS RESERVADOS.</p>
       </footer>
     </div>
   );

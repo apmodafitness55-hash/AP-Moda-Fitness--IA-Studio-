@@ -2151,7 +2151,31 @@ async function sanitizeSales(sales: any[]) {
     });
   }
 
-  return sales.filter(s => !isMock(s));
+  const parseJsonArray = (val: any) => {
+    if (Array.isArray(val)) return val;
+    if (typeof val === 'string') {
+      try {
+        const p = JSON.parse(val);
+        return Array.isArray(p) ? p : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  return sales
+    .filter(s => !isMock(s))
+    .map(s => ({
+      ...s,
+      clientName: s.clientName || s.client_name || 'Cliente',
+      clientDoc: s.clientDoc || s.client_doc || '',
+      costTotal: Number(s.costTotal ?? s.cost_total ?? 0),
+      total: Number(s.total ?? 0),
+      createdAt: s.createdAt || s.created_at || new Date().toISOString(),
+      items: parseJsonArray(s.items),
+      payments: parseJsonArray(s.payments)
+    }));
 }
 
 async function sanitizeTransactions(transactions: any[]) {
@@ -2178,12 +2202,19 @@ async function sanitizeTransactions(transactions: any[]) {
     });
   }
 
-  return transactions.filter(t => !isMock(t));
+  return transactions
+    .filter(t => !isMock(t))
+    .map(t => ({
+      ...t,
+      amount: Number(t.amount ?? 0),
+      dueDate: t.dueDate || t.due_date,
+      date: t.date || t.created_at || new Date().toISOString()
+    }));
 }
 
 async function sanitizeOnlineOrders(orders: any[]) {
   const isMock = (o: any) => {
-    const clientName = String(o.clientName || '').toLowerCase().trim();
+    const clientName = String(o.clientName || o.clientname || '').toLowerCase().trim();
     const id = String(o.id || '').toLowerCase();
     return (
       clientName === 'ana costa' ||
@@ -2191,6 +2222,19 @@ async function sanitizeOnlineOrders(orders: any[]) {
       id === 'ped-web-01' ||
       id === 'ped-web-02'
     );
+  };
+
+  const parseJsonArray = (val: any) => {
+    if (Array.isArray(val)) return val;
+    if (typeof val === 'string') {
+      try {
+        const p = JSON.parse(val);
+        return Array.isArray(p) ? p : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
   };
 
   const mocks = orders.filter(isMock);
@@ -2203,7 +2247,17 @@ async function sanitizeOnlineOrders(orders: any[]) {
     });
   }
 
-  return orders.filter(o => !isMock(o));
+  return orders
+    .filter(o => !isMock(o))
+    .map(o => ({
+      ...o,
+      clientName: o.clientName || o.clientname || o.client_name || 'Cliente Online',
+      total: Number(o.total ?? 0),
+      deliveryFee: o.deliveryFee !== undefined ? Number(o.deliveryFee) : (o.delivery_fee !== undefined ? Number(o.delivery_fee) : undefined),
+      createdAt: o.createdAt || o.createdat || o.created_at || new Date().toISOString(),
+      paymentMethod: o.paymentMethod || o.paymentmethod || o.payment_method || 'pix',
+      items: parseJsonArray(o.items)
+    }));
 }
 
 async function sanitizeCheckouts(checkouts: any[]) {
@@ -2592,26 +2646,83 @@ app.post('/api/proxy/sales', async (req, res) => {
   try {
     const db = getFirebaseServerDb();
     const raw = Array.isArray(req.body) ? req.body : [req.body];
-    const payloads = raw.map((s: any) => ({
+
+    const buildFullSale = (s: any) => ({
       id: s.id,
       clientName: s.clientName || s.client_name || 'Cliente',
+      client_name: s.clientName || s.client_name || 'Cliente',
       clientDoc: s.clientDoc || s.client_doc || '',
+      client_doc: s.clientDoc || s.client_doc || '',
       channel: s.channel || 'Loja Online',
       items: typeof s.items === 'string' ? s.items : JSON.stringify(s.items || []),
       total: Number(s.total || 0),
       costTotal: Number(s.costTotal || s.cost_total || 0),
+      cost_total: Number(s.costTotal || s.cost_total || 0),
       status: s.status || 'Concluída',
       createdAt: s.createdAt || s.created_at || new Date().toISOString(),
+      created_at: s.createdAt || s.created_at || new Date().toISOString(),
       payments: typeof s.payments === 'string' ? s.payments : JSON.stringify(s.payments || []),
-      salesperson: s.salesperson || 'AP Moda Fitness'
-    }));
+      salesperson: s.salesperson || 'AP Moda Fitness',
+      trackingCode: s.trackingCode || '',
+      deliveryMethod: s.deliveryMethod || '',
+      address: s.address || '',
+      tipo_envio: s.tipo_envio || '',
+      status_logistico: s.status_logistico || '',
+      partner: s.partner || s.partnerName || '',
+      partnerName: s.partnerName || s.partner || '',
+      partnerId: s.partnerId || '',
+      couponCode: s.couponCode || s.partnerCoupon || s.coupon || '',
+      partnerCoupon: s.partnerCoupon || s.couponCode || s.coupon || '',
+      coupon: s.coupon || s.couponCode || '',
+      commissionRate: s.commissionRate !== undefined ? Number(s.commissionRate) : undefined,
+      commissionAmount: s.commissionAmount !== undefined ? Number(s.commissionAmount) : undefined,
+      notes: s.notes || ''
+    });
+
+    let payloads: any[] = raw.map(buildFullSale);
+
+    if (db.constructor.name !== 'LocalDBAdapter') {
+      try {
+        const { data: oneRow } = await db.from('ap_sales').select('*').limit(1);
+        const existingCols = oneRow && oneRow.length > 0 ? Object.keys(oneRow[0]) : null;
+        if (existingCols && existingCols.length > 0) {
+          payloads = payloads.map(full => {
+            const sanitized: any = {};
+            existingCols.forEach(col => {
+              if (full[col as keyof typeof full] !== undefined) {
+                sanitized[col] = full[col as keyof typeof full];
+              }
+            });
+            sanitized.id = full.id;
+            return sanitized;
+          });
+        } else {
+          payloads = raw.map((s: any) => ({
+            id: s.id,
+            clientName: s.clientName || s.client_name || 'Cliente',
+            clientDoc: s.clientDoc || s.client_doc || '',
+            channel: s.channel || 'Loja Online',
+            items: typeof s.items === 'string' ? s.items : JSON.stringify(s.items || []),
+            total: Number(s.total || 0),
+            costTotal: Number(s.costTotal || s.cost_total || 0),
+            status: s.status || 'Concluída',
+            createdAt: s.createdAt || s.created_at || new Date().toISOString(),
+            payments: typeof s.payments === 'string' ? s.payments : JSON.stringify(s.payments || []),
+            salesperson: s.salesperson || 'AP Moda Fitness'
+          }));
+        }
+      } catch (schemaErr) {
+        console.warn('[Proxy Sales Schema Auto-discovery]:', schemaErr);
+      }
+    }
 
     // Update local db with full objects
     try {
       const local = readLocalDb();
       if (!local.ap_sales) local.ap_sales = [];
       for (const item of raw) {
-        const idx = local.ap_sales.findIndex((x: any) => x && x.id === item.id);
+        if (!item || !item.id) continue;
+        const idx = local.ap_sales.findIndex((x: any) => x && String(x.id) === String(item.id));
         if (idx >= 0) local.ap_sales[idx] = { ...local.ap_sales[idx], ...item };
         else local.ap_sales.push(item);
       }
@@ -2636,9 +2747,18 @@ app.post('/api/proxy/sales', async (req, res) => {
 
 app.delete('/api/proxy/sales/:id', async (req, res) => {
   try {
+    const saleId = req.params.id;
+    try {
+      const local = readLocalDb();
+      if (local && Array.isArray(local.ap_sales)) {
+        local.ap_sales = local.ap_sales.filter((s: any) => s && String(s.id) !== String(saleId));
+        writeLocalDb(local);
+      }
+    } catch (e) {}
+
     const db = getFirebaseServerDb();
-    const { error } = await db.from('ap_sales').delete().eq('id', req.params.id);
-    if (error) throw error;
+    const { error } = await db.from('ap_sales').delete().eq('id', saleId);
+    if (error) console.warn('[Proxy Sales DELETE Supabase Warn]:', error.message || error);
     res.json({ success: true });
   } catch (err: any) {
     console.error('[Proxy Sales DELETE] Erro:', err);
@@ -2674,13 +2794,46 @@ app.get('/api/proxy/transactions', async (req, res) => {
 app.post('/api/proxy/transactions', async (req, res) => {
   try {
     const db = getFirebaseServerDb();
-    const payloads = req.body;
-    const { error } = await db.from('ap_transactions').upsert(payloads, { onConflict: 'id' });
-    if (error) throw error;
+    const raw = Array.isArray(req.body) ? req.body : [req.body];
+    try {
+      const local = readLocalDb();
+      if (!local.ap_transactions) local.ap_transactions = [];
+      for (const item of raw) {
+        if (!item || !item.id) continue;
+        const idx = local.ap_transactions.findIndex((x: any) => x && String(x.id) === String(item.id));
+        if (idx >= 0) local.ap_transactions[idx] = { ...local.ap_transactions[idx], ...item };
+        else local.ap_transactions.push(item);
+      }
+      writeLocalDb(local);
+    } catch (e) {}
+
+    const { error } = await db.from('ap_transactions').upsert(req.body, { onConflict: 'id' });
+    if (error) console.warn('[Proxy Transactions POST Supabase]', error.message);
     res.json({ success: true });
   } catch (err: any) {
     console.error('[Proxy Transactions POST] Erro:', err);
     res.status(500).json({ error: err.message || 'Erro ao sincronizar transações.' });
+  }
+});
+
+app.delete('/api/proxy/transactions/:id', async (req, res) => {
+  try {
+    const txId = req.params.id;
+    try {
+      const local = readLocalDb();
+      if (local && Array.isArray(local.ap_transactions)) {
+        local.ap_transactions = local.ap_transactions.filter((t: any) => t && String(t.id) !== String(txId));
+        writeLocalDb(local);
+      }
+    } catch (e) {}
+
+    const db = getFirebaseServerDb();
+    const { error } = await db.from('ap_transactions').delete().eq('id', txId);
+    if (error) console.warn('[Proxy Transactions DELETE Supabase Warn]:', error.message || error);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('[Proxy Transactions DELETE] Erro:', err);
+    res.status(500).json({ error: err.message || 'Erro ao deletar transação.' });
   }
 });
 
@@ -2762,28 +2915,84 @@ app.post(['/api/proxy/online-orders', '/api/proxy/online_orders'], async (req, r
   try {
     const db = getFirebaseServerDb();
     const raw = Array.isArray(req.body) ? req.body : [req.body];
-    const payloads = raw.map((o: any) => ({
+
+    const buildFullOrder = (o: any) => ({
       id: o.id,
       clientName: o.clientName || o.clientname || '',
       clientname: o.clientName || o.clientname || '',
       phone: o.phone || '',
+      cpf: o.cpf || '',
       items: typeof o.items === 'string' ? o.items : JSON.stringify(o.items || []),
       total: Number(o.total || 0),
+      deliveryFee: o.deliveryFee !== undefined ? Number(o.deliveryFee) : (o.delivery_fee !== undefined ? Number(o.delivery_fee) : 0),
+      deliveryMethod: o.deliveryMethod || o.delivery_method || '',
+      trackingCode: o.trackingCode || o.tracking_code || '',
       status: o.status || 'Pendente',
       status_pagamento: o.status_pagamento || 'pendente',
+      status_logistico: o.status_logistico || '',
+      motoboy: o.motoboy || '',
       createdAt: o.createdAt || o.createdat || new Date().toISOString(),
       createdat: o.createdAt || o.createdat || new Date().toISOString(),
       address: o.address || '',
       paymentMethod: o.paymentMethod || o.paymentmethod || 'pix',
-      paymentmethod: o.paymentMethod || o.paymentmethod || 'pix'
-    }));
+      paymentmethod: o.paymentMethod || o.paymentmethod || 'pix',
+      partner: o.partner || o.partnerName || '',
+      partnerName: o.partnerName || o.partner || '',
+      partnerId: o.partnerId || '',
+      couponCode: o.couponCode || o.partnerCoupon || o.coupon || '',
+      partnerCoupon: o.partnerCoupon || o.couponCode || o.coupon || '',
+      coupon: o.coupon || o.couponCode || '',
+      commissionRate: o.commissionRate !== undefined ? Number(o.commissionRate) : undefined,
+      commissionAmount: o.commissionAmount !== undefined ? Number(o.commissionAmount) : undefined,
+      notes: o.notes || ''
+    });
+
+    let payloads: any[] = raw.map(buildFullOrder);
+
+    if (db.constructor.name !== 'LocalDBAdapter') {
+      try {
+        const { data: oneRow } = await db.from('ap_online_orders').select('*').limit(1);
+        const existingCols = oneRow && oneRow.length > 0 ? Object.keys(oneRow[0]) : null;
+        if (existingCols && existingCols.length > 0) {
+          payloads = payloads.map(full => {
+            const sanitized: any = {};
+            existingCols.forEach(col => {
+              if (full[col as keyof typeof full] !== undefined) {
+                sanitized[col] = full[col as keyof typeof full];
+              }
+            });
+            sanitized.id = full.id;
+            return sanitized;
+          });
+        } else {
+          payloads = raw.map((o: any) => ({
+            id: o.id,
+            clientName: o.clientName || o.clientname || '',
+            clientname: o.clientName || o.clientname || '',
+            phone: o.phone || '',
+            items: typeof o.items === 'string' ? o.items : JSON.stringify(o.items || []),
+            total: Number(o.total || 0),
+            status: o.status || 'Pendente',
+            status_pagamento: o.status_pagamento || 'pendente',
+            createdAt: o.createdAt || o.createdat || new Date().toISOString(),
+            createdat: o.createdAt || o.createdat || new Date().toISOString(),
+            address: o.address || '',
+            paymentMethod: o.paymentMethod || o.paymentmethod || 'pix',
+            paymentmethod: o.paymentMethod || o.paymentmethod || 'pix'
+          }));
+        }
+      } catch (schemaErr) {
+        console.warn('[Proxy Online Orders Schema Auto-discovery]:', schemaErr);
+      }
+    }
 
     // Update local db with full objects
     try {
       const local = readLocalDb();
       if (!local.ap_online_orders) local.ap_online_orders = [];
       for (const item of raw) {
-        const idx = local.ap_online_orders.findIndex((x: any) => x && x.id === item.id);
+        if (!item || !item.id) continue;
+        const idx = local.ap_online_orders.findIndex((x: any) => x && String(x.id) === String(item.id));
         if (idx >= 0) local.ap_online_orders[idx] = { ...local.ap_online_orders[idx], ...item };
         else local.ap_online_orders.push(item);
       }
@@ -2804,6 +3013,27 @@ app.post(['/api/proxy/online-orders', '/api/proxy/online_orders'], async (req, r
   } catch (err: any) {
     console.error('[Proxy Online Orders POST] Erro:', err);
     res.status(500).json({ error: err.message || 'Erro ao sincronizar pedidos.' });
+  }
+});
+
+app.delete(['/api/proxy/online-orders/:id', '/api/proxy/online_orders/:id'], async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    try {
+      const local = readLocalDb();
+      if (local && Array.isArray(local.ap_online_orders)) {
+        local.ap_online_orders = local.ap_online_orders.filter((o: any) => o && String(o.id) !== String(orderId));
+        writeLocalDb(local);
+      }
+    } catch (e) {}
+
+    const db = getFirebaseServerDb();
+    const { error } = await db.from('ap_online_orders').delete().eq('id', orderId);
+    if (error) console.warn('[Proxy Online Orders DELETE Supabase Warn]:', error.message || error);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('[Proxy Online Orders DELETE] Erro:', err);
+    res.status(500).json({ error: err.message || 'Erro ao deletar pedido.' });
   }
 });
 
@@ -3103,7 +3333,11 @@ app.get('/api/proxy/products', async (req, res) => {
         composition: r.composition || '',
         routes: r.routes || '',
         measurementSpecs: safeParseJson(r.measurement_specs ?? r.measurementSpecs, {}),
-        compare_at_price: Number(r.compare_at_price ?? r.compareAtPrice ?? 0)
+        compare_at_price: Number(r.compare_at_price ?? r.compareAtPrice ?? 0),
+        weight: r.weight !== undefined && r.weight !== null ? Number(r.weight) : 0.35,
+        length: r.length !== undefined && r.length !== null ? Number(r.length) : 25,
+        width: r.width !== undefined && r.width !== null ? Number(r.width) : 20,
+        height: r.height !== undefined && r.height !== null ? Number(r.height) : 5
       };
     });
 
@@ -3348,7 +3582,11 @@ app.post('/api/proxy/products', async (req, res) => {
             routes: String(p.routes || ''),
             measurement_specs: typeof p.measurementSpecs === 'object' ? JSON.stringify(p.measurementSpecs) : String(p.measurement_specs || '{}'),
             measurementSpecs: typeof p.measurementSpecs === 'object' ? JSON.stringify(p.measurementSpecs) : String(p.measurement_specs || '{}'),
-            compare_at_price: Number(p.compare_at_price ?? p.compareAtPrice ?? 0)
+            compare_at_price: Number(p.compare_at_price ?? p.compareAtPrice ?? 0),
+            weight: Number(p.weight ?? 0.35),
+            length: Number(p.length ?? 25),
+            width: Number(p.width ?? 20),
+            height: Number(p.height ?? 5)
           };
 
           if (existingCols && existingCols.length > 0) {
@@ -3385,7 +3623,11 @@ app.post('/api/proxy/products', async (req, res) => {
               composition: String(p.composition || ''),
               routes: String(p.routes || ''),
               measurement_specs: typeof p.measurementSpecs === 'object' ? JSON.stringify(p.measurementSpecs) : String(p.measurement_specs || '{}'),
-              compare_at_price: Number(p.compare_at_price ?? p.compareAtPrice ?? 0)
+              compare_at_price: Number(p.compare_at_price ?? p.compareAtPrice ?? 0),
+              weight: Number(p.weight ?? 0.35),
+              length: Number(p.length ?? 25),
+              width: Number(p.width ?? 20),
+              height: Number(p.height ?? 5)
             };
           }
         });

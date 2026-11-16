@@ -348,7 +348,7 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
           </div>
           <div>
             <h2 className="text-white font-bold text-lg tracking-wide">AP Moda Fitness</h2>
-            <p className="text-slate-404 text-xs">Pórtico Integrado • Controle de Equipe & Acessos</p>
+            <p className="text-slate-400 text-xs">Pórtico Integrado • Controle de Equipe & Acessos</p>
           </div>
         </div>
 
@@ -379,7 +379,7 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
           <div className="p-3 bg-pink-950/25 border border-pink-900/40 rounded-2xl text-[10.5px] leading-relaxed text-center text-pink-300">
             {role === 'Cliente' ? (
               <>
-                💎 Portal de Fidelidade: <strong className="text-pink-105 uppercase">Clube VIP Moda Fitness</strong>
+                💎 Portal de Fidelidade: <strong className="text-pink-100 uppercase">Clube VIP Moda Fitness</strong>
                 <div className="mt-1 flex items-center justify-center gap-1.5 text-slate-400 font-medium text-[9.5px]">
                   Consulte seu saldo de Cashback, biometria sugerida e histórico de compras.
                 </div>
@@ -405,7 +405,7 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
               value={loginInput}
               onChange={(e) => setLoginInput(e.target.value)}
               placeholder={role === 'Cliente' ? 'Digite seu E-mail, CPF ou WhatsApp cadastrado...' : 'Digite seu usuário de login...'}
-              className="w-full bg-slate-950 border border-slate-850 rounded-xl p-3 text-white font-medium focus:outline-none focus:border-pink-500 transition-all font-mono placeholder:text-slate-700"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-medium focus:outline-none focus:border-pink-500 transition-all font-mono placeholder:text-slate-700"
             />
           </div>
 
@@ -421,7 +421,7 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={role === 'Cliente' ? 'Digite seu número ou a senha padrão 123...' : 'Insira a sua senha...'}
-                className="w-full bg-slate-950 border border-slate-850 rounded-xl p-3 pr-10 text-white font-medium focus:outline-none focus:border-pink-500 transition-all font-mono placeholder:text-slate-700"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 pr-10 text-white font-medium focus:outline-none focus:border-pink-500 transition-all font-mono placeholder:text-slate-700"
               />
               <button
                 type="button"

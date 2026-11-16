@@ -579,7 +579,7 @@ export default function Sidebar({
             {searchTerm && (
               <button 
                 onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-2 text-[10px] text-slate-500 hover:text-slate-350 font-bold uppercase tracking-wider bg-transparent border-0 outline-none"
+                className="absolute right-2.5 top-2 text-[10px] text-slate-500 hover:text-slate-300 font-bold uppercase tracking-wider bg-transparent border-0 outline-none"
               >
                 Limpar
               </button>
@@ -645,6 +645,7 @@ export default function Sidebar({
                     (item.tab === ActiveTab.CLIENTES && activeCustomersCRMSubTab === (item as any).subTab) ||
                     (item.tab === ActiveTab.FORNECEDORES && activeSuppliersManagementSubTab === (item as any).subTab) ||
                     (item.tab === ActiveTab.PRODUTOS && activeProductsSubTab === (item as any).subTab) ||
+                    (item.tab === ActiveTab.LOJA_ONLINE && activeLojaOnlineSubTab === (item as any).subTab) ||
                     (item.tab === ActiveTab.CONFIGURACOES && activeSettingsSystemSubTab === (item as any).subTab)
                   );
 
@@ -667,7 +668,7 @@ export default function Sidebar({
                              handleTabClick(item.tab, (item as any).subTab);
                            }
                          }}
-                         className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-semibold font-sans transition-all duration-250 group cursor-pointer border-0 text-left outline-none bg-transparent
+                         className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-semibold font-sans transition-all duration-300 group cursor-pointer border-0 text-left outline-none bg-transparent
                            ${isActive 
                              ? menuMode === 'classico' || !hasSubLinks
                                ? 'bg-pink-600 text-white shadow-sm shadow-pink-500/10 font-bold' 
@@ -701,11 +702,11 @@ export default function Sidebar({
                                   onClick={() => handleTabClick(item.tab, subLink.subTab)}
                                   className={`w-full flex items-center gap-2 px-3 py-1 rounded text-[11px] font-medium font-sans border-0 text-left outline-none cursor-pointer transition-all duration-150
                                     ${isSubActive 
-                                      ? 'text-pink-400 font-bold bg-slate-850/40' 
-                                      : 'text-slate-400 hover:text-white hover:bg-slate-850/10'
+                                      ? 'text-pink-400 font-bold bg-slate-800/60' 
+                                      : 'text-slate-400 hover:text-white hover:bg-slate-800/30'
                                     }`}
                                 >
-                                  <span className={`w-1 h-1 rounded-full shrink-0 transition-colors ${isSubActive ? 'bg-pink-500' : 'bg-slate-650'}`} />
+                                  <span className={`w-1 h-1 rounded-full shrink-0 transition-colors ${isSubActive ? 'bg-pink-500' : 'bg-slate-600'}`} />
                                   <span className="truncate flex-1">{subLink.label}</span>
                                   {subLink.subTab === 'parceiros' && pendingPartnerWithdrawsCount > 0 && (
                                     <span className="bg-pink-600 text-white font-extrabold text-[9px] px-1.5 py-0.2 rounded-full font-mono animate-pulse">

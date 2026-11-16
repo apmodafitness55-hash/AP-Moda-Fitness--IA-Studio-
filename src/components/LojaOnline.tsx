@@ -135,8 +135,18 @@ export default function LojaOnline({
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
-  // Coupon listing state initialized from localStorage
+  // Unified coupon listing state initialized from localStorage and synced via events
   const [coupons, setCoupons] = useState<Coupon[]>(() => getStoredCoupons());
+
+  React.useEffect(() => {
+    const syncCoupons = () => setCoupons(getStoredCoupons());
+    window.addEventListener('ap-coupons-updated', syncCoupons);
+    window.addEventListener('ap-storage-synced', syncCoupons);
+    return () => {
+      window.removeEventListener('ap-coupons-updated', syncCoupons);
+      window.removeEventListener('ap-storage-synced', syncCoupons);
+    };
+  }, []);
 
   // Form states for creating new coupon
   const [newCode, setNewCode] = useState('');
@@ -332,8 +342,7 @@ export default function LojaOnline({
     }
   });
 
-  // Coupons Manager State
-  const [couponsList, setCouponsList] = useState<Coupon[]>(() => getStoredCoupons());
+  // Coupons Manager Form State (uses unified `coupons` state above)
   const [newCouponCode, setNewCouponCode] = useState('');
   const [newCouponType, setNewCouponType] = useState<'percent' | 'fixed'>('percent');
   const [newCouponValue, setNewCouponValue] = useState<string>('15');
@@ -358,6 +367,9 @@ export default function LojaOnline({
     }
 
     const cleanPartnerName = newCouponPartnerName.trim();
+    const linkedPartnerObj = cleanPartnerName
+      ? registeredPartners.find(p => p.name.toLowerCase() === cleanPartnerName.toLowerCase() || p.id === cleanPartnerName)
+      : undefined;
 
     const couponObj: Coupon = {
       code: cleanCode,
@@ -370,19 +382,20 @@ export default function LojaOnline({
       maxPerCpf: newCouponMaxPerCpf,
       isFirstPurchase: newCouponIsFirstPurchase,
       category: newCouponCategory,
-      partnerName: cleanPartnerName || undefined
+      partnerName: cleanPartnerName || undefined,
+      partnerId: linkedPartnerObj?.id || undefined
     };
 
-    const existingIdx = couponsList.findIndex(c => c.code.toUpperCase() === cleanCode);
+    const existingIdx = coupons.findIndex(c => c.code.toUpperCase() === cleanCode);
     let updated: Coupon[];
     if (existingIdx > -1) {
-      updated = [...couponsList];
+      updated = [...coupons];
       updated[existingIdx] = couponObj;
     } else {
-      updated = [couponObj, ...couponsList];
+      updated = [couponObj, ...coupons];
     }
 
-    setCouponsList(updated);
+    setCoupons(updated);
     saveStoredCoupons(updated);
 
     // Sync back with ap_moda_partners if partner linked
@@ -400,6 +413,7 @@ export default function LojaOnline({
             pList[partnerIdx].fixedDiscount = val;
           }
           localStorage.setItem('ap_moda_partners', JSON.stringify(pList));
+          pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(pList));
           window.dispatchEvent(new Event('ap-storage-synced'));
         }
       } catch (e) {
@@ -421,8 +435,8 @@ export default function LojaOnline({
 
   const handleDeleteCouponFromTab = (codeToDelete: string) => {
     if (confirm(`Tem certeza que deseja remover o cupom ${codeToDelete}?`)) {
-      const updated = couponsList.filter(c => c.code.toUpperCase() !== codeToDelete.toUpperCase());
-      setCouponsList(updated);
+      const updated = coupons.filter(c => c.code.toUpperCase() !== codeToDelete.toUpperCase());
+      setCoupons(updated);
       saveStoredCoupons(updated);
     }
   };
@@ -774,7 +788,7 @@ export default function LojaOnline({
           className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer whitespace-nowrap
             ${activeSubTab === 'compartilhar' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <Share2 size={14} className={activeSubTab === 'compartilhar' ? 'text-pink-600' : 'text-slate-400'} />
           <span>Compartilhar Vitrine & Bios</span>
@@ -785,7 +799,7 @@ export default function LojaOnline({
           className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer whitespace-nowrap
             ${activeSubTab === 'cupons' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <Percent size={14} className={activeSubTab === 'cupons' ? 'text-pink-600' : 'text-slate-400'} />
           <span>Cupons & Categorias 🏷️</span>
@@ -796,7 +810,7 @@ export default function LojaOnline({
           className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer whitespace-nowrap
             ${activeSubTab === 'vitrine' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <Smartphone size={14} className={activeSubTab === 'vitrine' ? 'text-pink-600' : 'text-slate-400'} />
           <span>Vitrine de Clientes (Preview)</span>
@@ -808,7 +822,7 @@ export default function LojaOnline({
           className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer whitespace-nowrap
             ${activeSubTab === 'recuperacao' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <Sparkles size={14} className={activeSubTab === 'recuperacao' ? 'text-pink-600' : 'text-slate-400'} />
           <span>Carrinhos Abandonados (IA)</span>
@@ -820,7 +834,7 @@ export default function LojaOnline({
           className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer whitespace-nowrap
             ${activeSubTab === 'marketing' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <Megaphone size={14} className={activeSubTab === 'marketing' ? 'text-pink-600' : 'text-slate-400'} />
           <span>Central de Marketing & Vendas</span>
@@ -839,7 +853,7 @@ export default function LojaOnline({
               <div className="flex flex-col md:flex-row items-center gap-6">
                 
                 {/* Simulated Beautiful QR Code Card with scanning animation */}
-                <div className="w-full md:w-44 shrink-0 flex flex-col items-center justify-center p-3 bg-slate-50 border border-slate-150 rounded-2xl relative overflow-hidden group select-none">
+                <div className="w-full md:w-44 shrink-0 flex flex-col items-center justify-center p-3 bg-slate-50 border border-slate-100 rounded-2xl relative overflow-hidden group select-none">
                   {/* Subtle scan bar animating over mockup */}
                   <div className="absolute top-0 left-0 right-0 h-0.5 bg-pink-500 shadow-md shadow-pink-400 animate-bounce duration-3000 pointer-events-none" />
                   
@@ -905,8 +919,8 @@ export default function LojaOnline({
                     <p className="text-slate-400 text-xs mt-1 leading-relaxed">Você já pode enviar o link direto para suas clientes em canais de chat ou fixá-lo na seção de "Link da Bio" nas suas redes oficiais!</p>
                   </div>
 
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-150 flex items-center justify-between gap-3 overflow-hidden">
-                    <span className="font-mono text-xs text-slate-650 truncate select-all">{getCatalogLink()}</span>
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between gap-3 overflow-hidden">
+                    <span className="font-mono text-xs text-slate-600 truncate select-all">{getCatalogLink()}</span>
                     <button
                       type="button"
                       onClick={handleCopyCatalogLink}
@@ -967,7 +981,7 @@ export default function LojaOnline({
                   {/* Instagram Bio config card */}
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <label className="text-slate-750 text-xs font-bold flex items-center gap-1">
+                      <label className="text-slate-700 text-xs font-bold flex items-center gap-1">
                         <span>Instagram Bio</span>
                       </label>
                       <button
@@ -985,14 +999,14 @@ export default function LojaOnline({
                       value={instaBio}
                       onChange={(e) => setInstaBio(e.target.value)}
                       placeholder="Bio do Instagram..."
-                      className="w-full text-xs font-sans p-3 bg-slate-50 border border-slate-150 rounded-xl focus:outline-hidden text-slate-755 leading-relaxed resize-none"
+                      className="w-full text-xs font-sans p-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-hidden text-slate-700 leading-relaxed resize-none"
                     />
                   </div>
 
                   {/* WhatsApp Bio config card */}
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <label className="text-slate-750 text-xs font-bold flex items-center gap-1">
+                      <label className="text-slate-700 text-xs font-bold flex items-center gap-1">
                         <span>WhatsApp Recado / Grupo Info</span>
                       </label>
                       <button
@@ -1010,7 +1024,7 @@ export default function LojaOnline({
                       value={whatsappBio}
                       onChange={(e) => setWhatsappBio(e.target.value)}
                       placeholder="Status do WhatsApp..."
-                      className="w-full text-xs font-sans p-3 bg-slate-50 border border-slate-150 rounded-xl focus:outline-hidden text-slate-755 leading-relaxed resize-none"
+                      className="w-full text-xs font-sans p-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-hidden text-slate-700 leading-relaxed resize-none"
                     />
                   </div>
                 </div>
@@ -1019,7 +1033,7 @@ export default function LojaOnline({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6 pt-5 border-t border-slate-100">
                   
                   {/* INSTAGRAM MOCKUP PREVIEW */}
-                  <div className="bg-slate-50 rounded-2xl border border-slate-150 p-4 font-sans select-none relative overflow-hidden">
+                  <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4 font-sans select-none relative overflow-hidden">
                     <span className="absolute right-3 top-3 text-[8px] bg-slate-200 text-slate-500 font-bold px-1.5 py-0.5 rounded uppercase">Preview no Instagram</span>
                     
                     {/* Header profile info mockup */}
@@ -1086,7 +1100,7 @@ export default function LojaOnline({
                           </div>
 
                           {/* Bio message simulation */}
-                          <div className="bg-white p-2.5 rounded-xl border border-emerald-100/50 shadow-xs max-w-xs text-[11px] text-slate-850 whitespace-pre-wrap leading-relaxed relative">
+                          <div className="bg-white p-2.5 rounded-xl border border-emerald-100/50 shadow-xs max-w-xs text-[11px] text-slate-800 whitespace-pre-wrap leading-relaxed relative">
                             {whatsappBio.split('{link}')[0]}
                             <span className="text-emerald-600 font-semibold break-all underline cursor-pointer">{getCatalogLink()}</span>
                             {whatsappBio.split('{link}')[1] || ''}
@@ -1108,7 +1122,7 @@ export default function LojaOnline({
             
             {/* Presets Card */}
             <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-4">
-              <h4 className="text-xs font-bold font-sans uppercase tracking-wider text-slate-650 mb-3 flex items-center gap-1.5">
+              <h4 className="text-xs font-bold font-sans uppercase tracking-wider text-slate-600 mb-3 flex items-center gap-1.5">
                 <Sparkles size={13} className="text-pink-600" />
                 <span>Presets Prontos p/ Copiar</span>
               </h4>
@@ -1146,7 +1160,7 @@ export default function LojaOnline({
                         key={i}
                         type="button"
                         onClick={() => handleApplyPresetInsta(p.text)}
-                        className="w-full text-left p-2.5 bg-slate-50 hover:bg-slate-100 active:bg-slate-150 border border-slate-150 rounded-xl transition cursor-pointer text-[11px] font-medium text-slate-700 flex justify-between items-center group"
+                        className="w-full text-left p-2.5 bg-slate-50 hover:bg-slate-100 active:bg-slate-100 border border-slate-100 rounded-xl transition cursor-pointer text-[11px] font-medium text-slate-700 flex justify-between items-center group"
                       >
                         <span className="truncate pr-2">{p.title}</span>
                         <span className="text-[9px] text-pink-600 font-bold opacity-0 group-hover:opacity-100 transition duration-150">Aplicar →</span>
@@ -1173,7 +1187,7 @@ export default function LojaOnline({
                         key={i}
                         type="button"
                         onClick={() => handleApplyPresetWhatsapp(p.text)}
-                        className="w-full text-left p-2.5 bg-slate-50 hover:bg-slate-100 active:bg-slate-150 border border-slate-150 rounded-xl transition cursor-pointer text-[11px] font-medium text-slate-700 flex justify-between items-center group"
+                        className="w-full text-left p-2.5 bg-slate-50 hover:bg-slate-100 active:bg-slate-100 border border-slate-100 rounded-xl transition cursor-pointer text-[11px] font-medium text-slate-700 flex justify-between items-center group"
                       >
                         <span className="truncate pr-2">{p.title}</span>
                         <span className="text-[9px] text-emerald-600 font-bold opacity-0 group-hover:opacity-100 transition duration-150">Aplicar →</span>
@@ -1191,7 +1205,7 @@ export default function LojaOnline({
                 <span>💡</span>
                 <span>Dicas para Bombar de Vender</span>
               </h4>
-              <ul className="space-y-2 text-[11px] text-pink-955 leading-relaxed font-medium">
+              <ul className="space-y-2 text-[11px] text-pink-950 leading-relaxed font-medium">
                 <li className="flex gap-1.5 items-start">
                   <span>✨</span>
                   <span><strong>Fixe na Bio do Instagram:</strong> Com a bio configurada e copiada, acerte seu perfil no Instagram e coloque o link do catálogo!</span>
@@ -1411,7 +1425,7 @@ export default function LojaOnline({
             <div className="flex justify-between items-center">
               <h5 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                 <Tag size={14} className="text-pink-600" />
-                <span>Cupons Ativos no Sistema ({couponsList.length})</span>
+                <span>Cupons Ativos no Sistema ({coupons.length})</span>
               </h5>
               <span className="text-[10px] text-slate-400 font-medium">
                 Sincronizado automaticamente com a Vitrine e Checkout
@@ -1419,7 +1433,7 @@ export default function LojaOnline({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-              {couponsList.map((cup) => {
+              {coupons.map((cup) => {
                 const isCategoryRestricted = cup.category && !['todas', 'todas as categorias', 'livre', 'geral', ''].includes(cup.category.toLowerCase());
                 return (
                   <div key={cup.code} className="bg-white border border-slate-200/90 rounded-2xl p-3.5 space-y-2.5 shadow-2xs hover:border-pink-300 transition relative group">
@@ -1526,7 +1540,7 @@ export default function LojaOnline({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
           {/* E-commerce showcase catalog mockup */}
-          <div className="lg:col-span-8 bg-slate-900 ring-4 ring-slate-850 rounded-3xl p-4 shadow-2xl relative">
+          <div className="lg:col-span-8 bg-slate-900 ring-4 ring-slate-800 rounded-3xl p-4 shadow-2xl relative">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
               <div className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 bg-red-500 rounded-full" />
@@ -1538,7 +1552,7 @@ export default function LojaOnline({
             </div>
 
             {/* In-Preview Public Header */}
-            <div className="bg-slate-950 p-3 rounded-2xl flex justify-between items-center text-xs selection:bg-pink-600 mb-3 border border-slate-850">
+            <div className="bg-slate-950 p-3 rounded-2xl flex justify-between items-center text-xs selection:bg-pink-600 mb-3 border border-slate-800">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-md bg-pink-600 flex items-center justify-center text-white font-bold text-xs shadow-md shadow-pink-500/10">AP</div>
                 <span className="font-bold text-white tracking-wide">AP Vitrine Online</span>
@@ -1551,7 +1565,7 @@ export default function LojaOnline({
                     key={cat}
                     onClick={() => setPreviewCategory(cat)}
                     className={`px-2 py-1 text-[10px] font-bold rounded-md transition-colors cursor-pointer select-none
-                      ${previewCategory === cat ? 'bg-pink-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-850'}`}
+                      ${previewCategory === cat ? 'bg-pink-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
                   >
                     {cat}
                   </button>
@@ -1841,10 +1855,10 @@ export default function LojaOnline({
             {/* Grid of items */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-96 overflow-y-auto pr-1">
               {vitrineProducts.map(prod => (
-                <div key={prod.id} className="bg-slate-950 border border-slate-850 rounded-xl p-2.5 hover:border-pink-600/30 transition-all flex flex-col justify-between">
+                <div key={prod.id} className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 hover:border-pink-600/30 transition-all flex flex-col justify-between">
                   <div>
                     <div 
-                      className="aspect-square w-full rounded-lg overflow-hidden bg-slate-850 relative mb-1.5 cursor-pointer"
+                      className="aspect-square w-full rounded-lg overflow-hidden bg-slate-800 relative mb-1.5 cursor-pointer"
                       onClick={() => {
                         setSelectedDetailProduct(prod);
                         setSelectedSize(prod.sizes?.[0] || 'M');
@@ -1938,7 +1952,7 @@ export default function LojaOnline({
                       placeholder="EX: FITNESS10"
                       value={couponInput}
                       onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                      className="flex-grow bg-slate-50 border border-slate-150 rounded-lg p-1.5 focus:outline-hidden font-mono text-[11px] font-bold text-rose-600 uppercase"
+                      className="flex-grow bg-slate-50 border border-slate-100 rounded-lg p-1.5 focus:outline-hidden font-mono text-[11px] font-bold text-rose-600 uppercase"
                     />
                     <button
                       type="button"
@@ -1961,7 +1975,7 @@ export default function LojaOnline({
                       placeholder="Digite seu CEP (ex: 01311-200)"
                       value={cepInput}
                       onChange={(e) => setCepInput(e.target.value)}
-                      className="flex-grow bg-slate-50 border border-slate-150 rounded-lg p-1.5 focus:outline-hidden font-mono text-[11px] font-bold text-slate-700"
+                      className="flex-grow bg-slate-50 border border-slate-100 rounded-lg p-1.5 focus:outline-hidden font-mono text-[11px] font-bold text-slate-700"
                     />
                     <button
                       type="button"
@@ -1990,13 +2004,13 @@ export default function LojaOnline({
 
                   {/* Freight Options Selection */}
                   {freightCalculated && (
-                    <div className="mt-2.5 space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-150 text-[11px] text-left">
+                    <div className="mt-2.5 space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-[11px] text-left">
                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Opções de Entrega para {cepInput}:</p>
                       
                       {/* Option 1: PAC */}
                       <label 
                         className={`flex items-center justify-between p-1.5 rounded-lg border cursor-pointer transition
-                          ${selectedFreightOption === 'pac' ? 'bg-pink-50/50 border-pink-400' : 'bg-white border-slate-150'}`}
+                          ${selectedFreightOption === 'pac' ? 'bg-pink-50/50 border-pink-400' : 'bg-white border-slate-100'}`}
                         onClick={() => {
                           setSelectedFreightOption('pac');
                           const price = cartSubtotal >= 250 ? 0 : 14.90;
@@ -2025,7 +2039,7 @@ export default function LojaOnline({
                       {/* Option 2: SEDEX */}
                       <label 
                         className={`flex items-center justify-between p-1.5 rounded-lg border cursor-pointer transition
-                          ${selectedFreightOption === 'sedex' ? 'bg-pink-50/50 border-pink-400' : 'bg-white border-slate-150'}`}
+                          ${selectedFreightOption === 'sedex' ? 'bg-pink-50/50 border-pink-400' : 'bg-white border-slate-100'}`}
                         onClick={() => {
                           setSelectedFreightOption('sedex');
                           setFreightCost(28.90);
@@ -2079,7 +2093,7 @@ export default function LojaOnline({
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-between text-slate-850 pt-1.5 border-t border-slate-100 font-extrabold">
+                  <div className="flex justify-between text-slate-800 pt-1.5 border-t border-slate-100 font-extrabold">
                     <span>Total Final:</span>
                     <span className="text-pink-600 tracking-tight font-mono text-sm">R$ {cartTotal.toFixed(2)}</span>
                   </div>
@@ -2163,7 +2177,7 @@ export default function LojaOnline({
           {activeConfigTab === 'textos' && (
             <div className="space-y-6 text-left">
               {/* Logo Management Card */}
-              <div className="bg-pink-50/50 border border-pink-150 rounded-2xl p-4.5 space-y-3.5">
+              <div className="bg-pink-50/50 border border-pink-100 rounded-2xl p-4.5 space-y-3.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
@@ -2246,7 +2260,7 @@ export default function LojaOnline({
                     type="text"
                     value={storeName}
                     onChange={(e) => setStoreName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 text-xs font-medium focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-xs font-medium focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
                     placeholder="Ex: AP Moda Fitness"
                   />
                 </div>
@@ -2256,7 +2270,7 @@ export default function LojaOnline({
                     type="text"
                     value={storeSub}
                     onChange={(e) => setStoreSub(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 text-xs font-medium focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-xs font-medium focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
                     placeholder="Ex: Moda Fitness Premium"
                   />
                 </div>
@@ -2282,13 +2296,13 @@ export default function LojaOnline({
                       type="color"
                       value={themeColor}
                       onChange={(e) => setThemeColor(e.target.value)}
-                      className="w-10 h-10 border border-slate-150 rounded-lg cursor-pointer bg-transparent p-0"
+                      className="w-10 h-10 border border-slate-100 rounded-lg cursor-pointer bg-transparent p-0"
                     />
                     <input
                       type="text"
                       value={themeColor}
                       onChange={(e) => setThemeColor(e.target.value)}
-                      className="flex-grow bg-slate-50 border border-slate-150 rounded-lg p-2.5 text-xs font-mono focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
+                      className="flex-grow bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-xs font-mono focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
                       placeholder="#db2777"
                     />
                   </div>
@@ -2298,7 +2312,7 @@ export default function LojaOnline({
                   <select
                     value={activeAnimation}
                     onChange={(e) => setActiveAnimation(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 text-xs font-medium focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-xs font-medium focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
                   >
                     <option value="pulse-soft">⚡ pulse-soft (Pulsação Elegante - ex: Outubro Rosa)</option>
                     <option value="shimmer-luxury">✨ shimmer-luxury (Brilho Metálico Metropolitano - ex: Black Friday / Natal)</option>
@@ -2335,7 +2349,7 @@ export default function LojaOnline({
                   <select
                     value={tickerConfig.show ? "true" : "false"}
                     onChange={(e) => setTickerConfig({ ...tickerConfig, show: e.target.value === "true" })}
-                    className="w-full bg-white border border-slate-150 rounded-lg p-2 text-xs focus:outline-hidden"
+                    className="w-full bg-white border border-slate-100 rounded-lg p-2 text-xs focus:outline-hidden"
                   >
                     <option value="true">Sim (Ativo)</option>
                     <option value="false">Não (Inativo)</option>
@@ -2348,7 +2362,7 @@ export default function LojaOnline({
                     type="text"
                     value={tickerConfig.text}
                     onChange={(e) => setTickerConfig({ ...tickerConfig, text: e.target.value })}
-                    className="w-full bg-white border border-slate-150 rounded-lg p-2 text-xs font-medium focus:outline-hidden"
+                    className="w-full bg-white border border-slate-100 rounded-lg p-2 text-xs font-medium focus:outline-hidden"
                   />
                 </div>
 
@@ -2359,13 +2373,13 @@ export default function LojaOnline({
                       type="color"
                       value={tickerConfig.bgColor}
                       onChange={(e) => setTickerConfig({ ...tickerConfig, bgColor: e.target.value })}
-                      className="w-8 h-8 border border-slate-150 rounded-md cursor-pointer p-0"
+                      className="w-8 h-8 border border-slate-100 rounded-md cursor-pointer p-0"
                     />
                     <input
                       type="text"
                       value={tickerConfig.bgColor}
                       onChange={(e) => setTickerConfig({ ...tickerConfig, bgColor: e.target.value })}
-                      className="w-full bg-white border border-slate-150 rounded-lg p-1 text-[10px] font-mono focus:outline-hidden"
+                      className="w-full bg-white border border-slate-100 rounded-lg p-1 text-[10px] font-mono focus:outline-hidden"
                     />
                   </div>
                 </div>
@@ -2377,13 +2391,13 @@ export default function LojaOnline({
                       type="color"
                       value={tickerConfig.textColor}
                       onChange={(e) => setTickerConfig({ ...tickerConfig, textColor: e.target.value })}
-                      className="w-8 h-8 border border-slate-150 rounded-md cursor-pointer p-0"
+                      className="w-8 h-8 border border-slate-100 rounded-md cursor-pointer p-0"
                     />
                     <input
                       type="text"
                       value={tickerConfig.textColor}
                       onChange={(e) => setTickerConfig({ ...tickerConfig, textColor: e.target.value })}
-                      className="w-full bg-white border border-slate-150 rounded-lg p-1 text-[10px] font-mono focus:outline-hidden"
+                      className="w-full bg-white border border-slate-100 rounded-lg p-1 text-[10px] font-mono focus:outline-hidden"
                     />
                   </div>
                 </div>
@@ -2414,7 +2428,7 @@ export default function LojaOnline({
                   <select
                     value={floatingBanner.show ? "true" : "false"}
                     onChange={(e) => setFloatingBanner({ ...floatingBanner, show: e.target.value === "true" })}
-                    className="w-full bg-white border border-slate-150 rounded-lg p-2 text-xs focus:outline-hidden"
+                    className="w-full bg-white border border-slate-100 rounded-lg p-2 text-xs focus:outline-hidden"
                   >
                     <option value="true">Sim (Ativo)</option>
                     <option value="false">Não (Inativo)</option>
@@ -2427,7 +2441,7 @@ export default function LojaOnline({
                     type="text"
                     value={floatingBanner.title}
                     onChange={(e) => setFloatingBanner({ ...floatingBanner, title: e.target.value })}
-                    className="w-full bg-white border border-slate-150 rounded-lg p-2 text-xs font-medium focus:outline-hidden"
+                    className="w-full bg-white border border-slate-100 rounded-lg p-2 text-xs font-medium focus:outline-hidden"
                   />
                 </div>
 
@@ -2437,7 +2451,7 @@ export default function LojaOnline({
                     type="text"
                     value={floatingBanner.subtitle}
                     onChange={(e) => setFloatingBanner({ ...floatingBanner, subtitle: e.target.value })}
-                    className="w-full bg-white border border-slate-150 rounded-lg p-2 text-xs font-medium focus:outline-hidden"
+                    className="w-full bg-white border border-slate-100 rounded-lg p-2 text-xs font-medium focus:outline-hidden"
                   />
                 </div>
 
@@ -2447,7 +2461,7 @@ export default function LojaOnline({
                     type="text"
                     value={floatingBanner.ctaLink}
                     onChange={(e) => setFloatingBanner({ ...floatingBanner, ctaLink: e.target.value })}
-                    className="w-full bg-white border border-slate-150 rounded-lg p-2 text-xs font-medium focus:outline-hidden"
+                    className="w-full bg-white border border-slate-100 rounded-lg p-2 text-xs font-medium focus:outline-hidden"
                   />
                 </div>
 
@@ -2457,7 +2471,7 @@ export default function LojaOnline({
                     type="text"
                     value={floatingBanner.ctaText}
                     onChange={(e) => setFloatingBanner({ ...floatingBanner, ctaText: e.target.value })}
-                    className="w-full bg-white border border-slate-150 rounded-lg p-2 text-xs font-medium focus:outline-hidden"
+                    className="w-full bg-white border border-slate-100 rounded-lg p-2 text-xs font-medium focus:outline-hidden"
                   />
                 </div>
 
@@ -2468,13 +2482,13 @@ export default function LojaOnline({
                       type="color"
                       value={floatingBanner.bgColor}
                       onChange={(e) => setFloatingBanner({ ...floatingBanner, bgColor: e.target.value })}
-                      className="w-8 h-8 border border-slate-150 rounded-md cursor-pointer p-0"
+                      className="w-8 h-8 border border-slate-100 rounded-md cursor-pointer p-0"
                     />
                     <input
                       type="text"
                       value={floatingBanner.bgColor}
                       onChange={(e) => setFloatingBanner({ ...floatingBanner, bgColor: e.target.value })}
-                      className="w-full bg-white border border-slate-150 rounded-lg p-1 text-[9px] font-mono focus:outline-hidden"
+                      className="w-full bg-white border border-slate-100 rounded-lg p-1 text-[9px] font-mono focus:outline-hidden"
                     />
                   </div>
                 </div>
@@ -2502,7 +2516,7 @@ export default function LojaOnline({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {benefitCards.map((card, idx) => (
-                    <div key={card.id || idx} className="bg-white p-3 rounded-xl border border-slate-150 space-y-2">
+                    <div key={card.id || idx} className="bg-white p-3 rounded-xl border border-slate-100 space-y-2">
                       <div className="flex justify-between items-center border-b border-slate-100 pb-1.5">
                         <span className="text-[10px] font-bold text-pink-600 uppercase">Card #{idx + 1} {idx === 0 ? '(Envio)' : idx === 1 ? '(Parcelamento)' : idx === 2 ? '(Segurança)' : '(Pix/Desconto)'}</span>
                       </div>
@@ -2517,7 +2531,7 @@ export default function LojaOnline({
                               updated[idx].title = e.target.value;
                               setBenefitCards(updated);
                             }}
-                            className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 text-xs font-semibold focus:outline-hidden"
+                            className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs font-semibold focus:outline-hidden"
                             placeholder="Ex: Frete Grátis"
                           />
                         </div>
@@ -2531,7 +2545,7 @@ export default function LojaOnline({
                               updated[idx].subtitle = e.target.value;
                               setBenefitCards(updated);
                             }}
-                            className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 text-xs font-medium focus:outline-hidden"
+                            className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs font-medium focus:outline-hidden"
                             placeholder="Ex: Acima de R$ 300"
                           />
                         </div>
@@ -2567,7 +2581,7 @@ export default function LojaOnline({
 
               <div className="space-y-6">
                 {lookbookSlides.map((slide, sIdx) => (
-                  <div key={sIdx} className="bg-white border border-slate-150 rounded-2xl p-5 shadow-2xs relative hover:border-pink-200 transition-all">
+                  <div key={sIdx} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-2xs relative hover:border-pink-200 transition-all">
                     <span className="absolute -top-2.5 -left-2.5 w-6 h-6 bg-slate-800 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white shadow-sm font-mono">
                       {sIdx + 1}
                     </span>
@@ -2583,7 +2597,7 @@ export default function LojaOnline({
                             updated[sIdx].tag = e.target.value;
                             setLookbookSlides(updated);
                           }}
-                          className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 text-xs font-bold focus:outline-hidden"
+                          className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs font-bold focus:outline-hidden"
                           placeholder="EX: COLEÇÃO EXCLUSIVA"
                         />
                       </div>
@@ -2598,7 +2612,7 @@ export default function LojaOnline({
                             updated[sIdx].title = e.target.value;
                             setLookbookSlides(updated);
                           }}
-                          className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 text-xs font-extrabold text-slate-800 focus:outline-hidden"
+                          className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs font-extrabold text-slate-800 focus:outline-hidden"
                           placeholder="EX: ATACADO PREMIUM"
                         />
                       </div>
@@ -2626,7 +2640,7 @@ export default function LojaOnline({
                             updated[sIdx].desc = e.target.value;
                             setLookbookSlides(updated);
                           }}
-                          className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 text-xs focus:outline-hidden font-medium"
+                          className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs focus:outline-hidden font-medium"
                           placeholder="Descreva as características especiais das peças do slide..."
                         />
                       </div>
@@ -2646,7 +2660,7 @@ export default function LojaOnline({
                               }
                               setLookbookSlides(updated);
                             }}
-                            className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 text-xs font-bold text-slate-700 focus:outline-hidden"
+                            className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs font-bold text-slate-700 focus:outline-hidden"
                           >
                             {categoriesList.map(cat => (
                               <option key={cat} value={cat}>{cat}</option>
@@ -2665,7 +2679,7 @@ export default function LojaOnline({
                               updated[sIdx].category = e.target.value;
                               setLookbookSlides(updated);
                             }}
-                            className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 text-xs font-medium focus:outline-hidden"
+                            className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs font-medium focus:outline-hidden"
                             placeholder="Todos, Conjuntos, Blusa Dry-Fit, etc."
                           />
                         </div>
@@ -2711,9 +2725,9 @@ export default function LojaOnline({
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-white border border-slate-150 rounded-2xl p-4 space-y-3 shadow-2xs">
+                  <div className="bg-white border border-slate-100 rounded-2xl p-4 space-y-3 shadow-2xs">
                     <span className="bg-pink-100 text-pink-700 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider block w-max">SEÇÃO 1: SLIM FIT</span>
-                    <div className="aspect-video w-full rounded-lg bg-slate-100 overflow-hidden border border-slate-150">
+                    <div className="aspect-video w-full rounded-lg bg-slate-100 overflow-hidden border border-slate-100">
                       <img src={categoryBanners.slimFit} alt="Slim Fit Banner" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     </div>
                     <div className="space-y-1">
@@ -2726,9 +2740,9 @@ export default function LojaOnline({
                     </div>
                   </div>
 
-                  <div className="bg-white border border-slate-150 rounded-2xl p-4 space-y-3 shadow-2xs">
+                  <div className="bg-white border border-slate-100 rounded-2xl p-4 space-y-3 shadow-2xs">
                     <span className="bg-pink-100 text-pink-700 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider block w-max">SEÇÃO 2: PLUS SIZE / CURVAS</span>
-                    <div className="aspect-video w-full rounded-lg bg-slate-100 overflow-hidden border border-slate-150">
+                    <div className="aspect-video w-full rounded-lg bg-slate-100 overflow-hidden border border-slate-100">
                       <img src={categoryBanners.plusSize} alt="Plus Size Banner" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     </div>
                     <div className="space-y-1">
@@ -2912,7 +2926,7 @@ export default function LojaOnline({
                 <div className="flex justify-between items-center">
                   <h5 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                     <Tag size={14} className="text-pink-600" />
-                    <span>Cupons Ativos no Sistema ({couponsList.length})</span>
+                    <span>Cupons Ativos no Sistema ({coupons.length})</span>
                   </h5>
                   <span className="text-[10px] text-slate-400 font-medium">
                     Sincronizado automaticamente com a Vitrine e Checkout
@@ -2920,7 +2934,7 @@ export default function LojaOnline({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                  {couponsList.map((cup) => {
+                  {coupons.map((cup) => {
                     const isCategoryRestricted = cup.category && !['todas', 'todas as categorias', 'livre', 'geral', ''].includes(cup.category.toLowerCase());
                     return (
                       <div key={cup.code} className="bg-white border border-slate-200/90 rounded-2xl p-3.5 space-y-2.5 shadow-2xs hover:border-pink-300 transition relative group">
@@ -3005,7 +3019,7 @@ export default function LojaOnline({
                     required
                     value={newProdName}
                     onChange={(e) => setNewProdName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 text-xs font-medium focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-xs font-medium focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
                     placeholder="Ex: Legging Empina Bumbum Sensorial"
                   />
                 </div>
@@ -3016,7 +3030,7 @@ export default function LojaOnline({
                     type="text"
                     value={newProdSku}
                     onChange={(e) => setNewProdSku(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 text-xs font-mono focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-xs font-mono focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
                     placeholder="Ex: LEG-09"
                   />
                 </div>
@@ -3026,7 +3040,7 @@ export default function LojaOnline({
                   <select
                     value={newProdCategory}
                     onChange={(e) => setNewProdCategory(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 text-xs focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-xs focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
                   >
                     <option value="Conjuntos">Conjuntos</option>
                     <option value="Blusa Dry-Fit">Blusa Dry-Fit</option>
@@ -3044,7 +3058,7 @@ export default function LojaOnline({
                     step="0.01"
                     value={newProdPrice}
                     onChange={(e) => setNewProdPrice(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 text-xs font-bold text-pink-600 focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-xs font-bold text-pink-600 focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
                     placeholder="99.90"
                   />
                 </div>
@@ -3056,7 +3070,7 @@ export default function LojaOnline({
                     step="0.01"
                     value={newProdCost}
                     onChange={(e) => setNewProdCost(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 text-xs font-medium focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-xs font-medium focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
                     placeholder="40.00 (Opcional)"
                   />
                 </div>
@@ -3067,7 +3081,7 @@ export default function LojaOnline({
                     type="number"
                     value={newProdStock}
                     onChange={(e) => setNewProdStock(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 text-xs focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-xs focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
                     placeholder="10"
                   />
                 </div>
@@ -3078,7 +3092,7 @@ export default function LojaOnline({
                     type="number"
                     value={newProdMinStock}
                     onChange={(e) => setNewProdMinStock(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 text-xs focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-xs focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
                     placeholder="3"
                   />
                 </div>
@@ -3109,7 +3123,7 @@ export default function LojaOnline({
                     type="text"
                     value={newProdImage}
                     onChange={(e) => setNewProdImage(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 text-xs font-mono focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-xs font-mono focus:ring-1 focus:ring-pink-500 focus:outline-hidden"
                   />
                 </div>
 
@@ -3126,7 +3140,7 @@ export default function LojaOnline({
                             if (hasSz) setNewProdSizes(newProdSizes.filter(s => s !== sz));
                             else setNewProdSizes([...newProdSizes, sz]);
                           }}
-                          className={`px-3 py-1 text-xs font-bold rounded-lg transition-all border-none ${hasSz ? 'bg-pink-600 text-white' : 'bg-slate-50 text-slate-600 border border-slate-150'}`}
+                          className={`px-3 py-1 text-xs font-bold rounded-lg transition-all border-none ${hasSz ? 'bg-pink-600 text-white' : 'bg-slate-50 text-slate-600 border border-slate-100'}`}
                         >
                           {sz}
                         </button>
@@ -3148,7 +3162,7 @@ export default function LojaOnline({
                             if (hasCol) setNewProdColors(newProdColors.filter(c => c !== col));
                             else setNewProdColors([...newProdColors, col]);
                           }}
-                          className={`px-3 py-1 text-xs font-bold rounded-lg transition-all border-none ${hasCol ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-600 border border-slate-150'}`}
+                          className={`px-3 py-1 text-xs font-bold rounded-lg transition-all border-none ${hasCol ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-600 border border-slate-100'}`}
                         >
                           {col}
                         </button>
@@ -3163,7 +3177,7 @@ export default function LojaOnline({
                     rows={3}
                     value={newProdDescription}
                     onChange={(e) => setNewProdDescription(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 text-xs focus:ring-1 focus:ring-pink-500 focus:outline-hidden font-medium"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-xs focus:ring-1 focus:ring-pink-500 focus:outline-hidden font-medium"
                     placeholder="Descreva a compressão, toque sensorial, e outros detalhes importantes..."
                   />
                 </div>

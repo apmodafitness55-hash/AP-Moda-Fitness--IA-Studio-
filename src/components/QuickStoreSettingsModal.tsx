@@ -280,7 +280,7 @@ export default function QuickStoreSettingsModal({ isOpen, onClose }: QuickStoreS
           <button 
             type="button" 
             onClick={onClose}
-            className="flex-1 py-2.5 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-xl transition-all cursor-pointer border border-slate-250 text-center text-xs shadow-2xs"
+            className="flex-1 py-2.5 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-xl transition-all cursor-pointer border border-slate-200 text-center text-xs shadow-2xs"
           >
             Cancelar
           </button>

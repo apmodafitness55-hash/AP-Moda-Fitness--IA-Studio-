@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { Product, SaleItem, Sale, Client, SalesChannel, ActiveTab } from '../types';
 import { getCardMachinesConfig, CardMachineConfig } from '../lib/cardMachines';
+import { validateCouponForCpf, calculateEligibleCouponDiscount } from '../utils/couponUtils';
 import ThermalReceipt from './ThermalReceipt';
 import CorreiosLabel from './CorreiosLabel';
 import { playSaleSuccessSound, playBarcodeBeepSound } from '../lib/audioFeedback';
@@ -446,7 +447,14 @@ export default function PDVTerminal({
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [discountValue, setDiscountValue] = useState<number>(0);
   const [couponCode, setCouponCode] = useState<string>('');
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; percent: number } | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    percent: number;
+    fixedValue?: number;
+    category?: string;
+    partnerName?: string;
+    partnerId?: string;
+  } | null>(null);
   const [pixDiscountPercent, setPixDiscountPercent] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('ap_pdv_pix_discount');
@@ -781,19 +789,43 @@ export default function PDVTerminal({
     }
 
     const previousCoupon = appliedCoupon?.code;
-    const partners = getPartners();
-    const partnerWithCoupon = partners.find(p => p.couponCode.toUpperCase() === codeUpper);
-    
-    if (partnerWithCoupon) {
-      const disc = codeUpper.includes('20') ? 20 : codeUpper.includes('15') ? 15 : 10;
-      setAppliedCoupon({ code: codeUpper, percent: disc });
-      const replaceNotice = previousCoupon && previousCoupon !== codeUpper
-        ? `\n\n(O cupom ${previousCoupon} foi substituído pelo cupom ${codeUpper}. Os cupons não são cumulativos — apenas 1 por venda)`
-        : '';
-      alert(`✓ Cupom ${codeUpper} de ${partnerWithCoupon.name} aplicado com sucesso! Desconto de ${disc}% concedido.${replaceNotice}`);
-    } else {
-      alert('Cupom de parceiro não encontrado ou expirado.');
+    const validation = validateCouponForCpf(
+      codeUpper,
+      selectedClientObject?.cpf,
+      undefined,
+      undefined,
+      cart
+    );
+
+    if (!validation.valid || !validation.couponObj) {
+      alert(validation.message || 'Cupom não encontrado, expirado ou inválido.');
+      return;
     }
+
+    const coupon = validation.couponObj;
+    if (coupon.minPurchase && cartTotal < coupon.minPurchase) {
+      alert(`O cupom ${coupon.code} exige compra mínima de ${formatCurrency(coupon.minPurchase)}.`);
+      return;
+    }
+
+    const percent = coupon.type === 'percent' ? Number(coupon.value || 0) : 0;
+    const fixedValue = coupon.type === 'fixed' ? Number(coupon.value || 0) : 0;
+
+    setAppliedCoupon({
+      code: coupon.code.toUpperCase(),
+      percent,
+      fixedValue,
+      category: coupon.category,
+      partnerName: coupon.partnerName,
+      partnerId: coupon.partnerId
+    });
+
+    const replaceNotice = previousCoupon && previousCoupon !== coupon.code.toUpperCase()
+      ? `\n\n(O cupom ${previousCoupon} foi substituído pelo cupom ${coupon.code}. Os cupons não são cumulativos — apenas 1 por venda)`
+      : '';
+    const discLabel = percent > 0 ? `${percent}%` : formatCurrency(fixedValue);
+    const partnerNotice = coupon.partnerName ? ` de ${coupon.partnerName}` : '';
+    alert(`✓ Cupom ${coupon.code}${partnerNotice} aplicado com sucesso! Desconto de ${discLabel} concedido.${replaceNotice}`);
   };
 
   const hasPixDiscount = useMemo(() => {
@@ -813,7 +845,16 @@ export default function PDVTerminal({
       sumDiscounts += discountValue;
     }
     if (appliedCoupon) {
-      sumDiscounts += cartTotal * (appliedCoupon.percent / 100);
+      const couponCalc = calculateEligibleCouponDiscount(
+        {
+          code: appliedCoupon.code,
+          discountPercent: appliedCoupon.percent,
+          fixedDiscount: appliedCoupon.fixedValue,
+          category: appliedCoupon.category
+        },
+        cart
+      );
+      sumDiscounts += couponCalc.discountAmount;
     }
     if (hasPixDiscount) {
       sumDiscounts += cartTotal * (pixDiscountPercent / 100);
@@ -837,16 +878,28 @@ export default function PDVTerminal({
 
     sumDiscounts += cardDiscounts;
     return Math.min(sumDiscounts, cartTotal);
-  }, [cartTotal, discountPercent, discountValue, appliedCoupon, hasPixDiscount, pixDiscountPercent, useCashback, clientCashbackAvailable, payments, paymentsTotalSum]);
+  }, [cart, cartTotal, discountPercent, discountValue, appliedCoupon, hasPixDiscount, pixDiscountPercent, useCashback, clientCashbackAvailable, payments, paymentsTotalSum]);
 
   const finalCartTotal = useMemo(() => {
     return Math.max(0, cartTotal - totalDiscounts);
   }, [cartTotal, totalDiscounts]);
 
   React.useEffect(() => {
-    if (payments.length === 1) {
-      setPayments([{ method: payments[0].method, amount: Number(finalCartTotal.toFixed(2)) }]);
-    }
+    setPayments(prev => {
+      if (prev.length !== 1) return prev;
+      const nextAmt = Number(finalCartTotal.toFixed(2));
+      if (Math.abs((prev[0].amount || 0) - nextAmt) < 0.005) return prev;
+      const row = { ...prev[0], amount: nextAmt };
+      if ((row.method === 'Cartão de Crédito' || row.method === 'Cartão de Débito') && row.cardFeePercent !== undefined) {
+        const billed = row.amount - (row.amount * (row.cardDiscountPercent || 0) / 100);
+        row.netAmount = Number((billed - (billed * row.cardFeePercent / 100)).toFixed(2));
+      } else if (row.method === 'Dinheiro') {
+        const recv = row.receivedCash !== undefined && row.receivedCash > nextAmt ? row.receivedCash : nextAmt;
+        row.receivedCash = recv;
+        row.changeAmount = Math.max(0, Number((recv - nextAmt).toFixed(2)));
+      }
+      return [row];
+    });
   }, [finalCartTotal, payments.length]);
 
   const isPaymentValid = useMemo(() => {
@@ -1012,7 +1065,7 @@ export default function PDVTerminal({
     } catch (e) {
       return [];
     }
-  }, [selectedClientName, cart]);
+  }, [selectedClientName, cart, createdReceipt]);
 
   const handleQuickAddClient = () => {
     if (!selectedClientName.trim()) {
@@ -1230,27 +1283,24 @@ export default function PDVTerminal({
 
     if (clientExists) {
       finalClientName = clientExists.name;
-      // update stats
-      clientExists.totalSpent = (clientExists.totalSpent || 0) + finalCartTotal;
-      clientExists.ordersCount = (clientExists.ordersCount || 0) + 1;
-      
-      // deduct used cashback
-      let cashbackDeducted = 0;
-      if (useCashback && clientExists.cashbackBalance && clientExists.cashbackBalance > 0) {
-        // Calculate what was actually paid out from cashback
-        cashbackDeducted = Math.min(clientExists.cashbackBalance, Math.max(0, cartTotal - (totalDiscounts - clientExists.cashbackBalance)));
-        clientExists.cashbackBalance = Math.max(0, clientExists.cashbackBalance - cashbackDeducted);
+      // deduct used cashback and add earned cashback WITHOUT mutating totalSpent/ordersCount (handled in App.handleAddSale)
+      let currentCashback = clientExists.cashbackBalance || 0;
+      if (useCashback && currentCashback > 0) {
+        const cashbackDeducted = Math.min(currentCashback, Math.max(0, cartTotal - (totalDiscounts - currentCashback)));
+        currentCashback = Math.max(0, currentCashback - cashbackDeducted);
       }
-      
-      // add new cashback earned
       const cashbackEarned = finalCartTotal * (cashbackRate / 100);
-      clientExists.cashbackBalance = Number(((clientExists.cashbackBalance || 0) + cashbackEarned).toFixed(2));
-      
+      const nextCashbackBalance = Number((currentCashback + cashbackEarned).toFixed(2));
+
       if (onUpdateClients) {
-        onUpdateClients([...clients]);
+        onUpdateClients(
+          clients.map(c =>
+            c.id === clientExists!.id ? { ...c, cashbackBalance: nextCashbackBalance } : c
+          )
+        );
       }
     } else {
-      // Create client inline!
+      // Create client inline with zeroed stats so App.handleAddSale increments totalSpent and ordersCount once cleanly
       const isCpfText = /^\d[\d.\-/]+$/.test(finalClientName);
       const cashbackEarned = finalCartTotal * (cashbackRate / 100);
       const newClient: Client = {
@@ -1261,8 +1311,8 @@ export default function PDVTerminal({
         cpf: isCpfText ? finalClientName : undefined,
         channel: selectedChannel,
         npsScore: npsScore,
-        totalSpent: finalCartTotal,
-        ordersCount: 1,
+        totalSpent: 0,
+        ordersCount: 0,
         cashbackBalance: Number(cashbackEarned.toFixed(2)),
         createdAt: new Date().toISOString()
       };
@@ -1282,17 +1332,17 @@ export default function PDVTerminal({
     const cardPaymentWithTerminal = payments.find(p => (p.method === 'Cartão de Crédito' || p.method === 'Cartão de Débito') && p.terminalId);
     const terminalIdForSale = cardPaymentWithTerminal ? cardPaymentWithTerminal.terminalId : undefined;
 
-    const activeCouponCode = appliedCoupon?.code || couponCode.trim().toUpperCase() || undefined;
+    const activeCouponCode = appliedCoupon?.code || undefined;
     let partnerForSale: any = undefined;
     if (activeCouponCode) {
       const allPartners = getPartners();
-      partnerForSale = allPartners.find(p => 
-        (p.couponCode && p.couponCode.toUpperCase() === activeCouponCode) ||
-        (p.login && p.login.toUpperCase() === activeCouponCode)
+      partnerForSale = allPartners.find(p =>
+        (appliedCoupon?.partnerId && p.id === appliedCoupon.partnerId) ||
+        (p.couponCode && p.couponCode.toUpperCase() === activeCouponCode)
       );
     }
-    const partnerNameForSale = (appliedCoupon as any)?.partnerName || partnerForSale?.name || undefined;
-    const partnerIdForSale = partnerForSale?.id || undefined;
+    const partnerNameForSale = appliedCoupon?.partnerName || partnerForSale?.name || undefined;
+    const partnerIdForSale = appliedCoupon?.partnerId || partnerForSale?.id || undefined;
 
     const newSale: Sale = {
       id: `v-00${Date.now().toString().slice(-3)}`,
@@ -1374,7 +1424,7 @@ export default function PDVTerminal({
                   placeholder="Filtrar por nome, categoria ou código SKU da peça..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-150 rounded-xl text-xs font-sans text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-sans text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-all"
                 />
               </div>
 
@@ -1399,7 +1449,7 @@ export default function PDVTerminal({
                   className={`px-3 py-1.5 rounded-lg text-[10px] font-bold font-sans transition-all cursor-pointer
                     ${selectedCategory === cat 
                       ? 'bg-pink-600 text-white shadow-xs shadow-pink-500/10' 
-                      : 'bg-slate-50 text-slate-550 hover:bg-slate-100 border border-slate-100'}`}
+                      : 'bg-slate-50 text-slate-500 hover:bg-slate-100 border border-slate-100'}`}
                 >
                   {cat}
                 </button>
@@ -1449,7 +1499,7 @@ export default function PDVTerminal({
                     <div className="flex items-center justify-between mt-3">
                       <div>
                         <span className="text-[10px] text-slate-400 block">Preço</span>
-                        <span className="text-slate-850 font-bold font-mono text-sm">{formatCurrency(p.price)}</span>
+                        <span className="text-slate-800 font-bold font-mono text-sm">{formatCurrency(p.price)}</span>
                       </div>
                       <div className="text-right">
                         <span className="text-[10px] text-slate-400 block">Estoque</span>
@@ -1499,7 +1549,7 @@ export default function PDVTerminal({
                             const newSz = e.target.value;
                             updateCartItemVariant(idx, newSz, null);
                           }}
-                          className="text-[9px] font-bold bg-slate-50 border border-slate-150 rounded px-1 py-0.5 text-slate-600 font-mono outline-hidden focus:border-pink-500"
+                          className="text-[9px] font-bold bg-slate-50 border border-slate-100 rounded px-1 py-0.5 text-slate-600 font-mono outline-hidden focus:border-pink-500"
                         >
                           {item.product.sizes.map(sz => (
                             <option key={sz} value={sz}>T: {sz}</option>
@@ -1519,7 +1569,7 @@ export default function PDVTerminal({
                             onChange={(e) => {
                               updateCartItemVariant(idx, item.selectedSize || '', e.target.value);
                             }}
-                            className="text-[9px] font-bold bg-slate-50 border border-slate-150 rounded px-1 py-0.5 text-slate-600 outline-hidden focus:border-pink-500"
+                            className="text-[9px] font-bold bg-slate-50 border border-slate-100 rounded px-1 py-0.5 text-slate-600 outline-hidden focus:border-pink-500"
                           >
                             {availableColors.map(col => (
                               <option key={col} value={col}>C: {col}</option>
@@ -1637,7 +1687,7 @@ export default function PDVTerminal({
                       <button
                         type="button"
                         onClick={() => setUseCashback(!useCashback)}
-                        className={`mt-1 text-[8px] font-extrabold uppercase px-2 py-0.5 rounded transition cursor-pointer border-none ${useCashback ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-100 text-emerald-850 hover:bg-emerald-200'}`}
+                        className={`mt-1 text-[8px] font-extrabold uppercase px-2 py-0.5 rounded transition cursor-pointer border-none ${useCashback ? 'bg-emerald-600 text-white shadow-xs' : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'}`}
                       >
                         {useCashback ? 'Aplicado ✓' : 'Aplicar Desc.'}
                       </button>
@@ -1801,7 +1851,7 @@ export default function PDVTerminal({
                 id="pdv-delivery-select"
                 value={deliveryMethod}
                 onChange={(e) => setDeliveryMethod(e.target.value)}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-sans text-slate-750 focus:outline-hidden focus:border-pink-500 transition-all font-bold cursor-pointer"
+                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-sans text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-bold cursor-pointer"
               >
                 <option value="retirada">Retirada no Balcão 🏠</option>
                 <option value="motoboy">Entrega via Motoboy 🏍️</option>
@@ -1869,7 +1919,7 @@ export default function PDVTerminal({
                           value={p.amount || ''}
                           placeholder="0.00"
                           onChange={(e) => updatePaymentRow(idx, { amount: parseFloat(e.target.value) || 0 })}
-                          className="w-full pl-7 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-750 font-bold focus:outline-hidden focus:border-pink-500"
+                          className="w-full pl-7 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-700 font-bold focus:outline-hidden focus:border-pink-500"
                         />
                       </div>
 
@@ -1877,7 +1927,7 @@ export default function PDVTerminal({
                         <button
                           type="button"
                           onClick={() => removePaymentRow(idx)}
-                          className="p-1 px-2 text-rose-500 hover:bg-rose-55 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                          className="p-1 px-2 text-rose-500 hover:bg-rose-50 hover:text-rose-600 rounded transition-colors cursor-pointer"
                           title="Remover forma de pagamento"
                         >
                           ✕
@@ -1927,7 +1977,7 @@ export default function PDVTerminal({
                                 max="100"
                                 value={p.cardDiscountPercent !== undefined ? p.cardDiscountPercent : 0}
                                 onChange={(e) => updatePaymentRow(idx, { cardDiscountPercent: parseFloat(e.target.value) || 0 })}
-                                className="w-full text-right bg-slate-50 border border-slate-200 rounded px-1 pr-3 py-0.5 text-[10px] font-mono text-emerald-755 font-bold focus:outline-hidden"
+                                className="w-full text-right bg-slate-50 border border-slate-200 rounded px-1 pr-3 py-0.5 text-[10px] font-mono text-emerald-700 font-bold focus:outline-hidden"
                               />
                               <span className="absolute right-0.5 top-0.5 text-slate-400 text-[8.5px] font-bold">%</span>
                             </div>
@@ -1942,7 +1992,7 @@ export default function PDVTerminal({
                                 min="0"
                                 value={p.cardFeePercent !== undefined ? p.cardFeePercent : 0}
                                 onChange={(e) => updatePaymentRow(idx, { cardFeePercent: parseFloat(e.target.value) || 0 })}
-                                className="w-full text-right bg-slate-50 border border-slate-200 rounded px-1 pr-3 py-0.5 text-[10px] font-mono text-slate-750 focus:outline-hidden"
+                                className="w-full text-right bg-slate-50 border border-slate-200 rounded px-1 pr-3 py-0.5 text-[10px] font-mono text-slate-700 focus:outline-hidden"
                               />
                               <span className="absolute right-0.5 top-0.5 text-slate-400 text-[8.5px] font-bold">%</span>
                             </div>
@@ -2014,7 +2064,7 @@ export default function PDVTerminal({
                             type="button"
                             disabled={isGeneratingLinkMap[idx] || (p.amount || 0) <= 0}
                             onClick={() => generateInfinitePayLinkForPos(idx, p.amount)}
-                            className="w-full py-1.5 bg-pink-600 hover:bg-pink-700 text-white rounded font-bold transition flex items-center justify-center gap-1.5 cursor-pointer disabled:bg-slate-250 disabled:cursor-not-allowed disabled:text-slate-400 border-none"
+                            className="w-full py-1.5 bg-pink-600 hover:bg-pink-700 text-white rounded font-bold transition flex items-center justify-center gap-1.5 cursor-pointer disabled:bg-slate-200 disabled:cursor-not-allowed disabled:text-slate-400 border-none"
                           >
                             {isGeneratingLinkMap[idx] ? (
                               <>
@@ -2100,7 +2150,7 @@ export default function PDVTerminal({
                           </button>
                         </div>
                         
-                        <div className="bg-emerald-100/50 p-1.5 rounded text-[8.5px] text-emerald-850 leading-relaxed text-center">
+                        <div className="bg-emerald-100/50 p-1.5 rounded text-[8.5px] text-emerald-800 leading-relaxed text-center">
                           ⚠️ <strong>Atenção Operador:</strong> A conferência deste pagamento é <strong>estritamente visual</strong>. Confirme o saldo na conta da empresa antes de finalizar a venda.
                         </div>
                       </div>
@@ -2129,7 +2179,7 @@ export default function PDVTerminal({
                                     changeMethod: p.changeMethod || 'Espécie'
                                   });
                                 }}
-                                className="w-full text-right bg-white border border-slate-200 rounded px-1 pl-4.5 py-0.5 text-[10px] font-mono text-slate-750 font-bold focus:outline-hidden"
+                                className="w-full text-right bg-white border border-slate-200 rounded px-1 pl-4.5 py-0.5 text-[10px] font-mono text-slate-700 font-bold focus:outline-hidden"
                               />
                             </div>
                           </div>
@@ -2141,7 +2191,7 @@ export default function PDVTerminal({
                               onChange={(e) => {
                                 updatePaymentRow(idx, { changeMethod: e.target.value as 'Espécie' | 'Pix' });
                               }}
-                              className="bg-white border border-slate-200 rounded px-1 py-0.5 text-[9.5px] text-slate-705 font-medium font-sans focus:outline-hidden"
+                              className="bg-white border border-slate-200 rounded px-1 py-0.5 text-[9.5px] text-slate-700 font-medium font-sans focus:outline-hidden"
                             >
                               <option value="Espécie">Em Espécie (Dinheiro)</option>
                               <option value="Pix">Via PIX (Transferência)</option>
@@ -2195,7 +2245,7 @@ export default function PDVTerminal({
 
             {/* SECTION: Descontos & Parcerias */}
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-sans space-y-2.5 mt-2">
-              <div className="flex items-center justify-between border-b border-slate-150 pb-1.5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
                 <span className="font-bold text-slate-700 tracking-wide">Descontos & Parcerias</span>
                 <span className="text-[10px] text-pink-600 font-bold bg-pink-50 px-1.5 py-0.5 rounded">PDV Inteligente</span>
               </div>
@@ -2327,7 +2377,7 @@ export default function PDVTerminal({
 
             {/* Price values and Checkout action */}
             <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs font-sans space-y-1.5 font-mono mt-2">
-              <div className="flex justify-between text-slate-450 text-[11px]">
+              <div className="flex justify-between text-slate-400 text-[11px]">
                 <span>Faturamento Bruto</span>
                 <span>{formatCurrency(cartTotal)}</span>
               </div>
@@ -2339,7 +2389,7 @@ export default function PDVTerminal({
                 </div>
               )}
 
-              <div className="flex justify-between text-slate-750 font-bold border-t border-slate-150 pt-1.5 text-xs">
+              <div className="flex justify-between text-slate-700 font-bold border-t border-slate-100 pt-1.5 text-xs">
                 <span className="font-sans text-xs">Total Líquido</span>
                 <span className="text-sm font-extrabold text-pink-600">{formatCurrency(finalCartTotal)}</span>
               </div>
@@ -2363,7 +2413,7 @@ export default function PDVTerminal({
       {/* Sale Success Modal Recibo print */}
       {isSuccessModalOpen && createdReceipt && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-all">
-          <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-slate-150 overflow-hidden text-center p-6 space-y-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-slate-100 overflow-hidden text-center p-6 space-y-4">
             <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto text-xl">
               ✓
             </div>
@@ -2377,10 +2427,10 @@ export default function PDVTerminal({
               <p className="text-sm font-bold text-slate-700 mt-1">{formatCurrency(createdReceipt.total)}</p>
               
               {createdReceipt.payments && createdReceipt.payments.length > 0 && (
-                <div className="pt-2 border-t border-slate-150/55 mt-2 text-left space-y-1">
+                <div className="pt-2 border-t border-slate-100/55 mt-2 text-left space-y-1">
                   <p className="text-[9px] font-sans font-bold text-slate-400 uppercase tracking-wider">Formas de Pagamento:</p>
                   {createdReceipt.payments.map((p, idx) => (
-                    <div key={idx} className="flex justify-between text-[11px] text-slate-650 font-sans">
+                    <div key={idx} className="flex justify-between text-[11px] text-slate-600 font-sans">
                       <span>{p.method}</span>
                       <span className="font-bold font-mono text-xs">{formatCurrency(p.amount)}</span>
                     </div>
@@ -2388,9 +2438,9 @@ export default function PDVTerminal({
                 </div>
               )}
 
-              <div className="pt-2 border-t border-slate-150/55 mt-2 flex justify-between">
+              <div className="pt-2 border-t border-slate-100/55 mt-2 flex justify-between">
                 <span className="text-slate-400">Cliente:</span>
-                <span className="font-bold font-sans text-slate-650">{createdReceipt.clientName}</span>
+                <span className="font-bold font-sans text-slate-600">{createdReceipt.clientName}</span>
               </div>
             </div>
 
@@ -2451,7 +2501,7 @@ export default function PDVTerminal({
       {/* PDV Variant Selection Modal */}
       {isVariantModalOpen && selectedProductForModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-150 overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
             
             {/* Modal Header */}
             <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4">

@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { Transaction, Sale, Product } from '../types';
 import { getStoredPartnerWithdrawRequests, PartnerWithdrawRequest } from '../utils/partnerUtils';
+import { deleteTransactionFromSupabase } from '../supabase';
 
 interface FinanceCashflowProps {
   transactions: Transaction[];
@@ -168,14 +169,14 @@ export default function FinanceCashflow({
   // Calculations for Saúde Financeira (Health Metrics)
   const saudeMetrics = useMemo(() => {
     // Filter sales and transactions by the selected period
-    const filteredSales = sales.filter(s => filterByPeriod(s.createdAt, saudePeriod) && s.status !== 'Cancelada');
+    const activePeriodSales = sales.filter(s => filterByPeriod(s.createdAt, saudePeriod) && s.status !== 'Cancelada');
+    const completedSales = activePeriodSales.filter(s => s.status === 'Concluída');
     const filteredTxs = transactions.filter(t => filterByPeriod(t.dueDate || t.date, saudePeriod));
 
-    // 1. MARGEM BRUTA:
-    // Faturamento Total (Total Revenue)
-    const faturamentoTotal = filteredSales.reduce((acc, s) => acc + (s.total || 0), 0);
+    // 1. MARGEM BRUTA (apenas vendas efetivamente concluídas/realizadas):
+    const faturamentoTotal = completedSales.reduce((acc, s) => acc + (s.total || 0), 0);
     // CMV (Cost of Goods Sold)
-    const cmvTotal = filteredSales.reduce((acc, s) => acc + (s.costTotal || 0), 0);
+    const cmvTotal = completedSales.reduce((acc, s) => acc + (s.costTotal || 0), 0);
     // Gross Profit
     const grossProfit = faturamentoTotal - cmvTotal;
     const margemBruta = faturamentoTotal > 0 ? (grossProfit / faturamentoTotal) * 100 : 0;
@@ -216,8 +217,8 @@ export default function FinanceCashflow({
       .filter(t => t.type === 'Inflow' && t.status === 'pendente' && (t.dueDate || t.date.split('T')[0]) < todayStr)
       .reduce((acc, t) => acc + (t.amount || 0), 0);
 
-    // Unpaid/overdue sales (e.g., pending sales which are past-due or over 7 days old)
-    const salesVencidosNaoPagos = filteredSales
+    // Unpaid/overdue sales (pending sales created before today)
+    const salesVencidosNaoPagos = activePeriodSales
       .filter(s => s.status === 'Pendente' && s.createdAt.split('T')[0] < todayStr)
       .reduce((acc, s) => acc + (s.total || 0), 0);
 
@@ -247,7 +248,7 @@ export default function FinanceCashflow({
       totalInadimplente,
       faturamentoTotalEsperado,
       taxaInadimplencia,
-      filteredSalesCount: filteredSales.length
+      filteredSalesCount: completedSales.length
     };
   }, [sales, transactions, saudePeriod]);
 
@@ -310,10 +311,18 @@ export default function FinanceCashflow({
     }));
   };
 
-  // Quick action: delete a transaction
+  // Quick action: delete a transaction with tombstone so 7s cloud sync never resurrects it
   const handleDeleteTx = (id: string) => {
     if (window.confirm('Confirma a exclusão definitiva deste lançamento financeiro? Essa ação não pode ser desfeita.')) {
+      try {
+        const deletedList: string[] = JSON.parse(localStorage.getItem('ap_deleted_transactions') || '[]');
+        if (!deletedList.includes(id)) {
+          deletedList.push(id);
+          localStorage.setItem('ap_deleted_transactions', JSON.stringify(deletedList));
+        }
+      } catch (e) {}
       setTransactions(prev => prev.filter(t => t.id !== id));
+      deleteTransactionFromSupabase(id).catch(() => {});
     }
   };
 
@@ -510,7 +519,7 @@ export default function FinanceCashflow({
             {/* Caixa Realizado (Real Realized Safe) */}
             <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex items-center justify-between hover:shadow-xs transition-all hover:border-slate-200">
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-450 uppercase tracking-wider block font-sans select-none">Saldo de Caixa Real</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-sans select-none">Saldo de Caixa Real</span>
                 <div className="flex items-baseline gap-1">
                   <h3 className={`text-xl font-bold font-mono ${metrics.balanceRealizado >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                     {formatCurrency(metrics.balanceRealizado)}
@@ -529,7 +538,7 @@ export default function FinanceCashflow({
             {/* Total Contas a Receber (Receivables Pending) */}
             <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex items-center justify-between hover:shadow-xs transition-all hover:border-slate-200">
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-450 uppercase tracking-wider block font-sans select-none">Contas a Receber</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-sans select-none">Contas a Receber</span>
                 <h3 className="text-xl font-bold font-mono text-blue-600">{formatCurrency(metrics.inflowPending)}</h3>
                 <span className="text-[9px] text-blue-500 font-bold font-sans flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 block"></span> Receitas agendadas / pendentes
@@ -543,7 +552,7 @@ export default function FinanceCashflow({
             {/* Total Contas a Pagar (Payables Pending) */}
             <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex items-center justify-between hover:shadow-xs transition-all hover:border-slate-200">
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-450 uppercase tracking-wider block font-sans select-none">Contas a Pagar</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-sans select-none">Contas a Pagar</span>
                 <h3 className="text-xl font-bold font-mono text-amber-600">{formatCurrency(metrics.outflowPending)}</h3>
                 <span className="text-[9px] text-amber-600 font-bold font-sans flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 block animate-pulse"></span> Despesas futuras ou em aberto
@@ -561,7 +570,7 @@ export default function FinanceCashflow({
                 <h3 className={`text-xl font-bold font-mono ${metrics.balanceProjetado >= 0 ? 'text-pink-400' : 'text-rose-400'}`}>
                   {formatCurrency(metrics.balanceProjetado)}
                 </h3>
-                <span className="text-[9px] text-slate-350 font-sans block">
+                <span className="text-[9px] text-slate-300 font-sans block">
                   Real + Receber - Pagar (Consolidado)
                 </span>
               </div>
@@ -580,25 +589,25 @@ export default function FinanceCashflow({
           <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 self-start font-bold">
             <button 
               onClick={() => setActiveFilterTab('all')}
-              className={`px-3 py-2 rounded-lg transition-all cursor-pointer text-[11px] ${activeFilterTab === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-450 hover:text-slate-700'}`}
+              className={`px-3 py-2 rounded-lg transition-all cursor-pointer text-[11px] ${activeFilterTab === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-400 hover:text-slate-700'}`}
             >
               Todos os Lançamentos ({transactions.length})
             </button>
             <button 
               onClick={() => setActiveFilterTab('realized')}
-              className={`px-3 py-2 rounded-lg transition-all cursor-pointer text-[11px] ${activeFilterTab === 'realized' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-450 hover:text-slate-700'}`}
+              className={`px-3 py-2 rounded-lg transition-all cursor-pointer text-[11px] ${activeFilterTab === 'realized' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-400 hover:text-slate-700'}`}
             >
               Realizado (Contas Baixadas)
             </button>
             <button 
               onClick={() => setActiveFilterTab('payable')}
-              className={`px-3 py-2 rounded-lg transition-all cursor-pointer text-[11px] ${activeFilterTab === 'payable' ? 'bg-white text-rose-500 shadow-xs' : 'text-slate-450 hover:text-slate-700'}`}
+              className={`px-3 py-2 rounded-lg transition-all cursor-pointer text-[11px] ${activeFilterTab === 'payable' ? 'bg-white text-rose-500 shadow-xs' : 'text-slate-400 hover:text-slate-700'}`}
             >
               Contas a Pagar (Despesas)
             </button>
             <button 
               onClick={() => setActiveFilterTab('receivable')}
-              className={`px-3 py-2 rounded-lg transition-all cursor-pointer text-[11px] ${activeFilterTab === 'receivable' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-450 hover:text-slate-700'}`}
+              className={`px-3 py-2 rounded-lg transition-all cursor-pointer text-[11px] ${activeFilterTab === 'receivable' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-400 hover:text-slate-700'}`}
             >
               Contas a Receber
             </button>
@@ -607,7 +616,7 @@ export default function FinanceCashflow({
           <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 self-end md:self-auto font-bold text-slate-400">
             <button 
               onClick={() => setSelectedType('All')}
-              className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer text-[10px] uppercase tracking-wider ${selectedType === 'All' ? 'bg-white text-slate-800' : 'hover:text-slate-750'}`}
+              className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer text-[10px] uppercase tracking-wider ${selectedType === 'All' ? 'bg-white text-slate-800' : 'hover:text-slate-700'}`}
             >
               Misto
             </button>
@@ -638,7 +647,7 @@ export default function FinanceCashflow({
               placeholder="Buscar por descrição ou categoria (Ex: Fornecedores, Aluguel, Pro-labore, Venda)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-750 placeholder-slate-400 text-xs focus:outline-hidden focus:border-slate-800 focus:bg-white transition-all font-medium"
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 placeholder-slate-400 text-xs focus:outline-hidden focus:border-slate-800 focus:bg-white transition-all font-medium"
             />
           </div>
         </div>
@@ -785,7 +794,7 @@ export default function FinanceCashflow({
                     className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer text-[10px] uppercase font-bold ${
                       saudePeriod === period 
                         ? 'bg-white text-pink-600 shadow-xs' 
-                        : 'text-slate-450 hover:text-slate-700'
+                        : 'text-slate-400 hover:text-slate-700'
                     }`}
                   >
                     {labels[period]}
@@ -944,7 +953,7 @@ export default function FinanceCashflow({
                   </div>
                 </div>
 
-                <div className="p-4 bg-slate-850 rounded-xl border border-slate-800 space-y-3">
+                <div className="p-4 bg-slate-800 rounded-xl border border-slate-800 space-y-3">
                   <div className="flex justify-between items-center bg-transparent">
                     <span className="text-[10px] font-bold text-slate-400 uppercase">Faturamento Mínimo Requerido</span>
                     <span className="text-xs font-bold text-pink-400 font-mono">Meta de Sobrevivência</span>
@@ -972,7 +981,7 @@ export default function FinanceCashflow({
                   </div>
                 </div>
 
-                <div className="space-y-2 text-[10px] text-slate-350 leading-relaxed font-medium">
+                <div className="space-y-2 text-[10px] text-slate-300 leading-relaxed font-medium">
                   <div className="flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-pink-500"></span>
                     <span>Custos Fixos Mensais Considerados: <strong className="font-mono text-white">{formatCurrency(saudeMetrics.custoFixoTotal || 0)}</strong> (despesas de marketing, aluguel, salários, etc.)</span>
@@ -1058,7 +1067,7 @@ export default function FinanceCashflow({
               <span className="font-bold text-xs tracking-wider uppercase font-sans">Cadastrar Nova Movimentação Comercial</span>
               <button 
                 onClick={() => setIsAddTxOpen(false)}
-                className="text-slate-400 hover:text-white transition-colors text-xs font-semibold px-2 py-1 bg-slate-850 rounded-lg"
+                className="text-slate-400 hover:text-white transition-colors text-xs font-semibold px-2 py-1 bg-slate-800 rounded-lg"
               >
                 ✕ Fechar
               </button>
@@ -1076,7 +1085,7 @@ export default function FinanceCashflow({
                       setTxType('Outflow'); 
                       setTxCategory('Fornecedores'); 
                     }}
-                    className={`py-2 rounded-lg text-center transition-all cursor-pointer font-extrabold flex items-center justify-center gap-1 text-[11px] uppercase ${txType === 'Outflow' ? 'bg-white text-rose-600 shadow-xs' : 'text-slate-450 hover:text-slate-650'}`}
+                    className={`py-2 rounded-lg text-center transition-all cursor-pointer font-extrabold flex items-center justify-center gap-1 text-[11px] uppercase ${txType === 'Outflow' ? 'bg-white text-rose-600 shadow-xs' : 'text-slate-400 hover:text-slate-600'}`}
                   >
                     <ArrowDownLeft size={13} />
                     Saída (Despesa / Custo)
@@ -1087,7 +1096,7 @@ export default function FinanceCashflow({
                       setTxType('Inflow'); 
                       setTxCategory('Venda'); 
                     }}
-                    className={`py-2 rounded-lg text-center transition-all cursor-pointer font-extrabold flex items-center justify-center gap-1 text-[11px] uppercase ${txType === 'Inflow' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-450 hover:text-slate-650'}`}
+                    className={`py-2 rounded-lg text-center transition-all cursor-pointer font-extrabold flex items-center justify-center gap-1 text-[11px] uppercase ${txType === 'Inflow' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-400 hover:text-slate-600'}`}
                   >
                     <ArrowUpRight size={13} />
                     Entrada (Receita)
@@ -1157,7 +1166,7 @@ export default function FinanceCashflow({
                   placeholder="Ex: Pagamento referente à confecção da coleção Verão"
                   value={txDesc}
                   onChange={(e) => setTxDesc(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-750 placeholder-slate-450 font-semibold focus:outline-hidden focus:border-slate-800 transition-colors focus:bg-white text-xs"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 placeholder-slate-400 font-semibold focus:outline-hidden focus:border-slate-800 transition-colors focus:bg-white text-xs"
                 />
               </div>
 
@@ -1198,7 +1207,7 @@ export default function FinanceCashflow({
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <span className="font-extrabold text-[10.5px] text-slate-850 uppercase tracking-wide block">Dividir / Parcelar Lançamento</span>
+                    <span className="font-extrabold text-[10.5px] text-slate-800 uppercase tracking-wide block">Dividir / Parcelar Lançamento</span>
                     <span className="text-[9.5px] text-slate-400 block font-semibold leading-tight">Divide o valor total e agenda lembretes de cobrança automáticos mensais.</span>
                   </div>
                   <input 
@@ -1213,7 +1222,7 @@ export default function FinanceCashflow({
                 {isInstallment && (
                   <div className="grid grid-cols-2 gap-3 items-center pt-2 border-t border-slate-200/50 animate-fade-in">
                     <div className="space-y-1">
-                      <label className="text-[8.5px] text-slate-450 uppercase font-bold tracking-wider block">Número de Parcelas</label>
+                      <label className="text-[8.5px] text-slate-400 uppercase font-bold tracking-wider block">Número de Parcelas</label>
                       <select
                         value={installmentsCount}
                         onChange={(e) => setInstallmentsCount(Number(e.target.value))}
@@ -1226,7 +1235,7 @@ export default function FinanceCashflow({
                     </div>
 
                     <div className="space-y-1">
-                      <span className="text-[8.5px] text-slate-450 uppercase font-bold tracking-wider block leading-none">Previsão por Parcela</span>
+                      <span className="text-[8.5px] text-slate-400 uppercase font-bold tracking-wider block leading-none">Previsão por Parcela</span>
                       <div className="text-slate-800 font-semibold font-mono text-[11px] pt-1">
                         {txAmount > 0 
                           ? `${installmentsCount}x de ${formatCurrency(Number((txAmount / installmentsCount).toFixed(2)))}` 

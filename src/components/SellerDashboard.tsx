@@ -163,7 +163,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
 
           <button 
             onClick={onLogout}
-            className="px-4 py-2 bg-slate-850 hover:bg-slate-800 active:scale-95 text-xs text-slate-300 hover:text-white font-bold rounded-xl flex items-center gap-2 transition-all border border-slate-800 cursor-pointer"
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-800 active:scale-95 text-xs text-slate-300 hover:text-white font-bold rounded-xl flex items-center gap-2 transition-all border border-slate-800 cursor-pointer"
           >
             <LogOut size={14} />
             <span>Sair da Conta</span>
@@ -183,7 +183,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
               <Sparkles size={16} />
               <span>Seu Ritmo de Vendas e Metas de Junho</span>
             </h3>
-            <p className="text-xs text-slate-350 leading-relaxed">
+            <p className="text-xs text-slate-300 leading-relaxed">
               Continue acompanhando seu progresso diário e o acúmulo de suas comissões personalizadas. Atualmente, você está comissionada em <span className="font-extrabold text-white">{(commissionRate * 100).toFixed(1)}%</span> sobre cada venda concluída!
             </p>
           </div>
@@ -201,7 +201,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
                   type="number"
                   value={goalInput}
                   onChange={(e) => setGoalInput(e.target.value)}
-                  className="w-20 bg-slate-950 border border-slate-750 text-center font-bold font-mono text-xs rounded-lg py-1 px-1.5 text-white focus:outline-hidden"
+                  className="w-20 bg-slate-950 border border-slate-700 text-center font-bold font-mono text-xs rounded-lg py-1 px-1.5 text-white focus:outline-hidden"
                   placeholder="Meta"
                 />
                 <button type="submit" className="px-2 py-1 bg-pink-600 hover:bg-pink-700 font-extrabold text-[10px] rounded-lg text-white border-0 cursor-pointer">
@@ -214,7 +214,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
                   setGoalInput(individualGoal.toString());
                   setIsEditingGoal(true);
                 }}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 font-bold text-[10px] rounded-lg text-pink-400 hover:text-pink-300 transition-colors border-0 cursor-pointer"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 font-bold text-[10px] rounded-lg text-pink-400 hover:text-pink-300 transition-colors border-0 cursor-pointer"
               >
                 Alterar Meta
               </button>
@@ -225,7 +225,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
         {/* Dashboard Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4.5">
           {/* CARD 1: TOTAL ACUMULADO DE VENDAS */}
-          <div className="bg-slate-900 border border-slate-850 rounded-2xl p-5 space-y-3 shadow-xl hover:border-slate-800 transition-colors">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3 shadow-xl hover:border-slate-800 transition-colors">
             <div className="flex justify-between items-center">
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Volume Vendido</span>
               <div className="w-8 h-8 bg-pink-500/10 rounded-xl flex items-center justify-center text-pink-400">
@@ -234,7 +234,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
             </div>
             <div>
               <p className="text-2xl font-black text-slate-50 font-mono tracking-tight">{formatValue(totalBilledMonth)}</p>
-              <div className="flex items-center gap-1 text-[10px] text-slate-450 mt-2">
+              <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-2">
                 <Calendar size={11} className="text-slate-500" />
                 <span>Junho/2026 • </span>
                 <span className="text-pink-400 font-bold">{sellerMonthlySales.filter(s => s.status === 'Concluída').length} pedidos concluídos</span>
@@ -243,7 +243,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
           </div>
 
           {/* CARD 2: COMISSÃO A RECEBER */}
-          <div className="bg-slate-900 border border-slate-850 rounded-2xl p-5 space-y-3 shadow-xl hover:border-slate-800 transition-colors">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3 shadow-xl hover:border-slate-800 transition-colors">
             <div className="flex justify-between items-center">
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Minha Comissão Geral</span>
               <div className="w-8 h-8 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400">
@@ -252,7 +252,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
             </div>
             <div>
               <p className="text-2xl font-black text-emerald-400 font-mono tracking-tight">{formatValue(totalCommissionEarned)}</p>
-              <div className="flex items-center gap-1 text-[10px] text-slate-450 mt-2">
+              <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-2">
                 <Percent size={11} className="text-emerald-500" />
                 <span>Faturamento comissionado em </span>
                 <span className="text-emerald-400 font-bold">{(commissionRate * 100).toFixed(0)}% fixos</span>
@@ -261,7 +261,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
           </div>
 
           {/* CARD 3: TAXA DE CONVERSÃO & PERFORMANCE */}
-          <div className="bg-slate-900 border border-slate-850 rounded-2xl p-5 space-y-3 shadow-xl hover:border-slate-800 transition-colors">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3 shadow-xl hover:border-slate-800 transition-colors">
             <div className="flex justify-between items-center">
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Desempenho Geral</span>
               <div className="w-8 h-8 bg-purple-500/10 rounded-xl flex items-center justify-center text-purple-400">
@@ -273,7 +273,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
                 <p className="text-2xl font-black text-slate-50 font-mono tracking-tight">{percentageReached}%</p>
                 <span className="text-[10px] text-slate-400 font-bold uppercase">da Meta</span>
               </div>
-              <div className="flex items-center gap-1 text-[10px] text-slate-450 mt-2">
+              <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-2">
                 <CheckCircle2 size={11} className="text-purple-400" />
                 <span>Meta individual estipulada em </span>
                 <span className="text-purple-400 font-bold">{formatValue(individualGoal)}</span>
@@ -283,13 +283,13 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
         </div>
 
         {/* METAS VISUAL PROGRESS AREA */}
-        <div className="bg-slate-900 border border-slate-850 rounded-3xl p-5 md:p-6 space-y-5 shadow-xl">
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 md:p-6 space-y-5 shadow-xl">
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-black text-white flex items-center gap-2">
               <Target size={16} className="text-pink-500" />
               <span>Acompanhamento da Meta Individual do Mês</span>
             </h3>
-            <span className="text-[10px] bg-slate-850 text-slate-300 border border-slate-750 px-2.5 py-1 rounded-xl font-bold">
+            <span className="text-[10px] bg-slate-800 text-slate-300 border border-slate-700 px-2.5 py-1 rounded-xl font-bold">
               {percentageReached === 100 ? '🎉 META ALCANÇADA!' : `Faltam ${formatValue(remainingToGoal)}`}
             </span>
           </div>
@@ -318,7 +318,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
           </div>
 
           {/* Feedback/Advice based on progress */}
-          <div className="p-4.5 bg-slate-950 border border-slate-850 rounded-2xl flex items-start gap-3 text-slate-350 text-xs">
+          <div className="p-4.5 bg-slate-950 border border-slate-800 rounded-2xl flex items-start gap-3 text-slate-300 text-xs">
             <Info size={16} className="text-pink-500 shrink-0 mt-0.5" />
             <div className="space-y-1">
               <p className="font-extrabold text-slate-200">
@@ -337,7 +337,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
         </div>
 
         {/* COMMISSION AUDIT & LOG HISTORY LIST */}
-        <div className="bg-slate-900 border border-slate-850 rounded-3xl p-5 md:p-6 space-y-5 shadow-xl">
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 md:p-6 space-y-5 shadow-xl">
           
           {/* Header Controls */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-4">
@@ -346,7 +346,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
                 <BarChart2 size={16} className="text-pink-500" />
                 <span>Auditoria e Histórico de Comissões</span>
               </h3>
-              <p className="text-slate-450 text-[11px] mt-1">Lista de todos os atendimentos e vendas vinculadas ao seu nome no mês</p>
+              <p className="text-slate-400 text-[11px] mt-1">Lista de todos os atendimentos e vendas vinculadas ao seu nome no mês</p>
             </div>
 
             {/* Interactive Filters */}
@@ -365,19 +365,19 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
               <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800">
                 <button
                   onClick={() => setStatusFilter('all')}
-                  className={`px-2.5 py-1 rounded-md text-[9px] font-extrabold transition-all cursor-pointer border-0 ${statusFilter === 'all' ? 'bg-pink-650 text-white shadow-md' : 'text-slate-400 hover:text-slate-250'}`}
+                  className={`px-2.5 py-1 rounded-md text-[9px] font-extrabold transition-all cursor-pointer border-0 ${statusFilter === 'all' ? 'bg-pink-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
                 >
                   Todos
                 </button>
                 <button
                   onClick={() => setStatusFilter('Concluída')}
-                  className={`px-2.5 py-1 rounded-md text-[9px] font-extrabold transition-all cursor-pointer border-0 ${statusFilter === 'Concluída' ? 'bg-pink-650 text-white shadow-md' : 'text-slate-400 hover:text-slate-250'}`}
+                  className={`px-2.5 py-1 rounded-md text-[9px] font-extrabold transition-all cursor-pointer border-0 ${statusFilter === 'Concluída' ? 'bg-pink-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
                 >
                   Concluídos
                 </button>
                 <button
                   onClick={() => setStatusFilter('Pendente')}
-                  className={`px-2.5 py-1 rounded-md text-[9px] font-extrabold transition-all cursor-pointer border-0 ${statusFilter === 'Pendente' ? 'bg-pink-650 text-white shadow-md' : 'text-slate-400 hover:text-slate-250'}`}
+                  className={`px-2.5 py-1 rounded-md text-[9px] font-extrabold transition-all cursor-pointer border-0 ${statusFilter === 'Pendente' ? 'bg-pink-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
                 >
                   Pendentes
                 </button>
@@ -406,13 +406,13 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
                     <th className="pb-3 text-right pr-2">Sua Comissão ({(commissionRate * 100).toFixed(0)}%)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-850">
+                <tbody className="divide-y divide-slate-800">
                   {filteredSalesForAudit.map((s) => {
                     const commissionValue = s.total * commissionRate;
                     const isCompleted = s.status === 'Concluída';
                     
                     return (
-                      <tr key={s.id} className="hover:bg-slate-850/40 transition-colors">
+                      <tr key={s.id} className="hover:bg-slate-800/40 transition-colors">
                         <td className="py-3 pl-2 font-mono font-bold text-pink-400 uppercase">
                           {s.id}
                         </td>
@@ -423,7 +423,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
                           {s.clientName}
                         </td>
                         <td className="py-3">
-                          <span className="text-[10px] bg-slate-800 text-slate-350 px-2 py-0.5 rounded-md font-semibold">
+                          <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md font-semibold">
                             {s.channel}
                           </span>
                         </td>
@@ -434,7 +434,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
                             {s.status}
                           </span>
                         </td>
-                        <td className="py-3 text-right font-mono font-medium text-slate-350">
+                        <td className="py-3 text-right font-mono font-medium text-slate-300">
                           {formatValue(s.total)}
                         </td>
                         <td className="py-3 text-right pr-2 font-mono font-bold">

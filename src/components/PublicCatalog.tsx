@@ -3826,7 +3826,7 @@ export default function PublicCatalog({
               <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight leading-tight uppercase font-sans">
                 {lookbookSlides[currentSlide].title}
               </h2>
-              <p className="text-[11px] md:text-xs text-slate-250 leading-relaxed max-w-md font-medium">
+              <p className="text-[11px] md:text-xs text-slate-200 leading-relaxed max-w-md font-medium">
                 {lookbookSlides[currentSlide].desc}
               </p>
               <div>
@@ -4114,7 +4114,7 @@ export default function PublicCatalog({
                         {pair.top.name} + {pair.bottom.name}
                       </h4>
                       <div className="flex items-baseline gap-2 pt-1">
-                        <span className="text-[10px] text-slate-450 line-through font-mono">
+                        <span className="text-[10px] text-slate-400 line-through font-mono">
                           R$ {(pair.top.price + pair.bottom.price).toFixed(2)}
                         </span>
                         <span className="text-[14px] font-extrabold text-[#1E3A42] font-mono">
@@ -4205,7 +4205,7 @@ export default function PublicCatalog({
             <div id="search-catalog-bar" className="space-y-1.5 scroll-mt-24">
               <label className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest block">Consultar Vitrine</label>
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-450 pointer-events-none">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
                   <Search size={14} className="text-slate-400" />
                 </span>
                 <input 
@@ -4213,7 +4213,7 @@ export default function PublicCatalog({
                   placeholder="Pesquisar calça, top, macacão..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-150 rounded-xl py-2 pl-9 pr-3 text-xs placeholder-slate-400 focus:outline-hidden focus:border-pink-500 font-medium"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-xl py-2 pl-9 pr-3 text-xs placeholder-slate-400 focus:outline-hidden focus:border-pink-500 font-medium"
                 />
               </div>
             </div>
@@ -4353,7 +4353,7 @@ export default function PublicCatalog({
                         />
                       ) : (
                         <div className="w-full h-full bg-slate-50 flex flex-col items-center justify-center p-4 text-center text-slate-400 group-hover:bg-slate-100 transition-colors duration-500">
-                          <ShoppingBag size={24} className="text-slate-350 stroke-[1.5] mb-2 animate-pulse" />
+                          <ShoppingBag size={24} className="text-slate-300 stroke-[1.5] mb-2 animate-pulse" />
                           <span className="text-[10px] font-bold tracking-widest uppercase text-slate-400">AP Moda Fitness</span>
                           <span className="text-[9px] text-slate-400 font-medium">Foto em breve</span>
                         </div>
@@ -4425,7 +4425,7 @@ export default function PublicCatalog({
                       </div>
 
                       {/* Product Name Title */}
-                      <p className="text-[12.5px] font-medium text-slate-850 leading-snug tracking-tight group-hover:text-pink-600 transition-colors truncate">
+                      <p className="text-[12.5px] font-medium text-slate-800 leading-snug tracking-tight group-hover:text-pink-600 transition-colors truncate">
                         {prod.name}
                       </p>
 
@@ -4863,7 +4863,7 @@ export default function PublicCatalog({
                       {selectedProduct.name}
                     </h2>
                     <div className="flex items-center gap-1">
-                      <div className="flex text-yellow-450 gap-0.5">
+                      <div className="flex text-yellow-400 gap-0.5">
                         {[...Array(5)].map((_, i) => <Star key={i} size={11} className="fill-yellow-400 text-yellow-400" />)}
                       </div>
                       <span className="text-[10px] text-[#1E3A42]/70 font-bold ml-1">★ 5.0 ({getProductReviewCount(selectedProduct.id, selectedProduct.name, selectedProduct.category)} avaliações de clientes)</span>
@@ -4874,7 +4874,7 @@ export default function PublicCatalog({
                   <div className="flex items-baseline gap-2.5 py-2 text-left">
                     {selectedProduct.compare_at_price && selectedProduct.compare_at_price > selectedProduct.price ? (
                       <>
-                        <span className="text-sm text-slate-450 line-through font-mono">
+                        <span className="text-sm text-slate-400 line-through font-mono">
                           R$ {selectedProduct.compare_at_price.toFixed(2)}
                         </span>
                         <p className="font-semibold text-2xl md:text-3xl text-[#1E3A42] font-mono">
@@ -4891,7 +4891,7 @@ export default function PublicCatalog({
                   {/* Sizes and Measurements Chart sutil link */}
                   <div className="space-y-3 border-t border-[#1E3A42]/10 pt-4 text-left">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-slate-450 font-extrabold uppercase tracking-widest flex items-center gap-1.5">
+                      <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest flex items-center gap-1.5">
                         <Maximize2 size={11} className="text-[#1E3A42]" />
                         <span>Selecione o Tamanho:</span>
                       </span>
@@ -4929,7 +4929,7 @@ export default function PublicCatalog({
                             }}
                             className={`w-12 h-12 flex items-center justify-center font-bold text-xs border transition-all duration-200 relative overflow-hidden cursor-pointer
                               ${isOutOfStock 
-                                ? 'opacity-35 bg-slate-100 border-slate-200 text-slate-450 cursor-not-allowed' 
+                                ? 'opacity-35 bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' 
                                 : isSelected
                                   ? 'bg-[#1E3A42] border-[#1E3A42] text-white shadow-md scale-105'
                                   : 'bg-white border-slate-200 text-slate-800 hover:border-[#1E3A42]/50'}`}
@@ -4973,7 +4973,7 @@ export default function PublicCatalog({
 
                     return (
                       <div className="space-y-3 text-left">
-                        <div className="flex items-center gap-1.5 text-[10px] text-slate-405 font-extrabold uppercase tracking-widest">
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">
                           <Palette size={11} className="text-[#1E3A42]" />
                           <span>Selecione a Cor:</span>
                         </div>
@@ -5000,7 +5000,7 @@ export default function PublicCatalog({
                                       ? 'bg-[#1E3A42] border-[#1E3A42] text-white shadow-sm scale-105' 
                                       : 'bg-white border-slate-200 hover:border-slate-300 text-[#1E3A42]'}`}
                               >
-                                <span className="w-3.5 h-3.5 rounded-full border border-slate-200 shadow-3xs" style={{ backgroundColor: hex }} />
+                                <span className="w-3.5 h-3.5 rounded-full border border-slate-200 shadow-2xs" style={{ backgroundColor: hex }} />
                                 <span className={isOutOfStock ? 'line-through' : ''}>{color}</span>
                                 {isOutOfStock && (
                                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -5031,14 +5031,14 @@ export default function PublicCatalog({
 
                   {/* Counter units selector */}
                   <div className="flex items-center justify-between border-t border-[#1E3A42]/10 pt-4">
-                    <span className="text-[10px] text-slate-450 font-extrabold uppercase tracking-widest block text-left">Quantidade Desejada</span>
+                    <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest block text-left">Quantidade Desejada</span>
                     <div className="flex items-center gap-3">
                       <div className={`flex items-center rounded-xl py-1 px-1.5 border ${isEsgotado ? 'bg-slate-100 border-slate-200 opacity-60' : 'bg-white border-slate-300'}`}>
                         <button 
                           type="button"
                           disabled={isEsgotado}
                           onClick={() => !isEsgotado && setProductQty(Math.max(1, productQty - 1))}
-                          className={`p-1.5 rounded-md transition text-slate-650 ${isEsgotado ? 'cursor-not-allowed opacity-40' : 'hover:bg-slate-100 cursor-pointer border-none'}`}
+                          className={`p-1.5 rounded-md transition text-slate-600 ${isEsgotado ? 'cursor-not-allowed opacity-40' : 'hover:bg-slate-100 cursor-pointer border-none'}`}
                         >
                           <Minus size={11} />
                         </button>
@@ -5047,7 +5047,7 @@ export default function PublicCatalog({
                           type="button"
                           disabled={isEsgotado}
                           onClick={() => !isEsgotado && setProductQty(Math.min(availableStock, productQty + 1))}
-                          className={`p-1.5 rounded-md transition text-slate-655 ${isEsgotado ? 'cursor-not-allowed opacity-40' : 'hover:bg-slate-100 cursor-pointer border-none'}`}
+                          className={`p-1.5 rounded-md transition text-slate-600 ${isEsgotado ? 'cursor-not-allowed opacity-40' : 'hover:bg-slate-100 cursor-pointer border-none'}`}
                         >
                           <Plus size={11} />
                         </button>
@@ -5169,7 +5169,7 @@ export default function PublicCatalog({
 
                   {/* FREIGHT SHIPPING CALCULATOR SYSTEM */}
                   <div className="border-t border-[#1E3A42]/10 pt-4 space-y-2 text-left">
-                    <span className="text-[10px] text-slate-405 font-extrabold uppercase tracking-widest block">Simular Frete & Prazo</span>
+                    <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest block">Simular Frete & Prazo</span>
                     <form onSubmit={handleCalculateCep} className="flex gap-2">
                       <input 
                         type="text"
@@ -5319,7 +5319,7 @@ export default function PublicCatalog({
                   {/* REAL CLIENTS REVIEWS LOGS SYSTEM */}
                   <div className="border-t border-[#1E3A42]/10 pt-4 space-y-2 text-left">
                     <div className="flex justify-between items-center">
-                      <span className="text-[10px] text-slate-455 font-extrabold uppercase tracking-widest">Avaliações das Clientes ({productReviews[selectedProduct.id]?.length || productReviews.default.length})</span>
+                      <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Avaliações das Clientes ({productReviews[selectedProduct.id]?.length || productReviews.default.length})</span>
                       <button
                         type="button"
                         onClick={() => setIsReviewFormOpen(!isReviewFormOpen)}
@@ -5397,7 +5397,7 @@ export default function PublicCatalog({
 
                   {/* PRODUTOS RELACIONADOS CAROUSEL */}
                   <div className="border-t border-[#1E3A42]/10 pt-5 space-y-3 text-left">
-                    <span className="text-[10px] text-slate-405 font-extrabold uppercase tracking-widest block">Produtos Relacionados</span>
+                    <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest block">Produtos Relacionados</span>
                     <div className="flex gap-3 overflow-x-auto scrollbar-none pb-2">
                       {products.filter(p => p.id !== selectedProduct.id && p.stock > 0).slice(0, 4).map(rel => (
                         <div 
@@ -5446,7 +5446,7 @@ export default function PublicCatalog({
 
       {/* 8. Junte-se a nós / Obtenha Descontos Exclusivos Newsletter Footer Card */}
       <section id="newsletter-section" className="max-w-4xl mx-auto px-4 md:px-8 mt-12 mb-6">
-        <div className="bg-gradient-to-r from-pink-600 to-rose-450 text-white rounded-3xl p-6 md:p-8 text-center space-y-4 shadow-lg relative overflow-hidden">
+        <div className="bg-gradient-to-r from-pink-600 to-rose-400 text-white rounded-3xl p-6 md:p-8 text-center space-y-4 shadow-lg relative overflow-hidden">
           {/* Subtle graphic shape elements */}
           <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full transform translate-x-10 -translate-y-10" />
           <div className="absolute -bottom-8 -left-8 w-28 h-28 bg-white/5 rounded-full" />
@@ -6033,7 +6033,7 @@ export default function PublicCatalog({
                   setIsProfileModalOpen(false);
                   setLoginError('');
                 }}
-                className="p-1.5 bg-pink-700/50 hover:bg-pink-850/80 rounded-full transition text-white border-none cursor-pointer"
+                className="p-1.5 bg-pink-700/50 hover:bg-pink-800/80 rounded-full transition text-white border-none cursor-pointer"
               >
                 <X size={15} />
               </button>
@@ -6050,20 +6050,20 @@ export default function PublicCatalog({
                         {loggedClient.name.split(' ')[0][0].toUpperCase()}
                       </div>
                       <div>
-                        <h4 className="font-black text-slate-850 text-sm leading-tight">{loggedClient.name}</h4>
+                        <h4 className="font-black text-slate-800 text-sm leading-tight">{loggedClient.name}</h4>
                         {loggedClient.vip ? (
                           <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider block w-max mt-0.5 flex items-center gap-0.5 animate-pulse">
                             Membro VIP 👑
                           </span>
                         ) : (
-                          <span className="bg-slate-100 text-slate-650 border border-slate-200 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider block w-max mt-0.5">
+                          <span className="bg-slate-100 text-slate-600 border border-slate-200 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider block w-max mt-0.5">
                             Cliente Cadastrado 👤
                           </span>
                         )}
                       </div>
                     </div>
 
-                    <div className="border-t border-pink-100/50 pt-3 grid grid-cols-2 gap-3 text-slate-650 text-[10px]">
+                    <div className="border-t border-pink-100/50 pt-3 grid grid-cols-2 gap-3 text-slate-600 text-[10px]">
                       <div>
                         <span className="block text-slate-400 font-bold uppercase text-[8px]">Pedidos Realizados</span>
                         <strong className="text-slate-800 text-xs font-mono">{loggedClient.ordersCount || 1} compras</strong>
@@ -6137,22 +6137,22 @@ export default function PublicCatalog({
 
                           if (payStatus === 'pago' || payStatus === 'confirmado' || payStatus === 'concluido' || payStatus === 'concluído') {
                             payStatusLabel = 'Pago';
-                            payStatusColor = 'bg-emerald-100 text-emerald-800 border border-emerald-150';
+                            payStatusColor = 'bg-emerald-100 text-emerald-800 border border-emerald-100';
                           } else if (payStatus === 'cancelado' || payStatus === 'estornado') {
                             payStatusLabel = 'Cancelado';
-                            payStatusColor = 'bg-rose-100 text-rose-800 border border-rose-150';
+                            payStatusColor = 'bg-rose-100 text-rose-800 border border-rose-100';
                           }
 
                           return (
-                            <div key={order.id} className="bg-slate-50 border border-slate-150 hover:border-pink-200 rounded-2xl p-3.5 space-y-2.5 transition-all text-[11px]">
+                            <div key={order.id} className="bg-slate-50 border border-slate-100 hover:border-pink-200 rounded-2xl p-3.5 space-y-2.5 transition-all text-[11px]">
                               {/* Order Identification & Total */}
                               <div className="flex justify-between items-center pb-1.5 border-b border-slate-200/50">
                                 <span className="font-mono font-bold text-slate-800 uppercase">#{order.id.substring(0,8)}</span>
-                                <span className="text-[10px] text-slate-450">{orderDateFormatted}</span>
+                                <span className="text-[10px] text-slate-400">{orderDateFormatted}</span>
                               </div>
 
                               {/* Items Summary */}
-                              <div className="text-slate-650 leading-relaxed font-sans">
+                              <div className="text-slate-600 leading-relaxed font-sans">
                                 <span className="text-slate-400 font-bold block uppercase text-[8px] tracking-wider mb-0.5">Peças</span>
                                 <p className="font-semibold text-slate-700 leading-normal">{order.items}</p>
                               </div>
@@ -6174,9 +6174,9 @@ export default function PublicCatalog({
                               </div>
 
                               {/* Delivery Type & Instructions / Tracking */}
-                              <div className="bg-white rounded-xl p-2.5 border border-slate-150 font-sans space-y-1 mt-1 text-[10px]">
+                              <div className="bg-white rounded-xl p-2.5 border border-slate-100 font-sans space-y-1 mt-1 text-[10px]">
                                 {order.deliveryMethod === 'retirada' ? (
-                                  <div className="space-y-1 text-slate-650 leading-relaxed">
+                                  <div className="space-y-1 text-slate-600 leading-relaxed">
                                     <p className="font-extrabold text-pink-700 flex items-center gap-1">🏠 Retirada Combinada na Loja</p>
                                     {order.pickupDate ? (
                                       <p className="font-bold text-slate-700">📅 Agendado para: <span className="font-mono">{new Date(order.pickupDate).toLocaleDateString('pt-BR')}</span> às <span className="font-mono">{order.pickupTime || ''}</span></p>
@@ -6188,18 +6188,18 @@ export default function PublicCatalog({
                                     </p>
                                   </div>
                                 ) : order.deliveryMethod === 'motoboy' ? (
-                                  <div className="space-y-1 text-slate-650 leading-relaxed">
+                                  <div className="space-y-1 text-slate-600 leading-relaxed">
                                     <p className="font-extrabold text-blue-700 flex items-center gap-1">🏍️ Entrega via Motoboy Express</p>
                                     {logStatus === 'saiu para entrega' || logStatus === 'saiu_para_entrega' || logStatus === 'a_caminho' ? (
                                       <p className="font-bold text-amber-700 animate-pulse bg-amber-50 p-1 px-2 rounded-lg border border-amber-100">🛵 O entregador está com seu pedido na rota de entrega! Tenha alguém no endereço para recebimento.</p>
                                     ) : logStatus === 'entregue' ? (
-                                      <p className="text-emerald-750 font-bold">🎉 Pedido entregue! Esperamos que ame seus looks novos. Divirta-se nos treinos!</p>
+                                      <p className="text-emerald-700 font-bold">🎉 Pedido entregue! Esperamos que ame seus looks novos. Divirta-se nos treinos!</p>
                                     ) : (
                                       <p className="text-slate-500 font-medium">Seu pedido está sendo separado com muito amor e carinho em nosso centro de distribuição.</p>
                                     )}
                                   </div>
                                 ) : order.deliveryMethod === 'correios' ? (
-                                  <div className="space-y-1 text-slate-650 leading-relaxed">
+                                  <div className="space-y-1 text-slate-600 leading-relaxed">
                                     <p className="font-extrabold text-purple-700 flex items-center gap-1">📦 Envio via Correios / Transportadora</p>
                                     {order.trackingCode ? (
                                       <div className="flex flex-col gap-1">
@@ -6212,18 +6212,18 @@ export default function PublicCatalog({
                                               navigator.clipboard.writeText(order.trackingCode);
                                               alert('Código de rastreio copiado para a área de transferência! 📋');
                                             }}
-                                            className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 rounded font-bold transition text-slate-755 text-[8.5px] cursor-pointer border-none"
+                                            className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 rounded font-bold transition text-slate-700 text-[8.5px] cursor-pointer border-none"
                                           >
                                             Copiar
                                           </button>
                                         </div>
                                       </div>
                                     ) : (
-                                      <p className="text-slate-450 font-medium italic">Código de rastreamento será gerado assim que postado nos Correios.</p>
+                                      <p className="text-slate-400 font-medium italic">Código de rastreamento será gerado assim que postado nos Correios.</p>
                                     )}
                                   </div>
                                 ) : (
-                                  <div className="space-y-1 text-slate-650 leading-relaxed">
+                                  <div className="space-y-1 text-slate-600 leading-relaxed">
                                     <p className="font-extrabold text-slate-700 flex items-center gap-1">🤝 Entrega Combinada com Vendedora</p>
                                     <p className="text-slate-500 font-medium">Aguardando contato via WhatsApp para definir a melhor data e local.</p>
                                   </div>
@@ -6399,7 +6399,7 @@ export default function PublicCatalog({
                   </button>
 
                   <div className="border-t border-slate-100 pt-3 text-center">
-                    <span className="text-[9.5px] text-slate-450 leading-normal block">
+                    <span className="text-[9.5px] text-slate-400 leading-normal block">
                       Ainda não comprou conosco? Ao realizar seu primeiro pedido, você será cadastrado automaticamente, ganhará descontos exclusivos e acumulará <strong>5% de cashback</strong> para as próximas compras. ✨
                     </span>
                   </div>
@@ -6434,7 +6434,7 @@ export default function PublicCatalog({
                   setPendingFavoriteProductId(null);
                   setLeadError('');
                 }}
-                className="p-1.5 bg-pink-700/50 hover:bg-pink-850/80 rounded-full transition text-white border-none cursor-pointer"
+                className="p-1.5 bg-pink-700/50 hover:bg-pink-800/80 rounded-full transition text-white border-none cursor-pointer"
               >
                 <X size={14} />
               </button>
@@ -6446,7 +6446,7 @@ export default function PublicCatalog({
                 <p className="text-[10px] text-pink-700 font-extrabold uppercase tracking-wider">
                   {leadAuthMode === 'register' ? 'Desconto Exclusivo Esperando Você! 🎁' : 'Seu Saldo e Favoritos Sincronizados! ✨'}
                 </p>
-                <p className="text-slate-650 text-[11px] leading-relaxed">
+                <p className="text-slate-600 text-[11px] leading-relaxed">
                   {leadAuthMode === 'register' ? (
                     <>Salve seus modelos favoritos! Crie sua conta rapidinho para não perder suas escolhas e receber cupons de desconto exclusivos da <strong>{storeName}</strong>.</>
                   ) : (
@@ -6473,7 +6473,7 @@ export default function PublicCatalog({
                       placeholder="Ex: Maria Silva"
                       value={leadName}
                       onChange={(e) => setLeadName(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-150 rounded-xl p-3 text-xs font-semibold focus:outline-hidden focus:border-pink-500 transition"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs font-semibold focus:outline-hidden focus:border-pink-500 transition"
                     />
                   </div>
 
@@ -6485,7 +6485,7 @@ export default function PublicCatalog({
                       placeholder="Ex: maria@email.com (opcional)"
                       value={leadEmail}
                       onChange={(e) => setLeadEmail(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-150 rounded-xl p-3 text-xs font-semibold focus:outline-hidden focus:border-pink-500 transition"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs font-semibold focus:outline-hidden focus:border-pink-500 transition"
                     />
                   </div>
 
@@ -6498,7 +6498,7 @@ export default function PublicCatalog({
                       placeholder="Ex: 000.000.000-00"
                       value={leadCpf}
                       onChange={(e) => setLeadCpf(formatCPFInput(e.target.value))}
-                      className="w-full bg-slate-50 border border-slate-150 rounded-xl p-3 text-xs font-mono font-bold focus:outline-hidden focus:border-pink-500 transition"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs font-mono font-bold focus:outline-hidden focus:border-pink-500 transition"
                     />
                   </div>
 
@@ -6511,7 +6511,7 @@ export default function PublicCatalog({
                       placeholder="(00) 00000-0000"
                       value={leadPhone}
                       onChange={(e) => setLeadPhone(formatWhatsApp(e.target.value))}
-                      className="w-full bg-slate-50 border border-slate-150 rounded-xl p-3 text-xs font-mono font-bold focus:outline-hidden focus:border-pink-500 transition"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs font-mono font-bold focus:outline-hidden focus:border-pink-500 transition"
                     />
                   </div>
 
@@ -6524,7 +6524,7 @@ export default function PublicCatalog({
                       placeholder="Mínimo 6 caracteres"
                       value={leadPassword}
                       onChange={(e) => setLeadPassword(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-150 rounded-xl p-3 text-xs font-semibold focus:outline-hidden focus:border-pink-500 transition"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs font-semibold focus:outline-hidden focus:border-pink-500 transition"
                     />
                   </div>
                 </div>
@@ -6540,7 +6540,7 @@ export default function PublicCatalog({
                       placeholder="Ex: maria@email.com ou seu CPF"
                       value={leadLoginUser}
                       onChange={(e) => setLeadLoginUser(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-150 rounded-xl p-3 text-xs font-semibold focus:outline-hidden focus:border-pink-500 transition"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs font-semibold focus:outline-hidden focus:border-pink-500 transition"
                     />
                   </div>
 
@@ -6553,7 +6553,7 @@ export default function PublicCatalog({
                       placeholder="Sua senha criada ou o padrão '123'"
                       value={leadLoginPassword}
                       onChange={(e) => setLeadLoginPassword(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-150 rounded-xl p-3 text-xs font-semibold focus:outline-hidden focus:border-pink-500 transition"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs font-semibold focus:outline-hidden focus:border-pink-500 transition"
                     />
                   </div>
                 </div>
@@ -6607,7 +6607,7 @@ export default function PublicCatalog({
               </div>
 
               <div className="text-center">
-                <span className="text-[9.5px] text-slate-450 font-medium">
+                <span className="text-[9.5px] text-slate-400 font-medium">
                   🔒 Seus dados estão 100% seguros e protegidos.
                 </span>
               </div>
@@ -6701,7 +6701,7 @@ export default function PublicCatalog({
                       >
                         <span className="flex items-center gap-2.5">
                           <span 
-                            className="w-3 h-3 rounded-full border border-slate-205" 
+                            className="w-3 h-3 rounded-full border border-slate-200" 
                             style={{ 
                               backgroundColor: 
                                 color.toLowerCase() === 'preto' ? '#000000' :

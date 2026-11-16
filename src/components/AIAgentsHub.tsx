@@ -796,7 +796,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
               </div>
 
               {/* Action feet */}
-              <div className="border-t border-slate-150 pt-4 flex flex-col sm:flex-row items-center justify-end gap-2.5">
+              <div className="border-t border-slate-100 pt-4 flex flex-col sm:flex-row items-center justify-end gap-2.5">
                 <button
                   onClick={() => setErrorMessage(null)}
                   className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-50 transition cursor-pointer"
@@ -821,7 +821,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
                       setErrorMessage(null);
                       lastTriggerFn();
                     }}
-                    className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold bg-pink-605 text-white bg-pink-600 hover:bg-pink-700 shadow-md shadow-pink-600/15 flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold bg-pink-600 text-white bg-pink-600 hover:bg-pink-700 shadow-md shadow-pink-600/15 flex items-center justify-center gap-1.5 transition cursor-pointer"
                   >
                     <span>Tentar Novamente</span>
                   </button>
@@ -865,13 +865,13 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
 
             <div className="hidden sm:flex items-center gap-2">
               <div className="flex -space-x-2">
-                <div className="w-8 h-8 rounded-full bg-pink-150 border-2 border-slate-900 text-pink-600 font-bold text-[11px] flex items-center justify-center">RD</div>
+                <div className="w-8 h-8 rounded-full bg-pink-100 border-2 border-slate-900 text-pink-600 font-bold text-[11px] flex items-center justify-center">RD</div>
                 <div className="w-8 h-8 rounded-full bg-emerald-100 border-2 border-slate-900 text-emerald-700 font-bold text-[11px] flex items-center justify-center">ES</div>
                 <div className="w-8 h-8 rounded-full bg-violet-100 border-2 border-slate-900 text-violet-700 font-bold text-[11px] flex items-center justify-center">CO</div>
                 <div className="w-8 h-8 rounded-full bg-indigo-100 border-2 border-slate-900 text-indigo-700 font-bold text-[11px] flex items-center justify-center">ST</div>
                 <div className="w-8 h-8 rounded-full bg-amber-100 border-2 border-slate-900 text-amber-700 font-bold text-[11px] flex items-center justify-center">MK</div>
-                <div className="w-8 h-8 rounded-full bg-cyan-100 border-2 border-slate-900 text-cyan-750 font-bold text-[11px] flex items-center justify-center">CH</div>
-                <div className="w-8 h-8 rounded-full bg-purple-100 border-2 border-slate-900 text-purple-750 font-bold text-[11px] flex items-center justify-center">TR</div>
+                <div className="w-8 h-8 rounded-full bg-cyan-100 border-2 border-slate-900 text-cyan-700 font-bold text-[11px] flex items-center justify-center">CH</div>
+                <div className="w-8 h-8 rounded-full bg-purple-100 border-2 border-slate-900 text-purple-700 font-bold text-[11px] flex items-center justify-center">TR</div>
               </div>
               <span className="text-[11px] text-slate-400 font-mono font-medium pl-1">7 Agentes Online</span>
             </div>
@@ -1019,7 +1019,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
                 />
                 
                 {descImage && (
-                  <div className="flex items-center gap-2 mt-2 bg-slate-50 p-2 rounded-lg border border-slate-150">
+                  <div className="flex items-center gap-2 mt-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
                     <span className="text-[9px] text-slate-400 font-mono truncate max-w-xs">{descImage}</span>
                     <button 
                       type="button" 
@@ -1045,11 +1045,11 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
                         className={`px-2.5 py-1.5 rounded-lg border text-left text-[11px] transition-all flex items-center justify-between cursor-pointer ${
                           isSelected
                             ? 'bg-pink-50 border-pink-200 text-pink-700 font-bold shadow-2xs'
-                            : 'bg-white border-slate-150 hover:bg-slate-50 text-slate-650'
+                            : 'bg-white border-slate-100 hover:bg-slate-50 text-slate-600'
                         }`}
                       >
                         <span>{fabric}</span>
-                        {isSelected && <CheckSquare size={12} className="text-pink-650 shrink-0 ml-1" />}
+                        {isSelected && <CheckSquare size={12} className="text-pink-600 shrink-0 ml-1" />}
                       </button>
                     );
                   })}
@@ -1112,7 +1112,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
               </div>
 
               <div>
-                <label className="block text-slate-550 font-bold text-[10px] uppercase mb-1">Selecione até 4 Peças do Catálogo</label>
+                <label className="block text-slate-500 font-bold text-[10px] uppercase mb-1">Selecione até 4 Peças do Catálogo</label>
                 <div className="max-h-56 overflow-y-auto space-y-1.5 divide-y divide-slate-100 pr-1.5">
                   {products.length === 0 ? (
                     <p className="text-[10px] text-slate-400 py-4 text-center">Nenhum produto cadastrado no catálogo.</p>
@@ -1131,7 +1131,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
                             type="checkbox"
                             checked={isSelected}
                             readOnly
-                            className="rounded text-pink-605"
+                            className="rounded text-pink-600"
                           />
                           <img src={p.image} alt="Produto" className="w-8 h-8 rounded-lg object-cover" referrerPolicy="no-referrer" />
                           <div className="flex-1 min-w-0">
@@ -1147,7 +1147,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
               </div>
 
               <div>
-                <label className="block text-slate-550 font-bold text-[10px] uppercase mb-1">Vibe e Direção de Estilo</label>
+                <label className="block text-slate-500 font-bold text-[10px] uppercase mb-1">Vibe e Direção de Estilo</label>
                 <select 
                   value={styleTone}
                   onChange={(e) => setStyleTone(e.target.value)}
@@ -1164,7 +1164,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
               <button 
                 type="submit"
                 disabled={loading || selectedProdIds.length === 0}
-                className="w-full bg-slate-900 hover:bg-slate-950 text-white font-bold rounded-xl py-2.5 text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-md disabled:bg-slate-350"
+                className="w-full bg-slate-900 hover:bg-slate-950 text-white font-bold rounded-xl py-2.5 text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-md disabled:bg-slate-300"
               >
                 {loading ? (
                   <>
@@ -1191,7 +1191,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
               </div>
 
               <div>
-                <label className="block text-slate-550 font-bold text-[10px] uppercase mb-1">Cenário de Atendimento</label>
+                <label className="block text-slate-500 font-bold text-[10px] uppercase mb-1">Cenário de Atendimento</label>
                 <select 
                   value={waScenario}
                   onChange={(e) => setWaScenario(e.target.value)}
@@ -1206,7 +1206,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
               </div>
 
               <div>
-                <label className="block text-slate-550 font-bold text-[10px] uppercase mb-1">Vincular Cliente cadastrada (Opcional)</label>
+                <label className="block text-slate-500 font-bold text-[10px] uppercase mb-1">Vincular Cliente cadastrada (Opcional)</label>
                 <select 
                   onChange={handleClientSelect}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-sans text-slate-700 text-xs focus:outline-hidden"
@@ -1219,7 +1219,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
               </div>
 
               <div>
-                <label className="block text-slate-550 font-bold text-[10px] uppercase mb-1">Nome da Cliente na Mensagem</label>
+                <label className="block text-slate-500 font-bold text-[10px] uppercase mb-1">Nome da Cliente na Mensagem</label>
                 <input 
                   type="text"
                   required
@@ -1231,7 +1231,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
               </div>
 
               <div>
-                <label className="block text-slate-550 font-bold text-[10px] uppercase mb-1">WhatsApp para Disparo Direto</label>
+                <label className="block text-slate-500 font-bold text-[10px] uppercase mb-1">WhatsApp para Disparo Direto</label>
                 <input 
                   type="text"
                   placeholder="Ex: 11999999999"
@@ -1242,7 +1242,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
               </div>
 
               <div>
-                <label className="block text-slate-550 font-bold text-[10px] uppercase mb-1">Peça ou Coleção Referência</label>
+                <label className="block text-slate-500 font-bold text-[10px] uppercase mb-1">Peça ou Coleção Referência</label>
                 <input 
                   type="text"
                   required
@@ -1253,7 +1253,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
                 />
               </div>
 
-              <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-150">
+              <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
                 <input 
                   type="checkbox"
                   id="waDiscount"
@@ -1293,7 +1293,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
                 <p className="text-[10px] text-slate-400 mt-1">Este agente examina volumes, limites de segurança do estoque mínimo de cada peça e gera diagnósticos preditivos para faturamento de caixa.</p>
               </div>
 
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-150 text-xs space-y-2">
+              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-xs space-y-2">
                 <h4 className="font-bold text-slate-700">Métricas Alimentadas Atualmente:</h4>
                 <div className="grid grid-cols-2 gap-2 text-[10px]">
                   <div className="bg-white p-2 rounded-lg border border-slate-100">
@@ -1340,7 +1340,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
               </div>
 
               <div>
-                <label className="block text-slate-550 font-bold text-[10px] uppercase mb-1">Tema / Data Comemorativa</label>
+                <label className="block text-slate-500 font-bold text-[10px] uppercase mb-1">Tema / Data Comemorativa</label>
                 <input 
                   type="text"
                   required
@@ -1352,7 +1352,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
               </div>
 
               <div>
-                <label className="block text-slate-550 font-bold text-[10px] uppercase mb-1">Benefício ou Cupom Oferecido</label>
+                <label className="block text-slate-500 font-bold text-[10px] uppercase mb-1">Benefício ou Cupom Oferecido</label>
                 <input 
                   type="text"
                   required
@@ -1364,7 +1364,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
               </div>
 
               <div>
-                <label className="block text-slate-550 font-bold text-[10px] uppercase mb-1">Categoria ou Peças de Foco</label>
+                <label className="block text-slate-500 font-bold text-[10px] uppercase mb-1">Categoria ou Peças de Foco</label>
                 <input 
                   type="text"
                   required
@@ -1376,7 +1376,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
               </div>
 
               <div>
-                <label className="block text-slate-550 font-bold text-[10px] uppercase mb-1">Público-Alvo e Vibe</label>
+                <label className="block text-slate-500 font-bold text-[10px] uppercase mb-1">Público-Alvo e Vibe</label>
                 <textarea 
                   rows={2}
                   required
@@ -1417,7 +1417,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
               </div>
 
               <div>
-                <label className="block text-slate-550 font-bold text-[10px] uppercase mb-1">Cor Principal do Tecido</label>
+                <label className="block text-slate-500 font-bold text-[10px] uppercase mb-1">Cor Principal do Tecido</label>
                 <input 
                   type="text"
                   required
@@ -1429,7 +1429,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
               </div>
 
               <div>
-                <label className="block text-slate-550 font-bold text-[10px] uppercase mb-1">Textura e Brilho do Tecido</label>
+                <label className="block text-slate-500 font-bold text-[10px] uppercase mb-1">Textura e Brilho do Tecido</label>
                 <input 
                   type="text"
                   required
@@ -1441,7 +1441,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
               </div>
 
               <div>
-                <label className="block text-slate-550 font-bold text-[10px] uppercase mb-1">Ocasião ou Vibe de Uso</label>
+                <label className="block text-slate-500 font-bold text-[10px] uppercase mb-1">Ocasião ou Vibe de Uso</label>
                 <select 
                   value={colorVibeOption}
                   onChange={(e) => setColorVibeOption(e.target.value)}
@@ -1484,7 +1484,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
               </div>
 
               <div>
-                <label className="block text-slate-550 font-bold text-[10px] uppercase mb-1">Descrição em Português</label>
+                <label className="block text-slate-500 font-bold text-[10px] uppercase mb-1">Descrição em Português</label>
                 <textarea 
                   rows={4}
                   required
@@ -1496,7 +1496,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
               </div>
 
               <div>
-                <label className="block text-slate-550 font-bold text-[10px] uppercase mb-1">Idioma / E-commerce de Destino</label>
+                <label className="block text-slate-500 font-bold text-[10px] uppercase mb-1">Idioma / E-commerce de Destino</label>
                 <select 
                   value={transLang}
                   onChange={(e) => setTransLang(e.target.value)}
@@ -1696,12 +1696,12 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
 
               <div className="flex items-center gap-1">
                 <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
-                <span className="text-[10px] text-slate-405 font-mono">Pronto</span>
+                <span className="text-[10px] text-slate-400 font-mono">Pronto</span>
               </div>
             </div>
 
             {/* Scrollable output screen */}
-            <div className="flex-1 p-5 md:p-6 overflow-y-auto bg-white/98 text-slate-850 flex flex-col justify-start">
+            <div className="flex-1 p-5 md:p-6 overflow-y-auto bg-white/98 text-slate-800 flex flex-col justify-start">
               
               {loading ? (
                 <div className="flex-1 flex flex-col items-center justify-center space-y-4 text-center py-10">
@@ -1711,7 +1711,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
                   </div>
                   <div className="max-w-xs">
                     <p className="font-bold text-slate-800 text-xs">Acessando Rede Neural Gemini...</p>
-                    <p className="text-[10.5px] text-slate-406 mt-1.5 font-sans leading-relaxed animate-pulse">
+                    <p className="text-[10.5px] text-slate-400 mt-1.5 font-sans leading-relaxed animate-pulse">
                       {loadingMessage}
                     </p>
                   </div>
@@ -1785,7 +1785,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
                                 <Sparkles size={12} className="text-pink-500 animate-pulse" />
                                 <span>Ajustes Sazonais Recomendados pela IA</span>
                               </div>
-                              <p className="text-[11px] text-slate-650">
+                              <p className="text-[11px] text-slate-600">
                                 O Diretor IA sugeriu ativar a cor de tema <span className="font-extrabold px-1.5 py-0.5 rounded text-white font-mono text-[10px]" style={{ backgroundColor: recommendedConfig.themeColor }}>{recommendedConfig.themeColor}</span> com o efeito micro-interativo <span className="font-bold underline text-pink-600">{recommendedConfig.activeAnimation}</span> para esta campanha.
                               </p>
                             </div>
@@ -1915,7 +1915,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleCopyText(whatsappResult, 'wa')}
-                      className="flex items-center gap-1.5 bg-slate-850 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer font-bold border border-slate-700"
+                      className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer font-bold border border-slate-700"
                     >
                       {copiedId === 'wa' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
                       <span>{copiedId === 'wa' ? 'Copiado!' : 'Copiar Roteiro'}</span>
@@ -2033,7 +2033,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
 
           {/* Prompt/Guide hint footer block */}
           <div className="bg-pink-50/40 rounded-2xl p-4 border border-pink-100 flex items-start gap-3 text-left">
-            <HelpCircle size={18} className="text-pink-650 shrink-0 mt-0.5" />
+            <HelpCircle size={18} className="text-pink-600 shrink-0 mt-0.5" />
             <div>
               <h5 className="font-bold text-pink-700 text-xs">Dica de Produtividade</h5>
               <p className="text-[10px] text-slate-600 leading-relaxed mt-0.5">

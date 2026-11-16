@@ -503,8 +503,8 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
         <div className="bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col items-center justify-center text-center space-y-4 animate-pulse">
           <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" />
           <div>
-            <h3 className="text-sm font-extrabold text-slate-850">Sincronizando com Supabase</h3>
-            <p className="text-[10.5px] text-slate-450 mt-1">Carregando dados da venda em tempo real para evitar páginas de PDF em branco...</p>
+            <h3 className="text-sm font-extrabold text-slate-800">Sincronizando com Supabase</h3>
+            <p className="text-[10.5px] text-slate-400 mt-1">Carregando dados da venda em tempo real para evitar páginas de PDF em branco...</p>
           </div>
         </div>
       ) : (
@@ -512,7 +512,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
         
         {/* Controls Configuration Panel - left on desktop */}
         {!isFullscreen && (
-          <div className="flex-1 p-5 md:p-6 space-y-4 border-r border-slate-150 overflow-y-auto bg-white">
+          <div className="flex-1 p-5 md:p-6 space-y-4 border-r border-slate-100 overflow-y-auto bg-white">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
               <h3 className="text-sm font-extrabold text-slate-800 tracking-tight font-sans flex items-center gap-2">
@@ -607,7 +607,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
                   onChange={(e) => setCompanyInfo({ ...companyInfo, pixKey: e.target.value })}
                   className="w-full px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-mono focus:outline-hidden focus:border-pink-500 font-semibold"
                 />
-                <p className="text-[10px] text-slate-450 mt-0.5 font-sans">Forneça sua chave para gerar o QR code Pix impresso de forma automática!</p>
+                <p className="text-[10px] text-slate-400 mt-0.5 font-sans">Forneça sua chave para gerar o QR code Pix impresso de forma automática!</p>
               </div>
 
               <div className="space-y-1">
@@ -642,7 +642,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
                   <Settings size={14} className="text-pink-600" />
                   <span>Selecione a Impressora & Formato</span>
                 </div>
-                <p className="text-[10px] text-slate-450 leading-relaxed -mt-1 font-medium">Adapte a largura e diagramação de acordo com sua máquina:</p>
+                <p className="text-[10px] text-slate-400 leading-relaxed -mt-1 font-medium">Adapte a largura e diagramação de acordo com sua máquina:</p>
                 
                 <div className="grid grid-cols-2 gap-2.5">
                   {/* Option 1: 80mm standard */}
@@ -652,14 +652,14 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
                     className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex flex-col justify-between h-[68px] outline-hidden
                       ${selectedPrinter === '80mm' 
                         ? 'bg-pink-50/50 border-pink-400 text-pink-950 shadow-xs' 
-                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-350'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                       }`}
                   >
                     <div className="flex justify-between items-start w-full">
                       <span className="font-extrabold text-[10.5px]">Térmica 80mm</span>
                       {selectedPrinter === '80mm' && <Check size={11} className="text-pink-600" />}
                     </div>
-                    <span className="text-[9px] text-slate-450 font-medium">Padrão p/ bobinas largas (76mm úteis).</span>
+                    <span className="text-[9px] text-slate-400 font-medium">Padrão p/ bobinas largas (76mm úteis).</span>
                   </button>
 
                   {/* Option 2: 58mm POS */}
@@ -669,14 +669,14 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
                     className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex flex-col justify-between h-[68px] outline-hidden
                       ${selectedPrinter === '58mm' 
                         ? 'bg-pink-50/50 border-pink-400 text-pink-950 shadow-xs' 
-                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-350'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                       }`}
                   >
                     <div className="flex justify-between items-start w-full">
                       <span className="font-extrabold text-[10.5px]">Mini POS 58mm</span>
                       {selectedPrinter === '58mm' && <Check size={11} className="text-pink-600" />}
                     </div>
-                    <span className="text-[9px] text-slate-450 font-medium">Bobinas estreitas, bluetooth e maquininhas.</span>
+                    <span className="text-[9px] text-slate-400 font-medium">Bobinas estreitas, bluetooth e maquininhas.</span>
                   </button>
 
                   {/* Option 3: Label Sticker */}
@@ -686,14 +686,14 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
                     className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex flex-col justify-between h-[68px] outline-hidden
                       ${selectedPrinter === 'label' 
                         ? 'bg-pink-50/50 border-pink-400 text-pink-950 shadow-xs' 
-                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-350'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                       }`}
                   >
                     <div className="flex justify-between items-start w-full">
                       <span className="font-extrabold text-[10.5px]">Etiqueta Mini</span>
                       {selectedPrinter === 'label' && <Check size={11} className="text-pink-600" />}
                     </div>
-                    <span className="text-[9px] text-slate-450 font-medium">Adesivos de gôndola e fita fina (46mm).</span>
+                    <span className="text-[9px] text-slate-400 font-medium">Adesivos de gôndola e fita fina (46mm).</span>
                   </button>
 
                   {/* Option 3.5: 100x150mm Sticker */}
@@ -704,14 +704,14 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
                     className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex flex-col justify-between h-[68px] outline-hidden
                       ${selectedPrinter === '100x150' 
                         ? 'bg-pink-50/50 border-pink-400 text-pink-950 shadow-xs' 
-                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-350'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                       }`}
                   >
                     <div className="flex justify-between items-start w-full">
                       <span className="font-extrabold text-[10.5px]">Etiqueta Envio 10x15</span>
                       {selectedPrinter === '100x150' && <Check size={11} className="text-pink-600" />}
                     </div>
-                    <span className="text-[9px] text-slate-450 font-medium">Padrão e-commerce (100mm x 150mm).</span>
+                    <span className="text-[9px] text-slate-400 font-medium">Padrão e-commerce (100mm x 150mm).</span>
                   </button>
 
                   {/* Option 4: A4 common sheets */}
@@ -721,14 +721,14 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
                     className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex flex-col justify-between h-[68px] outline-hidden
                       ${selectedPrinter === 'A4' 
                         ? 'bg-pink-50/50 border-pink-400 text-pink-950 shadow-xs' 
-                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-350'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                       }`}
                   >
                     <div className="flex justify-between items-start w-full">
                       <span className="font-extrabold text-[10.5px]">Folha A4 / Carta</span>
                       {selectedPrinter === 'A4' && <Check size={11} className="text-pink-600" />}
                     </div>
-                    <span className="text-[9px] text-slate-450 font-medium">Impressora jato/laser tradicional e PDFs A4.</span>
+                    <span className="text-[9px] text-slate-400 font-medium">Impressora jato/laser tradicional e PDFs A4.</span>
                   </button>
                 </div>
               </div>
@@ -774,7 +774,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
                       onChange={(e) => setShowLogo(e.target.checked)}
                       className="rounded border-slate-300 text-pink-600 focus:ring-pink-500 h-4.5 w-4.5 accent-pink-600"
                     />
-                    <span className="text-[10.5px] font-bold text-slate-650">Exibir Logo</span>
+                    <span className="text-[10.5px] font-bold text-slate-600">Exibir Logo</span>
                   </label>
 
                   {/* Toggle Address */}
@@ -785,7 +785,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
                       onChange={(e) => setShowAddress(e.target.checked)}
                       className="rounded border-slate-300 text-pink-600 focus:ring-pink-500 h-4.5 w-4.5 accent-pink-600"
                     />
-                    <span className="text-[10.5px] font-bold text-slate-650">Exibir Endereço</span>
+                    <span className="text-[10.5px] font-bold text-slate-600">Exibir Endereço</span>
                   </label>
 
                   {/* Toggle QR Code */}
@@ -796,16 +796,16 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
                       onChange={(e) => setShowQrCode(e.target.checked)}
                       className="rounded border-slate-300 text-pink-600 focus:ring-pink-500 h-4.5 w-4.5 accent-pink-600"
                     />
-                    <span className="text-[10.5px] font-bold text-slate-650">QR Code Pix</span>
+                    <span className="text-[10.5px] font-bold text-slate-600">QR Code Pix</span>
                   </label>
 
                   {/* Toggle Margins spacer */}
                   <div className="flex flex-col space-y-1">
-                    <label className="text-[9px] font-bold text-slate-450 uppercase">Linhas Vazias de Rodapé</label>
+                    <label className="text-[9px] font-bold text-slate-400 uppercase">Linhas Vazias de Rodapé</label>
                     <select
                       value={cutLinesCount}
                       onChange={(e) => setCutLinesCount(Number(e.target.value))}
-                      className="bg-white border border-slate-200 text-slate-700 text-[10.5px] font-bold rounded-lg px-2 py-1 focus:outline-hidden focus:border-pink-550 cursor-pointer"
+                      className="bg-white border border-slate-200 text-slate-700 text-[10.5px] font-bold rounded-lg px-2 py-1 focus:outline-hidden focus:border-pink-500 cursor-pointer"
                     >
                       <option value={0}>Sem avanço</option>
                       <option value={1}>1 linha (Curto)</option>
@@ -858,10 +858,10 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
 
               {/* PIX scan copy and paste */}
               {companyInfo.pixKey && (
-                <div className="p-3 bg-slate-50 border border-slate-150 rounded-xl space-y-2">
+                <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider font-mono flex items-center gap-1 select-none">
-                      <QrCode size={12} className="text-slate-450" /> Pix Copia e Cola / Chave Emissora
+                      <QrCode size={12} className="text-slate-400" /> Pix Copia e Cola / Chave Emissora
                     </span>
                     <button
                       onClick={handleCopyPixString}
@@ -877,7 +877,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
               )}
 
               {/* Helpful tips */}
-              <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-100 text-[10px] font-medium leading-relaxed text-slate-450">
+              <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-100 text-[10px] font-medium leading-relaxed text-slate-400">
                 <p>💡 <strong>Dica de Impressora:</strong> Para bobinas térmicas (58mm e 80mm), lembre-se de configurar a escala correta de tamanho de letra ao lado. Nas configurações de página do seu navegador, marque "Gráficos de segundo plano" e desmarque "Cabeçalhos e rodapés" para ocultar URLs da folha!</p>
               </div>
             </div>
@@ -1000,7 +1000,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
                 <button
                   type="button"
                   onClick={handlePrint}
-                  className="px-3.5 py-1 bg-emerald-700 hover:bg-emerald-850 text-white rounded-lg text-[9.5px] font-black flex items-center gap-1 cursor-pointer transition-colors border-0 animate-pulse"
+                  className="px-3.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-[9.5px] font-black flex items-center gap-1 cursor-pointer transition-colors border-0 animate-pulse"
                 >
                   <Printer size={12} />
                   <span>Imprimir Comprovante</span>
@@ -1019,7 +1019,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
               {/* Printable container simulating paper */}
               <div 
                 id="printable-thermal-receipt" 
-                className={`bg-white border select-all border-slate-350 shadow-xl transition-all duration-300 relative flex flex-col text-slate-800
+                className={`bg-white border select-all border-slate-300 shadow-xl transition-all duration-300 relative flex flex-col text-slate-800
                   ${selectedPrinter === '58mm' ? 'max-w-[240px] p-3 text-[10px] font-mono leading-snug' :
                     selectedPrinter === 'label' ? 'max-w-[210px] p-2 text-[9px] font-mono leading-tight' :
                     selectedPrinter === '100x150' ? 'w-[378px] min-h-[527px] p-4 text-[10px] font-mono leading-normal rounded-md' :
@@ -1090,7 +1090,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
             {/* Customer name and CPF */}
             <div className="flex justify-between text-[10px] mt-1 text-slate-700">
               <span className="truncate pr-2">Cliente: <strong className="font-bold text-slate-800">{sale.clientName}</strong></span>
-              {clientCpf && <span className="shrink-0 font-medium text-slate-650">CPF: {clientCpf}</span>}
+              {clientCpf && <span className="shrink-0 font-medium text-slate-600">CPF: {clientCpf}</span>}
             </div>
 
             {sale.salesperson && (
@@ -1134,7 +1134,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
                   {sale.items.map((item, idx) => (
                     <div key={idx} className="pt-1.5 first:pt-0 leading-tight">
                       <div className="flex justify-between">
-                        <span className="font-bold text-slate-850 truncate max-w-[170px]">{item.name}</span>
+                        <span className="font-bold text-slate-800 truncate max-w-[170px]">{item.name}</span>
                         <span className="font-extrabold pr-0.5">{formatCurrency(item.price * item.quantity)}</span>
                       </div>
                       <p className="text-[9px] text-slate-500 font-sans mt-0.5">
@@ -1180,7 +1180,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
             {/* Payment layout block */}
             <div className="py-1 flex flex-col space-y-1 text-[10px] text-slate-700">
               <div className="flex justify-between border-b border-dashed border-slate-200 pb-1">
-                <span className="font-medium text-slate-450 uppercase text-[9px]">Meio de Pagamento</span>
+                <span className="font-medium text-slate-400 uppercase text-[9px]">Meio de Pagamento</span>
                 {sale.payments && sale.payments.length > 0 ? (
                   <span className="font-bold text-slate-800 uppercase tracking-wider">{sale.payments.map(p => p.method).join(' + ')}</span>
                 ) : (
@@ -1204,7 +1204,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
                       <div key={idx} className="border-b border-dashed border-slate-100 last:border-0 pb-1 mb-1">
                         <div className="flex justify-between text-slate-600 font-medium">
                           <span>• {p.method}{extra}</span>
-                          <span className="font-mono font-bold text-slate-755">{formatCurrency(p.amount)}</span>
+                          <span className="font-mono font-bold text-slate-700">{formatCurrency(p.amount)}</span>
                         </div>
                         {discountRate > 0 && (
                           <div className="text-[8.5px] text-emerald-600 ml-3 flex justify-between">
@@ -1259,7 +1259,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
             {showQrCode && companyInfo.pixKey ? (
               <div className="py-1 select-all mt-2.5 text-center font-sans space-y-2 flex flex-col items-center justify-center">
                 <div className="border-t border-dashed border-slate-300 w-full mb-1" />
-                <p className="text-[9px] font-bold text-slate-550 uppercase tracking-widest select-none">Pague com Pix instantâneo</p>
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest select-none">Pague com Pix instantâneo</p>
                 <div id="pix-qr-print-wrapper" className="p-2 border border-slate-200 rounded-xl bg-white w-28 h-28 flex items-center justify-center">
                   <img 
                     src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(pixPayload)}`}
@@ -1277,7 +1277,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
 
             {/* Dynamic reference and thank you */}
             <div className="border-t border-dashed border-slate-300 my-2" />
-            <div className="text-center text-[8px] leading-snug text-slate-450 mt-1 space-y-0.5">
+            <div className="text-center text-[8px] leading-snug text-slate-400 mt-1 space-y-0.5">
               <p className="font-mono select-all">Ref: 800{sale.id.replace('v-', '')}4474-{sale.createdAt.slice(-2)}y</p>
               {companyInfo.instructions && (
                 <p className="font-sans leading-normal px-2 max-w-[240px] mx-auto text-slate-500">

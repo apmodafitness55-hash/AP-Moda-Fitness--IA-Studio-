@@ -326,7 +326,7 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
               setExitPin('');
               setShowExitModal(true);
             }}
-            className="text-xs bg-slate-800 hover:bg-slate-705 font-bold p-1 px-2.5 rounded-xl text-slate-300 hover:text-white transition-all flex items-center gap-1 cursor-pointer"
+            className="text-xs bg-slate-800 hover:bg-slate-700 font-bold p-1 px-2.5 rounded-xl text-slate-300 hover:text-white transition-all flex items-center gap-1 cursor-pointer"
           >
             <LogOut size={13} />
             <span>Voltar ao ERP</span>
@@ -339,7 +339,7 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
         
         {/* Notch details */}
         <div className="absolute top-4 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-950 rounded-b-xl z-50 flex items-center justify-between px-4">
-          <div className="w-1.5 h-1.5 rounded-full bg-slate-850" />
+          <div className="w-1.5 h-1.5 rounded-full bg-slate-800" />
           <div className="w-12 h-1 bg-slate-800 rounded-full" />
           <div className="w-2 h-2 rounded-full bg-blue-900/40" />
         </div>
@@ -393,7 +393,7 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
                         className={`w-full text-left p-3 rounded-xl font-bold text-xs flex items-center justify-between border transition-all cursor-pointer
                           ${selectedRider === r 
                             ? 'bg-pink-600/20 border-pink-500 text-white shadow-lg shadow-pink-500/5' 
-                            : 'bg-slate-850/60 border-slate-800 text-slate-400 hover:bg-slate-800'}`}
+                            : 'bg-slate-800/60 border-slate-800 text-slate-400 hover:bg-slate-800'}`}
                       >
                         <div className="flex items-center gap-2">
                           <User size={14} className={selectedRider === r ? 'text-pink-400' : 'text-slate-500'} />
@@ -435,15 +435,15 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
 
               {/* Delivery stats pills */}
               <div className="grid grid-cols-3 gap-2 mb-3 text-center">
-                <div className="bg-slate-850/70 p-2 rounded-xl">
+                <div className="bg-slate-800/70 p-2 rounded-xl">
                   <span className="text-slate-500 text-[8px] font-bold block uppercase">Receber</span>
                   <span className="text-xs font-black text-slate-100">{stats.totalDeliveries}</span>
                 </div>
-                <div className="bg-slate-850/70 p-2 rounded-xl">
+                <div className="bg-slate-800/70 p-2 rounded-xl">
                   <span className="text-slate-500 text-[8px] font-bold block uppercase">Pendentes</span>
                   <span className="text-xs font-black text-amber-500">{stats.pending}</span>
                 </div>
-                <div className="bg-slate-850/70 p-2 rounded-xl">
+                <div className="bg-slate-800/70 p-2 rounded-xl">
                   <span className="text-slate-500 text-[8px] font-bold block uppercase">Feitas</span>
                   <span className="text-xs font-black text-emerald-500">{stats.completed}</span>
                 </div>
@@ -466,7 +466,7 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
               </div>
 
               {/* ASSIGNED VS UNASSIGNED TOGGLE */}
-              <div className="flex justify-between items-center mb-3 text-[10px] bg-slate-900/40 p-1.5 rounded-lg border border-slate-850 shrink-0">
+              <div className="flex justify-between items-center mb-3 text-[10px] bg-slate-900/40 p-1.5 rounded-lg border border-slate-800 shrink-0">
                 <span className="font-bold text-slate-400">Filtrar Pedidos:</span>
                 <div className="flex gap-2">
                   <button
@@ -496,7 +496,7 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
                   filteredFeedOrders.map((ord: any) => {
                     const statusLower = (ord.status || '').toLowerCase();
                     return (
-                      <div key={ord.id} className="bg-slate-850 border border-slate-800 rounded-2xl p-3 space-y-3 hover:border-slate-700 transition-colors">
+                      <div key={ord.id} className="bg-slate-800 border border-slate-800 rounded-2xl p-3 space-y-3 hover:border-slate-700 transition-colors">
                         <div className="flex justify-between items-center">
                           <span className="text-[9px] font-bold font-mono text-pink-400 bg-pink-900/20 px-2 py-0.5 rounded uppercase">
                             {ord.id}
@@ -657,7 +657,7 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
                 </div>
 
                 {/* Live Navigation Overlay */}
-                <div className="p-3 bg-slate-900/95 border border-slate-750 backdrop-blur-md z-10 m-2.5 rounded-2xl flex items-center justify-between text-xs shadow-xl">
+                <div className="p-3 bg-slate-900/95 border border-slate-700 backdrop-blur-md z-10 m-2.5 rounded-2xl flex items-center justify-between text-xs shadow-xl">
                   <div className="flex items-center gap-2">
                     <Navigation size={15} className="text-pink-500 animate-pulse shrink-0" />
                     <div>
@@ -760,7 +760,7 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
                   </button>
                 </div>
 
-                <div className="bg-slate-850 p-3 rounded-xl border border-slate-800 text-xs text-slate-300 leading-snug">
+                <div className="bg-slate-800 p-3 rounded-xl border border-slate-800 text-xs text-slate-300 leading-snug">
                   <p>Por favor, recolha o nome de quem está recebendo e a assinatura abaixo para arquivar o comprovante no ERP de vendas.</p>
                 </div>
 
@@ -774,7 +774,7 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
                       placeholder="Ex: Ana Costa (própria) ou Porteiro"
                       value={receiverName}
                       onChange={(e) => setReceiverName(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-755 rounded-xl p-2 text-white focus:outline-hidden focus:border-pink-500 text-xs"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white focus:outline-hidden focus:border-pink-500 text-xs"
                     />
                   </div>
 
@@ -786,7 +786,7 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
                       placeholder="Ex: 111.222.333-44"
                       value={receiverDoc}
                       onChange={(e) => setReceiverDoc(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-755 rounded-xl p-2 text-white focus:outline-hidden focus:border-pink-500 text-xs"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white focus:outline-hidden focus:border-pink-500 text-xs"
                     />
                   </div>
 

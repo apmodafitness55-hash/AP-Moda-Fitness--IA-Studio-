@@ -772,11 +772,11 @@ export function CheckoutWizard({
               className="flex flex-col items-center gap-1 group flex-1 cursor-pointer border-none bg-transparent"
             >
               <div className="flex items-center justify-center">
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-300 ${checkoutStep === 1 ? 'bg-pink-600 text-white shadow-xs scale-110' : checkoutStep > 1 ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-450'}`}>
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-300 ${checkoutStep === 1 ? 'bg-pink-600 text-white shadow-xs scale-110' : checkoutStep > 1 ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
                   {checkoutStep > 1 ? '✓' : '1'}
                 </span>
               </div>
-              <span className={`text-[10px] font-bold transition-colors ${checkoutStep === 1 ? 'text-pink-600 font-extrabold' : 'text-slate-450 group-hover:text-slate-600'}`}>Sacola</span>
+              <span className={`text-[10px] font-bold transition-colors ${checkoutStep === 1 ? 'text-pink-600 font-extrabold' : 'text-slate-400 group-hover:text-slate-600'}`}>Sacola</span>
             </button>
             <div className={`h-0.5 flex-grow transition-all duration-300 ${checkoutStep >= 2 ? 'bg-pink-500' : 'bg-slate-100'}`} />
             
@@ -787,11 +787,11 @@ export function CheckoutWizard({
               className="flex flex-col items-center gap-1 group flex-1 cursor-pointer border-none bg-transparent"
             >
               <div className="flex items-center justify-center">
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-300 ${checkoutStep === 2 ? 'bg-pink-600 text-white shadow-xs scale-110' : checkoutStep > 2 ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-450'}`}>
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-300 ${checkoutStep === 2 ? 'bg-pink-600 text-white shadow-xs scale-110' : checkoutStep > 2 ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
                   {checkoutStep > 2 ? '✓' : '2'}
                 </span>
               </div>
-              <span className={`text-[10px] font-bold transition-colors ${checkoutStep === 2 ? 'text-pink-600 font-extrabold' : 'text-slate-450 group-hover:text-slate-600'}`}>Entrega</span>
+              <span className={`text-[10px] font-bold transition-colors ${checkoutStep === 2 ? 'text-pink-600 font-extrabold' : 'text-slate-400 group-hover:text-slate-600'}`}>Entrega</span>
             </button>
             <div className={`h-0.5 flex-grow transition-all duration-300 ${checkoutStep >= 3 ? 'bg-pink-500' : 'bg-slate-100'}`} />
             
@@ -802,11 +802,11 @@ export function CheckoutWizard({
               className="flex flex-col items-center gap-1 group flex-1 cursor-pointer border-none bg-transparent disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="flex items-center justify-center">
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-300 ${checkoutStep === 3 ? 'bg-pink-600 text-white shadow-xs scale-110' : 'bg-slate-100 text-slate-450'}`}>
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-300 ${checkoutStep === 3 ? 'bg-pink-600 text-white shadow-xs scale-110' : 'bg-slate-100 text-slate-400'}`}>
                   3
                 </span>
               </div>
-              <span className={`text-[10px] font-bold transition-colors ${checkoutStep === 3 ? 'text-pink-600 font-extrabold' : 'text-slate-450'}`}>Pagamento</span>
+              <span className={`text-[10px] font-bold transition-colors ${checkoutStep === 3 ? 'text-pink-600 font-extrabold' : 'text-slate-400'}`}>Pagamento</span>
             </button>
           </div>
         )}
@@ -832,7 +832,7 @@ export function CheckoutWizard({
               {/* Receipt Box */}
               <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-left space-y-3 shadow-xs">
                 <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-100">
-                  <span className="text-slate-450 font-bold">Código do Pedido</span>
+                  <span className="text-slate-400 font-bold">Código do Pedido</span>
                   <div className="flex items-center gap-1.5 font-mono font-black text-slate-800 bg-white px-2 py-1 rounded-lg border border-slate-100">
                     <span>{completedOrder.id}</span>
                     <button
@@ -852,7 +852,7 @@ export function CheckoutWizard({
 
                 {completedOrder.trackingCode && (
                   <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-100">
-                    <span className="text-slate-450 font-bold">Código de Rastreio (Correios)</span>
+                    <span className="text-slate-400 font-bold">Código de Rastreio (Correios)</span>
                     <div className="flex items-center gap-1.5 font-mono font-black text-pink-600 bg-white px-2 py-1 rounded-lg border border-slate-100">
                       <span>{completedOrder.trackingCode}</span>
                       <button
@@ -871,7 +871,7 @@ export function CheckoutWizard({
                 {/* Order Info Rows */}
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-slate-450 font-semibold">Forma de Recebimento</span>
+                    <span className="text-slate-400 font-semibold">Forma de Recebimento</span>
                     <span className="text-slate-800 font-extrabold">
                       {completedOrder.deliveryMethod === 'motoboy' ? 'Motoboy 🏍️' :
                        completedOrder.deliveryMethod === 'correios' ? 'Correios 📦' :
@@ -880,14 +880,14 @@ export function CheckoutWizard({
                   </div>
                   {completedOrder.deliveryMethod === 'retirada' && completedOrder.pickupDate && (
                     <div className="flex justify-between">
-                      <span className="text-slate-450 font-semibold">Data de Retirada</span>
+                      <span className="text-slate-400 font-semibold">Data de Retirada</span>
                       <span className="text-slate-800 font-extrabold">
                         {new Date(completedOrder.pickupDate).toLocaleDateString('pt-BR')} às {completedOrder.pickupTime}
                       </span>
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span className="text-slate-450 font-semibold">Forma de Pagamento</span>
+                    <span className="text-slate-400 font-semibold">Forma de Pagamento</span>
                     <span className="text-slate-800 font-extrabold uppercase">
                       {completedOrder.paymentMethod === 'pix' ? 'PIX ⚡' : 'Cartão de Crédito 💳'}
                     </span>
@@ -1035,7 +1035,7 @@ export function CheckoutWizard({
             </button>
           </div>
         ) : cart.length === 0 ? (
-          <div className="py-16 text-center text-slate-450 space-y-3">
+          <div className="py-16 text-center text-slate-400 space-y-3">
             <ShoppingBag size={40} className="mx-auto text-slate-300" />
             <p className="font-bold text-slate-600 text-sm">Sua sacola de compras está vazia.</p>
             <p className="text-[11px]">Aproveite para rechear de conjuntos lindos!</p>
@@ -1082,7 +1082,7 @@ export function CheckoutWizard({
                             <button 
                               type="button"
                               onClick={() => handleUpdateItemQty(idx, -1)}
-                              className="w-5 h-5 bg-white text-slate-650 hover:bg-slate-50 flex items-center justify-center cursor-pointer font-bold border-none"
+                              className="w-5 h-5 bg-white text-slate-600 hover:bg-slate-50 flex items-center justify-center cursor-pointer font-bold border-none"
                             >
                               -
                             </button>
@@ -1090,7 +1090,7 @@ export function CheckoutWizard({
                             <button 
                               type="button"
                               onClick={() => handleUpdateItemQty(idx, 1)}
-                              className="w-5 h-5 bg-white text-slate-650 hover:bg-slate-50 flex items-center justify-center cursor-pointer font-bold border-none"
+                              className="w-5 h-5 bg-white text-slate-600 hover:bg-slate-50 flex items-center justify-center cursor-pointer font-bold border-none"
                             >
                               +
                             </button>
@@ -1116,7 +1116,7 @@ export function CheckoutWizard({
                   <div className="flex items-center gap-1.5 text-[#1E3A42] font-extrabold text-[9.5px] uppercase tracking-wider">
                     <Sparkles size={11} className="text-pink-500 animate-pulse" />
                     <span>Aproveite e Leve Junto</span>
-                    <span className="ml-auto text-[7.5px] bg-pink-100 text-pink-750 font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                    <span className="ml-auto text-[7.5px] bg-pink-100 text-pink-700 font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">
                       Combo Progressivo
                     </span>
                   </div>
@@ -1124,14 +1124,14 @@ export function CheckoutWizard({
                   {!isUpsellInCart ? (
                     <div className="flex items-center justify-between gap-3 bg-white p-2 rounded-xl border border-slate-100 shadow-xs">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-150 border border-slate-100 shrink-0">
+                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 border border-slate-100 shrink-0">
                           <img src={suggestedProduct.image} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         </div>
                         <div className="leading-snug">
                           <p className="font-extrabold text-slate-800 text-[10px] line-clamp-1 max-w-[150px]">
                             {suggestedProduct.name}
                           </p>
-                          <p className="text-[9px] text-slate-450 font-medium">Peça de giro rápido</p>
+                          <p className="text-[9px] text-slate-400 font-medium">Peça de giro rápido</p>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <span className="text-[10px] text-pink-600 font-black font-mono">
                               R$ {(suggestedProduct.price * 0.9).toFixed(2)}
@@ -1159,14 +1159,14 @@ export function CheckoutWizard({
                       </button>
                     </div>
                   ) : (
-                    <div className="bg-emerald-50/70 border border-emerald-100 p-2.5 rounded-xl flex items-center justify-between text-emerald-850 animate-in fade-in duration-300">
+                    <div className="bg-emerald-50/70 border border-emerald-100 p-2.5 rounded-xl flex items-center justify-between text-emerald-800 animate-in fade-in duration-300">
                       <div className="flex items-center gap-1.5">
                         <CheckCircle2 size={13} className="text-emerald-600 shrink-0 animate-bounce" />
                         <span className="text-[10px] font-medium tracking-wide">
                           Peça complementar adicionada! <strong className="font-extrabold text-emerald-900">Desconto Progressivo Aplicado!</strong>
                         </span>
                       </div>
-                      <span className="text-[8px] font-black bg-emerald-150 text-emerald-800 px-1.5 py-0.5 rounded font-mono uppercase tracking-wider">
+                      <span className="text-[8px] font-black bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-mono uppercase tracking-wider">
                         -10% OFF
                       </span>
                     </div>
@@ -1175,7 +1175,7 @@ export function CheckoutWizard({
 
                 <div className="space-y-4 pt-3 border-t border-slate-100/65">
                   {/* Delivery Type Selector and Free Shipping Progress */}
-                  <div className="bg-slate-50 border border-slate-150 rounded-2xl p-3.5 space-y-3 text-left">
+                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-3.5 space-y-3 text-left">
                     <label className="text-slate-500 font-bold text-[9px] uppercase tracking-wider block">Como deseja receber seu pedido?</label>
                     <div className="grid grid-cols-2 p-1 bg-slate-200/55 rounded-xl font-sans font-bold text-[10px]">
                       <button
@@ -1225,7 +1225,7 @@ export function CheckoutWizard({
                       <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-2.5 flex items-start gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
                         <MapPin size={14} className="text-emerald-600 mt-0.5 shrink-0" />
                         <div className="space-y-0.5">
-                          <span className="font-extrabold text-[9px] text-emerald-850 block uppercase tracking-wide">Ponto de Retirada Física (Frete R$ 0,00)</span>
+                          <span className="font-extrabold text-[9px] text-emerald-800 block uppercase tracking-wide">Ponto de Retirada Física (Frete R$ 0,00)</span>
                           <p className="text-[10px] text-emerald-700 font-semibold leading-snug">Disponível para retirada na loja física em {storeCityName}, {storeStateName}</p>
                         </div>
                       </div>
@@ -1236,8 +1236,8 @@ export function CheckoutWizard({
                             <div className="flex items-center gap-2">
                               <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-bold">✓</span>
                               <div>
-                                <span className="font-extrabold text-[9px] text-emerald-850 block uppercase tracking-wide">Frete Grátis Ativado</span>
-                                <p className="text-[9.5px] text-emerald-650 font-medium leading-none">Sua compra superou R$ 399,00!</p>
+                                <span className="font-extrabold text-[9px] text-emerald-800 block uppercase tracking-wide">Frete Grátis Ativado</span>
+                                <p className="text-[9.5px] text-emerald-600 font-medium leading-none">Sua compra superou R$ 399,00!</p>
                               </div>
                             </div>
                             <span className="bg-emerald-600 text-white font-sans text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm animate-pulse">
@@ -1245,7 +1245,7 @@ export function CheckoutWizard({
                             </span>
                           </div>
                         ) : (
-                          <div className="bg-white/85 border border-slate-150 rounded-xl p-2.5 space-y-2">
+                          <div className="bg-white/85 border border-slate-100 rounded-xl p-2.5 space-y-2">
                             <div className="flex justify-between items-center text-[9px]">
                               <span className="text-slate-500 font-bold uppercase tracking-wide">Frete Grátis acima de R$ 399,00</span>
                               <span className="text-pink-600 font-extrabold font-mono text-[9.5px]">Faltam R$ {(399 - cartSubtotal).toFixed(2)}</span>
@@ -1256,7 +1256,7 @@ export function CheckoutWizard({
                                 style={{ width: `${Math.min(100, (cartSubtotal / 399) * 100)}%` }}
                               />
                             </div>
-                            <p className="text-[9px] text-slate-450 font-medium leading-relaxed">
+                            <p className="text-[9px] text-slate-400 font-medium leading-relaxed">
                               Faltam apenas <span className="font-bold text-pink-600">R$ {(399 - cartSubtotal).toFixed(2)}</span> para você garantir Frete Grátis!
                             </p>
                           </div>
@@ -1310,7 +1310,7 @@ export function CheckoutWizard({
                           value={couponCode}
                           onChange={(e) => setCouponCode(e.target.value)}
                           disabled={isApplyingCoupon}
-                          className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs uppercase font-mono font-bold text-rose-600 disabled:opacity-50 focus:outline-none focus:border-pink-550"
+                          className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs uppercase font-mono font-bold text-rose-600 disabled:opacity-50 focus:outline-none focus:border-pink-500"
                         />
                         <button 
                           type="button" 
@@ -1330,7 +1330,7 @@ export function CheckoutWizard({
                       </div>
                     )}
 
-                    <div className="flex justify-between items-center text-[8px] text-slate-450 pt-0.5">
+                    <div className="flex justify-between items-center text-[8px] text-slate-400 pt-0.5">
                       <span>Dica: <strong>FITNESS10</strong> (10% OFF), <strong>BEMVINDA50</strong> (R$ 50 OFF)</span>
                       <span className="font-semibold text-slate-400">Cupons não-cumulativos</span>
                     </div>
@@ -1385,7 +1385,7 @@ export function CheckoutWizard({
 
                     <div className="flex justify-between">
                       <span>Frete / Envio:</span>
-                      <span className="font-bold text-slate-850">
+                      <span className="font-bold text-slate-800">
                         {deliveryMethod === 'retirada' ? (
                           <span className="text-emerald-600 font-bold uppercase text-[9.5px]">Grátis (Retirada)</span>
                         ) : cartSubtotal >= 399 || appliedCoupon?.code === 'FRETEGRATIS' ? (
@@ -1466,7 +1466,7 @@ export function CheckoutWizard({
                               }
                               setClientCpf(val);
                             }}
-                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-xs text-center focus:outline-none focus:border-pink-550 focus:ring-1 focus:ring-pink-550 font-mono"
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-medium text-xs text-center focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 font-mono"
                           />
                         </div>
 
@@ -1516,7 +1516,7 @@ export function CheckoutWizard({
                             <Sparkles size={12} className="animate-pulse" />
                             <span className="font-extrabold text-[10px] tracking-wider uppercase">Cadastro Confirmado</span>
                           </div>
-                          <p className="text-[9.5px] text-slate-650 leading-normal">
+                          <p className="text-[9.5px] text-slate-600 leading-normal">
                             Que bom ter você aqui, <strong>{clientName || 'Cliente'}</strong>! Seus dados foram importados com sucesso. Confira abaixo e confirme o endereço de entrega.
                           </p>
                           <div className="pt-1 flex items-center justify-between text-[8.5px] font-bold text-slate-500 uppercase tracking-wider">
@@ -1557,49 +1557,49 @@ export function CheckoutWizard({
                             👤 Dados Pessoais da Cliente
                           </span>
                           <div>
-                            <label className="text-slate-450 font-bold text-[9px] uppercase tracking-wider block mb-0.5">Nome Completo *</label>
+                            <label className="text-slate-400 font-bold text-[9px] uppercase tracking-wider block mb-0.5">Nome Completo *</label>
                             <input 
                               type="text"
                               required
                               placeholder="Ex: Gabriela Duarte"
                               value={clientName}
                               onChange={(e) => setClientName(e.target.value)}
-                              className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-medium text-xs focus:outline-none focus:border-pink-550"
+                              className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-medium text-xs focus:outline-none focus:border-pink-500"
                             />
                           </div>
 
                           <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <label className="text-slate-450 font-bold text-[9px] uppercase tracking-wider block mb-0.5">Data de Nascimento (Opcional)</label>
+                              <label className="text-slate-400 font-bold text-[9px] uppercase tracking-wider block mb-0.5">Data de Nascimento (Opcional)</label>
                               <input 
                                 type="date"
                                 value={clientBirthDate}
                                 onChange={(e) => setClientBirthDate(e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-medium text-xs focus:outline-none focus:border-pink-550 font-mono"
+                                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-medium text-xs focus:outline-none focus:border-pink-500 font-mono"
                               />
                             </div>
                             <div>
-                              <label className="text-slate-450 font-bold text-[9px] uppercase tracking-wider block mb-0.5">Celular / WhatsApp *</label>
+                              <label className="text-slate-400 font-bold text-[9px] uppercase tracking-wider block mb-0.5">Celular / WhatsApp *</label>
                               <input 
                                 type="text"
                                 required
                                 placeholder="Ex: (11) 99999-8888"
                                 value={clientPhone}
                                 onChange={(e) => setClientPhone(e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-medium text-xs focus:outline-none focus:border-pink-550 font-mono"
+                                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-medium text-xs focus:outline-none focus:border-pink-500 font-mono"
                               />
                             </div>
                           </div>
 
                           <div>
-                            <label className="text-slate-450 font-bold text-[9px] uppercase tracking-wider block mb-0.5">E-mail *</label>
+                            <label className="text-slate-400 font-bold text-[9px] uppercase tracking-wider block mb-0.5">E-mail *</label>
                             <input 
                               type="email"
                               required
                               placeholder="Ex: gabriela@email.com"
                               value={clientEmail}
                               onChange={(e) => setClientEmail(e.target.value)}
-                              className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-medium text-xs focus:outline-none focus:border-pink-550"
+                              className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-medium text-xs focus:outline-none focus:border-pink-500"
                             />
                           </div>
                         </div>
@@ -1607,7 +1607,7 @@ export function CheckoutWizard({
                         {/* Addresses list for Old Customer */}
                         {isExistingClient && clientAddresses.length > 0 && (
                           <div className="space-y-2">
-                            <label className="text-slate-450 font-bold text-[9px] uppercase tracking-wider block">Selecione o Endereço de Entrega *</label>
+                            <label className="text-slate-400 font-bold text-[9px] uppercase tracking-wider block">Selecione o Endereço de Entrega *</label>
                             <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
                               {clientAddresses.map((addr, idx) => {
                                 const isSelected = selectedAddressIndex === idx && !showAddressForm;
@@ -1694,7 +1694,7 @@ export function CheckoutWizard({
 
                       {/* Delivery selection buttons */}
                     <div>
-                      <label className="text-slate-450 font-bold text-[9px] uppercase tracking-wider block mb-1">Forma de Retirada/Envio *</label>
+                      <label className="text-slate-400 font-bold text-[9px] uppercase tracking-wider block mb-1">Forma de Retirada/Envio *</label>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 font-sans font-bold">
                         <button
                           type="button"
@@ -1702,7 +1702,7 @@ export function CheckoutWizard({
                           className={`py-1.5 transition rounded-lg text-[9px] flex flex-col items-center justify-center gap-1 cursor-pointer border
                             ${deliveryMethod === 'motoboy' 
                               ? 'bg-slate-900 border-slate-900 text-white' 
-                              : 'bg-slate-50 border-slate-200 text-slate-650 hover:bg-slate-100'}`}
+                              : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}
                         >
                           <Truck size={12} />
                           <span>Motoboy</span>
@@ -1713,7 +1713,7 @@ export function CheckoutWizard({
                           className={`py-1.5 transition rounded-lg text-[9px] flex flex-col items-center justify-center gap-1 cursor-pointer border
                             ${deliveryMethod === 'correios' 
                               ? 'bg-slate-900 border-slate-900 text-white' 
-                              : 'bg-slate-50 border-slate-200 text-slate-650 hover:bg-slate-100'}`}
+                              : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}
                         >
                           <Package size={12} />
                           <span>Correios/Transp.</span>
@@ -1724,7 +1724,7 @@ export function CheckoutWizard({
                           className={`py-1.5 transition rounded-lg text-[9px] flex flex-col items-center justify-center gap-1 cursor-pointer border
                             ${deliveryMethod === 'combinar' 
                               ? 'bg-slate-900 border-slate-900 text-white' 
-                              : 'bg-slate-50 border-slate-200 text-slate-650 hover:bg-slate-100'}`}
+                              : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}
                         >
                           <Handshake size={12} />
                           <span>Combinar</span>
@@ -1748,7 +1748,7 @@ export function CheckoutWizard({
                           className={`py-1.5 transition rounded-lg text-[9px] flex flex-col items-center justify-center gap-1 cursor-pointer border
                             ${deliveryMethod === 'retirada' 
                               ? 'bg-slate-900 border-slate-900 text-white' 
-                              : 'bg-slate-50 border-slate-200 text-slate-650 hover:bg-slate-100'}`}
+                              : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}
                         >
                           <MapPin size={12} />
                           <span>Retirar</span>
@@ -1770,7 +1770,7 @@ export function CheckoutWizard({
                         <div className="bg-emerald-50 border border-emerald-100/80 rounded-xl p-2.5 flex items-start gap-2">
                           <MapPin size={14} className="text-emerald-600 mt-0.5 shrink-0" />
                           <div className="space-y-0.5">
-                            <span className="font-extrabold text-[9px] text-emerald-850 block uppercase tracking-wide">Ponto de Retirada Física (Frete R$ 0,00)</span>
+                            <span className="font-extrabold text-[9px] text-emerald-800 block uppercase tracking-wide">Ponto de Retirada Física (Frete R$ 0,00)</span>
                             <p className="text-[10px] text-emerald-700 font-semibold leading-snug">Disponível para retirada na loja física em {storeCityName}, {storeStateName}</p>
                           </div>
                         </div>
@@ -1784,7 +1784,7 @@ export function CheckoutWizard({
                               value={pickupDate}
                               min={new Date().toISOString().split('T')[0]}
                               onChange={(e) => setPickupDate(e.target.value)}
-                              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-[10px] bg-white font-semibold focus:outline-none focus:border-pink-550"
+                              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-[10px] bg-white font-semibold focus:outline-none focus:border-pink-500"
                             />
                           </div>
                           <div>
@@ -1793,7 +1793,7 @@ export function CheckoutWizard({
                               required
                               value={pickupTime}
                               onChange={(e) => setPickupTime(e.target.value)}
-                              className="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-[10px] bg-white font-semibold focus:outline-none focus:border-pink-550"
+                              className="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-[10px] bg-white font-semibold focus:outline-none focus:border-pink-500"
                             >
                               <option value="">Selecione...</option>
                               <option value="09:00">09:00 (Abertura)</option>
@@ -1818,7 +1818,7 @@ export function CheckoutWizard({
                         {isExistingClient && clientAddresses.length > 0 && !showAddressForm && selectedAddressIndex !== 'new' ? (
                           <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-3 text-left space-y-1.5 font-sans">
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 text-emerald-850 font-bold">
+                              <div className="flex items-center gap-1.5 text-emerald-800 font-bold">
                                 <MapPin size={13} className="text-emerald-600 shrink-0" />
                                 <span className="text-[9.5px] font-extrabold uppercase tracking-wider">Endereço de Entrega Selecionado</span>
                               </div>
@@ -1884,43 +1884,43 @@ export function CheckoutWizard({
                             
                             <div className="grid grid-cols-3 gap-2">
                               <div className="col-span-1">
-                                <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">CEP *</label>
+                                <label className="text-slate-400 font-bold text-[8px] uppercase tracking-wider block">CEP *</label>
                                 <input 
                                   type="text"
                                   required
                                   placeholder="Ex: 01311200"
                                   value={addressCep}
                                   onChange={(e) => setAddressCep(e.target.value)}
-                                  className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none focus:border-pink-550 font-mono"
+                                  className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none focus:border-pink-500 font-mono"
                                 />
                               </div>
                               <div className="col-span-2">
-                                <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">Rua / Logradouro *</label>
+                                <label className="text-slate-400 font-bold text-[8px] uppercase tracking-wider block">Rua / Logradouro *</label>
                                 <input 
                                   type="text"
                                   required
                                   placeholder="Ex: Avenida Paulista"
                                   value={addressStreet}
                                   onChange={(e) => setAddressStreet(e.target.value)}
-                                  className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none focus:border-pink-550"
+                                  className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none focus:border-pink-500"
                                 />
                               </div>
                             </div>
 
                             <div className="grid grid-cols-3 gap-2">
                               <div>
-                                <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">Número *</label>
+                                <label className="text-slate-400 font-bold text-[8px] uppercase tracking-wider block">Número *</label>
                                 <input 
                                   type="text"
                                   required
                                   placeholder="Ex: 100"
                                   value={addressNum}
                                   onChange={(e) => setAddressNum(e.target.value)}
-                                  className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none focus:border-pink-550"
+                                  className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium focus:outline-none focus:border-pink-500"
                                 />
                               </div>
                               <div className="col-span-2">
-                                <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">Complemento</label>
+                                <label className="text-slate-400 font-bold text-[8px] uppercase tracking-wider block">Complemento</label>
                                 <input 
                                   type="text"
                                   placeholder="Ex: Apto 101"
@@ -1933,7 +1933,7 @@ export function CheckoutWizard({
 
                             <div className="grid grid-cols-3 gap-2">
                               <div>
-                                <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">Bairro *</label>
+                                <label className="text-slate-400 font-bold text-[8px] uppercase tracking-wider block">Bairro *</label>
                                 <input 
                                   type="text"
                                   required
@@ -1944,7 +1944,7 @@ export function CheckoutWizard({
                                 />
                               </div>
                               <div>
-                                <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">Cidade *</label>
+                                <label className="text-slate-400 font-bold text-[8px] uppercase tracking-wider block">Cidade *</label>
                                 <input 
                                   type="text"
                                   required
@@ -1955,7 +1955,7 @@ export function CheckoutWizard({
                                 />
                               </div>
                               <div>
-                                <label className="text-slate-450 font-bold text-[8px] uppercase tracking-wider block">Estado *</label>
+                                <label className="text-slate-400 font-bold text-[8px] uppercase tracking-wider block">Estado *</label>
                                 <input 
                                   type="text"
                                   required
@@ -1972,7 +1972,7 @@ export function CheckoutWizard({
                         {/* Motoboy Local Delivery Rate */}
                         {deliveryMethod === 'motoboy' && (
                           <div className="mt-3 bg-emerald-50/80 border border-emerald-200/70 rounded-xl p-3 text-left space-y-2.5">
-                            <p className="text-[10px] font-black text-emerald-850 flex items-center gap-1.5 uppercase tracking-wide">
+                            <p className="text-[10px] font-black text-emerald-800 flex items-center gap-1.5 uppercase tracking-wide">
                               <Truck size={12} className="text-emerald-600 shrink-0" />
                               <span>Entrega via Motoboy Express</span>
                             </p>
@@ -1998,7 +1998,7 @@ export function CheckoutWizard({
                                     setSelectedFreightId('motoboy-pending');
                                   }
                                 }}
-                                className="w-full px-2.5 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-pink-550 cursor-pointer shadow-xs"
+                                className="w-full px-2.5 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:border-pink-500 cursor-pointer shadow-xs"
                               >
                                 <option value="">-- Escolha uma região / bairro --</option>
                                 {motoboyRegions.map((reg: any) => (
@@ -2077,7 +2077,7 @@ export function CheckoutWizard({
                                           <p className="text-[10px] font-bold text-slate-800">
                                             {option.company} - {option.name}
                                           </p>
-                                          <p className="text-[8px] text-slate-450 font-medium">Prazo estimado: {option.delivery_time} {option.delivery_time === 1 ? 'dia útil' : 'dias úteis'}</p>
+                                          <p className="text-[8px] text-slate-400 font-medium">Prazo estimado: {option.delivery_time} {option.delivery_time === 1 ? 'dia útil' : 'dias úteis'}</p>
                                         </div>
                                       </div>
                                       <span className="text-[10px] font-black text-pink-600 font-mono">
@@ -2096,7 +2096,7 @@ export function CheckoutWizard({
                     )}
 
                       <div>
-                        <label className="text-slate-450 font-bold text-[9px] uppercase tracking-wider block">Nota / Observação Especial (Opcional)</label>
+                        <label className="text-slate-400 font-bold text-[9px] uppercase tracking-wider block">Nota / Observação Especial (Opcional)</label>
                         <input 
                           type="text"
                           placeholder="Ex: Embrulhar para presente, deixar na portaria..."
@@ -2185,7 +2185,7 @@ export function CheckoutWizard({
                       </div>
                     ) : (
                       <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-left">
-                        <p className="text-[9px] text-slate-650 leading-relaxed font-medium">
+                        <p className="text-[9px] text-slate-600 leading-relaxed font-medium">
                           Consulte seu saldo de Cashback na <strong>Área VIP</strong> (ícone de perfil no topo do site) para resgatá-lo nesta compra!
                         </p>
                         <button
@@ -2212,8 +2212,8 @@ export function CheckoutWizard({
                         onClick={() => setPaymentMethod('pix')}
                         className={`py-2 px-2.5 transition rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer border
                           ${paymentMethod === 'pix' 
-                            ? 'bg-pink-50 border-pink-550 text-pink-700 font-extrabold ring-1 ring-pink-550/20' 
-                            : 'bg-slate-50 border-slate-200 text-slate-650 hover:bg-slate-100'}`}
+                            ? 'bg-pink-50 border-pink-500 text-pink-700 font-extrabold ring-1 ring-pink-500/20' 
+                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}
                       >
                         <QrCode size={13} className={paymentMethod === 'pix' ? "text-pink-600" : "text-slate-400"} />
                         <div className="text-left leading-normal font-sans">
@@ -2227,8 +2227,8 @@ export function CheckoutWizard({
                         onClick={() => setPaymentMethod('cartao')}
                         className={`py-2 px-2.5 transition rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer border
                           ${paymentMethod === 'cartao' 
-                            ? 'bg-pink-50 border-pink-550 text-pink-700 font-extrabold ring-1 ring-pink-550/20' 
-                            : 'bg-slate-50 border-slate-200 text-slate-650 hover:bg-slate-100'}`}
+                            ? 'bg-pink-50 border-pink-500 text-pink-700 font-extrabold ring-1 ring-pink-500/20' 
+                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}
                       >
                         <CreditCard size={13} className={paymentMethod === 'cartao' ? "text-pink-600" : "text-slate-400"} />
                         <div className="text-left leading-normal font-sans">
@@ -2251,7 +2251,7 @@ export function CheckoutWizard({
                           </div>
                         </div>
 
-                        <div className="bg-white p-4 rounded-xl border border-emerald-150 shadow-xs space-y-3 relative overflow-hidden">
+                        <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-xs space-y-3 relative overflow-hidden">
                           <p className="text-[11px] font-bold text-slate-700 leading-normal">
                             O seu <strong>QR Code legítimo e código Pix Copia e Cola dinâmico</strong> serão gerados em tempo real pela <strong>InfinitePay</strong> assim que você clicar em "Finalizar Pedido".
                           </p>
@@ -2280,18 +2280,18 @@ export function CheckoutWizard({
 
                           <ul className="text-[9.5px] text-slate-500 space-y-1 font-medium">
                             <li className="flex items-center gap-1.5">
-                              <span className="text-pink-650 font-bold">✔</span> Parcelamento com excelentes taxas no cartão
+                              <span className="text-pink-600 font-bold">✔</span> Parcelamento com excelentes taxas no cartão
                             </li>
                             <li className="flex items-center gap-1.5">
-                              <span className="text-pink-650 font-bold">✔</span> Aprovação imediata e 100% protegida
+                              <span className="text-pink-600 font-bold">✔</span> Aprovação imediata e 100% protegida
                             </li>
                             <li className="flex items-center gap-1.5">
-                              <span className="text-pink-650 font-bold">✔</span> Conectado direto com nosso sistema de estoque
+                              <span className="text-pink-600 font-bold">✔</span> Conectado direto com nosso sistema de estoque
                             </li>
                           </ul>
                         </div>
                         
-                        <p className="text-[8.5px] font-medium text-slate-450 text-center leading-normal">
+                        <p className="text-[8.5px] font-medium text-slate-400 text-center leading-normal">
                           🔒 Ambiente seguro auditado pela InfinitePay. Não armazenamos seus dados bancários.
                         </p>
                       </div>
@@ -2307,13 +2307,13 @@ export function CheckoutWizard({
                         <span>🎉</span>
                         <span>Cadastro Sincronizado!</span>
                       </p>
-                      <p className="text-[10px] text-emerald-750 font-medium leading-relaxed">
+                      <p className="text-[10px] text-emerald-700 font-medium leading-relaxed">
                         {vipMessage}
                       </p>
                     </div>
                   )}
 
-                  <div className="space-y-1 text-slate-650 text-xs font-sans">
+                  <div className="space-y-1 text-slate-600 text-xs font-sans">
                     <div className="flex justify-between">
                       <span>Subtotal das Peças:</span>
                       <span className="font-bold text-slate-800">R$ {cartSubtotal.toFixed(2)}</span>
@@ -2364,7 +2364,7 @@ export function CheckoutWizard({
                         ) : selectedFreightFee !== null ? (
                           <span className="flex flex-col items-end">
                             <span>R$ {selectedFreightFee.toFixed(2)}</span>
-                            {selectedFreightName && <span className="text-[7.5px] text-slate-450 font-medium leading-none mt-0.5">({selectedFreightName})</span>}
+                            {selectedFreightName && <span className="text-[7.5px] text-slate-400 font-medium leading-none mt-0.5">({selectedFreightName})</span>}
                           </span>
                         ) : (
                           "R$ 0,00"

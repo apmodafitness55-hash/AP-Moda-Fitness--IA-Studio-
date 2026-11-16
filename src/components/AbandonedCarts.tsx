@@ -286,7 +286,7 @@ export default function AbandonedCarts({ checkouts = [], setCheckouts, onSyncChe
           </div>
           <div>
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Aguardando Finalizar</div>
-            <div className="text-xl font-extrabold text-slate-850 font-mono mt-0.5">{stats.totalPending}</div>
+            <div className="text-xl font-extrabold text-slate-800 font-mono mt-0.5">{stats.totalPending}</div>
             <div className="text-[10px] text-slate-500 mt-0.5">Checkouts em aberto</div>
           </div>
         </div>
@@ -297,7 +297,7 @@ export default function AbandonedCarts({ checkouts = [], setCheckouts, onSyncChe
           </div>
           <div>
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Abandonados (+15 min)</div>
-            <div className="text-xl font-extrabold text-slate-850 font-mono mt-0.5">{stats.totalAbandonedOver15}</div>
+            <div className="text-xl font-extrabold text-slate-800 font-mono mt-0.5">{stats.totalAbandonedOver15}</div>
             <div className="text-[10px] text-rose-600 font-semibold mt-0.5">Alerta de recuperação ativo</div>
           </div>
         </div>
@@ -308,7 +308,7 @@ export default function AbandonedCarts({ checkouts = [], setCheckouts, onSyncChe
           </div>
           <div>
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recuperados por IA</div>
-            <div className="text-xl font-extrabold text-slate-850 font-mono mt-0.5">{stats.totalRecovered}</div>
+            <div className="text-xl font-extrabold text-slate-800 font-mono mt-0.5">{stats.totalRecovered}</div>
             <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">R$ {stats.recoveredValue.toFixed(2)} salvos</div>
           </div>
         </div>
@@ -385,7 +385,7 @@ export default function AbandonedCarts({ checkouts = [], setCheckouts, onSyncChe
             ) : (
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-extrabold text-slate-450 uppercase tracking-wider">
+                  <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
                     <th className="p-4">Cliente</th>
                     <th className="p-4">Contato</th>
                     <th className="p-4">Itens</th>
@@ -411,7 +411,7 @@ export default function AbandonedCarts({ checkouts = [], setCheckouts, onSyncChe
                             {c.phone || 'Sem WhatsApp'}
                           </div>
                           {c.email && (
-                            <div className="text-[10px] text-slate-450 flex items-center gap-1">
+                            <div className="text-[10px] text-slate-400 flex items-center gap-1">
                               <Mail size={10} />
                               {c.email}
                             </div>
@@ -427,7 +427,7 @@ export default function AbandonedCarts({ checkouts = [], setCheckouts, onSyncChe
                           </div>
                         </td>
                         <td className="p-4">
-                          <div className="font-bold text-slate-850 font-mono">R$ {c.total.toFixed(2)}</div>
+                          <div className="font-bold text-slate-800 font-mono">R$ {c.total.toFixed(2)}</div>
                           <div className="mt-1">
                             {c.status === 'recuperado' ? (
                               <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 font-bold text-[9px] rounded-full uppercase tracking-wider flex items-center gap-0.5 w-max">
@@ -526,7 +526,7 @@ export default function AbandonedCarts({ checkouts = [], setCheckouts, onSyncChe
                   <div className="p-8 text-center bg-pink-50/20 border border-dashed border-pink-200 rounded-xl space-y-3">
                     <Loader2 size={24} className="text-pink-600 animate-spin mx-auto" />
                     <div className="text-xs font-bold text-slate-700">Google Gemini estruturando roteiro...</div>
-                    <p className="text-[10px] text-slate-450 leading-relaxed max-w-[220px] mx-auto">
+                    <p className="text-[10px] text-slate-400 leading-relaxed max-w-[220px] mx-auto">
                       Analisando primeiro nome, as peças esquecidas e desenhando uma abordagem calorosa, empática e sem tom robótico.
                     </p>
                   </div>
@@ -594,7 +594,7 @@ export default function AbandonedCarts({ checkouts = [], setCheckouts, onSyncChe
                 <Sparkles size={20} />
               </div>
               <h4 className="text-xs font-bold text-slate-700">Selecione um cliente para começar</h4>
-              <p className="text-[10px] text-slate-450 mt-1 max-w-[180px] mx-auto">
+              <p className="text-[10px] text-slate-400 mt-1 max-w-[180px] mx-auto">
                 Dispararemos uma análise inteligente e personalizada sobre o primeiro nome e produtos esquecidos.
               </p>
             </div>

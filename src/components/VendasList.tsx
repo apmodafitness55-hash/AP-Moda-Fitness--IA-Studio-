@@ -137,8 +137,7 @@ export default function VendasList({
       const cleanCoupon = String(couponCode).trim().toUpperCase();
       const matchPartner = registeredPartners.find((p: any) => {
         const pCoupon = (p.couponCode || '').trim().toUpperCase();
-        const pLogin = (p.login || '').trim().toUpperCase();
-        return pCoupon === cleanCoupon || (pLogin && (pLogin === cleanCoupon || pLogin + '10' === cleanCoupon));
+        return Boolean(pCoupon && pCoupon === cleanCoupon);
       });
       if (matchPartner) {
         partnerName = matchPartner.name;
@@ -486,15 +485,35 @@ export default function VendasList({
         return s;
       }));
 
-      // 2. Put products back to stock
+      // 2. Put products back to stock (including multi-variant size/color stocks)
       setProducts(prevProducts => {
         return prevProducts.map(prod => {
-          const itemSold = targetSale.items.find(it => it.productId === prod.id);
-          if (itemSold) {
+          const itemsSold = targetSale.items.filter(it => it.productId === prod.id);
+          if (itemsSold.length > 0) {
+            const updatedColorStocks = prod.colorStocks ? { ...prod.colorStocks } : {};
+            const updatedSizeColorStocks = prod.sizeColorStocks ? JSON.parse(JSON.stringify(prod.sizeColorStocks)) : {};
+            let totalRestored = 0;
+
+            for (const itemSold of itemsSold) {
+              const qty = Number(itemSold.quantity || 1);
+              const sz = itemSold.selectedSize || '';
+              const col = itemSold.selectedColor || '';
+              totalRestored += qty;
+
+              if (sz && col && updatedSizeColorStocks[sz] && updatedSizeColorStocks[sz][col] !== undefined) {
+                updatedSizeColorStocks[sz][col] = updatedSizeColorStocks[sz][col] + qty;
+              }
+              if (col && updatedColorStocks[col] !== undefined) {
+                updatedColorStocks[col] = updatedColorStocks[col] + qty;
+              }
+            }
+
             return {
               ...prod,
-              stock: prod.stock + itemSold.quantity,
-              salesCount: Math.max(0, prod.salesCount - itemSold.quantity)
+              stock: prod.stock + totalRestored,
+              salesCount: Math.max(0, prod.salesCount - totalRestored),
+              ...(prod.colorStocks ? { colorStocks: updatedColorStocks } : {}),
+              ...(prod.sizeColorStocks ? { sizeColorStocks: updatedSizeColorStocks } : {})
             };
           }
           return prod;
@@ -546,12 +565,32 @@ export default function VendasList({
       if (returnStock) {
         setProducts(prevProducts => {
           return prevProducts.map(prod => {
-            const itemSold = targetSale.items.find(it => it.productId === prod.id);
-            if (itemSold) {
+            const itemsSold = targetSale.items.filter(it => it.productId === prod.id);
+            if (itemsSold.length > 0) {
+              const updatedColorStocks = prod.colorStocks ? { ...prod.colorStocks } : {};
+              const updatedSizeColorStocks = prod.sizeColorStocks ? JSON.parse(JSON.stringify(prod.sizeColorStocks)) : {};
+              let totalRestored = 0;
+
+              for (const itemSold of itemsSold) {
+                const qty = Number(itemSold.quantity || 1);
+                const sz = itemSold.selectedSize || '';
+                const col = itemSold.selectedColor || '';
+                totalRestored += qty;
+
+                if (sz && col && updatedSizeColorStocks[sz] && updatedSizeColorStocks[sz][col] !== undefined) {
+                  updatedSizeColorStocks[sz][col] = updatedSizeColorStocks[sz][col] + qty;
+                }
+                if (col && updatedColorStocks[col] !== undefined) {
+                  updatedColorStocks[col] = updatedColorStocks[col] + qty;
+                }
+              }
+
               return {
                 ...prod,
-                stock: prod.stock + itemSold.quantity,
-                salesCount: Math.max(0, prod.salesCount - itemSold.quantity)
+                stock: prod.stock + totalRestored,
+                salesCount: Math.max(0, prod.salesCount - totalRestored),
+                ...(prod.colorStocks ? { colorStocks: updatedColorStocks } : {}),
+                ...(prod.sizeColorStocks ? { sizeColorStocks: updatedSizeColorStocks } : {})
               };
             }
             return prod;
@@ -698,7 +737,7 @@ export default function VendasList({
             <DollarSign size={22} />
           </div>
           <div className="min-w-0">
-            <span className="text-[10px] uppercase font-bold text-slate-450 block tracking-wide">Faturamento Líquido</span>
+            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wide">Faturamento Líquido</span>
             <p className="text-lg font-black text-slate-800 mt-0.5 truncate">
               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(metrics.totalBilled)}
             </p>
@@ -714,7 +753,7 @@ export default function VendasList({
             <TrendingUp size={22} />
           </div>
           <div className="min-w-0">
-            <span className="text-[10px] uppercase font-bold text-slate-450 block tracking-wide">Lucro Estimado</span>
+            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wide">Lucro Estimado</span>
             <p className="text-lg font-black text-slate-800 mt-0.5 truncate">
               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(metrics.netProfit)}
             </p>
@@ -727,7 +766,7 @@ export default function VendasList({
             <FileText size={22} />
           </div>
           <div className="min-w-0">
-            <span className="text-[10px] uppercase font-bold text-slate-450 block tracking-wide">Ticket Médio por Pedido</span>
+            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wide">Ticket Médio por Pedido</span>
             <p className="text-lg font-black text-slate-800 mt-0.5 truncate">
               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(metrics.averageTicket)}
             </p>
@@ -740,7 +779,7 @@ export default function VendasList({
             <XSquare size={22} className="text-rose-500" />
           </div>
           <div className="min-w-0">
-            <span className="text-[10px] uppercase font-bold text-slate-450 block tracking-wide">Pedidos Cancelados</span>
+            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wide">Pedidos Cancelados</span>
             <p className="text-lg font-black text-slate-800 mt-0.5 truncate">
               {metrics.canceledCount} <span className="text-slate-400 text-xs font-medium">unidades</span>
             </p>
@@ -750,7 +789,7 @@ export default function VendasList({
       </div>
 
       {/* Salesperson Comissions and rankings banner */}
-      <div className="bg-slate-900 border border-slate-850 rounded-2xl p-5 text-white flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 shadow-xl">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-white flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 shadow-xl">
         <div className="space-y-1">
           <span className="bg-pink-600 text-white font-bold text-[9px] uppercase font-sans tracking-widest px-2 py-0.5 rounded-full inline-block">
             Comissões de Vendedoras ({(parseFloat(localStorage.getItem('ap_commission_rate') || '5')).toFixed(1)}% Padrão)
@@ -797,7 +836,7 @@ export default function VendasList({
               placeholder="Buscar por ID, cliente, peça ou vendedor..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-150 rounded-xl text-xs placeholder-slate-400 text-slate-700 focus:outline-hidden focus:border-pink-500 focus:bg-white transition-all"
+              className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs placeholder-slate-400 text-slate-700 focus:outline-hidden focus:border-pink-500 focus:bg-white transition-all"
             />
           </div>
 
@@ -806,7 +845,7 @@ export default function VendasList({
             <select
               value={selectedChannel}
               onChange={(e) => setSelectedChannel(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2 font-medium text-slate-700 focus:outline-hidden"
+              className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2 font-medium text-slate-700 focus:outline-hidden"
             >
               <option value="all">-- Todos Canais de Venda --</option>
               <option value="Instagram">Instagram</option>
@@ -822,7 +861,7 @@ export default function VendasList({
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2 font-medium text-slate-700 focus:outline-hidden"
+              className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2 font-medium text-slate-700 focus:outline-hidden"
             >
               <option value="all">-- Status da Venda --</option>
               <option value="Concluída">Concluídas</option>
@@ -836,7 +875,7 @@ export default function VendasList({
             <select
               value={selectedSalesperson}
               onChange={(e) => setSelectedSalesperson(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2 font-medium text-slate-700 focus:outline-hidden"
+              className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2 font-medium text-slate-700 focus:outline-hidden"
             >
               <option value="all">-- Filtrar por Vendedor --</option>
               {salespeople.map(s => (
@@ -854,7 +893,7 @@ export default function VendasList({
             <select
               value={selectedPayMethod}
               onChange={(e) => setSelectedPayMethod(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2 font-medium text-slate-700 focus:outline-hidden"
+              className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2 font-medium text-slate-700 focus:outline-hidden"
             >
               <option value="all">-- Filtrar Forma de Pagamento --</option>
               {paymentMethods.map(m => (
@@ -870,7 +909,7 @@ export default function VendasList({
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-150 rounded-xl p-1.5 font-medium text-slate-700 focus:outline-hidden"
+              className="w-full bg-slate-50 border border-slate-100 rounded-xl p-1.5 font-medium text-slate-700 focus:outline-hidden"
             />
           </div>
 
@@ -881,7 +920,7 @@ export default function VendasList({
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-150 rounded-xl p-1.5 font-medium text-slate-700 focus:outline-hidden"
+              className="w-full bg-slate-50 border border-slate-100 rounded-xl p-1.5 font-medium text-slate-700 focus:outline-hidden"
             />
           </div>
         </div>
@@ -911,7 +950,7 @@ export default function VendasList({
       <div className="bg-white border border-slate-100 rounded-2xl shadow-xs overflow-hidden">
         <div className="p-4 border-b border-slate-50 flex items-center justify-between">
           <h3 className="text-xs font-extrabold uppercase font-sans text-slate-500 tracking-wider">Lançamentos de Vendas Filtrados ({filteredSales.length})</h3>
-          <span className="text-[10px] text-slate-450">Listagem atualizada com persistência em tempo real</span>
+          <span className="text-[10px] text-slate-400">Listagem atualizada com persistência em tempo real</span>
         </div>
 
         <div className="overflow-x-auto">
@@ -932,10 +971,10 @@ export default function VendasList({
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-150/40 text-slate-700">
+            <tbody className="divide-y divide-slate-100/40 text-slate-700">
               {filteredSales.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-8 text-center text-slate-400 italic">
+                  <td colSpan={11} className="p-8 text-center text-slate-400 italic">
                     Nenhuma venda encontrada com os filtros selecionados.
                   </td>
                 </tr>
@@ -970,7 +1009,7 @@ export default function VendasList({
                     </td>
 
                     {/* Vendedor */}
-                    <td className="p-3 font-medium text-slate-650">
+                    <td className="p-3 font-medium text-slate-600">
                       {sale.salesperson ? (
                         <span className="text-pink-600 bg-pink-50/20 px-1.5 py-0.5 rounded border border-pink-100/40">
                           👩‍💼 {sale.salesperson}
@@ -1023,7 +1062,7 @@ export default function VendasList({
                       <div className="space-y-0.5 text-[11px] truncate leading-tight">
                         {sale.items.map((it, idx) => (
                           <p key={idx} className="truncate text-slate-700 font-medium">
-                            <span className="text-slate-450 font-bold font-mono">{it.quantity}x</span> {it.name}
+                            <span className="text-slate-400 font-bold font-mono">{it.quantity}x</span> {it.name}
                           </p>
                         ))}
                       </div>
@@ -1088,7 +1127,7 @@ export default function VendasList({
                           <button
                             onClick={() => handleCancelSale(sale.id)}
                             title="Estornar e Cancelar essa Venda"
-                            className="p-1 px-2 hover:bg-rose-50 text-rose-600 hover:border-rose-150 border border-transparent rounded font-bold text-[10px] cursor-pointer transition-colors"
+                            className="p-1 px-2 hover:bg-rose-50 text-rose-600 hover:border-rose-100 border border-transparent rounded font-bold text-[10px] cursor-pointer transition-colors"
                           >
                             <span>Cancelar</span>
                           </button>
@@ -1097,7 +1136,7 @@ export default function VendasList({
                         <button
                           onClick={() => handleDeleteSaleClick(sale.id)}
                           title="Excluir/Apagar essa venda permanentemente"
-                          className="p-1 px-2 hover:bg-red-50 text-red-600 hover:border-red-150 border border-transparent rounded font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors"
+                          className="p-1 px-2 hover:bg-red-50 text-red-600 hover:border-red-100 border border-transparent rounded font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors"
                         >
                           <Trash2 size={12} />
                           <span>Apagar</span>
@@ -1154,7 +1193,7 @@ export default function VendasList({
                 {(() => {
                   const storeConfig = getStoreConfig();
                   return (
-                    <div className="flex justify-between items-start border-b border-slate-150 pb-6">
+                    <div className="flex justify-between items-start border-b border-slate-100 pb-6">
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-2">
                           <span className="font-serif text-lg font-black tracking-widest text-slate-900 uppercase">
@@ -1242,7 +1281,7 @@ export default function VendasList({
                   const calculatedDiscount = Math.max(0, itemsSubtotal - selectedSaleForInvoice.total);
 
                   return (
-                    <div className="flex justify-end pt-4 border-t border-slate-150">
+                    <div className="flex justify-end pt-4 border-t border-slate-100">
                       <div className="w-64 space-y-1.5 text-[11px]">
                         <div className="flex justify-between text-slate-500">
                           <span>Valor de Tabela:</span>
@@ -1295,7 +1334,7 @@ export default function VendasList({
       {/* Modal for Admin Partner Linking */}
       {selectedSaleForPartnerLinking && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-150 p-6 w-full max-w-md shadow-2xl space-y-4 font-sans text-slate-800">
+          <div className="bg-white rounded-2xl border border-slate-100 p-6 w-full max-w-md shadow-2xl space-y-4 font-sans text-slate-800">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
               <div className="space-y-0.5">
                 <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">

@@ -76,23 +76,20 @@ export default function SuppliersManagement({
   
   // Suppliers state
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
-    const saved = localStorage.getItem('ap_moda_suppliers');
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: 'sup-1', name: 'Suplementos e Tecidos Brás Ltda', cnpj: '12.345.678/0001-90', contactName: 'Renato Silva', phone: '(11) 98765-4321', email: 'vendas@brastextil.com', category: 'Tecidos & Malhas', notes: 'Contato principal para tecidos de poliamida e suplex.', createdAt: '2026-06-12T10:00:00Z' },
-      { id: 'sup-2', name: 'Confecções Sul Fit Brasil', cnpj: '98.765.432/0001-21', contactName: 'Marta Souza', phone: '(47) 99821-3344', email: 'marta.fit@sulfit.com.br', category: 'Faccionista / Fitness', notes: 'Faccionista externa parceira na montagem de tops e calças dry-fit.', createdAt: '2026-06-13T14:30:00Z' },
-      { id: 'sup-3', name: 'Acessórios e Elásticos Prime', cnpj: '45.678.901/0001-30', contactName: 'Carlos Santos', phone: '(11) 2233-4455', email: 'carlos@elasticosprime.com', category: 'Aviamentos', notes: 'Fornecedor de elásticos personalizados com a marca AP Moda.', createdAt: '2026-06-14T09:15:00Z' }
-    ];
+    try {
+      const saved = localStorage.getItem('ap_moda_suppliers');
+      if (saved !== null) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
   });
 
   // Purchases state
   const [purchases, setPurchases] = useState<SupplierPurchase[]>(() => {
-    const saved = localStorage.getItem('ap_moda_supplier_purchases');
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: 'pur-1', supplierId: 'sup-1', productId: 'p-1', productName: 'Conjunto Legging Alto Relevo Pink', quantity: 15, unitCost: 45.00, totalCost: 675.00, purchaseDate: '2026-06-15', status: 'Recebido', notes: 'Suprimento de estoque para reposição urgente de inverno.', createdAt: '2026-06-15T15:20:00Z' },
-      { id: 'pur-2', supplierId: 'sup-2', productId: 'p-2', productName: 'Calça Legging Fusô Black', quantity: 20, unitCost: 40.00, totalCost: 800.00, purchaseDate: '2026-06-16', status: 'A Caminho', notes: 'Remessa de Dry-Fit de poliamida premium.', createdAt: '2026-06-16T11:45:00Z' }
-    ];
+    try {
+      const saved = localStorage.getItem('ap_moda_supplier_purchases');
+      if (saved !== null) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
   });
 
   // Keep state synced in localStorage
@@ -380,7 +377,7 @@ export default function SuppliersManagement({
           </div>
           <div className="text-left leading-normal min-w-0">
             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block font-medium">Fornecedores Parceiros</span>
-            <span className="text-lg font-black text-slate-850 block">{stats.suppliersCount}</span>
+            <span className="text-lg font-black text-slate-800 block">{stats.suppliersCount}</span>
           </div>
         </div>
 
@@ -390,7 +387,7 @@ export default function SuppliersManagement({
           </div>
           <div className="text-left leading-normal min-w-0">
             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block font-medium">Compras Realizadas</span>
-            <span className="text-lg font-black text-slate-850 block">{stats.purchasesCount}</span>
+            <span className="text-lg font-black text-slate-800 block">{stats.purchasesCount}</span>
           </div>
         </div>
 
@@ -417,13 +414,13 @@ export default function SuppliersManagement({
 
       {/* Main interactive Tab controller */}
       <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs">
-        <div className="flex border-b border-slate-100 bg-slate-50/50 p-2">
+        <div className="flex border-b border-slate-100 bg-slate-50/50 p-2 overflow-x-auto no-scrollbar whitespace-nowrap gap-1">
           <button
             onClick={() => setActiveSubTab('fornecedores')}
-            className={`px-4 py-2 text-xs font-extrabold tracking-wide uppercase transition rounded-lg cursor-pointer flex items-center gap-2 border-0
+            className={`px-4 py-2 text-xs font-extrabold tracking-wide uppercase transition rounded-lg cursor-pointer flex items-center gap-2 border-0 shrink-0
               ${activeSubTab === 'fornecedores' 
                 ? 'bg-white text-pink-600 shadow-xs border-b-2 border-pink-500/80' 
-                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-150/40'}`}
+                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`}
           >
             <Building2 size={13} />
             <span>Lista de Fornecedores</span>
@@ -431,10 +428,10 @@ export default function SuppliersManagement({
           
           <button
             onClick={() => setActiveSubTab('compras')}
-            className={`px-4 py-2 text-xs font-extrabold tracking-wide uppercase transition rounded-lg cursor-pointer flex items-center gap-2 border-0
+            className={`px-4 py-2 text-xs font-extrabold tracking-wide uppercase transition rounded-lg cursor-pointer flex items-center gap-2 border-0 shrink-0
               ${activeSubTab === 'compras' 
                 ? 'bg-white text-pink-600 shadow-xs border-b-2 border-pink-500/80' 
-                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-150/40'}`}
+                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`}
           >
             <Truck size={13} />
             <span>Suprimentos & Compras</span>
@@ -478,7 +475,7 @@ export default function SuppliersManagement({
                               {sup.category || 'Outros'}
                             </span>
                             <h3 className="font-extrabold text-xs text-slate-800 leading-snug">{sup.name}</h3>
-                            {sup.cnpj && <p className="text-[9px] font-mono font-medium text-slate-450 uppercase leading-none">CNPJ: {sup.cnpj}</p>}
+                            {sup.cnpj && <p className="text-[9px] font-mono font-medium text-slate-400 uppercase leading-none">CNPJ: {sup.cnpj}</p>}
                           </div>
                           <button
                             type="button"
@@ -527,7 +524,7 @@ export default function SuppliersManagement({
                         <div className="bg-pink-50/30 border border-pink-100/50 rounded-xl p-2.5 flex justify-between items-center text-[10px]">
                           <div>
                             <span className="block text-[8px] text-slate-400 uppercase font-mono leading-none">Histórico de Pedidos</span>
-                            <span className="font-black text-slate-750 block mt-0.5">{linkedPurchases.length} compras</span>
+                            <span className="font-black text-slate-700 block mt-0.5">{linkedPurchases.length} compras</span>
                           </div>
                           <div className="text-right">
                             <span className="block text-[8px] text-slate-400 uppercase font-mono leading-none">Total Faturado</span>
@@ -604,7 +601,7 @@ export default function SuppliersManagement({
                             <td className="p-3 text-center font-mono">
                               {pur.quantity} un
                             </td>
-                            <td className="p-3 text-right font-mono text-slate-650">
+                            <td className="p-3 text-right font-mono text-slate-600">
                               {formatCurrency(pur.unitCost)}
                             </td>
                             <td className="p-3 text-right font-mono font-extrabold text-pink-600">
@@ -629,7 +626,7 @@ export default function SuppliersManagement({
                                 <button
                                   type="button"
                                   onClick={() => startEditPurchase(pur)}
-                                  className="p-1 text-slate-450 hover:text-slate-800 transition-colors cursor-pointer"
+                                  className="p-1 text-slate-400 hover:text-slate-800 transition-colors cursor-pointer"
                                   title="Editar Lançamento"
                                 >
                                   <Edit size={12} className="w-3.5 h-3.5" />
@@ -637,7 +634,7 @@ export default function SuppliersManagement({
                                 <button
                                   type="button"
                                   onClick={() => handleDeletePurchase(pur.id)}
-                                  className="p-1 text-slate-450 hover:text-red-650 transition-colors cursor-pointer"
+                                  className="p-1 text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
                                   title="Excluir Lançamento"
                                 >
                                   <Trash2 size={12} className="w-3.5 h-3.5" />
@@ -688,7 +685,7 @@ export default function SuppliersManagement({
                   placeholder="Ex: Brás Tecidos Atacado Ltda"
                   value={supName}
                   onChange={(e) => setSupName(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
                 />
               </div>
 
@@ -700,7 +697,7 @@ export default function SuppliersManagement({
                     placeholder="Ex: 00.000.000/0001-00"
                     value={supCnpj}
                     onChange={(e) => setSupCnpj(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
                   />
                 </div>
                 <div>
@@ -708,7 +705,7 @@ export default function SuppliersManagement({
                   <select
                     value={supCategory}
                     onChange={(e) => setSupCategory(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-700"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-700"
                   >
                     <option value="Tecidos & Malhas">Tecidos & Malhas</option>
                     <option value="Faccionista / Fitness">Faccionista / Fitness</option>
@@ -730,7 +727,7 @@ export default function SuppliersManagement({
                     placeholder="Ex: João Vendedor"
                     value={supContact}
                     onChange={(e) => setSupContact(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
                   />
                 </div>
 
@@ -742,7 +739,7 @@ export default function SuppliersManagement({
                       placeholder="Ex: (11) 99999-9999"
                       value={supPhone}
                       onChange={(e) => setSupPhone(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
+                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
                     />
                   </div>
                   <div>
@@ -752,7 +749,7 @@ export default function SuppliersManagement({
                       placeholder="vendas@fornecedor.com"
                       value={supEmail}
                       onChange={(e) => setSupEmail(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
+                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
                     />
                   </div>
                 </div>
@@ -765,7 +762,7 @@ export default function SuppliersManagement({
                   placeholder="Instruções de envio, prazos de faturamento..."
                   value={supNotes}
                   onChange={(e) => setSupNotes(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 font-sans"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 font-sans"
                 />
               </div>
 
@@ -773,7 +770,7 @@ export default function SuppliersManagement({
                 <button
                   type="button"
                   onClick={() => setIsAddSupplierModalOpen(false)}
-                  className="px-4 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-550 border border-slate-200 rounded-lg font-bold text-[11px] cursor-pointer"
+                  className="px-4 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-500 border border-slate-200 rounded-lg font-bold text-[11px] cursor-pointer"
                 >
                   Cancelar
                 </button>
@@ -814,7 +811,7 @@ export default function SuppliersManagement({
                   required
                   value={purSupplierId}
                   onChange={(e) => setPurSupplierId(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-700"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-700"
                 >
                   <option value="">-- Selecione um Fornecedor Comercial --</option>
                   {suppliers.map(s => (
@@ -829,7 +826,7 @@ export default function SuppliersManagement({
                   required
                   value={purProductId}
                   onChange={(e) => setPurProductId(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-700"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-700"
                 >
                   <option value="">-- Selecione a Peça no Catálogo --</option>
                   {products.map(p => (
@@ -848,7 +845,7 @@ export default function SuppliersManagement({
                     placeholder="Quantidade comprada"
                     value={purQty}
                     onChange={(e) => setPurQty(parseInt(e.target.value) || 0)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
                   />
                 </div>
                 <div>
@@ -860,7 +857,7 @@ export default function SuppliersManagement({
                     placeholder="Preço de custo unitário"
                     value={purUnitCost}
                     onChange={(e) => setPurUnitCost(parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
                   />
                 </div>
               </div>
@@ -872,7 +869,7 @@ export default function SuppliersManagement({
                     type="date"
                     value={purDate}
                     onChange={(e) => setPurDate(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 font-mono"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 font-mono"
                   />
                 </div>
                 <div>
@@ -880,7 +877,7 @@ export default function SuppliersManagement({
                   <select
                     value={purStatus}
                     onChange={(e) => setPurStatus(e.target.value as any)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-700 font-bold"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-700 font-bold"
                   >
                     <option value="Recebido">Recebido (Incrementa Estoque Imediato) ✅</option>
                     <option value="A Caminho">A Caminho (Aguarda Recebimento) 🚚</option>
@@ -890,7 +887,7 @@ export default function SuppliersManagement({
               </div>
 
               {/* Checkboxes variables */}
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-150 space-y-2.5">
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 space-y-2.5">
                 <div className="flex items-start gap-2.5">
                   <input 
                     id="checkbox-finance"
@@ -900,7 +897,7 @@ export default function SuppliersManagement({
                     className="mt-0.5 rounded-sm outline-none text-pink-600 focus:ring-0 cursor-pointer"
                   />
                   <div className="leading-tight">
-                    <label htmlFor="checkbox-finance" className="font-extrabold text-[10.5px] text-slate-750 block cursor-pointer select-none">Vincular e Abater Financeiro</label>
+                    <label htmlFor="checkbox-finance" className="font-extrabold text-[10.5px] text-slate-700 block cursor-pointer select-none">Vincular e Abater Financeiro</label>
                     <span className="text-[9px] text-slate-400 block font-normal">Ao ativar, lançará um Outflow (Saída) de caixa no valor de <strong>{formatCurrency(purQty * purUnitCost)}</strong> automaticamente.</span>
                   </div>
                 </div>
@@ -913,7 +910,7 @@ export default function SuppliersManagement({
                   placeholder="Ex: ref NF 1029 e-invoice. Tecido Suplex Amaciado Extra..."
                   value={purNotes}
                   onChange={(e) => setPurNotes(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
                 />
               </div>
 
@@ -921,7 +918,7 @@ export default function SuppliersManagement({
                 <button
                   type="button"
                   onClick={() => setIsAddPurchaseModalOpen(false)}
-                  className="px-4 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-550 border border-slate-200 rounded-lg font-bold text-[11px] cursor-pointer"
+                  className="px-4 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-500 border border-slate-200 rounded-lg font-bold text-[11px] cursor-pointer"
                 >
                   Cancelar
                 </button>
@@ -961,7 +958,7 @@ export default function SuppliersManagement({
                   required
                   value={editPurSupplierId}
                   onChange={(e) => setEditPurSupplierId(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-700 font-bold"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-700 font-bold"
                 >
                   <option value="">Selecione o fabricante...</option>
                   {suppliers.map(s => (
@@ -976,7 +973,7 @@ export default function SuppliersManagement({
                   required
                   value={editPurProductId}
                   onChange={(e) => setEditPurProductId(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-700 font-bold"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-700 font-bold"
                 >
                   <option value="">Selecione a mercadoria...</option>
                   {products.map(p => (
@@ -994,7 +991,7 @@ export default function SuppliersManagement({
                     min="1"
                     value={editPurQty}
                     onChange={(e) => setEditPurQty(parseInt(e.target.value) || 0)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
                   />
                 </div>
                 <div>
@@ -1005,7 +1002,7 @@ export default function SuppliersManagement({
                     required
                     value={editPurUnitCost}
                     onChange={(e) => setEditPurUnitCost(parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
                   />
                 </div>
               </div>
@@ -1017,7 +1014,7 @@ export default function SuppliersManagement({
                     type="date"
                     value={editPurDate}
                     onChange={(e) => setEditPurDate(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 font-mono"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 font-mono"
                   />
                 </div>
                 <div>
@@ -1025,7 +1022,7 @@ export default function SuppliersManagement({
                   <select
                     value={editPurStatus}
                     onChange={(e) => setEditPurStatus(e.target.value as any)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-700 font-bold"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-700 font-bold"
                   >
                     <option value="Recebido">Recebido</option>
                     <option value="A Caminho">A Caminho</option>
@@ -1040,7 +1037,7 @@ export default function SuppliersManagement({
                   type="text"
                   value={editPurNotes}
                   onChange={(e) => setEditPurNotes(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
                 />
               </div>
 
@@ -1048,7 +1045,7 @@ export default function SuppliersManagement({
                 <button
                   type="button"
                   onClick={() => setEditingPurchase(null)}
-                  className="px-4 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-550 border border-slate-200 rounded-lg font-bold text-[11px] cursor-pointer"
+                  className="px-4 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-500 border border-slate-200 rounded-lg font-bold text-[11px] cursor-pointer"
                 >
                   Cancelar
                 </button>

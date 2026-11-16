@@ -680,12 +680,20 @@ export async function syncBulkTransactionsToSupabase(data: any, ...args: any[]) 
   return restPost('/api/proxy/transactions', data);
 }
 
+export async function deleteTransactionFromSupabase(id: string, ...args: any[]) {
+  return restDelete(`/api/proxy/transactions/${id}`);
+}
+
 export async function fetchOnlineOrdersFromSupabase(options?: { limit?: number; offset?: number }, ...args: any[]) {
   return restFetch('/api/proxy/online-orders', options);
 }
 
 export async function syncBulkOnlineOrdersToSupabase(data: any, ...args: any[]) {
   return restPost('/api/proxy/online-orders', data);
+}
+
+export async function deleteOnlineOrderFromSupabase(id: string, ...args: any[]) {
+  return restDelete(`/api/proxy/online-orders/${id}`);
 }
 
 export async function fetchCheckoutsFromSupabase(options?: { limit?: number; offset?: number }, ...args: any[]) {

@@ -214,7 +214,7 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
           <div>
             <h3 className="text-sm font-extrabold text-slate-800 tracking-tight flex items-center gap-1.5 font-sans">
               <span>Simulador Inteligente de Metas</span>
-              <span className="bg-gradient-to-r from-pink-500 to-violet-505 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider animate-pulse flex items-center gap-0.5">
+              <span className="bg-gradient-to-r from-pink-500 to-violet-500 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider animate-pulse flex items-center gap-0.5">
                 <Flame size={9} /> Projeção Ativa
               </span>
             </h3>
@@ -254,8 +254,8 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
           {/* Target Config */}
           <div className="space-y-2">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-650 font-bold font-sans">Meta de Faturamento Mensal</span>
-              <span className="font-extrabold text-pink-650 font-mono text-[13px] bg-pink-50 text-pink-600 px-2 py-0.5 rounded-md">
+              <span className="text-slate-600 font-bold font-sans">Meta de Faturamento Mensal</span>
+              <span className="font-extrabold text-pink-600 font-mono text-[13px] bg-pink-50 text-pink-600 px-2 py-0.5 rounded-md">
                 {formatValue(monthlyGoal)}
               </span>
             </div>
@@ -264,7 +264,7 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
               <button 
                 type="button" 
                 onClick={() => setMonthlyGoal(prev => Math.max(2000, prev - 1000))} 
-                className="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:border-pink-500 hover:text-pink-650 flex items-center justify-center font-bold text-slate-600 transition-colors cursor-pointer shrink-0"
+                className="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:border-pink-500 hover:text-pink-600 flex items-center justify-center font-bold text-slate-600 transition-colors cursor-pointer shrink-0"
               >
                 <Minus size={14} />
               </button>
@@ -283,7 +283,7 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
               <button 
                 type="button" 
                 onClick={() => setMonthlyGoal(prev => Math.min(100000, prev + 1000))} 
-                className="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:border-pink-500 hover:text-pink-650 flex items-center justify-center font-bold text-slate-600 transition-colors cursor-pointer shrink-0"
+                className="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:border-pink-500 hover:text-pink-600 flex items-center justify-center font-bold text-slate-600 transition-colors cursor-pointer shrink-0"
               >
                 <Plus size={14} />
               </button>
@@ -311,8 +311,8 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
           {/* Sales Days Config */}
           <div className="space-y-2 border-t border-slate-100 pt-3">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-650 font-bold">Dias de Atividade Restantes</span>
-              <span className="font-extrabold text-indigo-650 font-mono text-[13px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md">
+              <span className="text-slate-600 font-bold">Dias de Atividade Restantes</span>
+              <span className="font-extrabold text-indigo-600 font-mono text-[13px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md">
                 {remainingDays} dias
               </span>
             </div>
@@ -333,7 +333,7 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
                 step="1"
                 value={remainingDays}
                 onChange={(e) => setRemainingDays(Number(e.target.value))}
-                className="flex-1 accent-indigo-650 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                className="flex-1 accent-indigo-600 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer"
               />
 
               <button 
@@ -352,11 +352,11 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
           {/* Extra Simulated Large Order Box */}
           <div className="space-y-2 border-t border-slate-100 pt-3">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-650 font-bold flex items-center gap-1">
+              <span className="text-slate-600 font-bold flex items-center gap-1">
                 <span>Simular Nova Venda</span>
                 <Sparkles size={11} className="text-amber-500 shrink-0" />
               </span>
-              <span className="font-extrabold text-amber-650 font-mono text-[12.5px] text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-md">
+              <span className="font-extrabold text-amber-600 font-mono text-[12.5px] text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-md">
                 +{formatValue(simulatedExtraSale)}
               </span>
             </div>
@@ -372,21 +372,21 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
               <button
                 type="button"
                 onClick={() => setSimulatedExtraSale(prev => prev + 500)}
-                className="flex-1 text-[9.5px] font-bold py-1.5 rounded bg-white hover:bg-pink-50 text-pink-650 border border-pink-100 cursor-pointer text-center"
+                className="flex-1 text-[9.5px] font-bold py-1.5 rounded bg-white hover:bg-pink-50 text-pink-600 border border-pink-100 cursor-pointer text-center"
               >
                 + R$500
               </button>
               <button
                 type="button"
                 onClick={() => setSimulatedExtraSale(prev => prev + 1500)}
-                className="flex-1 text-[9.5px] font-bold py-1.5 rounded bg-white hover:bg-pink-50 text-pink-650 border border-pink-100 cursor-pointer text-center"
+                className="flex-1 text-[9.5px] font-bold py-1.5 rounded bg-white hover:bg-pink-50 text-pink-600 border border-pink-100 cursor-pointer text-center"
               >
                 + R$1,5k
               </button>
               <button
                 type="button"
                 onClick={() => setSimulatedExtraSale(prev => prev + 3000)}
-                className="flex-1 text-[9.5px] font-bold py-1.5 rounded bg-white hover:bg-pink-50 text-pink-650 border border-pink-100 cursor-pointer text-center"
+                className="flex-1 text-[9.5px] font-bold py-1.5 rounded bg-white hover:bg-pink-50 text-pink-600 border border-pink-100 cursor-pointer text-center"
               >
                 + R$3k
               </button>
@@ -405,7 +405,7 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
               <span className="text-[10px] text-slate-400 font-bold uppercase block tracking-wider">Faturado Real</span>
               <span className="text-sm font-extrabold text-slate-800 font-mono mt-0.5 block">{formatValue(realizedRevenue)}</span>
               {simulatedExtraSale > 0 && (
-                <span className="text-[9.5px] text-amber-650 font-bold block mt-0.5">({formatValue(totalWithSimulated)} com simulação)</span>
+                <span className="text-[9.5px] text-amber-600 font-bold block mt-0.5">({formatValue(totalWithSimulated)} com simulação)</span>
               )}
             </div>
 
@@ -436,13 +436,13 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
           <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 flex flex-col gap-2 font-sans text-left">
             <div className="flex justify-between items-center text-xs select-none">
               <span className="font-bold text-slate-600">Progresso Geral Acumulado</span>
-              <span className="font-extrabold text-pink-650 text-right">{percentageReached}%</span>
+              <span className="font-extrabold text-pink-600 text-right">{percentageReached}%</span>
             </div>
             
             {/* Visual Bar with nice rounding and dual fill (orange highlight for simulated extra sale) */}
-            <div className="w-full h-3.5 bg-slate-250 rounded-full overflow-hidden relative border border-slate-200">
+            <div className="w-full h-3.5 bg-slate-200 rounded-full overflow-hidden relative border border-slate-200">
               <div 
-                className="h-full bg-gradient-to-r from-pink-500 to-pink-650 transition-all duration-300 rounded-full"
+                className="h-full bg-gradient-to-r from-pink-500 to-pink-600 transition-all duration-300 rounded-full"
                 style={{ width: `${Math.min(100, (realizedRevenue / monthlyGoal) * 100)}%` }}
               />
               {simulatedExtraSale > 0 && (
@@ -504,7 +504,7 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
           </div>
           <div className="flex items-center gap-3 text-[10px] font-bold text-slate-400 select-none self-end sm:self-auto">
             <div className="flex items-center gap-1">
-              <span className="w-2.5 h-0.5 bg-dashed border-t border-amber-500 inline-block" />
+              <span className="w-2.5 h-0.5 border-dashed border-t border-amber-500 inline-block" />
               <span>Meta Linear</span>
             </div>
             <div className="flex items-center gap-1">
@@ -512,7 +512,7 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
               <span>Acumulado Real</span>
             </div>
             <div className="flex items-center gap-1">
-              <span className="w-2.5 h-0.5 bg-dashed border-t-2 border-indigo-500 inline-block" />
+              <span className="w-2.5 h-0.5 border-dashed border-t-2 border-indigo-500 inline-block" />
               <span>Reta de Projeção</span>
             </div>
           </div>

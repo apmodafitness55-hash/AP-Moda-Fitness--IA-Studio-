@@ -622,42 +622,16 @@ export default function CustomersCRM({
   const [partners, setPartners] = useState<Partner[]>(() => {
     try {
       const saved = localStorage.getItem('ap_moda_partners');
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
           const fakePartnerNames = ['carla oliveira', 'mariana santos', 'lucas silva', 'juliana costa', 'camila parceira', 'ana carolina', 'marina fitness coach', 'julia rezende', 'amanda runner'];
           const fakePartnerIds = ['usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6', 'part-1', 'part-2', 'part-3', 'part-4'];
-          const filtered = parsed.filter((p: any) => p && !fakePartnerIds.includes(p.id) && !fakePartnerNames.includes(p.name?.toLowerCase().trim()));
-          if (!filtered.some((p: any) => p.name?.toLowerCase().includes('patricia') || p.couponCode?.toUpperCase() === 'PATRICIA10')) {
-            filtered.push({
-              id: 'part-patricia',
-              name: 'Patricia Cardoso',
-              login: 'patriciacardoso',
-              password: '123',
-              instagram: '@patriciacardoso',
-              couponCode: 'PATRICIA10',
-              commissionRate: 10,
-              salesCount: 18,
-              totalGenerated: 2890.00,
-              availableBalance: 289.00
-            });
-          }
-          return filtered;
+          return parsed.filter((p: any) => p && !fakePartnerIds.includes(p.id) && !fakePartnerNames.includes(p.name?.toLowerCase().trim()));
         }
       }
     } catch(e) {}
-    return [{
-      id: 'part-patricia',
-      name: 'Patricia Cardoso',
-      login: 'patriciacardoso',
-      password: '123',
-      instagram: '@patriciacardoso',
-      couponCode: 'PATRICIA10',
-      commissionRate: 10,
-      salesCount: 18,
-      totalGenerated: 2890.00,
-      availableBalance: 289.00
-    }];
+    return [];
   });
 
   useEffect(() => {
@@ -726,7 +700,10 @@ export default function CustomersCRM({
       const parsedGlobal = savedGlobal ? JSON.parse(savedGlobal) : [];
       const updatedGlobal = [newItem, ...parsedGlobal.filter((g: any) => g.id !== saleId)];
       localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
-      localStorage.setItem(`ap_manual_partner_sales_${partner.id}`, JSON.stringify(updatedGlobal));
+      localStorage.setItem(
+        `ap_manual_partner_sales_${partner.id}`,
+        JSON.stringify(updatedGlobal.filter((g: any) => g.partnerId === partner.id))
+      );
       pushSystemConfigToSupabase('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
     } catch(e) {}
 
@@ -812,7 +789,10 @@ export default function CustomersCRM({
       const parsedGlobal = savedGlobal ? JSON.parse(savedGlobal) : [];
       const updatedGlobal = [newItem, ...parsedGlobal.filter((g: any) => g.id !== saleId)];
       localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
-      localStorage.setItem(`ap_manual_partner_sales_${partner.id}`, JSON.stringify(updatedGlobal));
+      localStorage.setItem(
+        `ap_manual_partner_sales_${partner.id}`,
+        JSON.stringify(updatedGlobal.filter((g: any) => g.partnerId === partner.id))
+      );
       pushSystemConfigToSupabase('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
     } catch(e) {}
 
@@ -1308,14 +1288,14 @@ export default function CustomersCRM({
       </div>
 
       {/* CRM Sub-navigation Tabs */}
-      <div className="flex border-b border-slate-100">
+      <div className="flex border-b border-slate-100 overflow-x-auto no-scrollbar whitespace-nowrap">
         <button
           type="button"
           onClick={() => setActiveSubTab('diretorio')}
-          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
+          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0
             ${activeSubTab === 'diretorio' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <Users size={14} />
           <span>Fichário de Clientes</span>
@@ -1323,10 +1303,10 @@ export default function CustomersCRM({
         <button
           type="button"
           onClick={() => setActiveSubTab('funil')}
-          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
+          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0
             ${activeSubTab === 'funil' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <TrendingUp size={14} />
           <span>Funil de Vendas Kanban</span>
@@ -1334,10 +1314,10 @@ export default function CustomersCRM({
         <button
           type="button"
           onClick={() => setActiveSubTab('followup')}
-          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
+          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0
             ${activeSubTab === 'followup' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <Calendar size={14} />
           <span>Follow-up & Agendamentos</span>
@@ -1346,10 +1326,10 @@ export default function CustomersCRM({
           <button
             type="button"
             onClick={() => setActiveSubTab('parceiros')}
-            className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
+            className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0
               ${activeSubTab === 'parceiros' 
                 ? 'border-pink-600 text-pink-600' 
-                : 'border-transparent text-slate-450 hover:text-slate-705'}`}
+                : 'border-transparent text-slate-400 hover:text-slate-700'}`}
           >
             <Award size={14} />
             <span>Influenciadoras & Parceiros</span>
@@ -1358,10 +1338,10 @@ export default function CustomersCRM({
         <button
           type="button"
           onClick={() => setActiveSubTab('fidelidade')}
-          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
+          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0
             ${activeSubTab === 'fidelidade' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-705'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <Coins size={14} />
           <span>Fidelidade & Cashback</span>
@@ -1369,10 +1349,10 @@ export default function CustomersCRM({
         <button
           type="button"
           onClick={() => setActiveSubTab('preditiva' as any)}
-          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
+          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0
             ${(activeSubTab as string) === 'preditiva' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-705'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <TrendingUp size={14} />
           <span>Análise Preditiva CRM</span>
@@ -1394,7 +1374,7 @@ export default function CustomersCRM({
                 placeholder="Buscar cliente por nome, e-mail ou número de telefone..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-150 rounded-xl text-xs font-sans text-slate-700 focus:outline-hidden"
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-sans text-slate-700 focus:outline-hidden"
               />
             </div>
             
@@ -1426,7 +1406,7 @@ export default function CustomersCRM({
                     <th className="p-4 text-right">Ação</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 font-medium text-slate-650">
+                <tbody className="divide-y divide-slate-100 font-medium text-slate-600">
                   {filteredClients.map((c) => (
                     <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="p-4">
@@ -1444,7 +1424,7 @@ export default function CustomersCRM({
                                 </span>
                               )}
                               {c.cpf && (
-                                <span className="bg-slate-100 text-slate-650 border border-slate-200 px-1 py-0.2 rounded text-[9px] font-mono font-bold leading-none shrink-0" title={`CPF: ${c.cpf}`}>
+                                <span className="bg-slate-100 text-slate-600 border border-slate-200 px-1 py-0.2 rounded text-[9px] font-mono font-bold leading-none shrink-0" title={`CPF: ${c.cpf}`}>
                                   {c.cpf}
                                 </span>
                               )}
@@ -1463,12 +1443,12 @@ export default function CustomersCRM({
                           <span className="font-mono">{c.phone}</span>
                         </div>
                         <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
-                          <Mail size={11} className="text-slate-350 shrink-0" />
+                          <Mail size={11} className="text-slate-300 shrink-0" />
                           <span className="truncate max-w-[130px]">{c.email}</span>
                         </div>
                       </td>
                       <td className="p-4">
-                        <span className="inline-flex items-center gap-1 bg-slate-50 border border-slate-150 px-2 py-0.5 rounded text-[10px] font-sans font-medium text-slate-600">
+                        <span className="inline-flex items-center gap-1 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded text-[10px] font-sans font-medium text-slate-600">
                           {getChannelIcon(c.channel)}
                           <span>{c.channel}</span>
                         </span>
@@ -1479,8 +1459,8 @@ export default function CustomersCRM({
                           <span>{c.npsScore !== undefined ? c.npsScore : '10'}</span>
                         </div>
                       </td>
-                      <td className="p-4 text-right font-mono font-bold text-slate-850">{formatCurrency(c.totalSpent)}</td>
-                      <td className="p-4 text-center font-mono font-bold text-slate-650">{c.ordersCount} compra(s)</td>
+                      <td className="p-4 text-right font-mono font-bold text-slate-800">{formatCurrency(c.totalSpent)}</td>
+                      <td className="p-4 text-center font-mono font-bold text-slate-600">{c.ordersCount} compra(s)</td>
                       <td className="p-4 text-right">
                         <div className="flex justify-end gap-1.5">
                           <button 
@@ -1494,7 +1474,7 @@ export default function CustomersCRM({
                           <button 
                             type="button"
                             onClick={() => handleOpenEdit(c)}
-                            className="p-1 text-slate-450 hover:text-slate-800 rounded hover:bg-slate-100 transition"
+                            className="p-1 text-slate-400 hover:text-slate-800 rounded hover:bg-slate-100 transition"
                             title="Editar Dados"
                           >
                             <Edit size={12} />
@@ -1538,7 +1518,7 @@ export default function CustomersCRM({
                   placeholder="Nome do Lead / Cliente"
                   value={opClient}
                   onChange={(e) => setOpClient(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -1548,7 +1528,7 @@ export default function CustomersCRM({
                     type="number"
                     value={opVal}
                     onChange={(e) => setOpVal(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                   />
                 </div>
                 <div>
@@ -1557,7 +1537,7 @@ export default function CustomersCRM({
                     type="number"
                     value={opProb}
                     onChange={(e) => setOpProb(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                   />
                 </div>
               </div>
@@ -1569,7 +1549,7 @@ export default function CustomersCRM({
                   placeholder="Ex: Legging Sculp Wave"
                   value={opItem}
                   onChange={(e) => setOpItem(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                 />
               </div>
               <div>
@@ -1579,7 +1559,7 @@ export default function CustomersCRM({
                   placeholder="Ficou de vir provar"
                   value={opNotes}
                   onChange={(e) => setOpNotes(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                 />
               </div>
 
@@ -1599,11 +1579,11 @@ export default function CustomersCRM({
               const stageTot = stageOps.reduce((sum, o) => sum + o.value, 0);
 
               return (
-                <div key={stage} className="bg-slate-50 rounded-2xl p-3 border border-slate-150 max-h-96 overflow-y-auto flex flex-col justify-between">
+                <div key={stage} className="bg-slate-50 rounded-2xl p-3 border border-slate-100 max-h-96 overflow-y-auto flex flex-col justify-between">
                   <div>
                     <div className="flex justify-between items-center mb-2 border-b border-slate-200 pb-1.5 font-bold uppercase tracking-wide">
                       <span className="text-slate-800 text-[10px]">{stage}</span>
-                      <span className="bg-slate-200 text-slate-650 px-2 py-0.5 rounded-full text-[9px]">{stageOps.length}</span>
+                      <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-[9px]">{stageOps.length}</span>
                     </div>
 
                     <div className="space-y-2">
@@ -1641,7 +1621,7 @@ export default function CustomersCRM({
                             <button
                               type="button"
                               onClick={() => moveOpportunity(op.id, op.stage)}
-                              className="w-full mt-2.5 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-150 rounded text-[9px] font-bold text-slate-600 flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                              className="w-full mt-2.5 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-100 rounded text-[9px] font-bold text-slate-600 flex items-center justify-center gap-1 cursor-pointer transition-colors"
                             >
                               <span>Avançar Etapa</span>
                               <ArrowRight size={10} />
@@ -1652,7 +1632,7 @@ export default function CustomersCRM({
                     </div>
                   </div>
 
-                  <div className="pt-3 border-t border-slate-200 text-right font-mono font-bold text-slate-750">
+                  <div className="pt-3 border-t border-slate-200 text-right font-mono font-bold text-slate-700">
                     <span className="text-[10px] text-slate-400 mr-1.5">Soma:</span>
                     <span>{formatCurrency(stageTot)}</span>
                   </div>
@@ -1684,7 +1664,7 @@ export default function CustomersCRM({
                     <label className="block text-slate-400 font-semibold mb-1">Interessada (Cliente)</label>
                     <input
                       type="text"
-                      className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 focus:outline-hidden text-slate-800 font-medium font-sans"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 focus:outline-hidden text-slate-800 font-medium font-sans"
                       value={editOpClient}
                       onChange={(e) => setEditOpClient(e.target.value)}
                     />
@@ -1695,7 +1675,7 @@ export default function CustomersCRM({
                       <label className="block text-slate-400 font-semibold mb-1">Est. Peças (R$)</label>
                       <input
                         type="number"
-                        className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 focus:outline-hidden text-slate-800 font-medium font-sans"
+                        className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 focus:outline-hidden text-slate-800 font-medium font-sans"
                         value={editOpVal}
                         onChange={(e) => setEditOpVal(Number(e.target.value))}
                       />
@@ -1704,7 +1684,7 @@ export default function CustomersCRM({
                       <label className="block text-slate-400 font-semibold mb-1">Probabilidade (%)</label>
                       <input
                         type="number"
-                        className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 focus:outline-hidden text-slate-800 font-medium font-sans"
+                        className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 focus:outline-hidden text-slate-800 font-medium font-sans"
                         value={editOpProb}
                         onChange={(e) => setEditOpProb(Number(e.target.value))}
                       />
@@ -1715,7 +1695,7 @@ export default function CustomersCRM({
                     <label className="block text-slate-400 font-semibold mb-1">Peça de Interesse</label>
                     <input
                       type="text"
-                      className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 focus:outline-hidden text-slate-800 font-medium font-sans"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 focus:outline-hidden text-slate-800 font-medium font-sans"
                       value={editOpItem}
                       onChange={(e) => setEditOpItem(e.target.value)}
                     />
@@ -1724,7 +1704,7 @@ export default function CustomersCRM({
                   <div>
                     <label className="block text-slate-400 font-semibold mb-1">Etapa no Funil</label>
                     <select
-                      className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 focus:outline-hidden text-slate-800 font-semibold cursor-pointer font-sans"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 focus:outline-hidden text-slate-800 font-semibold cursor-pointer font-sans"
                       value={editOpStage}
                       onChange={(e) => setEditOpStage(e.target.value as any)}
                     >
@@ -1739,7 +1719,7 @@ export default function CustomersCRM({
                     <label className="block text-slate-400 font-semibold mb-1">Anotações rápidas</label>
                     <textarea
                       rows={3}
-                      className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 focus:outline-hidden text-slate-800 font-sans"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 focus:outline-hidden text-slate-800 font-sans"
                       value={editOpNotes}
                       onChange={(e) => setEditOpNotes(e.target.value)}
                     />
@@ -1750,7 +1730,7 @@ export default function CustomersCRM({
                   <button
                     type="button"
                     onClick={() => setEditingOpportunityId(null)}
-                    className="flex-1 py-2 bg-slate-100 hover:bg-slate-150 text-slate-600 font-bold rounded-lg transition cursor-pointer font-sans"
+                    className="flex-1 py-2 bg-slate-100 hover:bg-slate-100 text-slate-600 font-bold rounded-lg transition cursor-pointer font-sans"
                   >
                     Cancelar
                   </button>
@@ -1775,7 +1755,7 @@ export default function CustomersCRM({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs font-sans">
           
           {/* Scheduling Followup Form */}
-          <div className="bg-white border border-slate-105 rounded-2xl p-4 shadow-xs">
+          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-xs">
             <h3 className="font-bold uppercase tracking-wider text-slate-700 pb-2 border-b border-slate-50 flex items-center gap-1.5">
               <ClipboardList size={15} className="text-pink-600" />
               <span>Agendar Follow-up de Cliente</span>
@@ -1783,24 +1763,24 @@ export default function CustomersCRM({
 
             <form onSubmit={handleCreateFollowUp} className="space-y-4 pt-2">
               <div>
-                <label className="block text-slate-405 font-semibold mb-1">Nome da Cliente</label>
+                <label className="block text-slate-400 font-semibold mb-1">Nome da Cliente</label>
                 <input
                   type="text"
                   required
                   placeholder="Ex: Amanda Rezende"
                   value={fClient}
                   onChange={(e) => setFClient(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-slate-405 font-semibold mb-1">Meio de Contato</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Meio de Contato</label>
                   <select
                     value={fChannel}
                     onChange={(e: any) => setFChannel(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden font-semibold"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden font-semibold"
                   >
                     <option value="WhatsApp">WhatsApp</option>
                     <option value="Instagram">Instagram DM</option>
@@ -1809,26 +1789,26 @@ export default function CustomersCRM({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-slate-405 font-semibold mb-1">Data Agendada</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Data Agendada</label>
                   <input
                     type="date"
                     required
                     value={fDate}
                     onChange={(e) => setFDate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-1.5 focus:outline-hidden font-semibold"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-1.5 focus:outline-hidden font-semibold"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-405 font-semibold mb-1">O que contatar? (Anotação da Campanha / Provadores)</label>
+                <label className="block text-slate-400 font-semibold mb-1">O que contatar? (Anotação da Campanha / Provadores)</label>
                 <textarea
                   rows={3}
                   required
                   placeholder="Perguntar o tamanho que ela prefere das estampas e cores que chegaram da nova coleção de tops!"
                   value={fNotes}
                   onChange={(e) => setFNotes(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                 />
               </div>
 
@@ -1848,16 +1828,16 @@ export default function CustomersCRM({
             <div className="space-y-2.5">
               {followups.map(fup => (
                 <div key={fup.id} className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs font-sans transition-all
-                  ${fup.completed ? 'bg-slate-50 border-slate-150 text-slate-400' : 'bg-white border-slate-150 hover:shadow-xs'}`}>
+                  ${fup.completed ? 'bg-slate-50 border-slate-100 text-slate-400' : 'bg-white border-slate-100 hover:shadow-xs'}`}>
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className={`font-bold ${fup.completed ? 'text-slate-405 line-through' : 'text-slate-800'}`}>{fup.clientName}</span>
+                      <span className={`font-bold ${fup.completed ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{fup.clientName}</span>
                       <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full
                         ${fup.channel === 'WhatsApp' ? 'bg-green-100 text-green-800' : fup.channel === 'Instagram' ? 'bg-pink-100 text-pink-800' : 'bg-blue-100 text-blue-800'}`}>
                         {fup.channel}
                       </span>
                     </div>
-                    <p className={`text-slate-550 ${fup.completed ? 'line-through opacity-70' : 'font-medium'}`}>{fup.notes}</p>
+                    <p className={`text-slate-500 ${fup.completed ? 'line-through opacity-70' : 'font-medium'}`}>{fup.notes}</p>
                     <p className="text-[10px] text-slate-400">Data contato: <strong className="text-slate-500">{fup.date}</strong></p>
                   </div>
 
@@ -1935,15 +1915,15 @@ export default function CustomersCRM({
                     <div className="flex items-center gap-4">
                       <div className="grid grid-cols-3 gap-4 text-right">
                         <div>
-                          <span className="text-slate-350 font-bold block text-[9px] uppercase tracking-wider">Vendas</span>
+                          <span className="text-slate-300 font-bold block text-[9px] uppercase tracking-wider">Vendas</span>
                           <span className="font-bold text-slate-700 font-mono mt-0.5 inline-block text-[11px]">{part.salesCount} ped</span>
                         </div>
                         <div>
-                          <span className="text-slate-350 font-bold block text-[9px] uppercase tracking-wider">Faturamento</span>
+                          <span className="text-slate-300 font-bold block text-[9px] uppercase tracking-wider">Faturamento</span>
                           <span className="font-bold text-slate-700 font-mono mt-0.5 inline-block text-[11px]">{formatCurrency(part.totalGenerated)}</span>
                         </div>
                         <div>
-                          <span className="text-slate-350 font-bold block text-[9px] uppercase tracking-wider">Comissão ({part.commissionRate}%)</span>
+                          <span className="text-slate-300 font-bold block text-[9px] uppercase tracking-wider">Comissão ({part.commissionRate}%)</span>
                           <span className="font-bold text-emerald-600 font-mono mt-0.5 inline-block text-[11px]">{formatCurrency(comissaoPaga)}</span>
                         </div>
                       </div>
@@ -1976,47 +1956,47 @@ export default function CustomersCRM({
 
             <form onSubmit={handleCreatePartner} className="space-y-4">
               <div>
-                <label className="block text-slate-405 font-semibold mb-1">Nome Completo</label>
+                <label className="block text-slate-400 font-semibold mb-1">Nome Completo</label>
                 <input
                   type="text"
                   required
                   placeholder="Ex: Ana Souza Coach"
                   value={partName}
                   onChange={(e) => setPartName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                 />
               </div>
               <div>
-                <label className="block text-slate-405 font-semibold mb-1">Instagram (@)</label>
+                <label className="block text-slate-400 font-semibold mb-1">Instagram (@)</label>
                 <input
                   type="text"
                   placeholder="Ex: @anasouza_fit"
                   value={partInsta}
                   onChange={(e) => setPartInsta(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-slate-405 font-semibold mb-1">Código Cupom VIP</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Código Cupom VIP</label>
                   <input
                     type="text"
                     required
                     placeholder="ANAFIT"
                     value={partCoupon}
                     onChange={(e) => setPartCoupon(e.target.value.toUpperCase())}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-1.5 focus:outline-hidden font-mono text-rose-600 font-bold"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-1.5 focus:outline-hidden font-mono text-rose-600 font-bold"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-405 font-semibold mb-1">Comissão (%)</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Comissão (%)</label>
                   <input
                     type="number"
                     min={0}
                     max={100}
                     value={partRate}
                     onChange={(e) => setPartRate(Math.max(0, Math.min(100, Number(e.target.value))))}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-1.5 focus:outline-hidden font-semibold"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-1.5 focus:outline-hidden font-semibold"
                   />
                 </div>
               </div>
@@ -2386,8 +2366,8 @@ export default function CustomersCRM({
                 onClick={() => saveFidelidadeSubSection('cashback')}
                 className={`pb-3 px-4 font-bold text-xs uppercase tracking-wider transition duration-150 border-b-2 flex items-center gap-2 cursor-pointer border-none bg-transparent whitespace-nowrap ${
                   fidelidadeSubSection === 'cashback'
-                    ? 'border-pink-500 text-pink-650 font-extrabold'
-                    : 'border-transparent text-slate-400 hover:text-slate-650'
+                    ? 'border-pink-500 text-pink-600 font-extrabold'
+                    : 'border-transparent text-slate-400 hover:text-slate-600'
                 }`}
               >
                 <Coins size={14} />
@@ -2399,8 +2379,8 @@ export default function CustomersCRM({
                 onClick={() => saveFidelidadeSubSection('raspadinhas')}
                 className={`pb-3 px-4 font-bold text-xs uppercase tracking-wider transition duration-150 border-b-2 flex items-center gap-2 cursor-pointer border-none bg-transparent whitespace-nowrap ${
                   fidelidadeSubSection === 'raspadinhas'
-                    ? 'border-pink-500 text-pink-650 font-extrabold'
-                    : 'border-transparent text-slate-400 hover:text-slate-650'
+                    ? 'border-pink-500 text-pink-600 font-extrabold'
+                    : 'border-transparent text-slate-400 hover:text-slate-600'
                 }`}
               >
                 <Crown size={15} className="text-amber-500" />
@@ -2415,8 +2395,8 @@ export default function CustomersCRM({
                 onClick={() => saveFidelidadeSubSection('aniversarios')}
                 className={`pb-3 px-4 font-bold text-xs uppercase tracking-wider transition duration-150 border-b-2 flex items-center gap-2 cursor-pointer border-none bg-transparent whitespace-nowrap ${
                   fidelidadeSubSection === 'aniversarios'
-                    ? 'border-pink-500 text-pink-650 font-extrabold'
-                    : 'border-transparent text-slate-400 hover:text-slate-650'
+                    ? 'border-pink-500 text-pink-600 font-extrabold'
+                    : 'border-transparent text-slate-400 hover:text-slate-600'
                 }`}
               >
                 <Gift size={15} />
@@ -2497,7 +2477,7 @@ export default function CustomersCRM({
                 </div>
 
                 {/* VIP Eligibility Automation Card */}
-                <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-xs space-y-4">
+                <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs space-y-4">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 pb-3 border-b border-slate-100">
                     <div className="flex items-center gap-2">
                       <div className="p-2 bg-pink-100 text-pink-600 rounded-xl">
@@ -2553,10 +2533,10 @@ export default function CustomersCRM({
                             handleSaveVipRules(updated);
                           }}
                           placeholder="500.00"
-                          className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-250 rounded-lg text-xs font-mono font-bold text-slate-700 focus:outline-hidden focus:border-pink-500 disabled:opacity-50 transition"
+                          className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-700 focus:outline-hidden focus:border-pink-500 disabled:opacity-50 transition"
                         />
                       </div>
-                      <p className="text-[9px] text-slate-450 leading-relaxed">
+                      <p className="text-[9px] text-slate-400 leading-relaxed">
                         Adiciona ao grupo VIP se o total gasto em compras atingir ou superar este valor.
                       </p>
                     </div>
@@ -2585,10 +2565,10 @@ export default function CustomersCRM({
                             handleSaveVipRules(updated);
                           }}
                           placeholder="3"
-                          className="w-full px-3 py-1.5 bg-white border border-slate-250 rounded-lg text-xs font-mono font-bold text-slate-700 focus:outline-hidden focus:border-pink-500 disabled:opacity-50 transition"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-700 focus:outline-hidden focus:border-pink-500 disabled:opacity-50 transition"
                         />
                       </div>
-                      <p className="text-[9px] text-slate-450 leading-relaxed">
+                      <p className="text-[9px] text-slate-400 leading-relaxed">
                         Adiciona ao grupo VIP se a cliente possuir esse número ou mais compras recorrentes.
                       </p>
                     </div>
@@ -2628,7 +2608,7 @@ export default function CustomersCRM({
                           E (Ambos)
                         </button>
                       </div>
-                      <p className="text-[9px] text-slate-450 leading-relaxed">
+                      <p className="text-[9px] text-slate-400 leading-relaxed">
                         Determina se o cliente precisa cumprir ambos os requisitos ou apenas um deles.
                       </p>
                     </div>
@@ -2637,7 +2617,7 @@ export default function CustomersCRM({
                   {/* Apply retroactively block */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-pink-50/40 p-3 rounded-xl border border-pink-100/60 mt-2">
                     <div className="text-left">
-                      <span className="block text-xs font-bold text-pink-850">Aplicar Regras Retroativamente</span>
+                      <span className="block text-xs font-bold text-pink-800">Aplicar Regras Retroativamente</span>
                       <p className="text-[9.5px] text-pink-700/80 mt-0.5 leading-relaxed">
                         O sistema analisa automaticamente os novos pedidos realizados. Caso deseje recalcular o status VIP de toda a base de clientes cadastrada no momento com base nas regras acima, clique no botão ao lado.
                       </p>
@@ -2655,7 +2635,7 @@ export default function CustomersCRM({
 
                 {/* Core Table Section of Loyalty Members */}
                 <div className="bg-white border border-slate-100 rounded-2xl shadow-xs overflow-hidden">
-                  <div className="p-4 border-b border-slate-150 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+                  <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
                     <div>
                       <h4 className="font-bold text-sm text-slate-800 animate-fade-in">Diretório do Clube de Fidelidade</h4>
                       <p className="text-[10px] text-slate-400 mt-0.5">Veja quem acumula cashback, históricos de resgate e faça ajustes manuais de bônus.</p>
@@ -2674,7 +2654,7 @@ export default function CustomersCRM({
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                       <thead>
-                        <tr className="bg-slate-50 border-b border-slate-100 text-slate-450 text-[9px] font-extrabold uppercase tracking-widest">
+                        <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[9px] font-extrabold uppercase tracking-widest">
                           <th className="px-4 py-3">Cliente</th>
                           <th className="px-4 py-3">Compras</th>
                           <th className="px-4 py-3">Total Gasto</th>
@@ -2682,7 +2662,7 @@ export default function CustomersCRM({
                           <th className="px-4 py-3 text-right">Ação</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 text-[11px] text-slate-650">
+                      <tbody className="divide-y divide-slate-100 text-[11px] text-slate-600">
                         {clients
                           .filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
                           .map((client) => {
@@ -2994,7 +2974,7 @@ export default function CustomersCRM({
                           <th className="p-3 text-right">Ação / Liberação</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 font-medium text-slate-650">
+                      <tbody className="divide-y divide-slate-100 font-medium text-slate-600">
                         {clients
                           .filter(c => {
                             if (vipOnlyFilter === 'vips' && !c.vip) return false;
@@ -3109,7 +3089,7 @@ export default function CustomersCRM({
                         <Gift size={16} />
                       </div>
                       <div>
-                        <h4 className="font-black text-xs text-slate-805 uppercase tracking-wider">Regras de Aniversário</h4>
+                        <h4 className="font-black text-xs text-slate-800 uppercase tracking-wider">Regras de Aniversário</h4>
                         <p className="text-[9.5px] text-slate-400">Configure descontos automáticos e textos base.</p>
                       </div>
                     </div>
@@ -3118,7 +3098,7 @@ export default function CustomersCRM({
                       {/* Coupon Discount */}
                       <div className="space-y-1">
                         <div className="flex justify-between">
-                          <label className="text-[10px] font-extrabold text-slate-550 uppercase">Valor do Cupom Especial</label>
+                          <label className="text-[10px] font-extrabold text-slate-500 uppercase">Valor do Cupom Especial</label>
                           <span className="font-mono font-bold text-xs text-pink-600">{birthdayCouponDiscount}% OFF</span>
                         </div>
                         <input 
@@ -3134,11 +3114,11 @@ export default function CustomersCRM({
 
                       {/* Coupon Validity */}
                       <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold text-slate-550 uppercase block">Dias de Validade do Cupom</label>
+                        <label className="text-[10px] font-extrabold text-slate-500 uppercase block">Dias de Validade do Cupom</label>
                         <select
                           value={birthdayCouponValidityDays}
                           onChange={(e) => setBirthdayCouponValidityDays(Number(e.target.value))}
-                          className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 text-xs text-slate-700 cursor-pointer font-sans"
+                          className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs text-slate-700 cursor-pointer font-sans"
                         >
                           <option value="3">3 dias (Super Exclusivo)</option>
                           <option value="5">5 dias (Venda Rápida)</option>
@@ -3150,8 +3130,8 @@ export default function CustomersCRM({
                       {/* Auto pilot WhatsApp trigger */}
                       <div className="p-3 bg-pink-50/50 border border-pink-100/40 rounded-xl space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10.5px] font-black text-pink-850 uppercase flex items-center gap-1.5">
-                            <Zap size={13} className="text-pink-650 animate-bounce" />
+                          <span className="text-[10.5px] font-black text-pink-800 uppercase flex items-center gap-1.5">
+                            <Zap size={13} className="text-pink-600 animate-bounce" />
                             Gatilho Automático
                           </span>
                           <label className="relative inline-flex items-center cursor-pointer">
@@ -3177,7 +3157,7 @@ export default function CustomersCRM({
 
                       {/* Template Client Copywriter */}
                       <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold text-slate-550 uppercase flex justify-between items-center">
+                        <label className="text-[10px] font-extrabold text-slate-500 uppercase flex justify-between items-center">
                           <span>Texto p/ Clientes 👤</span>
                           <span className="text-[8px] text-slate-400 normal-case">Use: &#123;NOME&#124;, &#123;CUPOM&#124;, &#123;DESCONTO&#124;, &#123;VALIDADE&#124;</span>
                         </label>
@@ -3185,13 +3165,13 @@ export default function CustomersCRM({
                           rows={4}
                           value={birthdayClientTemplate}
                           onChange={(e) => setBirthdayClientTemplate(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 text-[10.5px] text-slate-700 focus:outline-hidden focus:border-pink-500 font-sans leading-relaxed"
+                          className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-[10.5px] text-slate-700 focus:outline-hidden focus:border-pink-500 font-sans leading-relaxed"
                         />
                       </div>
 
                       {/* Template Staff Copywriter */}
                       <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold text-slate-550 uppercase flex justify-between items-center">
+                        <label className="text-[10px] font-extrabold text-slate-500 uppercase flex justify-between items-center">
                           <span>Texto p/ Colaboradores 💼</span>
                           <span className="text-[8px] text-slate-400 normal-case">Use: &#123;NOME&#124;</span>
                         </label>
@@ -3199,7 +3179,7 @@ export default function CustomersCRM({
                           rows={4}
                           value={birthdayStaffTemplate}
                           onChange={(e) => setBirthdayStaffTemplate(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2.5 text-[10.5px] text-slate-700 focus:outline-hidden focus:border-pink-500 font-sans leading-relaxed"
+                          className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-[10.5px] text-slate-700 focus:outline-hidden focus:border-pink-500 font-sans leading-relaxed"
                         />
                       </div>
 
@@ -3209,7 +3189,7 @@ export default function CustomersCRM({
                         onClick={handleSaveBirthdayConfig}
                         className="w-full py-2 bg-slate-900 text-white rounded-xl text-xs font-bold font-sans uppercase hover:bg-slate-800 transition cursor-pointer border-none flex items-center justify-center gap-2"
                       >
-                        <Save size={13} className="text-pink-405" />
+                        <Save size={13} className="text-pink-400" />
                         <span>Salvar Automações & Templates</span>
                       </button>
 
@@ -3222,10 +3202,10 @@ export default function CustomersCRM({
                   <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs min-h-[460px] flex flex-col">
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4 h-[35px]">
                       <div>
-                        <h4 className="font-black text-xs text-slate-805 uppercase tracking-wider">Mural dos Aniversariantes</h4>
+                        <h4 className="font-black text-xs text-slate-800 uppercase tracking-wider">Mural dos Aniversariantes</h4>
                         <p className="text-[9.5px] text-slate-400">Hoje, ontem ou nos próximos 7 dias no calendário de contatos.</p>
                       </div>
-                      <span className="text-[9.5px] bg-slate-50 border border-slate-100 px-2 py-1 rounded-full font-mono text-slate-550">
+                      <span className="text-[9.5px] bg-slate-50 border border-slate-100 px-2 py-1 rounded-full font-mono text-slate-500">
                         {celebrantsList.length} celebrando
                       </span>
                     </div>
@@ -3262,8 +3242,8 @@ export default function CustomersCRM({
                               <div className="flex items-start gap-3">
                                 <div className={`w-9 h-9 rounded-full font-black flex items-center justify-center text-xs shrink-0 shadow-xs uppercase ${
                                   item.role === 'client' 
-                                    ? 'bg-pink-100 text-pink-650' 
-                                    : 'bg-indigo-100 text-indigo-650'
+                                    ? 'bg-pink-100 text-pink-600' 
+                                    : 'bg-indigo-100 text-indigo-600'
                                 }`}>
                                   {item.name[0]}
                                 </div>
@@ -3278,11 +3258,11 @@ export default function CustomersCRM({
                                       </span>
                                     )}
                                     {item.isToday && (
-                                      <span className="text-[8.5px] bg-red-550 bg-red-650 bg-rose-600 text-white px-2 py-0.2 rounded-full font-black uppercase tracking-wider animate-pulse inline-block shrink-0">ANIVERSÁRIO HOJE 🎂</span>
+                                      <span className="text-[8.5px] bg-red-500 bg-red-600 bg-rose-600 text-white px-2 py-0.2 rounded-full font-black uppercase tracking-wider animate-pulse inline-block shrink-0">ANIVERSÁRIO HOJE 🎂</span>
                                     )}
                                   </div>
 
-                                  <div className="flex items-center gap-2 text-[10px] text-slate-450 font-mono">
+                                  <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
                                     <span>Nascimento: <strong>{item.birthDateStr}</strong></span>
                                     <span>•</span>
                                     <span>{item.statusText}</span>
@@ -3319,7 +3299,7 @@ export default function CustomersCRM({
                                     <button
                                       type="button"
                                       onClick={() => handleTriggerDispatch(item.id, item.role, item.name, item.phone, dynamicCoupon)}
-                                      className="text-[9.5px] text-slate-400 hover:text-pink-650 bg-transparent border-none underline cursor-pointer hover:font-bold"
+                                      className="text-[9.5px] text-slate-400 hover:text-pink-600 bg-transparent border-none underline cursor-pointer hover:font-bold"
                                     >
                                       Reenviar Parabéns
                                     </button>
@@ -3419,7 +3399,7 @@ export default function CustomersCRM({
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100 text-slate-450 text-[9px] font-black uppercase tracking-widest">
+                  <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[9px] font-black uppercase tracking-widest">
                     <th className="px-4 py-3">Cliente</th>
                     <th className="px-4 py-3">Última Compra</th>
                     <th className="px-4 py-3">Score de Recompra</th>
@@ -3503,7 +3483,7 @@ export default function CustomersCRM({
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold text-slate-550 uppercase block tracking-wider">Novo Saldo (BRL)</label>
+                      <label className="text-[10px] font-extrabold text-slate-500 uppercase block tracking-wider">Novo Saldo (BRL)</label>
                       <div className="relative">
                         <input 
                           type="number"
@@ -3524,7 +3504,7 @@ export default function CustomersCRM({
                       <button 
                         type="button" 
                         onClick={() => setAdjustingClient(null)}
-                        className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-650 rounded-xl text-xs font-bold transition duration-150 cursor-pointer border-none"
+                        className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition duration-150 cursor-pointer border-none"
                       >
                         Cancelar
                       </button>
@@ -3581,7 +3561,7 @@ export default function CustomersCRM({
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-[10px] text-slate-500 uppercase tracking-widest font-mono">📏 Medidas & Sugestão</span>
                   {selectedClientDetail.busto || selectedClientDetail.cintura || selectedClientDetail.quadril ? (
-                    <span className="bg-pink-105 text-pink-700 font-bold px-2 py-0.5 rounded-full text-[10px]">
+                    <span className="bg-pink-100 text-pink-700 font-bold px-2 py-0.5 rounded-full text-[10px]">
                       Tamanho Ideal: {(() => {
                         const busto = selectedClientDetail.busto;
                         const cintura = selectedClientDetail.cintura;
@@ -3659,7 +3639,7 @@ export default function CustomersCRM({
 
               {/* Purchase History Listing */}
               <div className="space-y-3">
-                <h5 className="font-bold text-[10px] text-slate-450 uppercase tracking-widest font-mono">Histórico de Pedidos ({clientPurchaseHistory.length})</h5>
+                <h5 className="font-bold text-[10px] text-slate-400 uppercase tracking-widest font-mono">Histórico de Pedidos ({clientPurchaseHistory.length})</h5>
                 {clientPurchaseHistory.length === 0 ? (
                   <div className="py-6 text-center text-slate-400 text-xs font-sans">Nenhuma compra registrada para esta cliente no PDV ainda.</div>
                 ) : (
@@ -3667,20 +3647,20 @@ export default function CustomersCRM({
                     {clientPurchaseHistory.map((order, idx) => (
                       <div key={idx} className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs space-y-2">
                         <div className="flex justify-between font-mono">
-                          <span className="font-bold text-slate-750">{order.id.toUpperCase()}</span>
+                          <span className="font-bold text-slate-700">{order.id.toUpperCase()}</span>
                           <span className="text-slate-400">{new Date(order.createdAt).toLocaleDateString('pt-BR')}</span>
                         </div>
-                        <div className="divide-y divide-slate-150/50">
+                        <div className="divide-y divide-slate-100/50">
                           {order.items.map((it, i) => (
-                             <div key={i} className="py-1 flex justify-between text-[11px] text-slate-650">
+                             <div key={i} className="py-1 flex justify-between text-[11px] text-slate-600">
                               <span>{it.quantity}x {it.name}</span>
                               <span className="font-semibold font-mono">{formatCurrency(it.price * it.quantity)}</span>
                             </div>
                           ))}
                         </div>
-                        <div className="flex justify-between border-t border-slate-150/55 pt-1.5 font-bold font-mono">
+                        <div className="flex justify-between border-t border-slate-100/55 pt-1.5 font-bold font-mono">
                           <span className="font-sans">Total</span>
-                          <span className="text-pink-650">{formatCurrency(order.total)}</span>
+                          <span className="text-pink-600">{formatCurrency(order.total)}</span>
                         </div>
                       </div>
                     ))}
@@ -3852,7 +3832,7 @@ export default function CustomersCRM({
                 <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider font-mono">📏 Medidas Corporais (Opcional)</span>
                 <div className="grid grid-cols-3 gap-2">
                   <div className="space-y-1">
-                    <label className="text-slate-450 font-bold uppercase text-[8px] tracking-wide block">Busto (cm)</label>
+                    <label className="text-slate-400 font-bold uppercase text-[8px] tracking-wide block">Busto (cm)</label>
                     <input 
                       type="number"
                       placeholder="Ex: 92"
@@ -3862,7 +3842,7 @@ export default function CustomersCRM({
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-slate-450 font-bold uppercase text-[8px] tracking-wide block">Cintura (cm)</label>
+                    <label className="text-slate-400 font-bold uppercase text-[8px] tracking-wide block">Cintura (cm)</label>
                     <input 
                       type="number"
                       placeholder="Ex: 72"
@@ -3872,7 +3852,7 @@ export default function CustomersCRM({
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-slate-450 font-bold uppercase text-[8px] tracking-wide block">Quadril (cm)</label>
+                    <label className="text-slate-400 font-bold uppercase text-[8px] tracking-wide block">Quadril (cm)</label>
                     <input 
                       type="number"
                       placeholder="Ex: 102"
@@ -3885,7 +3865,7 @@ export default function CustomersCRM({
 
                 <div className="grid grid-cols-3 gap-2">
                   <div className="space-y-1">
-                    <label className="text-slate-455 font-bold uppercase text-[8px] tracking-wide block">Coxa (cm)</label>
+                    <label className="text-slate-400 font-bold uppercase text-[8px] tracking-wide block">Coxa (cm)</label>
                     <input 
                       type="number"
                       placeholder="Ex: 58"
@@ -3895,7 +3875,7 @@ export default function CustomersCRM({
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-slate-455 font-bold uppercase text-[8px] tracking-wide block">Altura (m)</label>
+                    <label className="text-slate-400 font-bold uppercase text-[8px] tracking-wide block">Altura (m)</label>
                     <input 
                       type="number"
                       step="0.01"
@@ -3906,7 +3886,7 @@ export default function CustomersCRM({
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-slate-455 font-bold uppercase text-[8px] tracking-wide block">Peso (kg)</label>
+                    <label className="text-slate-400 font-bold uppercase text-[8px] tracking-wide block">Peso (kg)</label>
                     <input 
                       type="number"
                       placeholder="Ex: 62"
@@ -3936,7 +3916,7 @@ export default function CustomersCRM({
                     setIsAddModalOpen(false);
                     resetForm();
                   }}
-                  className="flex-1 py-2.5 bg-slate-100 text-slate-650 rounded-xl text-xs font-bold font-sans transition-all cursor-pointer text-center hover:bg-slate-200"
+                  className="flex-1 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold font-sans transition-all cursor-pointer text-center hover:bg-slate-200"
                 >
                   Cancelar
                 </button>
@@ -3955,7 +3935,7 @@ export default function CustomersCRM({
       {/* Retroactive Sale Modal for Admin in CRM */}
       {selectedPartnerForLinkingCRM && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-150 rounded-2xl p-6 w-full max-w-xl shadow-2xl relative space-y-4 font-sans text-slate-800">
+          <div className="bg-white border border-slate-100 rounded-2xl p-6 w-full max-w-xl shadow-2xl relative space-y-4 font-sans text-slate-800">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
               <div className="space-y-0.5">
                 <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">

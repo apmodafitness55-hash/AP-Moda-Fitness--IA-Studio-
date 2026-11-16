@@ -969,7 +969,7 @@ export default function GoogleWorkspace({
           ) : (
             <button 
               onClick={handleConnectAccount}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold rounded-xl border-0 shadow-lg shadow-emerald-990/40 tracking-wider flex items-center gap-2 transition-all cursor-pointer animate-pulse"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold rounded-xl border-0 shadow-lg shadow-emerald-950/40 tracking-wider flex items-center gap-2 transition-all cursor-pointer animate-pulse"
             >
               <Globe size={14} className="text-white" />
               <span>CONECTAR CONTA GOOGLE 🌸</span>
@@ -1021,8 +1021,8 @@ export default function GoogleWorkspace({
                 ${isActive 
                   ? 'bg-pink-600 text-white shadow-sm font-black' 
                   : isDisabled 
-                    ? 'text-slate-350 cursor-not-allowed opacity-50 bg-slate-50' 
-                    : 'text-slate-550 hover:bg-slate-100 hover:text-slate-800'
+                    ? 'text-slate-300 cursor-not-allowed opacity-50 bg-slate-50' 
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
                 }`}
               title={isDisabled ? 'Conecte sua conta do Google para liberar esta aba.' : ''}
             >
@@ -1129,7 +1129,7 @@ export default function GoogleWorkspace({
             {/* List of active calendar events */}
             {calendarEvents.length === 0 ? (
               <div className="py-10 text-center space-y-2 border-2 border-dashed border-slate-100 rounded-xl">
-                <Calendar size={32} className="mx-auto text-slate-350" />
+                <Calendar size={32} className="mx-auto text-slate-300" />
                 <p className="text-slate-500 text-xs font-semibold">Nenhum compromisso marcado para os próximos dias.</p>
                 <p className="text-[10px] text-slate-400">Adicione novas sessões de provador, metas e reuniões fiscais clicando no botão acima.</p>
               </div>
@@ -1244,7 +1244,7 @@ export default function GoogleWorkspace({
             {/* List of active tasks */}
             {taskList.length === 0 ? (
               <div className="py-10 text-center space-y-2 border-2 border-dashed border-slate-100 rounded-xl">
-                <CheckSquare size={32} className="mx-auto text-slate-350" />
+                <CheckSquare size={32} className="mx-auto text-slate-300" />
                 <p className="text-slate-500 text-xs font-semibold">Tudo em ordem! Nenhuma tarefa pendente.</p>
                 <p className="text-[10px] text-slate-400 font-sans">Cadastre checklists operacionais clicando no botão acima para organizar suas ações.</p>
               </div>
@@ -1266,7 +1266,7 @@ export default function GoogleWorkspace({
                       </button>
                       
                       <div className="flex-1 text-left">
-                        <div className={`text-xs font-bold ${isCompleted ? 'text-slate-460 line-through' : 'text-slate-800'}`}>{task.title}</div>
+                        <div className={`text-xs font-bold ${isCompleted ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{task.title}</div>
                         {task.notes && <p className="text-slate-500 text-[11px] mt-1 pr-6 leading-relaxed">{task.notes}</p>}
                         {task.due && (
                           <div className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-500 mt-1 flex items-center gap-1">
@@ -1383,7 +1383,7 @@ Olá, equipe da AP Moda Fitness! Este é o rascunho oficial de descrições e ro
             {/* List Google Docs from drive list */}
             {recentDocs.length === 0 ? (
               <div className="py-10 text-center space-y-2 border-2 border-dashed border-slate-100 rounded-xl">
-                <FileText size={32} className="mx-auto text-slate-350" />
+                <FileText size={32} className="mx-auto text-slate-300" />
                 <p className="text-slate-500 text-xs font-semibold">Nenhum rascunho em Google Doc detectado.</p>
                 <p className="text-[10px] text-slate-400">Crie seu primeiro rascunho no painel acima para centralizar seus textos comerciais.</p>
               </div>
@@ -1737,7 +1737,7 @@ Olá, equipe da AP Moda Fitness! Este é o rascunho oficial de descrições e ro
             {/* Files Grid and listings */}
             {driveFiles.length === 0 ? (
               <div className="py-10 text-center space-y-2 border-2 border-dashed border-slate-100 rounded-xl">
-                <Folder size={32} className="mx-auto text-slate-350" />
+                <Folder size={32} className="mx-auto text-slate-300" />
                 <p className="text-slate-500 text-xs font-semibold">Nenhum arquivo detectado no seu Google Drive corporativo.</p>
                 <p className="text-[10px] text-slate-400 font-sans">Todos os arquivos carregados ou criados pela AP Moda Fitness aparecerão listados aqui.</p>
               </div>
@@ -1812,7 +1812,7 @@ Olá, equipe da AP Moda Fitness! Este é o rascunho oficial de descrições e ro
                 {configLoading ? (
                   <div className="py-12 text-center md:py-24 space-y-2">
                     <RefreshCw className="animate-spin text-pink-600 mx-auto" size={24} />
-                    <p className="text-slate-550 text-xs font-semibold">Lendo configurações salvas em AP Moda Fitness...</p>
+                    <p className="text-slate-500 text-xs font-semibold">Lendo configurações salvas em AP Moda Fitness...</p>
                   </div>
                 ) : (
                   <form onSubmit={handleSaveConfigs} className="space-y-4">
@@ -1886,24 +1886,24 @@ Olá, equipe da AP Moda Fitness! Este é o rascunho oficial de descrições e ro
               <div className="lg:col-span-2 bg-slate-50 p-5 rounded-2xl border border-slate-100 flex flex-col justify-start items-start text-left space-y-4">
                 <div className="font-extrabold text-xs text-slate-700 tracking-wide uppercase">📋 COMO OBTER CREDENCIAIS GOOGLE</div>
                 
-                <div className="space-y-3.5 text-[11px] text-slate-650 leading-relaxed font-sans">
+                <div className="space-y-3.5 text-[11px] text-slate-600 leading-relaxed font-sans">
                   <div className="space-y-1">
                     <div className="font-bold text-slate-800">1. Vá para o Console Google Cloud:</div>
                     <p className="text-slate-500">Acesse <a href="https://console.cloud.google.com" target="_blank" rel="noreferrer" className="text-pink-600 hover:underline">console.cloud.google.com</a>, selecione ou crie um projeto.</p>
                   </div>
 
                   <div className="space-y-1">
-                    <div className="font-bold text-slate-850">2. Habilite as APIs necessárias:</div>
+                    <div className="font-bold text-slate-800">2. Habilite as APIs necessárias:</div>
                     <p className="text-slate-500">Procure no campo busca e clique em habilitar nos seguintes serviços: <strong>Google Tasks API</strong>, <strong>Google Docs API</strong>, <strong>Google Calendar API</strong>, <strong>Gmail API</strong>, <strong>Google Sheets API</strong> e <strong>Google Drive API</strong>.</p>
                   </div>
 
                   <div className="space-y-1">
-                    <div className="font-bold text-slate-850">3. Tela de Consentimento (OAuth):</div>
+                    <div className="font-bold text-slate-800">3. Tela de Consentimento (OAuth):</div>
                     <p className="text-slate-500">Vá em Menu &gt; APIs e Serviços &gt; Tela de consentimento OAuth. Selecione "Externo", dê um nome ao app e salve.</p>
                   </div>
 
                   <div className="space-y-1">
-                    <div className="font-bold text-slate-850">4. Criar credenciais OAuth:</div>
+                    <div className="font-bold text-slate-800">4. Criar credenciais OAuth:</div>
                     <p className="text-slate-500">Vá em Menu &gt; APIs e Serviços &gt; Credenciais. Clique em "Criar Credenciais" &gt; "ID do cliente OAuth". Selecione "Aplicativo da Web". No campo redirecionamentos cole a URI copiada ao lado.</p>
                   </div>
 

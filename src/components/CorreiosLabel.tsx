@@ -336,12 +336,12 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
         <div className="bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col items-center justify-center text-center space-y-4 animate-pulse">
           <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" />
           <div>
-            <h3 className="text-sm font-extrabold text-slate-850">Sincronizando com Supabase</h3>
-            <p className="text-[10.5px] text-slate-450 mt-1">Carregando dados logísticos em tempo real para evitar etiquetas de PDF em branco...</p>
+            <h3 className="text-sm font-extrabold text-slate-800">Sincronizando com Supabase</h3>
+            <p className="text-[10.5px] text-slate-400 mt-1">Carregando dados logísticos em tempo real para evitar etiquetas de PDF em branco...</p>
           </div>
         </div>
       ) : (
-        <div className={`bg-white rounded-2xl ${isLandscapePrint ? 'max-w-4xl' : 'max-w-lg'} w-full shadow-2xl border border-slate-150 overflow-hidden flex flex-col max-h-[90vh] transition-all duration-300`}>
+        <div className={`bg-white rounded-2xl ${isLandscapePrint ? 'max-w-4xl' : 'max-w-lg'} w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh] transition-all duration-300`}>
         
         {/* Header Options */}
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
@@ -405,14 +405,14 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
                   <button
                     type="button"
                     onClick={() => setDeliveryType('PAC')}
-                    className={`px-2 py-0.5 rounded font-extrabold text-[9.5px] border transition-all ${deliveryType === 'PAC' ? 'bg-pink-600 border-pink-600 text-white' : 'bg-white border-slate-250 text-slate-600 hover:border-slate-350'}`}
+                    className={`px-2 py-0.5 rounded font-extrabold text-[9.5px] border transition-all ${deliveryType === 'PAC' ? 'bg-pink-600 border-pink-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}
                   >
                     PAC
                   </button>
                   <button
                     type="button"
                     onClick={() => setDeliveryType('SEDEX')}
-                    className={`px-2 py-0.5 rounded font-extrabold text-[9.5px] border transition-all ${deliveryType === 'SEDEX' ? 'bg-pink-600 border-pink-600 text-white' : 'bg-white border-slate-250 text-slate-600 hover:border-slate-350'}`}
+                    className={`px-2 py-0.5 rounded font-extrabold text-[9.5px] border transition-all ${deliveryType === 'SEDEX' ? 'bg-pink-600 border-pink-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}
                   >
                     SEDEX
                   </button>
@@ -505,7 +505,7 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
                   </div>
 
                   {/* Terms & Signature Fields */}
-                  <div className="border-t border-black/40 pt-1 text-[5.8px] text-slate-750 leading-snug">
+                  <div className="border-t border-black/40 pt-1 text-[5.8px] text-slate-700 leading-snug">
                     <p className="italic leading-tight">
                       Declaro que não sou contribuinte do ICMS e que o produto não se destina a fins comerciais nas normas postais.
                     </p>
@@ -562,7 +562,7 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
                     </span>
                     <div className="text-[7.5px] text-slate-800 space-y-0.5 leading-tight">
                       <p className="font-bold uppercase text-black">{storeName}</p>
-                      <p className="font-semibold text-slate-750">{storeAddress}</p>
+                      <p className="font-semibold text-slate-700">{storeAddress}</p>
                       <p className="font-black text-black font-mono text-[6.5px] uppercase tracking-tighter">
                         CEP: {storeCep} | CNPJ: {storeCnpj}
                       </p>
@@ -654,7 +654,7 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
                         <p className="font-black text-[15px] uppercase text-black tracking-tight leading-tight">
                           {recipientName}
                         </p>
-                        <p className="font-black text-[11px] text-black font-mono border-2 border-black py-1.5 px-3 inline-block rounded bg-slate-55">
+                        <p className="font-black text-[11px] text-black font-mono border-2 border-black py-1.5 px-3 inline-block rounded bg-slate-50">
                           📱 CONTATO: {recipientPhone}
                         </p>
                       </div>
@@ -726,7 +726,7 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
                     <span className="bg-black text-white text-[8px] font-bold px-1.5 py-0.5 uppercase tracking-wide rounded">DESTINATÁRIO</span>
                     <div className="mt-1.5 text-[9.5px] space-y-0.5">
                       <p className="font-extrabold text-[10.5px] uppercase">{recipientName}</p>
-                      <p className="font-medium text-slate-850 leading-snug">{rawAddress}</p>
+                      <p className="font-medium text-slate-800 leading-snug">{rawAddress}</p>
                       <p className="font-semibold text-slate-900">Tel: {recipientPhone}</p>
                     </div>
                   </div>
@@ -754,7 +754,7 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
                         <th className="py-0.5 text-right">R$ Un.</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-150">
+                    <tbody className="divide-y divide-slate-100">
                       {formattedItems.slice(0, 3).map((item, idx) => (
                         <tr key={idx}>
                           <td className="py-0.5 truncate max-w-[150px] font-medium">{item.name} ({item.size})</td>
@@ -770,7 +770,7 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
                     <span className="font-extrabold">Total: R$ {totalVal.toFixed(2)}</span>
                   </div>
 
-                  <div className="text-[6.5px] text-slate-650 mt-1.5 leading-tight">
+                  <div className="text-[6.5px] text-slate-600 mt-1.5 leading-tight">
                     <p>Declaro que não sou contribuinte do ICMS e que a mercadoria descrita não comercializa-se fora das normas postais.</p>
                     <div className="flex justify-between items-end mt-2">
                       <span>Data: {new Date().toLocaleDateString('pt-BR')}</span>

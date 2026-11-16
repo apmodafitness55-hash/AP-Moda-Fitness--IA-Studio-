@@ -243,7 +243,7 @@ export default function CategoryBubblesManager({
   return (
     <div className="space-y-6 text-left" id="category-bubbles-manager">
       {/* Header Description */}
-      <div className="bg-gradient-to-r from-pink-50 via-rose-50/50 to-white p-5 rounded-2xl border border-pink-150/80 shadow-2xs">
+      <div className="bg-gradient-to-r from-pink-50 via-rose-50/50 to-white p-5 rounded-2xl border border-pink-100/80 shadow-2xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 mb-1">
@@ -251,7 +251,7 @@ export default function CategoryBubblesManager({
               <span>Imagens das Bolinhas / Stories das Categorias</span>
               <span className="bg-pink-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full">Vitrine Online</span>
             </h4>
-            <p className="text-[11px] text-slate-650 leading-relaxed font-medium max-w-3xl">
+            <p className="text-[11px] text-slate-600 leading-relaxed font-medium max-w-3xl">
               Defina a imagem de cada bolinha circular (estilo Stories do Instagram) que aparece no topo da sua vitrine. 
               Você pode fazer <strong>upload de uma foto exclusiva</strong>, <strong>selecionar a foto de uma peça do estoque</strong> com 1 clique ou usar a <strong>foto automática</strong> da primeira peça cadastrada na categoria.
             </p>
@@ -295,7 +295,7 @@ export default function CategoryBubblesManager({
             placeholder="Nova Categoria (ex: Calça Legging, Top, Macacão...)"
             value={newCategoryInput}
             onChange={(e) => setNewCategoryInput(e.target.value)}
-            className="flex-1 bg-white border border-slate-250 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition"
+            className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition"
           />
           <button
             type="submit"
@@ -313,7 +313,7 @@ export default function CategoryBubblesManager({
             placeholder="Filtrar categorias..."
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
-            className="bg-white border border-slate-250 rounded-xl px-3 py-1.5 text-xs text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500"
+            className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500"
           />
           <span className="text-[10px] font-bold text-slate-500 whitespace-nowrap">
             {filteredCategories.length} categorias

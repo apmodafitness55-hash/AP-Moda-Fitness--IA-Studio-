@@ -342,7 +342,7 @@ export default function StorefrontPaymentConfig() {
           
           {/* SECTION 0: INFINITEPAY (INFINITY PAY) INTEGRATION & CREDENTIALS */}
           <div className="bg-gradient-to-br from-white via-pink-50/20 to-slate-50 border border-pink-200/80 rounded-2xl overflow-hidden shadow-sm text-left">
-            <div className="p-4 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white flex justify-between items-center flex-wrap gap-2">
+            <div className="p-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white flex justify-between items-center flex-wrap gap-2">
               <div className="flex items-center gap-2.5">
                 <div className="p-1.5 bg-pink-600 rounded-lg text-white">
                   <ShieldCheck size={18} />
@@ -385,7 +385,7 @@ export default function StorefrontPaymentConfig() {
                     <Zap size={11} className="text-pink-600" />
                     <span>Handle / Tag do Vendedor na InfinitePay *</span>
                   </label>
-                  <div className="flex items-center bg-white border border-slate-250 rounded-xl overflow-hidden shadow-xs focus-within:border-pink-500">
+                  <div className="flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs focus-within:border-pink-500">
                     <span className="px-2.5 py-1.5 text-slate-400 font-mono text-xs bg-slate-50 border-r border-slate-200 select-none">
                       checkout.infinitepay.io/
                     </span>
@@ -423,7 +423,7 @@ export default function StorefrontPaymentConfig() {
                     placeholder="ex: ip_sec_live_..."
                     value={infinitePayConfig.apiKey}
                     onChange={(e) => setInfinitePayConfig(prev => ({ ...prev, apiKey: e.target.value }))}
-                    className="w-full px-3 py-2 bg-white border border-slate-250 rounded-xl text-xs font-mono text-slate-800 outline-none focus:border-pink-500 shadow-xs"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-800 outline-none focus:border-pink-500 shadow-xs"
                   />
                   <span className="text-[8.5px] text-slate-500 block mt-1">
                     🔒 Utilizada para chamadas autenticadas de consulta e confirmação de webhook no servidor.
@@ -432,7 +432,7 @@ export default function StorefrontPaymentConfig() {
               </div>
 
               {/* Row 2: Webhook URL and Redirect URL */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-150/60">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100/60">
                 <div>
                   <label className="text-slate-700 font-extrabold text-[9px] uppercase block tracking-wider mb-1 flex items-center gap-1">
                     <Globe size={11} className="text-pink-600" />
@@ -471,7 +471,7 @@ export default function StorefrontPaymentConfig() {
                     placeholder="https://apmodafitness2.com.br/pagamento-concluido"
                     value={infinitePayConfig.redirectUrl}
                     onChange={(e) => setInfinitePayConfig(prev => ({ ...prev, redirectUrl: e.target.value }))}
-                    className="w-full px-3 py-2 bg-white border border-slate-250 rounded-xl text-xs font-mono text-slate-800 outline-none focus:border-pink-500 shadow-xs"
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-800 outline-none focus:border-pink-500 shadow-xs"
                   />
                   <span className="text-[8.5px] text-slate-500 block mt-1">
                     🌐 Para onde o cliente é direcionado logo após concluir o pagamento na tela da InfinitePay.
@@ -505,19 +505,19 @@ export default function StorefrontPaymentConfig() {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-                  <div className="p-2 bg-slate-50 border border-slate-150 rounded-lg text-center">
+                  <div className="p-2 bg-slate-50 border border-slate-100 rounded-lg text-center">
                     <span className="text-[8px] font-bold uppercase text-slate-400 block">Taxa Pix</span>
                     <span className="text-xs font-black font-mono text-emerald-600">0.00%</span>
                   </div>
-                  <div className="p-2 bg-slate-50 border border-slate-150 rounded-lg text-center">
+                  <div className="p-2 bg-slate-50 border border-slate-100 rounded-lg text-center">
                     <span className="text-[8px] font-bold uppercase text-slate-400 block">Taxa Débito</span>
                     <span className="text-xs font-black font-mono text-slate-700">1.38%</span>
                   </div>
-                  <div className="p-2 bg-slate-50 border border-slate-150 rounded-lg text-center">
+                  <div className="p-2 bg-slate-50 border border-slate-100 rounded-lg text-center">
                     <span className="text-[8px] font-bold uppercase text-slate-400 block">Crédito 1x</span>
                     <span className="text-xs font-black font-mono text-slate-700">3.16%</span>
                   </div>
-                  <div className="p-2 bg-slate-50 border border-slate-150 rounded-lg text-center">
+                  <div className="p-2 bg-slate-50 border border-slate-100 rounded-lg text-center">
                     <span className="text-[8px] font-bold uppercase text-slate-400 block">Parcelado 12x</span>
                     <span className="text-xs font-black font-mono text-pink-600">5.40% / parc.</span>
                   </div>
@@ -594,7 +594,7 @@ export default function StorefrontPaymentConfig() {
                     <select
                       value={config.pixKeyType}
                       onChange={(e) => setConfig(prev => ({ ...prev, pixKeyType: e.target.value }))}
-                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-750 font-bold"
+                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-700 font-bold"
                     >
                       <option value="E-mail">E-mail Comercial</option>
                       <option value="CNPJ">CNPJ da Empresa</option>
@@ -605,7 +605,7 @@ export default function StorefrontPaymentConfig() {
                   </div>
                   <div>
                     <label className="text-slate-400 font-bold text-[8px] uppercase block tracking-wider mb-1"> % Desconto Extra p/ Pix</label>
-                    <div className="flex items-center bg-slate-50 border border-slate-250 rounded-lg overflow-hidden pr-3">
+                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden pr-3">
                       <input 
                         type="number"
                         min="0"
@@ -625,7 +625,7 @@ export default function StorefrontPaymentConfig() {
                     rows={2}
                     value={config.pixInstructions}
                     onChange={(e) => setConfig(prev => ({ ...prev, pixInstructions: e.target.value }))}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 font-sans"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 font-sans"
                   />
                   <span className="text-[8.5px] text-slate-400 block mt-1 leading-tight">
                     💡 Esse texto é apresentado na vitrine para orientar o comprador após ele escolher a opção de PIX.
@@ -663,7 +663,7 @@ export default function StorefrontPaymentConfig() {
                     <select
                       value={config.cardMaxInstallments}
                       onChange={(e) => setConfig(prev => ({ ...prev, cardMaxInstallments: parseInt(e.target.value) || 1 }))}
-                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-750 font-bold"
+                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-700 font-bold"
                     >
                       <option value="1">1x (Somente à vista)</option>
                       <option value="2">Até 2x sem juros</option>
@@ -711,7 +711,7 @@ export default function StorefrontPaymentConfig() {
           <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs text-left">
             <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
               <div className="flex items-center gap-2">
-                <DollarSign size={16} className="text-slate-650" />
+                <DollarSign size={16} className="text-slate-600" />
                 <span className="font-extrabold text-xs text-slate-800 uppercase tracking-tight">3. Espécie (Dinheiro) na Entrega ou Retirada</span>
               </div>
               <button
@@ -735,7 +735,7 @@ export default function StorefrontPaymentConfig() {
                     rows={2}
                     value={config.cashInstructions}
                     onChange={(e) => setConfig(prev => ({ ...prev, cashInstructions: e.target.value }))}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 font-sans"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 font-sans"
                   />
                   <span className="text-[8.5px] text-slate-400 block mt-1 leading-tight">
                     💡 Ideal para quando o cliente seleciona "Retirada no Local" ou "Entrega por Motoboy" e prefere pagar fisicamente na entrega.
@@ -777,12 +777,12 @@ export default function StorefrontPaymentConfig() {
                     <div 
                       key={term.id} 
                       className={`border p-3 rounded-xl transition duration-150 space-y-2
-                        ${term.status === 'Ativo' ? 'bg-white border-slate-150' : 'bg-slate-50 border-slate-200'}`}
+                        ${term.status === 'Ativo' ? 'bg-white border-slate-100' : 'bg-slate-50 border-slate-200'}`}
                     >
                       <div className="flex justify-between items-start gap-1">
                         <div>
                           <h4 className="font-extrabold text-[#111111] text-xs leading-none">{term.name}</h4>
-                          <span className="inline-block px-1.5 py-0.5 bg-slate-100 border border-slate-200 text-slate-550 text-[7px] font-black rounded-sm uppercase tracking-wide font-mono mt-1.5 leading-none">
+                          <span className="inline-block px-1.5 py-0.5 bg-slate-100 border border-slate-200 text-slate-500 text-[7px] font-black rounded-sm uppercase tracking-wide font-mono mt-1.5 leading-none">
                             {term.brand}
                           </span>
                         </div>
@@ -825,8 +825,8 @@ export default function StorefrontPaymentConfig() {
                 </div>
               ) : (
                 <div className="py-6 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/20">
-                  <Cpu size={24} className="text-slate-350 mx-auto mb-1" />
-                  <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wider font-mono">Nenhuma maquininha cadastrada</p>
+                  <Cpu size={24} className="text-slate-300 mx-auto mb-1" />
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono">Nenhuma maquininha cadastrada</p>
                 </div>
               )}
 
@@ -862,7 +862,7 @@ export default function StorefrontPaymentConfig() {
                   placeholder="Ex: Stone Moto 01"
                   value={termName}
                   onChange={(e) => setTermName(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
                 />
               </div>
 
@@ -871,7 +871,7 @@ export default function StorefrontPaymentConfig() {
                 <select
                   value={termBrand}
                   onChange={(e) => setTermBrand(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-700"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 cursor-pointer text-slate-700"
                 >
                   <option value="Stone Verde T3">Stone Verde T3</option>
                   <option value="Mercado Pago Pro">Mercado Pago Pro</option>
@@ -889,7 +889,7 @@ export default function StorefrontPaymentConfig() {
                   placeholder="Ex: SN-10294-88A"
                   value={termSerial}
                   onChange={(e) => setTermSerial(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 font-mono text-[11px] tracking-wider"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500 font-mono text-[11px] tracking-wider"
                 />
               </div>
 
@@ -900,7 +900,7 @@ export default function StorefrontPaymentConfig() {
                   placeholder="Ex: Fica sob responsabilidade do motoboy Júlio."
                   value={termNotes}
                   onChange={(e) => setTermNotes(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-250 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:bg-white focus:border-pink-500"
                 />
               </div>
 
@@ -908,7 +908,7 @@ export default function StorefrontPaymentConfig() {
                 <button
                   type="button"
                   onClick={() => setIsAddTerminalOpen(false)}
-                  className="px-3.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-550 border border-slate-200 rounded-lg font-bold text-[10.5px] cursor-pointer"
+                  className="px-3.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-500 border border-slate-200 rounded-lg font-bold text-[10.5px] cursor-pointer"
                 >
                   Cancelar
                 </button>

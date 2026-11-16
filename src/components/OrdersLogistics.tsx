@@ -32,12 +32,13 @@ import {
 import { Product, Sale, Client } from '../types';
 import CorreiosLabel from './CorreiosLabel';
 import { getWhatsAppUrl } from '../utils/storeConfig';
+import { deleteOnlineOrderFromSupabase, syncBulkOnlineOrdersToSupabase } from '../supabase';
 
 interface OrdersLogisticsProps {
   products: Product[];
   clients: Client[];
   sales: Sale[];
-  onAddSale: (newSale: Sale) => void;
+  onAddSale: (newSale: Sale, skipStockDeduction?: boolean) => void;
   onlineOrders: any[];
   setOnlineOrders: React.Dispatch<React.SetStateAction<any[]>>;
   onUpdateOnlineOrderStatus: (orderId: string, status: any, statusPagamento?: string, trackingCode?: string, statusLogistico?: string) => void;
@@ -123,61 +124,67 @@ export default function OrdersLogistics({
 
   const handleDeleteOnlineOrder = (orderId: string) => {
     if (confirm(`Tem certeza de que deseja excluir definitivamente o pedido online #${orderId}? Esta ação removerá o pedido do sistema.`)) {
-      setOnlineOrders(prev => prev.filter(o => o.id !== orderId));
-      
       try {
-        const url = localStorage.getItem('ap_supabase_url');
-        const key = localStorage.getItem('ap_supabase_key');
-        if (url && key) {
-          fetch(`${url}/rest/v1/ap_online_orders?id=eq.${orderId}`, {
-            method: 'DELETE',
-            headers: {
-              'apikey': key,
-              'Authorization': `Bearer ${key}`
-            }
-          }).catch(() => {});
+        const deletedIds: string[] = JSON.parse(localStorage.getItem('ap_deleted_online_orders') || '[]');
+        if (!deletedIds.includes(orderId)) {
+          deletedIds.push(orderId);
+          localStorage.setItem('ap_deleted_online_orders', JSON.stringify(deletedIds));
         }
       } catch (e) {}
 
+      setOnlineOrders(prev => prev.filter(o => o.id !== orderId));
+      deleteOnlineOrderFromSupabase(orderId).catch(() => {});
       showCustomAlert('Sucesso', `Pedido online #${orderId} foi excluído definitivamente.`);
     }
   };
 
   const handleInvoiceOrder = (order: any) => {
+    const alreadyInvoiced = sales.some(s => s.id === order.id && s.status !== 'Cancelada');
+    if (alreadyInvoiced && (order.status_pagamento === 'pago' || order.status === 'Entregue')) {
+      showCustomAlert('Já Faturado', `O pedido #${order.id} já foi faturado e consta no histórico de Vendas.`);
+      return;
+    }
+
     if (confirm(`Deseja lançar e faturar o pedido #${order.id} diretamente no PDV/Faturamento de Vendas?`)) {
-      const items = Array.isArray(order.items) && order.items.length > 0 
-        ? order.items 
-        : [{ productName: 'Item Pedido Web', quantity: 1, price: order.total || 0 }];
-      
-      const subtotal = items.reduce((sum: number, it: any) => sum + (Number(it.price) * Number(it.quantity)), 0) || order.total || 0;
-      const deliveryFee = Number(order.deliveryFee) || 0;
+      const wasPaid = order.status_pagamento === 'pago' || order.status === 'Pago' || order.status === 'Entregue';
+      onUpdateOnlineOrderStatus(order.id, 'Entregue', 'pago');
 
-      const newSale: Sale = {
-        id: `venda-web-${Date.now().toString().slice(-6)}`,
-        clientName: order.clientName || 'Cliente Online',
-        salesperson: 'Loja Online (E-commerce)',
-        channel: 'E-commerce',
-        items: items.map((it: any) => ({
-          productId: it.productId || 'p1',
-          name: it.productName || it.name || 'Produto Online',
-          quantity: Number(it.quantity) || 1,
-          price: Number(it.price) || 0,
-          cost: 0
-        })),
-        total: subtotal + deliveryFee,
-        costTotal: 0,
-        status: 'Concluída',
-        createdAt: new Date().toISOString(),
-        address: order.address || undefined,
-        partner: order.partnerName || order.partner || undefined,
-        partnerName: order.partnerName || order.partner || undefined,
-        partnerId: order.partnerId || undefined,
-        couponCode: order.partnerCoupon || order.couponCode || undefined,
-        partnerCoupon: order.partnerCoupon || order.couponCode || undefined
-      };
+      if (wasPaid && !alreadyInvoiced) {
+        const items = Array.isArray(order.items) && order.items.length > 0
+          ? order.items
+          : [{ productName: 'Item Pedido Web', quantity: 1, price: order.total || 0 }];
 
-      onAddSale(newSale);
-      handleUpdateOrderStatus(order.id, 'Entregue');
+        const subtotal = items.reduce((sum: number, it: any) => sum + (Number(it.price) * Number(it.quantity)), 0) || order.total || 0;
+        const deliveryFee = Number(order.deliveryFee) || 0;
+
+        const newSale: Sale = {
+          id: order.id,
+          clientName: order.clientName || 'Cliente Online',
+          salesperson: order.motoboy || 'Loja Online (E-commerce)',
+          channel: 'E-commerce',
+          items: items.map((it: any) => ({
+            productId: it.productId || 'p1',
+            name: it.productName || it.name || 'Produto Online',
+            quantity: Number(it.quantity) || 1,
+            price: Number(it.price) || 0,
+            cost: 0,
+            selectedColor: it.color || it.selectedColor || undefined,
+            selectedSize: it.size || it.selectedSize || undefined
+          })),
+          total: Number(order.total ?? (subtotal + deliveryFee)),
+          costTotal: 0,
+          status: 'Concluída',
+          createdAt: order.createdAt || new Date().toISOString(),
+          address: order.address || undefined,
+          partner: order.partnerName || order.partner || undefined,
+          partnerName: order.partnerName || order.partner || undefined,
+          partnerId: order.partnerId || undefined,
+          couponCode: order.partnerCoupon || order.couponCode || order.coupon || undefined,
+          partnerCoupon: order.partnerCoupon || order.couponCode || order.coupon || undefined
+        };
+        onAddSale(newSale, true);
+      }
+
       showCustomAlert('Venda Faturada', `Pedido #${order.id} faturado com sucesso! Lançado na lista de Vendas do PDV.`);
     }
   };
@@ -249,9 +256,21 @@ export default function OrdersLogistics({
     return '000.000.000-00';
   };
 
-  const [reservas, setReservas] = useState<Reserva[]>([]);
+  const [reservas, setReservas] = useState<Reserva[]>(() => {
+    try {
+      const saved = localStorage.getItem('ap_moda_reservas');
+      if (saved !== null) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  });
 
-  const [crediario, setCrediario] = useState<CrediarioItem[]>([]);
+  const [crediario, setCrediario] = useState<CrediarioItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('ap_moda_crediario');
+      if (saved !== null) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  });
 
   const [trocas, setTrocas] = useState<TrocaItem[]>(() => {
     try {
@@ -272,6 +291,18 @@ export default function OrdersLogistics({
   const motoboys = deliveryRiders.map(dr => dr.name);
 
   // Sync to local storage
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('ap_moda_reservas', JSON.stringify(reservas));
+    } catch (e) {}
+  }, [reservas]);
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('ap_moda_crediario', JSON.stringify(crediario));
+    } catch (e) {}
+  }, [crediario]);
+
   React.useEffect(() => {
     try {
       localStorage.setItem('ap_moda_trocas', JSON.stringify(trocas));
@@ -429,40 +460,15 @@ export default function OrdersLogistics({
   const [credClientSelected, setCredClientSelected] = useState('');
   const [credPayVal, setCredPayVal] = useState(100);
 
-  // Sacolas em Condicional State with LocalStorage Persistence
+  // Sacolas em Condicional State with LocalStorage Persistence (no fake seed override)
   const [condicionais, setCondicionais] = useState<any[]>(() => {
     try {
       const saved = localStorage.getItem('ap_moda_condicionais');
-      if (saved) return JSON.parse(saved);
+      if (saved !== null) return JSON.parse(saved);
     } catch (e) {
       console.error(e);
     }
-    return [
-      {
-        id: 'cond-1',
-        clientName: 'Carla Oliveira',
-        phone: '11999998888',
-        items: [
-          { productId: 'prod-1', productName: 'Legging Glow Cós Anatômico - M', quantity: 1, price: 119.90, cost: 45.00 },
-          { productId: 'prod-2', productName: 'Top Cross Alta Sustentação - M', quantity: 1, price: 89.90, cost: 35.00 }
-        ],
-        dateOut: '2026-06-16',
-        dateLimit: '2026-06-19',
-        status: 'Pendente'
-      },
-      {
-        id: 'cond-2',
-        clientName: 'Fernanda Lima',
-        phone: '11988887777',
-        items: [
-          { productId: 'prod-3', productName: 'Shorts Seamless Sculpt - P', quantity: 1, price: 139.90, cost: 50.00 },
-          { productId: 'prod-4', productName: 'Top Seamless Confort - P', quantity: 1, price: 99.90, cost: 38.00 }
-        ],
-        dateOut: '2026-06-14',
-        dateLimit: '2026-06-17',
-        status: 'Pendente'
-      }
-    ];
+    return [];
   });
 
   // Sync condicionais to localStorage
@@ -482,8 +488,9 @@ export default function OrdersLogistics({
 
   // Active closure/return modal
   const [closingCondBag, setClosingCondBag] = useState<any | null>(null);
-  const [itemsToBuyQty, setItemsToBuyQty] = useState<{ [productId: string]: number }>({});
+  const [itemsToBuyQty, setItemsToBuyQty] = useState<{ [itemKey: string]: number }>({});
   const [condSalesperson, setCondSalesperson] = useState('Juliana Cardoso');
+  const [condPaymentMethod, setCondPaymentMethod] = useState('Pix');
 
   // Stats summaries
   const totalReservasAtivas = useMemo(() => reservas.filter(r => r.status === 'Ativa').length, [reservas]);
@@ -792,14 +799,14 @@ export default function OrdersLogistics({
       </div>
 
       {/* Primary Sub-menus */}
-      <div className="flex border-b border-slate-100">
+      <div className="flex border-b border-slate-100 overflow-x-auto no-scrollbar whitespace-nowrap">
         <button
           type="button"
           onClick={() => setActiveSubTab('pedidos')}
-          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
+          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0
             ${activeSubTab === 'pedidos' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <ShoppingBag size={14} />
           <span>Pedidos Online & Reservas</span>
@@ -807,10 +814,10 @@ export default function OrdersLogistics({
         <button
           type="button"
           onClick={() => setActiveSubTab('trocas_crediario')}
-          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
+          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0
             ${activeSubTab === 'trocas_crediario' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <RefreshCcw size={14} />
           <span>Trocas, Devoluções & Crediário</span>
@@ -818,10 +825,10 @@ export default function OrdersLogistics({
         <button
           type="button"
           onClick={() => setActiveSubTab('logistica')}
-          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
+          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0
             ${activeSubTab === 'logistica' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <Truck size={14} />
           <span>Acompanhamento & Motoboys</span>
@@ -829,10 +836,10 @@ export default function OrdersLogistics({
         <button
           type="button"
           onClick={() => setActiveSubTab('condicional')}
-          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
+          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0
             ${activeSubTab === 'condicional' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <Briefcase size={14} />
           <span>Condicionais (Mala em Casa)</span>
@@ -932,7 +939,7 @@ export default function OrdersLogistics({
                     </div>
 
                     {/* Compact Logistic Flow Section */}
-                    <div className="mt-3 bg-slate-50/70 rounded-2xl border border-slate-150 p-3.5 space-y-3 font-sans text-xs">
+                    <div className="mt-3 bg-slate-50/70 rounded-2xl border border-slate-100 p-3.5 space-y-3 font-sans text-xs">
                       <div className="flex items-center gap-1.5 border-b border-slate-200/60 pb-1.5 text-slate-500 font-bold uppercase text-[9px] tracking-wider">
                         <Truck size={12} className="text-pink-600" />
                         <span>Informações de Entrega & Despacho</span>
@@ -948,7 +955,7 @@ export default function OrdersLogistics({
                               CPF: {getOrderCpf(order)}
                               <button
                                 onClick={() => handleCopyToClipboard(getOrderCpf(order), `${order.id}-cpf`)}
-                                className="p-1 hover:bg-slate-200 text-slate-455 hover:text-slate-700 rounded-md transition-all cursor-pointer bg-transparent border-none"
+                                className="p-1 hover:bg-slate-200 text-slate-400 hover:text-slate-700 rounded-md transition-all cursor-pointer bg-transparent border-none"
                                 title="Copiar CPF"
                               >
                                 {copiedTextId === `${order.id}-cpf` ? <span className="text-emerald-600 font-bold text-[10px]">Copiado!</span> : <Copy size={11} />}
@@ -957,14 +964,14 @@ export default function OrdersLogistics({
                           </div>
 
                           {/* Address */}
-                          <div className="text-slate-550 text-[11px] bg-white border border-slate-150 p-2 rounded-xl flex items-start gap-2 shadow-xs">
+                          <div className="text-slate-500 text-[11px] bg-white border border-slate-100 p-2 rounded-xl flex items-start gap-2 shadow-xs">
                             <MapPin size={13} className="text-slate-400 shrink-0 mt-0.5" />
                             <div className="flex-1 min-w-0 text-left">
                               <p className="line-clamp-2 text-slate-700 leading-normal">{order.address}</p>
                             </div>
                             <button
                               onClick={() => handleCopyToClipboard(order.address, `${order.id}-addr`)}
-                              className="p-1.5 hover:bg-slate-100 text-slate-455 hover:text-slate-700 rounded-lg transition-all cursor-pointer self-center bg-transparent border-none"
+                              className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-lg transition-all cursor-pointer self-center bg-transparent border-none"
                               title="Copiar Endereço"
                             >
                               {copiedTextId === `${order.id}-addr` ? <span className="text-emerald-600 font-bold text-[10px]">Copiado!</span> : <Copy size={12} />}
@@ -996,8 +1003,8 @@ export default function OrdersLogistics({
                           </div>
 
                           {/* Freight Modality Badge & Actions */}
-                          <div className="bg-white border border-slate-150 rounded-xl p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px]">
-                            <div className="flex items-center gap-1.5 text-slate-650 font-medium">
+                          <div className="bg-white border border-slate-100 rounded-xl p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px]">
+                            <div className="flex items-center gap-1.5 text-slate-600 font-medium">
                               <Truck size={13} className="text-pink-600 shrink-0" />
                               <span>Frete: <strong className="text-slate-800 uppercase">{getDeliveryLabel(order.deliveryMethod)}</strong></span>
                               <button
@@ -1019,7 +1026,7 @@ export default function OrdersLogistics({
                                     className="p-1 hover:bg-slate-100 text-slate-400 bg-transparent border-none"
                                     title="Copiar Rastreio"
                                   >
-                                    {copiedTextId === `${order.id}-track` ? <span className="text-emerald-650 font-bold text-[9px]">Copied</span> : <Copy size={10} />}
+                                    {copiedTextId === `${order.id}-track` ? <span className="text-emerald-600 font-bold text-[9px]">Copied</span> : <Copy size={10} />}
                                   </button>
                                 </div>
                               )
@@ -1063,7 +1070,7 @@ export default function OrdersLogistics({
                                   )}
                                 </button>
                               ) : (
-                                <div className="text-[10px] text-amber-600 bg-amber-50 border border-amber-150 rounded-lg p-1.5 w-full text-center font-semibold">
+                                <div className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg p-1.5 w-full text-center font-semibold">
                                   ⚠️ Aguardando Confirmação de Pagamento para gerar etiqueta.
                                 </div>
                               )}
@@ -1096,7 +1103,7 @@ export default function OrdersLogistics({
                     placeholder="Ex: Beatriz Pereira"
                     value={reservaClient}
                     onChange={(e) => setReservaClient(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                   />
                 </div>
                 <div>
@@ -1105,7 +1112,7 @@ export default function OrdersLogistics({
                     required={true}
                     value={reservaProd}
                     onChange={(e) => setReservaProd(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                   >
                     <option value="">-- Escolha o Produto --</option>
                     {products.map(p => (
@@ -1121,7 +1128,7 @@ export default function OrdersLogistics({
                       min={1}
                       value={reservaQty}
                       onChange={(e) => setReservaQty(Math.max(1, Number(e.target.value)))}
-                      className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                     />
                   </div>
                   <div>
@@ -1132,7 +1139,7 @@ export default function OrdersLogistics({
                       max={15}
                       value={reservaDays}
                       onChange={(e) => setReservaDays(Math.max(1, Number(e.target.value)))}
-                      className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                     />
                   </div>
                 </div>
@@ -1161,7 +1168,7 @@ export default function OrdersLogistics({
                     placeholder="Ex: Ana Costa"
                     value={newOrderClient}
                     onChange={(e) => setNewOrderClient(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                   />
                 </div>
                 <div>
@@ -1171,7 +1178,7 @@ export default function OrdersLogistics({
                     placeholder="Ex: (11) 99999-9999"
                     value={newOrderPhone}
                     onChange={(e) => setNewOrderPhone(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                   />
                 </div>
                 <div>
@@ -1182,7 +1189,7 @@ export default function OrdersLogistics({
                     placeholder="Rua, Número, Bairro, Cidade - UF"
                     value={newOrderAddress}
                     onChange={(e) => setNewOrderAddress(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-3 focus:outline-hidden text-[11px]"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-3 focus:outline-hidden text-[11px]"
                   />
                 </div>
                 <div>
@@ -1191,7 +1198,7 @@ export default function OrdersLogistics({
                     required
                     value={newOrderProdId}
                     onChange={(e) => setNewOrderProdId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                   >
                     <option value="">-- Escolha o Produto --</option>
                     {products.map(p => (
@@ -1207,7 +1214,7 @@ export default function OrdersLogistics({
                       min={1}
                       value={newOrderQty}
                       onChange={(e) => setNewOrderQty(Math.max(1, Number(e.target.value)))}
-                      className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                     />
                   </div>
                   <div>
@@ -1217,7 +1224,7 @@ export default function OrdersLogistics({
                       min={0}
                       value={newOrderFee}
                       onChange={(e) => setNewOrderFee(Math.max(0, Number(e.target.value)))}
-                      className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                     />
                   </div>
                 </div>
@@ -1226,7 +1233,7 @@ export default function OrdersLogistics({
                   <select
                     value={newOrderRider}
                     onChange={(e) => setNewOrderRider(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                   >
                     <option value="">-- Deixar em Aberto --</option>
                     {motoboys.map(r => (
@@ -1241,7 +1248,7 @@ export default function OrdersLogistics({
                     placeholder="Ex: Próximo ao metrô Lorena"
                     value={newOrderNotes}
                     onChange={(e) => setNewOrderNotes(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                   />
                 </div>
 
@@ -1262,12 +1269,12 @@ export default function OrdersLogistics({
                   <div key={res.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs font-sans">
                     <div className="flex justify-between items-center mb-1">
                       <span className="font-bold text-slate-800">{res.clientName}</span>
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${res.status === 'Ativa' ? 'bg-amber-100 text-amber-800' : 'bg-slate-150 text-slate-500'}`}>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${res.status === 'Ativa' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'}`}>
                         {res.status}
                       </span>
                     </div>
-                    <p className="text-slate-650 font-medium">{res.quantity}x {res.productName}</p>
-                    <div className="flex justify-between items-center mt-2 pt-1 border-t border-slate-150/50 text-[10px] text-slate-400">
+                    <p className="text-slate-600 font-medium">{res.quantity}x {res.productName}</p>
+                    <div className="flex justify-between items-center mt-2 pt-1 border-t border-slate-100/50 text-[10px] text-slate-400">
                       <span>Expira em: <strong className="text-slate-500">{res.validUntil}</strong></span>
                       <span className="font-bold text-pink-600 font-mono">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(res.total)}</span>
                     </div>
@@ -1316,57 +1323,57 @@ export default function OrdersLogistics({
               
               <form onSubmit={handleCreateTrocaSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 text-xs font-sans">
                 <div className="lg:col-span-4">
-                  <label className="block text-slate-450 font-semibold mb-1">Cliente Solicitante</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Cliente Solicitante</label>
                   <input
                     type="text"
                     required
                     placeholder="Ex: Maria Silva"
                     value={trocaClient}
                     onChange={(e) => setTrocaClient(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                   />
                 </div>
                 <div className="lg:col-span-4">
-                  <label className="block text-slate-450 font-semibold mb-1">Peça Devolvida</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Peça Devolvida</label>
                   <input
                     type="text"
                     required
                     placeholder="Ex: Legging Azul Wave (P)"
                     value={trocaReturned}
                     onChange={(e) => setTrocaReturned(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                   />
                 </div>
                 <div className="lg:col-span-4">
-                  <label className="block text-slate-450 font-semibold mb-1">Peça Levada</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Peça Levada</label>
                   <input
                     type="text"
                     required
                     placeholder="Ex: Legging Preta Sculpt (P) ou Cr-Vale"
                     value={trocaTaken}
                     onChange={(e) => setTrocaTaken(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                   />
                 </div>
 
                 <div className="lg:col-span-4">
-                  <label className="block text-slate-450 font-semibold mb-1">Diferença Financeira (R$)</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Diferença Financeira (R$)</label>
                   <input
                     type="number"
                     value={trocaDiff}
                     onChange={(e) => setTrocaDiff(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                     placeholder="Positivo para cliente paga, Negativo para crédito"
                   />
                   <p className="text-[10px] text-slate-400 mt-1">Insira positivo caso a cliente esteja pagando a maior, e negativo gerando reembolso/vale.</p>
                 </div>
                 <div className="lg:col-span-5">
-                  <label className="block text-slate-450 font-semibold mb-1">Motivo / Categoria</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Motivo / Categoria</label>
                   <input
                     type="text"
                     value={trocaReason}
                     onChange={(e) => setTrocaReason(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                   />
                 </div>
                 <div className="lg:col-span-3 flex items-end">
@@ -1413,7 +1420,7 @@ export default function OrdersLogistics({
                             <span className="text-slate-400">R$ 0,00</span>
                           )}
                         </td>
-                        <td className="p-3 text-slate-450 italic">{tr.reason}</td>
+                        <td className="p-3 text-slate-400 italic">{tr.reason}</td>
                         <td className="p-3 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center gap-2">
                             <button
@@ -1458,7 +1465,7 @@ export default function OrdersLogistics({
                     required
                     value={credClientSelected}
                     onChange={(e) => setCredClientSelected(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                   >
                     <option value="">-- Selecione a Ficha --</option>
                     {crediario.map(c => (
@@ -1474,7 +1481,7 @@ export default function OrdersLogistics({
                     required
                     value={credPayVal}
                     onChange={(e) => setCredPayVal(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 focus:outline-hidden"
                   />
                 </div>
 
@@ -1495,7 +1502,7 @@ export default function OrdersLogistics({
                   <div key={cred.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs font-sans">
                     <div className="flex justify-between items-center mb-1">
                       <span className="font-bold text-slate-800">{cred.clientName}</span>
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${cred.status === 'Regular' ? 'bg-green-100 text-green-800' : 'bg-red-150 text-red-800 animate-pulse'}`}>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${cred.status === 'Regular' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800 animate-pulse'}`}>
                         {cred.status}
                       </span>
                     </div>
@@ -1561,7 +1568,7 @@ export default function OrdersLogistics({
               </div>
               <div className="space-y-2.5">
                 {deliveryRiders.map((m, idx) => (
-                  <div key={m.id || idx} className="p-3 bg-white border border-slate-150 rounded-xl hover:shadow-xs transition-shadow flex items-center justify-between">
+                  <div key={m.id || idx} className="p-3 bg-white border border-slate-100 rounded-xl hover:shadow-xs transition-shadow flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-pink-50 text-pink-600 font-bold flex items-center justify-center">
                         <User size={13} />
@@ -1612,7 +1619,7 @@ export default function OrdersLogistics({
                 <h3 className="text-xs font-bold font-sans uppercase text-slate-700 tracking-wider">Calculadora de Frete Local (Motoboy)</h3>
               </div>
               
-              <div className="space-y-2 text-slate-650">
+              <div className="space-y-2 text-slate-600">
                 <div className="flex justify-between items-center p-2 bg-slate-50 rounded">
                   <span className="font-medium">Região Central / Próximo à Loja</span>
                   <span className="font-bold text-slate-800">R$ 10,00</span>
@@ -1678,7 +1685,7 @@ export default function OrdersLogistics({
             <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-xs flex items-center justify-between">
               <div>
                 <span className="text-slate-400 font-bold block uppercase text-[10px]">Retorno Estimado</span>
-                <span className="text-xl font-extrabold text-indigo-650 mt-0.5">72 Horas limite</span>
+                <span className="text-xl font-extrabold text-indigo-600 mt-0.5">72 Horas limite</span>
                 <p className="text-slate-400 text-[10px] mt-1">Fidelização e comodidade com alta conversão</p>
               </div>
               <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -1726,7 +1733,7 @@ export default function OrdersLogistics({
                     <th className="p-3 text-center">Ações de Resolução</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50 text-slate-755">
+                <tbody className="divide-y divide-slate-50 text-slate-700">
                   {condicionais.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="p-8 text-center text-slate-400 font-medium">
@@ -1743,19 +1750,19 @@ export default function OrdersLogistics({
                           <td className="p-3 font-mono text-[10px] text-slate-500">{cond.phone || 'Sem celular'}</td>
                           <td className="p-3 font-mono text-[10px]">{cond.dateOut}</td>
                           <td className="p-3 font-mono text-[10px]">
-                            <span className={isLate ? 'text-red-650 font-bold' : ''}>
+                            <span className={isLate ? 'text-red-600 font-bold' : ''}>
                               {cond.dateLimit} {isLate && '⚠️ (Atrasado!)'}
                             </span>
                           </td>
                           <td className="p-3">
-                            <span className="font-bold text-slate-705 px-2 py-0.5 bg-slate-100 rounded-full text-[10px]">
+                            <span className="font-bold text-slate-700 px-2 py-0.5 bg-slate-100 rounded-full text-[10px]">
                               {cond.items.length} itens
                             </span>
                             <div className="text-[10px] text-slate-400 mt-1 max-w-xs truncate">
                               {cond.items.map((i: any) => `${i.quantity}x ${i.productName}`).join(', ')}
                             </div>
                           </td>
-                          <td className="p-3 text-right font-mono font-bold text-slate-850">
+                          <td className="p-3 text-right font-mono font-bold text-slate-800">
                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalVal)}
                           </td>
                           <td className="p-3">
@@ -1791,12 +1798,13 @@ export default function OrdersLogistics({
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      // pre-fill the purchased items to default maximum quantities
-                                      const initialQty: { [productId: string]: number } = {};
-                                      cond.items.forEach((it: any) => {
-                                        initialQty[it.productId] = it.quantity;
+                                      // pre-fill the purchased items keyed uniquely by productId + index
+                                      const initialQty: { [itemKey: string]: number } = {};
+                                      cond.items.forEach((it: any, idx: number) => {
+                                        initialQty[`${it.productId}_${idx}`] = it.quantity;
                                       });
                                       setItemsToBuyQty(initialQty);
+                                      setCondPaymentMethod('Pix');
                                       setClosingCondBag(cond);
                                     }}
                                     className="p-1 px-2.5 bg-pink-600 text-white hover:bg-pink-700 rounded-lg transition-colors border-none font-bold text-[10px] cursor-pointer"
@@ -1849,7 +1857,7 @@ export default function OrdersLogistics({
 
             <div className="p-6 space-y-4 text-xs text-slate-700 max-h-[85vh] overflow-y-auto">
               <div className="bg-pink-50/40 p-3 rounded-xl border border-pink-100/55 space-y-2">
-                <label className="text-pink-850 font-bold uppercase text-[9px] tracking-wide block">Localizar Cliente no CRM (Otimização de Medidas)</label>
+                <label className="text-pink-800 font-bold uppercase text-[9px] tracking-wide block">Localizar Cliente no CRM (Otimização de Medidas)</label>
                 <select
                   onChange={(e) => {
                     const selectedId = e.target.value;
@@ -1908,19 +1916,19 @@ export default function OrdersLogistics({
                     </span>
                   </div>
                   <div className="grid grid-cols-4 gap-1.5 text-center text-[10px]">
-                     <div className="bg-white p-1.5 rounded-lg border border-slate-150">
+                     <div className="bg-white p-1.5 rounded-lg border border-slate-100">
                        <span className="block text-[8px] text-slate-400 font-bold uppercase">Busto</span>
                        <span className="font-mono font-bold text-slate-700">{selectedClientObj.busto ? `${selectedClientObj.busto} cm` : '--'}</span>
                      </div>
-                     <div className="bg-white p-1.5 rounded-lg border border-slate-150">
+                     <div className="bg-white p-1.5 rounded-lg border border-slate-100">
                        <span className="block text-[8px] text-slate-400 font-bold uppercase">Cintura</span>
                        <span className="font-mono font-bold text-slate-700">{selectedClientObj.cintura ? `${selectedClientObj.cintura} cm` : '--'}</span>
                      </div>
-                     <div className="bg-white p-1.5 rounded-lg border border-slate-150">
+                     <div className="bg-white p-1.5 rounded-lg border border-slate-100">
                        <span className="block text-[8px] text-slate-400 font-bold uppercase">Quadril</span>
                        <span className="font-mono font-bold text-slate-700">{selectedClientObj.quadril ? `${selectedClientObj.quadril} cm` : '--'}</span>
                      </div>
-                     <div className="bg-white p-1.5 rounded-lg border border-slate-150">
+                     <div className="bg-white p-1.5 rounded-lg border border-slate-100">
                        <span className="block text-[8px] text-slate-400 font-bold uppercase">Altura/Peso</span>
                        <span className="font-mono font-bold text-slate-700">{selectedClientObj.altura ? `${selectedClientObj.altura}m` : '--'}/{selectedClientObj.peso ? `${selectedClientObj.peso}kg` : '--'}</span>
                      </div>
@@ -2056,7 +2064,7 @@ export default function OrdersLogistics({
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="font-bold text-slate-805 font-mono">
+                          <span className="font-bold text-slate-800 font-mono">
                             R$ {(item.price * item.quantity).toFixed(2)}
                           </span>
                           <button
@@ -2077,7 +2085,7 @@ export default function OrdersLogistics({
                 <button 
                   type="button" 
                   onClick={() => setIsCondicionalModalOpen(false)}
-                  className="flex-1 py-2.5 bg-slate-100 text-slate-650 hover:bg-slate-200 rounded-xl font-bold transition-all cursor-pointer text-center border-none text-xs"
+                  className="flex-1 py-2.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-xl font-bold transition-all cursor-pointer text-center border-none text-xs"
                 >
                   Cancelar
                 </button>
@@ -2169,11 +2177,12 @@ export default function OrdersLogistics({
                 <p className="text-[10px] text-slate-400 leading-none">O restante das peças será automaticamente recolhida de volta ao estoque!</p>
                 <div className="border border-slate-100 rounded-xl bg-white divide-y divide-slate-100 pr-1 max-h-48 overflow-y-auto">
                   {closingCondBag.items.map((item: any, idx: number) => {
-                    const currentQtyToBuy = itemsToBuyQty[item.productId] ?? 0;
+                    const itemKey = `${item.productId}_${idx}`;
+                    const currentQtyToBuy = itemsToBuyQty[itemKey] ?? 0;
                     return (
                       <div key={idx} className="p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
                         <div className="flex-1">
-                          <p className="font-bold text-slate-750">{item.productName}</p>
+                          <p className="font-bold text-slate-700">{item.productName}</p>
                           <p className="text-[10px] text-slate-400 mt-0.5">
                             Preço de Tabela: R$ {item.price.toFixed(2)} | Qtd Enviada: {item.quantity} peça(s)
                           </p>
@@ -2186,7 +2195,7 @@ export default function OrdersLogistics({
                               onClick={() => {
                                 setItemsToBuyQty(prev => ({
                                   ...prev,
-                                  [item.productId]: Math.max(0, currentQtyToBuy - 1)
+                                  [itemKey]: Math.max(0, currentQtyToBuy - 1)
                                 }));
                               }}
                               className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-600 font-bold border-none cursor-pointer"
@@ -2199,7 +2208,7 @@ export default function OrdersLogistics({
                               onClick={() => {
                                 setItemsToBuyQty(prev => ({
                                   ...prev,
-                                  [item.productId]: Math.min(item.quantity, currentQtyToBuy + 1)
+                                  [itemKey]: Math.min(item.quantity, currentQtyToBuy + 1)
                                 }));
                               }}
                               className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-600 font-bold border-none cursor-pointer"
@@ -2220,8 +2229,8 @@ export default function OrdersLogistics({
                 let returnItemsCount = 0;
                 let finalSaleTotal = 0;
 
-                closingCondBag.items.forEach((item: any) => {
-                  const buyQty = itemsToBuyQty[item.productId] ?? 0;
+                closingCondBag.items.forEach((item: any, idx: number) => {
+                  const buyQty = itemsToBuyQty[`${item.productId}_${idx}`] ?? 0;
                   finalSaleTotal += (item.price * buyQty);
                   purchaseItemsCount += buyQty;
                   returnItemsCount += (item.quantity - buyQty);
@@ -2269,9 +2278,13 @@ export default function OrdersLogistics({
                         </div>
                         <div className="space-y-1">
                           <label className="text-slate-400 font-bold uppercase text-[9px] tracking-wide block">Método de Liquidação</label>
-                          <select className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-pink-500">
-                            <option value="Pix">Pix Garantido</option>
-                            <option value="Cartão">Cartão de Crédito</option>
+                          <select
+                            value={condPaymentMethod}
+                            onChange={(e) => setCondPaymentMethod(e.target.value)}
+                            className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-pink-500"
+                          >
+                            <option value="PIX">Pix Garantido</option>
+                            <option value="Cartão de Crédito">Cartão de Crédito</option>
                             <option value="Dinheiro">Espécie / Dinheiro</option>
                             <option value="Crediário">Crediário da Casa (Caderneta)</option>
                           </select>
@@ -2283,7 +2296,7 @@ export default function OrdersLogistics({
                       <button 
                         type="button" 
                         onClick={() => setClosingCondBag(null)}
-                        className="flex-1 py-2.5 bg-slate-100 text-slate-650 hover:bg-slate-200 rounded-xl font-bold transition-all cursor-pointer text-center border-none text-xs"
+                        className="flex-1 py-2.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-xl font-bold transition-all cursor-pointer text-center border-none text-xs"
                       >
                         Cancelar
                       </button>
@@ -2295,8 +2308,8 @@ export default function OrdersLogistics({
                           let totalToPay = 0;
                           let totalCost = 0;
 
-                          closingCondBag.items.forEach((item: any) => {
-                            const buyQty = itemsToBuyQty[item.productId] ?? 0;
+                          closingCondBag.items.forEach((item: any, idx: number) => {
+                            const buyQty = itemsToBuyQty[`${item.productId}_${idx}`] ?? 0;
                             if (buyQty > 0) {
                               const itCost = item.cost || item.price * 0.4;
                               saleItems.push({
@@ -2322,7 +2335,8 @@ export default function OrdersLogistics({
                               costTotal: totalCost,
                               status: 'Concluída',
                               createdAt: new Date().toISOString(),
-                              salesperson: condSalesperson
+                              salesperson: condSalesperson,
+                              payments: [{ method: condPaymentMethod, amount: totalToPay }]
                             });
                           }
 
@@ -2574,22 +2588,14 @@ export default function OrdersLogistics({
               onSubmit={(e) => {
                 e.preventDefault();
                 setOnlineOrders(prev => prev.map(o => o.id === editingOrder.id ? editingOrder : o));
-                
                 try {
-                  const url = localStorage.getItem('ap_supabase_url');
-                  const key = localStorage.getItem('ap_supabase_key');
-                  if (url && key) {
-                    fetch(`${url}/rest/v1/ap_online_orders?id=eq.${editingOrder.id}`, {
-                      method: 'PATCH',
-                      headers: {
-                        'apikey': key,
-                        'Authorization': `Bearer ${key}`,
-                        'Content-Type': 'application/json'
-                      },
-                      body: JSON.stringify(editingOrder)
-                    }).catch(() => {});
+                  const dirtyOrders: string[] = JSON.parse(localStorage.getItem('ap_dirty_online_orders') || '[]');
+                  if (!dirtyOrders.includes(editingOrder.id)) {
+                    dirtyOrders.push(editingOrder.id);
+                    localStorage.setItem('ap_dirty_online_orders', JSON.stringify(dirtyOrders));
                   }
-                } catch(err) {}
+                } catch (err) {}
+                syncBulkOnlineOrdersToSupabase([editingOrder]).catch(() => {});
 
                 showCustomAlert('Sucesso', `Pedido #${editingOrder.id} atualizado com sucesso!`);
                 setEditingOrder(null);
@@ -2785,7 +2791,7 @@ export default function OrdersLogistics({
                 <button 
                   type="button"
                   onClick={() => setEditingOrder(null)}
-                  className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-650 rounded-xl font-bold transition cursor-pointer text-center"
+                  className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition cursor-pointer text-center"
                 >
                   Cancelar
                 </button>

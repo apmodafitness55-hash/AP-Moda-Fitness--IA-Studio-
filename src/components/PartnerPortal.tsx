@@ -895,7 +895,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
           <div className="flex items-center gap-3 w-full md:w-auto justify-end border-t border-slate-800 md:border-t-0 pt-4 md:pt-0">
             <button
               onClick={onLogout}
-              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 text-xs font-bold rounded-xl transition duration-300 flex items-center gap-2 cursor-pointer border border-slate-750"
+              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 text-xs font-bold rounded-xl transition duration-300 flex items-center gap-2 cursor-pointer border border-slate-700"
             >
               <LogOut size={13} />
               <span>Sair do Painel</span>
@@ -1022,7 +1022,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
                   ) : (
                     <table className="w-full text-[11px] font-sans">
                       <thead>
-                        <tr className="text-slate-450 font-bold border-b border-slate-800 p-2">
+                        <tr className="text-slate-400 font-bold border-b border-slate-800 p-2">
                           <th className="pb-2 text-left">ID Pedido</th>
                           <th className="pb-2 text-left">Cliente Integrado</th>
                           <th className="pb-2 text-left">Data</th>
@@ -1033,7 +1033,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
                       </thead>
                       <tbody className="divide-y divide-slate-800/50">
                         {partnerSales.map((sale) => (
-                          <tr key={sale.id} className="text-slate-300 hover:bg-slate-850/30 transition-colors">
+                          <tr key={sale.id} className="text-slate-300 hover:bg-slate-800/30 transition-colors">
                             <td className="py-2.5 font-mono text-[10px] font-bold text-pink-400">#{sale.id}</td>
                             <td className="py-2.5 font-bold">{sale.clientName}</td>
                             <td className="py-2.5 text-slate-400 font-medium">{sale.date}</td>
@@ -1067,7 +1067,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
                     </div>
                   </div>
 
-                  <p className="text-[11px] leading-relaxed text-slate-350 antialiased font-medium">
+                  <p className="text-[11px] leading-relaxed text-slate-300 antialiased font-medium">
                     "Compartilhe suas fotos usando as peças AP de alta compressão e o short de poliamida cicatrizante e marque nosso instagram para mais alcance."
                   </p>
 
@@ -1117,7 +1117,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
               <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="space-y-1 text-center sm:text-left select-none">
                   <span className="text-[9px] font-extrabold uppercase bg-pink-600/15 border border-pink-500/20 text-pink-400 px-2 py-0.5 rounded">Cupom Exclusivo</span>
-                  <p className="text-xs text-slate-350 pr-4 mt-1 font-medium">Oferece desconto especial de 5% no checkout de atacado ou varejo.</p>
+                  <p className="text-xs text-slate-300 pr-4 mt-1 font-medium">Oferece desconto especial de 5% no checkout de atacado ou varejo.</p>
                 </div>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -1137,13 +1137,13 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
               {/* Dynamic Vitrine Ref Link Row */}
               <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-[9px] font-extrabold uppercase bg-indigo-505/15 border border-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded">Link da Vitrine Referenciado</span>
+                  <span className="text-[9px] font-extrabold uppercase bg-indigo-500/15 border border-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded">Link da Vitrine Referenciado</span>
                   <span className="text-slate-500 text-[10px] hover:text-indigo-400 transition cursor-pointer flex items-center gap-1" onClick={() => setShowQrCode(!showQrCode)}>
                     <QrCode size={12} />
                     <span>{showQrCode ? 'Ocultar QR Code' : 'Exibir QR Code'}</span>
                   </span>
                 </div>
-                <p className="text-xs text-slate-350 font-medium">Seus seguidores que comprarem através de visitas a este link associarão a comissão automaticamente a você.</p>
+                <p className="text-xs text-slate-300 font-medium">Seus seguidores que comprarem através de visitas a este link associarão a comissão automaticamente a você.</p>
                 
                 <div className="flex items-center gap-2">
                   <input
@@ -1154,7 +1154,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
                   />
                   <button
                     onClick={handleCopyLink}
-                    className="p-3 bg-slate-800 hover:bg-slate-705 text-slate-200 rounded-xl transition cursor-pointer border-none shrink-0"
+                    className="p-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl transition cursor-pointer border-none shrink-0"
                     title="Copiar link"
                   >
                     {copiedLink ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
@@ -1167,7 +1167,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
                     <div className="w-28 h-28 bg-slate-100 flex flex-col items-center justify-center relative overflow-hidden text-center rounded">
                       <QrCode className="text-slate-800 stroke-[1.5]" size={70} />
                     </div>
-                    <span className="text-[8px] text-slate-505 font-bold uppercase tracking-widest mt-1 text-slate-800">QR Code Vitrine</span>
+                    <span className="text-[8px] text-slate-500 font-bold uppercase tracking-widest mt-1 text-slate-800">QR Code Vitrine</span>
                   </div>
                 )}
               </div>
@@ -1204,7 +1204,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
                 <span>Modelo de Repasses e Políticas</span>
               </h3>
 
-              <div className="space-y-3.5 text-xs text-slate-350">
+              <div className="space-y-3.5 text-xs text-slate-300">
                 <div className="space-y-1">
                   <h4 className="font-bold text-white text-xs">1. Como funciona o link parametrizado?</h4>
                   <p className="leading-normal">
@@ -1396,7 +1396,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
                   Seu Saldo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(currentAvailableBalance)}
                 </span>
                 <h3 className="font-extrabold text-white text-base pt-1">Solicitar Resgate de Comissão</h3>
-                <p className="text-slate-400 text-xs text-slate-350">Informe seus dados do Pix para transferência imediata em menos de 24 horas.</p>
+                <p className="text-slate-400 text-xs text-slate-300">Informe seus dados do Pix para transferência imediata em menos de 24 horas.</p>
               </div>
 
               {withdrawErrorMsg && (
@@ -1430,7 +1430,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
                     <select
                       value={pixKeyType}
                       onChange={(e) => setPixKeyType(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-300 font-bold focus:outline-none focus:border-pink-505 cursor-pointer"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-300 font-bold focus:outline-none focus:border-pink-500 cursor-pointer"
                     >
                       <option value="CPF/CNPJ">CPF / CNPJ</option>
                       <option value="Celular">Celular</option>
@@ -1471,7 +1471,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
               <div className="overflow-x-auto">
                 <table className="w-full text-[11px] font-sans">
                   <thead>
-                    <tr className="text-slate-450 font-bold border-b border-slate-800/60 p-2">
+                    <tr className="text-slate-400 font-bold border-b border-slate-800/60 p-2">
                       <th className="pb-2 text-left">Solicitação</th>
                       <th className="pb-2 text-left">Data</th>
                       <th className="pb-2 text-left">Chave Pix</th>
@@ -1481,7 +1481,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
                   </thead>
                   <tbody className="divide-y divide-slate-800/50">
                     {withdrawRequests.map((req) => (
-                      <tr key={req.id} className="text-slate-300 hover:bg-slate-850/30 transition-colors">
+                      <tr key={req.id} className="text-slate-300 hover:bg-slate-800/30 transition-colors">
                         <td className="py-3 font-mono text-[10px] text-pink-400 font-bold">{req.id}</td>
                         <td className="py-3 font-medium text-slate-400">{req.date}</td>
                         <td className="py-3 text-slate-400 max-w-[130px] truncate" title={req.pixKey}>{req.pixKey}</td>
@@ -1492,7 +1492,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
                               ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
                               : req.status === 'Pendente'
                               ? 'bg-amber-500/10 border-amber-500/20 text-amber-400 animate-pulse'
-                              : 'bg-rose-500/10 border-rose-500/20 text-rose-450'}`}
+                              : 'bg-rose-500/10 border-rose-500/20 text-rose-400'}`}
                           >
                             {req.status}
                           </span>

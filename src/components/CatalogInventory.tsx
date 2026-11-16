@@ -143,7 +143,9 @@ export default function CatalogInventory({
   const products = Array.isArray(rawProducts) ? rawProducts : [];
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
+  const [showCriticalOnly, setShowCriticalOnly] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [addModalTab, setAddModalTab] = useState<'basico' | 'frete' | 'cores' | 'medidas' | 'fotos'>('basico');
   const [isSaving, setIsSaving] = useState(false);
 
   // Dynamic custom color map state
@@ -417,15 +419,15 @@ export default function CatalogInventory({
 
   React.useEffect(() => {
     if (activeSubTab === 'cadastro') {
+      setAddModalTab('basico');
       setIsAddModalOpen(true);
       if (setActiveSubTab) {
-        // Reset so it doesn't keep opening on back and forth clicks
         setActiveSubTab('inventario');
       }
     } else if (activeSubTab === 'restoque') {
-      // Filter by items that need restock
       setSearchQuery('');
       setSelectedCategory('Todos');
+      setShowCriticalOnly(true);
       if (setActiveSubTab) {
         setActiveSubTab('inventario');
       }
@@ -695,14 +697,16 @@ export default function CatalogInventory({
   }, [productCategoriesOnly]);
 
   const filteredProducts = useMemo(() => {
+    const criticalProdIds = new Set(criticalVariations.map(v => v.productId));
     return products.filter(p => {
       const matchesSearch = 
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
         p.sku.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = selectedCategory === 'Todos' || p.category === selectedCategory;
-      return matchesSearch && matchesCategory;
+      const matchesCritical = !showCriticalOnly || p.stock < p.minStock || p.stock === 0 || criticalProdIds.has(p.id);
+      return matchesSearch && matchesCategory && matchesCritical;
     });
-  }, [products, searchQuery, selectedCategory]);
+  }, [products, searchQuery, selectedCategory, showCriticalOnly, criticalVariations]);
 
   const handleRestock = (productId: string, quantity: number) => {
     const p = products.find(prod => prod.id === productId);
@@ -717,7 +721,8 @@ export default function CatalogInventory({
   const handleAddProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || !newSku.trim()) {
-      alert('Por favor, preencha o Nome e o SKU do produto.');
+      setAddModalTab('basico');
+      alert('Por favor, preencha o Nome e o SKU do produto na aba Básico & Preço.');
       return;
     }
 
@@ -1319,12 +1324,12 @@ export default function CatalogInventory({
             placeholder="Procurar peça ou modelo pelo nome ou SKU..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-150 rounded-xl text-xs font-sans text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 transitions-all"
+            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-sans text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 transitions-all"
           />
         </div>
 
-        {/* Category Pills */}
-        <div className="flex flex-wrap gap-2 pt-2">
+        {/* Category & Critical Filter Pills */}
+        <div className="flex flex-wrap items-center gap-2 pt-2">
           {categories.map((cat) => (
             <button
               key={cat}
@@ -1333,36 +1338,47 @@ export default function CatalogInventory({
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-sans transition-all cursor-pointer
                 ${selectedCategory === cat 
                   ? 'bg-pink-600 text-white shadow-xs shadow-pink-500/10' 
-                  : 'bg-slate-50 text-slate-550 hover:bg-slate-100 border border-slate-100'}`}
+                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-100'}`}
             >
               {cat}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setShowCriticalOnly(prev => !prev)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold font-sans transition-all cursor-pointer ml-auto ${
+              showCriticalOnly
+                ? 'bg-red-600 text-white shadow-xs'
+                : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
+            }`}
+          >
+            {showCriticalOnly ? '⚠️ Mostrando Críticos (Limpar)' : '⚠️ Apenas Estoque Crítico'}
+          </button>
         </div>
       </div>
 
       {/* Product Stock Table / Grid */}
       <div className="bg-white border border-slate-100 rounded-2xl shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-50 flex items-center justify-between">
+        <div className="p-4 border-b border-slate-50 flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-bold text-slate-800">Catálogo de Roupas ({filteredProducts.length})</h3>
           <span className="text-[10px] text-slate-400 font-medium font-sans">Dica: clique em (+10) ou (-1) para ajustar estoques</span>
         </div>
 
-        {/* DESKTOP TABLE VIEW (Visible on tablet/desktop >= 768px and desktop mode) */}
-        <div className="hidden md:block overflow-x-auto">
+        {/* DESKTOP TABLE VIEW (Visible on large screens >= 1024px so Chrome desktop-on-phone & tablets get cards with zero clipping) */}
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs font-sans table-auto">
             <thead>
               <tr className="bg-slate-50/70 border-b border-slate-50 text-slate-400 font-bold uppercase text-[10px] tracking-wider select-none">
-                <th className="p-4 min-w-[220px]">Item</th>
-                <th className="p-4">SKU</th>
-                <th className="p-4">Categoria</th>
-                <th className="p-4 text-right">Custo</th>
-                <th className="p-4 text-right">Preço Venda</th>
-                <th className="p-4 text-center">Nível de Estoque</th>
-                <th className="p-4 text-center">Ações Rápidas</th>
+                <th className="p-3 xl:p-4 min-w-[190px]">Item</th>
+                <th className="p-3 xl:p-4">SKU</th>
+                <th className="p-3 xl:p-4">Categoria</th>
+                <th className="p-3 xl:p-4 text-right">Custo</th>
+                <th className="p-3 xl:p-4 text-right">Preço Venda</th>
+                <th className="p-3 xl:p-4 text-center">Nível de Estoque</th>
+                <th className="p-3 xl:p-4 text-center">Ações Rápidas</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 font-medium text-slate-650">
+            <tbody className="divide-y divide-slate-100 font-medium text-slate-600">
               {filteredProducts.map((p) => {
                 const isLowStock = p.stock < p.minStock;
                 const isOutOfStock = p.stock === 0;
@@ -1551,7 +1567,7 @@ export default function CatalogInventory({
                             <span className="font-extrabold text-slate-900 text-sm group-hover:text-pink-600 transition-colors">
                               {formatCurrency(p.price)}
                             </span>
-                            <span className="bg-slate-100 group-hover:bg-pink-100 text-slate-400 group-hover:text-pink-600 p-1 rounded-md transition-all shadow-3xs" title="Clique para editar valor">
+                            <span className="bg-slate-100 group-hover:bg-pink-100 text-slate-400 group-hover:text-pink-600 p-1 rounded-md transition-all shadow-2xs" title="Clique para editar valor">
                               <Edit3 size={11} />
                             </span>
                           </div>
@@ -1587,9 +1603,9 @@ export default function CatalogInventory({
                       </div>
                     </td>
 
-                    {/* Action elements */}
-                    <td className="p-4 text-center align-top">
-                      <div className="inline-flex gap-1 bg-slate-50 p-1 border border-slate-150 rounded-lg">
+                    {/* Action elements - wrapped compact cluster so right column never clips */}
+                    <td className="p-3 text-center align-top">
+                      <div className="inline-flex flex-wrap justify-center gap-1 bg-slate-50 p-1 border border-slate-200 rounded-lg max-w-[230px]">
                         <button 
                           onClick={() => handleOpenQuickPriceModal(p)}
                           title="Alterar Preço de Venda, Custo e Promoção em 1 clique"
@@ -1598,7 +1614,6 @@ export default function CatalogInventory({
                           <DollarSign size={11} />
                           <span>Preço</span>
                         </button>
-                        <span className="w-px bg-slate-150 self-stretch my-1" />
                         <button 
                           onClick={() => handleOpenQuickFreightModal(p)}
                           title="Alterar Peso e Dimensões de Frete (Melhor Envio / Correios)"
@@ -1607,7 +1622,6 @@ export default function CatalogInventory({
                           <Truck size={11} />
                           <span>Frete</span>
                         </button>
-                        <span className="w-px bg-slate-150 self-stretch my-1" />
                         <button 
                           onClick={() => {
                             const origin = typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost')
@@ -1632,38 +1646,34 @@ export default function CatalogInventory({
                           <Link2 size={11} />
                           <span>Link</span>
                         </button>
-                        <span className="w-px bg-slate-150 self-stretch my-1" />
                         <button 
                           onClick={() => handleOpenEditModal(p)}
                           title="Editar todas as configurações da peça"
-                          className="px-2 py-1 text-[10px] font-bold font-sans text-slate-500 hover:text-pink-600 hover:bg-white rounded transition-all cursor-pointer"
+                          className="px-2 py-1 text-[10px] font-bold font-sans text-slate-600 bg-white hover:text-pink-600 border border-slate-200 rounded transition-all cursor-pointer"
                         >
                           Editar
                         </button>
-                        <span className="w-px bg-slate-150 self-stretch my-1" />
                         <button 
                           onClick={() => handleRestock(p.id, -1)}
                           title="Remover 1 unidade"
-                          className="px-2 py-1 text-[10px] font-bold font-sans text-slate-500 hover:text-rose-600 hover:bg-white rounded transition-all cursor-pointer"
+                          className="px-2 py-1 text-[10px] font-bold font-sans text-slate-600 bg-white hover:text-rose-600 border border-slate-200 rounded transition-all cursor-pointer"
                         >
                           -1
                         </button>
-                        <span className="w-px bg-slate-150 self-stretch my-1" />
                         <button 
                           onClick={() => handleRestock(p.id, 10)}
                           title="Restock de 10 unidades"
-                          className="px-2 py-1 text-[10px] font-bold font-sans text-slate-500 hover:text-emerald-600 hover:bg-white rounded transition-all cursor-pointer"
+                          className="px-2 py-1 text-[10px] font-bold font-sans text-slate-600 bg-white hover:text-emerald-600 border border-slate-200 rounded transition-all cursor-pointer"
                         >
                           +10
                         </button>
-                        <span className="w-px bg-slate-150 self-stretch my-1" />
                         <button 
                           onClick={() => {
                             if (confirm(`Deseja mesmo arquivar a peça "${p.name}"?`)) {
                               onDeleteProduct(p.id);
                             }
                           }}
-                          className="px-2 py-1 text-[10px] font-bold font-sans text-slate-400 hover:text-rose-500 hover:bg-white rounded transition-all cursor-pointer"
+                          className="px-2 py-1 text-[10px] font-bold font-sans text-rose-500 bg-white hover:bg-rose-50 border border-slate-200 rounded transition-all cursor-pointer"
                         >
                           Deletar
                         </button>
@@ -1676,8 +1686,8 @@ export default function CatalogInventory({
           </table>
         </div>
 
-        {/* MOBILE CARDS VIEW (Visible only on mobile screens < 768px for perfect touch usability) */}
-        <div className="md:hidden divide-y divide-slate-100 bg-white">
+        {/* MOBILE & TABLET CARDS VIEW (Visible below lg < 1024px for zero clipping on Chrome mobile/desktop-mode) */}
+        <div className="lg:hidden divide-y divide-slate-100 bg-white">
           {filteredProducts.map((p) => {
             const isLowStock = p.stock < p.minStock;
             const isOutOfStock = p.stock === 0;
@@ -1729,7 +1739,7 @@ export default function CatalogInventory({
                     <button
                       type="button"
                       onClick={() => setInternalSubTab('grade')}
-                      className="text-[10px] font-bold text-red-700 bg-white border border-red-200 px-2 py-1 rounded-lg shrink-0 hover:bg-red-50 cursor-pointer shadow-3xs"
+                      className="text-[10px] font-bold text-red-700 bg-white border border-red-200 px-2 py-1 rounded-lg shrink-0 hover:bg-red-50 cursor-pointer shadow-2xs"
                     >
                       Ver Grade 🔍
                     </button>
@@ -1757,7 +1767,7 @@ export default function CatalogInventory({
                     <button
                       type="button"
                       onClick={() => handleRestock(p.id, -1)}
-                      className="w-9 h-8 rounded-lg bg-white border border-slate-200 hover:border-rose-400 hover:text-rose-600 text-slate-700 font-bold text-xs flex items-center justify-center transition-all active:scale-95 shadow-3xs cursor-pointer"
+                      className="w-9 h-8 rounded-lg bg-white border border-slate-200 hover:border-rose-400 hover:text-rose-600 text-slate-700 font-bold text-xs flex items-center justify-center transition-all active:scale-95 shadow-2xs cursor-pointer"
                       title="Subtrair 1 unidade"
                     >
                       -1
@@ -1765,7 +1775,7 @@ export default function CatalogInventory({
                     <button
                       type="button"
                       onClick={() => handleRestock(p.id, 1)}
-                      className="w-9 h-8 rounded-lg bg-white border border-slate-200 hover:border-emerald-400 hover:text-emerald-600 text-slate-700 font-bold text-xs flex items-center justify-center transition-all active:scale-95 shadow-3xs cursor-pointer"
+                      className="w-9 h-8 rounded-lg bg-white border border-slate-200 hover:border-emerald-400 hover:text-emerald-600 text-slate-700 font-bold text-xs flex items-center justify-center transition-all active:scale-95 shadow-2xs cursor-pointer"
                       title="Adicionar 1 unidade"
                     >
                       +1
@@ -1773,7 +1783,7 @@ export default function CatalogInventory({
                     <button
                       type="button"
                       onClick={() => handleRestock(p.id, 10)}
-                      className="px-2.5 h-8 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 font-extrabold text-xs flex items-center justify-center transition-all active:scale-95 shadow-3xs cursor-pointer hover:bg-emerald-100"
+                      className="px-2.5 h-8 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 font-extrabold text-xs flex items-center justify-center transition-all active:scale-95 shadow-2xs cursor-pointer hover:bg-emerald-100"
                       title="Repor 10 unidades"
                     >
                       +10
@@ -1804,7 +1814,7 @@ export default function CatalogInventory({
                   <button
                     type="button"
                     onClick={() => handleOpenQuickPriceModal(p)}
-                    className="py-2 px-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer shadow-3xs"
+                    className="py-2 px-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer shadow-2xs"
                   >
                     <DollarSign size={13} className="text-emerald-600" />
                     <span>Preço</span>
@@ -1812,7 +1822,7 @@ export default function CatalogInventory({
                   <button
                     type="button"
                     onClick={() => handleOpenQuickFreightModal(p)}
-                    className="py-2 px-1 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer shadow-3xs"
+                    className="py-2 px-1 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer shadow-2xs"
                   >
                     <Truck size={13} className="text-sky-600" />
                     <span>Frete</span>
@@ -1829,7 +1839,7 @@ export default function CatalogInventory({
                       }
                       alert(`Link copiado com sucesso!\n\n${shareUrl}`);
                     }}
-                    className="py-2 px-1 bg-pink-50 hover:bg-pink-100 text-pink-700 border border-pink-200 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer shadow-3xs"
+                    className="py-2 px-1 bg-pink-50 hover:bg-pink-100 text-pink-700 border border-pink-200 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer shadow-2xs"
                   >
                     <Link2 size={13} className="text-pink-600" />
                     <span>Link</span>
@@ -1837,7 +1847,7 @@ export default function CatalogInventory({
                   <button
                     type="button"
                     onClick={() => handleOpenEditModal(p)}
-                    className="py-2 px-1 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer shadow-3xs"
+                    className="py-2 px-1 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer shadow-2xs"
                   >
                     <Edit3 size={13} className="text-slate-600" />
                     <span>Editar</span>
@@ -1849,7 +1859,7 @@ export default function CatalogInventory({
                         onDeleteProduct(p.id);
                       }
                     }}
-                    className="py-2 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer shadow-3xs"
+                    className="py-2 px-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer shadow-2xs"
                   >
                     <Trash2 size={13} className="text-rose-600" />
                     <span>Excluir</span>
@@ -1893,7 +1903,7 @@ export default function CatalogInventory({
                 });
 
                 return (
-                  <div key={combo.id} className="border border-slate-150 bg-slate-50/40 rounded-xl p-4 flex flex-col justify-between hover:border-pink-200 hover:shadow-md hover:shadow-pink-500/5 transition-all">
+                  <div key={combo.id} className="border border-slate-100 bg-slate-50/40 rounded-xl p-4 flex flex-col justify-between hover:border-pink-200 hover:shadow-md hover:shadow-pink-500/5 transition-all">
                     <div>
                       <div className="flex justify-between items-start">
                         <span className="font-bold text-slate-800 text-xs font-sans block">{combo.name}</span>
@@ -1909,8 +1919,8 @@ export default function CatalogInventory({
                             const linkedProd = products.find(p => p.id === it.productId || p.name === it.name);
                             return (
                               <div key={i} className="flex justify-between items-center text-[11px] bg-white p-1.5 px-2.5 rounded-lg border border-slate-100">
-                                <span className="text-slate-650 font-medium font-sans">{it.quantity}x {it.name}</span>
-                                <span className="font-mono text-[10px] text-slate-455">
+                                <span className="text-slate-600 font-medium font-sans">{it.quantity}x {it.name}</span>
+                                <span className="font-mono text-[10px] text-slate-400">
                                   Estoque: {linkedProd ? `${linkedProd.stock} uni` : 'Não vinculado'}
                                 </span>
                               </div>
@@ -2038,34 +2048,34 @@ export default function CatalogInventory({
                     <div className="grid grid-cols-12 p-3 items-center font-medium hover:bg-slate-800/40">
                       <div className="col-span-5 flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-pink-500 shrink-0" />
-                        <span className="text-slate-205 truncate font-sans">Cropped Dry-Fit + Calça Legging</span>
+                        <span className="text-slate-200 truncate font-sans">Cropped Dry-Fit + Calça Legging</span>
                       </div>
                       <div className="col-span-2 text-center font-mono font-bold text-slate-400">842</div>
                       <div className="col-span-2 text-center font-mono font-bold text-emerald-400">58 un</div>
-                      <div className="col-span-2 text-center font-mono text-slate-350">6.9%</div>
-                      <div className="col-span-1 text-right font-mono text-slate-205 font-bold">R$ 11.230</div>
+                      <div className="col-span-2 text-center font-mono text-slate-300">6.9%</div>
+                      <div className="col-span-1 text-right font-mono text-slate-200 font-bold">R$ 11.230</div>
                     </div>
 
                     <div className="grid grid-cols-12 p-3 items-center font-medium hover:bg-slate-800/40">
                       <div className="col-span-5 flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-pink-500 shrink-0" />
-                        <span className="text-slate-205 truncate font-sans">Regata Light + Shorts Ativo</span>
+                        <span className="text-slate-200 truncate font-sans">Regata Light + Shorts Ativo</span>
                       </div>
                       <div className="col-span-2 text-center font-mono font-bold text-slate-400">620</div>
                       <div className="col-span-2 text-center font-mono font-bold text-emerald-400">42 un</div>
-                      <div className="col-span-2 text-center font-mono text-slate-350">6.7%</div>
-                      <div className="col-span-1 text-right font-mono text-slate-205 font-bold">R$ 7.980</div>
+                      <div className="col-span-2 text-center font-mono text-slate-300">6.7%</div>
+                      <div className="col-span-1 text-right font-mono text-slate-200 font-bold">R$ 7.980</div>
                     </div>
 
                     <div className="grid grid-cols-12 p-3 items-center font-medium hover:bg-slate-800/40">
                       <div className="col-span-5 flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-pink-500 shrink-0" />
-                        <span className="text-slate-205 truncate font-sans">Top Ativo + Bermuda Compressão</span>
+                        <span className="text-slate-200 truncate font-sans">Top Ativo + Bermuda Compressão</span>
                       </div>
                       <div className="col-span-2 text-center font-mono font-bold text-slate-400">380</div>
                       <div className="col-span-2 text-center font-mono font-bold text-emerald-400">28 un</div>
-                      <div className="col-span-2 text-center font-mono text-slate-350">7.3%</div>
-                      <div className="col-span-1 text-right font-mono text-slate-205 font-bold">R$ 5.430</div>
+                      <div className="col-span-2 text-center font-mono text-slate-300">7.3%</div>
+                      <div className="col-span-1 text-right font-mono text-slate-200 font-bold">R$ 5.430</div>
                     </div>
                   </div>
                 </div>
@@ -2097,7 +2107,7 @@ export default function CatalogInventory({
                     type="number"
                     value={markupCost}
                     onChange={(e) => setMarkupCost(parseFloat(e.target.value) || 0)}
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-705 font-mono font-bold focus:outline-none focus:border-pink-500"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-mono font-bold focus:outline-none focus:border-pink-500"
                   />
                 </div>
               </div>
@@ -2108,7 +2118,7 @@ export default function CatalogInventory({
                   type="number"
                   value={markupTax}
                   onChange={(e) => setMarkupTax(parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-705 font-mono font-medium focus:outline-none focus:border-pink-500"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-mono font-medium focus:outline-none focus:border-pink-500"
                 />
               </div>
 
@@ -2118,7 +2128,7 @@ export default function CatalogInventory({
                   type="number"
                   value={markupCommission}
                   onChange={(e) => setMarkupCommission(parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-705 font-mono font-medium focus:outline-none focus:border-pink-500"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-mono font-medium focus:outline-none focus:border-pink-500"
                 />
               </div>
 
@@ -2128,7 +2138,7 @@ export default function CatalogInventory({
                   type="number"
                   value={markupGateway}
                   onChange={(e) => setMarkupGateway(parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-705 font-mono font-medium focus:outline-none focus:border-pink-500"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-mono font-medium focus:outline-none focus:border-pink-500"
                 />
               </div>
 
@@ -2138,17 +2148,17 @@ export default function CatalogInventory({
                   type="number"
                   value={markupDiscount}
                   onChange={(e) => setMarkupDiscount(parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-705 font-mono font-medium focus:outline-none focus:border-pink-500"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-mono font-medium focus:outline-none focus:border-pink-500"
                 />
               </div>
 
-              <div className="space-y-1 text-pink-650 font-bold bg-pink-50/15 p-3 rounded-xl border border-pink-100/50">
-                <label className="text-pink-650 font-bold block uppercase text-[9px] tracking-wide font-sans">Lucro Líquido Desejado (%)</label>
+              <div className="space-y-1 text-pink-600 font-bold bg-pink-50/15 p-3 rounded-xl border border-pink-100/50">
+                <label className="text-pink-600 font-bold block uppercase text-[9px] tracking-wide font-sans">Lucro Líquido Desejado (%)</label>
                 <input
                   type="number"
                   value={markupDesiredProfit}
                   onChange={(e) => setMarkupDesiredProfit(parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-2 bg-white border border-pink-250 rounded-xl text-pink-700 font-mono font-bold focus:outline-none focus:border-pink-500"
+                  className="w-full px-3 py-2 bg-white border border-pink-200 rounded-xl text-pink-700 font-mono font-bold focus:outline-none focus:border-pink-500"
                 />
               </div>
             </div>
@@ -2174,12 +2184,12 @@ export default function CatalogInventory({
                 return (
                   <div className="space-y-6">
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="p-4 bg-slate-950 text-center rounded-xl border border-slate-850">
-                        <span className="block text-[8px] text-slate-455 uppercase font-mono font-bold tracking-wider mb-1">Fator de Markup</span>
+                      <div className="p-4 bg-slate-950 text-center rounded-xl border border-slate-800">
+                        <span className="block text-[8px] text-slate-400 uppercase font-mono font-bold tracking-wider mb-1">Fator de Markup</span>
                         <span className="text-xl font-mono font-semibold font-bold text-amber-500">{markupFactor ? `${markupFactor.toFixed(2)}x` : 'N/A'}</span>
                       </div>
-                      <div className="p-4 bg-slate-950 text-center rounded-xl border border-slate-855">
-                        <span className="block text-[8px] text-slate-455 uppercase font-mono font-bold tracking-wider mb-1">Preço de Custo Total</span>
+                      <div className="p-4 bg-slate-950 text-center rounded-xl border border-slate-800">
+                        <span className="block text-[8px] text-slate-400 uppercase font-mono font-bold tracking-wider mb-1">Preço de Custo Total</span>
                         <span className="text-xl font-mono font-semibold font-bold text-slate-300">{formatCurrency(breakevenPrice)}</span>
                       </div>
                     </div>
@@ -2187,33 +2197,33 @@ export default function CatalogInventory({
                     <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 text-center space-y-1">
                       <span className="block text-[10px] text-pink-400 uppercase font-bold tracking-widest font-mono">Preço Venda Sugerido</span>
                       <span className="text-3xl font-mono font-extrabold text-white block">{formatCurrency(sellingPrice)}</span>
-                      <span className="text-[10px] text-slate-450 italic font-sans block mt-1">Multiplicador do Custo de Aquisição</span>
+                      <span className="text-[10px] text-slate-400 italic font-sans block mt-1">Multiplicador do Custo de Aquisição</span>
                     </div>
 
                     <div className="space-y-2">
-                      <span className="block text-[9px] text-slate-455 uppercase font-mono font-bold tracking-wider">Abertura do Valor de Venda</span>
+                      <span className="block text-[9px] text-slate-400 uppercase font-mono font-bold tracking-wider">Abertura do Valor de Venda</span>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-                        <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-805">
+                        <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
                           <span className="block text-[8px] text-slate-500 font-bold uppercase font-sans">Custo Fábrica</span>
                           <span className="font-mono text-slate-300 font-semibold">{formatCurrency(markupCost)}</span>
                         </div>
-                        <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-805">
+                        <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
                           <span className="block text-[8px] text-slate-500 font-bold uppercase font-sans">Impostos</span>
                           <span className="font-mono text-rose-400 font-semibold">{formatCurrency(taxValue)}</span>
                         </div>
-                        <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-805">
+                        <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
                           <span className="block text-[8px] text-slate-500 font-bold uppercase font-sans">Comissões</span>
                           <span className="font-mono text-rose-400 font-semibold">{formatCurrency(commissionValue)}</span>
                         </div>
-                        <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-805">
+                        <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
                           <span className="block text-[8px] text-slate-500 font-bold uppercase font-sans">Maquininha</span>
                           <span className="font-mono text-rose-400 font-semibold">{formatCurrency(gatewayValue)}</span>
                         </div>
-                        <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-805">
+                        <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800">
                           <span className="block text-[8px] text-slate-500 font-bold uppercase font-sans">Fração Desc.</span>
                           <span className="font-mono text-rose-400 font-semibold">{formatCurrency(discountValue)}</span>
                         </div>
-                        <div className="bg-pink-955/20 p-2.5 rounded-lg border border-pink-900/40 bg-pink-950/30">
+                        <div className="bg-pink-950/20 p-2.5 rounded-lg border border-pink-900/40 bg-pink-950/30">
                           <span className="block text-[8px] text-pink-400 font-bold uppercase font-sans">Lucro Líquido</span>
                           <span className="font-mono text-emerald-400 font-bold">{formatCurrency(rawProfitValue)}</span>
                         </div>
@@ -2224,7 +2234,7 @@ export default function CatalogInventory({
               })()}
             </div>
 
-            <div className="mt-6 p-4 bg-slate-950 rounded-xl border border-slate-805 text-[10px] text-slate-400 font-sans leading-relaxed">
+            <div className="mt-6 p-4 bg-slate-950 rounded-xl border border-slate-800 text-[10px] text-slate-400 font-sans leading-relaxed">
               💡 <strong>Dica AP Moda Fitness:</strong> Em produtos de fabricação própria ou importação de alta tecnologia (ex: costura inteligente, tecidos Seamless), margens saudáveis permitem markups acima de <strong className="text-white">2.2x</strong>.
             </div>
           </div>
@@ -2286,9 +2296,9 @@ export default function CatalogInventory({
                         <span className="bg-pink-600 text-white font-bold px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-mono">Top Giro</span>
                       </div>
                       <p className="text-[11px] text-slate-500">Produtos de rápido escoamento. Representam cerca de 70% das peças consumidas.</p>
-                      <div className="pt-2 border-t border-pink-100/60 flex justify-between font-mono font-bold text-slate-705">
+                      <div className="pt-2 border-t border-pink-100/60 flex justify-between font-mono font-bold text-slate-700">
                         <span>{aCount} Modelos</span>
-                        <span className="text-pink-650">{aSales} vendas</span>
+                        <span className="text-pink-600">{aSales} vendas</span>
                       </div>
                     </div>
 
@@ -2298,34 +2308,34 @@ export default function CatalogInventory({
                         <span className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-mono">Médio</span>
                       </div>
                       <p className="text-[11px] text-slate-500">Artigos de consumo intermediário. Garantem liquidez constante na vitrine física/online.</p>
-                      <div className="pt-2 border-t border-amber-100/60 flex justify-between font-mono font-bold text-slate-705">
+                      <div className="pt-2 border-t border-amber-100/60 flex justify-between font-mono font-bold text-slate-700">
                         <span>{bCount} Modelos</span>
                         <span className="text-amber-600">{bSales} vendas</span>
                       </div>
                     </div>
 
-                    <div className="bg-slate-50 border border-slate-150 p-4 rounded-xl space-y-2">
+                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl space-y-2">
                       <div className="flex justify-between items-center">
                         <span className="font-bold text-slate-800">Classe C (Estoque Parado)</span>
-                        <span className="bg-slate-550 text-white font-bold px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-mono">Frio</span>
+                        <span className="bg-slate-500 text-white font-bold px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-mono">Frio</span>
                       </div>
                       <p className="text-[11px] text-slate-500">Baixo giro. Ideais para cupons de desconto, liquidações ou combos promocionais.</p>
-                      <div className="pt-2 border-t border-slate-150 flex justify-between font-mono font-bold text-slate-705">
+                      <div className="pt-2 border-t border-slate-100 flex justify-between font-mono font-bold text-slate-700">
                         <span>{cCount} Modelos</span>
-                        <span className="text-slate-505">{cSales} vendas</span>
+                        <span className="text-slate-500">{cSales} vendas</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Table mapping */}
                   <div className="border border-slate-100 rounded-xl overflow-hidden text-xs">
-                    <div className="bg-slate-50 p-3 font-semibold text-slate-650 border-b border-slate-100 font-sans">Análise Individual por Peça</div>
+                    <div className="bg-slate-50 p-3 font-semibold text-slate-600 border-b border-slate-100 font-sans">Análise Individual por Peça</div>
                     
                     <div className="divide-y divide-slate-100 max-h-72 overflow-y-auto pr-1">
                       {annotated.map((p, idx) => (
                         <div key={p.id} className="p-3 bg-white flex justify-between items-center">
                           <div className="flex items-center gap-3">
-                            <span className="font-mono text-slate-350 font-bold">#{idx + 1}</span>
+                            <span className="font-mono text-slate-300 font-bold">#{idx + 1}</span>
                             <div className="w-8 h-8 rounded bg-slate-50 overflow-hidden flex-shrink-0">
                               {getProductMainImage(p) ? (
                                 <img src={getOptimizedImageUrl(getProductMainImage(p), 160)} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={handleImageFallback} />
@@ -2352,7 +2362,7 @@ export default function CatalogInventory({
                                 ? 'bg-pink-100 text-pink-700' 
                                 : p.classification === 'B' 
                                   ? 'bg-amber-100 text-amber-700' 
-                                  : 'bg-slate-100 text-slate-550'
+                                  : 'bg-slate-100 text-slate-500'
                             }`}>
                               {p.classification}
                             </span>
@@ -2367,9 +2377,9 @@ export default function CatalogInventory({
                   </div>
 
                   {/* Recommendations panel */}
-                  <div className="bg-slate-900 text-slate-105 rounded-2xl p-4.5 space-y-2 text-xs border border-slate-800">
+                  <div className="bg-slate-900 text-slate-100 rounded-2xl p-4.5 space-y-2 text-xs border border-slate-800">
                     <span className="font-bold font-mono text-[10px] uppercase text-amber-500 block">💡 Diretrizes Estratégicas de Estoque AP Moda Fitness</span>
-                    <ul className="list-disc list-inside space-y-1.5 text-slate-350 leading-relaxed text-[11px]">
+                    <ul className="list-disc list-inside space-y-1.5 text-slate-300 leading-relaxed text-[11px]">
                       <li>Utilize os itens <strong className="text-white">Classe C</strong> como brinde ou desconto na compra de combos inteiros de <strong className="text-white">Classe A</strong>.</li>
                       <li>Projete o estoque de segurança sempre multiplicando por 1.5 a média de vendas mensal das peças de <strong className="text-pink-400">Classe A</strong>.</li>
                       <li>Para os produtos <strong className="text-amber-500">Classe B</strong>, planeje ações de impulsionamento e marketing para transformá-los em Classe A.</li>
@@ -2396,7 +2406,7 @@ export default function CatalogInventory({
                 placeholder="Filtrar produtos por nome ou SKU..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-150 rounded-xl text-xs font-sans text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-sans text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 transition-all"
               />
             </div>
 
@@ -2409,7 +2419,7 @@ export default function CatalogInventory({
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold font-sans transition-all cursor-pointer
                     ${selectedCategory === cat 
                       ? 'bg-pink-600 text-white shadow-xs shadow-pink-500/10' 
-                      : 'bg-slate-50 text-slate-550 hover:bg-slate-100 border border-slate-100'}`}
+                      : 'bg-slate-50 text-slate-500 hover:bg-slate-100 border border-slate-100'}`}
                 >
                   {cat}
                 </button>
@@ -2464,7 +2474,7 @@ export default function CatalogInventory({
                 </p>
               </div>
 
-              <div className="border border-slate-150 rounded-xl overflow-hidden bg-slate-50/50">
+              <div className="border border-slate-100 rounded-xl overflow-hidden bg-slate-50/50">
                 <table className="w-full text-left border-collapse text-xs font-sans">
                   <thead>
                     <tr className="bg-slate-100 border-b border-slate-200 text-slate-500 font-bold uppercase text-[9px] tracking-wider select-none">
@@ -2476,7 +2486,7 @@ export default function CatalogInventory({
                       <th className="p-3 text-center">Sugestão Compra</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-150 bg-white font-medium text-slate-650">
+                  <tbody className="divide-y divide-slate-100 bg-white font-medium text-slate-600">
                     {criticalVariations.map((cv, index) => {
                       const suggestQty = Math.max(10 - cv.stock, 7);
                       return (
@@ -2497,7 +2507,7 @@ export default function CatalogInventory({
                               {cv.stock} un
                             </span>
                           </td>
-                          <td className="p-3 text-center font-bold text-emerald-650 font-mono">
+                          <td className="p-3 text-center font-bold text-emerald-600 font-mono">
                             +{suggestQty} un
                           </td>
                         </tr>
@@ -2508,7 +2518,7 @@ export default function CatalogInventory({
               </div>
 
               {/* Action shortcuts */}
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-150 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-0.5">
                   <span className="text-xs font-bold text-slate-700 block">Dica para Fornecedores:</span>
                   <span className="text-[10.5px] text-slate-400">Copie o resumo em formato de texto limpo para enviar no WhatsApp ou gerar orçamentos rápidos.</span>
@@ -2530,7 +2540,7 @@ export default function CatalogInventory({
             </div>
 
             {/* Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-150 flex items-center justify-end gap-3 shrink-0">
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
               <button
                 onClick={() => setIsReplenishmentModalOpen(false)}
                 className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer"
@@ -2548,634 +2558,629 @@ export default function CatalogInventory({
         </div>
       )}
 
-      {/* Add Product Modal Sheet */}
+      {/* Add Product Modal Sheet (5-Tab Clean Architecture) */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4 transition-all">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4 transition-all font-sans text-xs">
           <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh]" id="add-product-modal">
-            {/* Header */}
-            <div className="p-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
-              <span className="font-extrabold text-xs tracking-wider uppercase font-sans">Cadastrar Nova Peça Fitness</span>
-              <button 
-                onClick={() => setIsAddModalOpen(false)}
-                className="text-slate-400 hover:text-white transition-colors text-xs"
-              >
-                ✕
-              </button>
+            {/* Header + Tabs */}
+            <div className="p-4 bg-slate-900 text-white shrink-0">
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-sm tracking-wide text-white">Cadastrar Nova Peça Fitness</span>
+                <button 
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="text-slate-400 hover:text-white p-1 rounded-md transition-colors text-xs cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex items-center gap-1.5 pt-2.5 text-[11px] overflow-x-auto no-scrollbar">
+                <button
+                  type="button"
+                  onClick={() => setAddModalTab('basico')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                    addModalTab === 'basico' ? 'bg-pink-600 text-white shadow-sm' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  <span>📋 Básico & Preço</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddModalTab('frete')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                    addModalTab === 'frete' ? 'bg-sky-600 text-white shadow-sm' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  <Truck size={13} />
+                  <span>Frete & Dimensões</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddModalTab('cores')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                    addModalTab === 'cores' ? 'bg-pink-600 text-white shadow-sm' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  <span>🎨 Cores & Estoque</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddModalTab('medidas')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                    addModalTab === 'medidas' ? 'bg-pink-600 text-white shadow-sm' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  <Ruler size={13} />
+                  <span>Provador & Medidas</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddModalTab('fotos')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                    addModalTab === 'fotos' ? 'bg-pink-600 text-white shadow-sm' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  <span>🖼️ Fotos ({newImages.length})</span>
+                </button>
+              </div>
             </div>
 
             {/* Form list fields */}
-            <form id="add-product-form" onSubmit={handleAddProductSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
-              <div className="space-y-1 text-xs">
-                <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Nome Completo do Produto</label>
-                <input 
-                  id="new-product-name"
-                  type="text"
-                  required
-                  placeholder="Ex: Legging Sculpt Seamless Pink Glow"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder-slate-450 focus:outline-hidden focus:border-pink-500 transition-all font-medium"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 text-xs">
-                <div className="space-y-1">
-                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Cód SKU único</label>
-                  <input 
-                    id="new-product-sku"
-                    type="text"
-                    required
-                    placeholder="Ex: LEG-SCUL-P"
-                    value={newSku}
-                    onChange={(e) => setNewSku(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder-slate-450 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Categoria</label>
-                    <button
-                      type="button"
-                      onClick={() => setIsCreatingNewCategory(!isCreatingNewCategory)}
-                      className="text-[10px] text-pink-600 hover:text-pink-700 font-semibold cursor-pointer"
-                    >
-                      {isCreatingNewCategory ? "Selecionar" : "+ Criar"}
-                    </button>
-                  </div>
-                  {isCreatingNewCategory ? (
-                    <input
+            <form id="add-product-form" onSubmit={handleAddProductSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
+              {addModalTab === 'basico' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  <div className="space-y-1 text-xs">
+                    <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Nome Completo do Produto</label>
+                    <input 
+                      id="new-product-name"
                       type="text"
-                      placeholder="Nova categoria..."
-                      value={newCustomCategoryInput}
-                      onChange={(e) => setNewCustomCategoryInput(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder-slate-450 focus:outline-hidden focus:border-pink-500 transition-all font-medium text-xs"
                       required
-                    />
-                  ) : (
-                    <select 
-                      id="new-product-category"
-                      value={newCategory}
-                      onChange={(e) => setNewCategory(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium text-xs"
-                    >
-                      {productCategoriesOnly.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4 text-xs">
-                <div className="space-y-1">
-                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Preço de Venda (R$)</label>
-                  <input 
-                    id="new-product-price"
-                    type="number"
-                    step="0.01"
-                    required
-                    value={newPrice}
-                    onChange={(e) => setNewPrice(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Preço Regular (Opcional)</label>
-                  <input 
-                    id="new-product-compare-at"
-                    type="number"
-                    step="0.01"
-                    value={newCompareAtPrice ?? ''}
-                    onChange={(e) => setNewCompareAtPrice(e.target.value ? Number(e.target.value) : undefined)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono"
-                    placeholder="Sem desconto"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Custo de Fabr./Aq. (R$)</label>
-                  <input 
-                    id="new-product-cost"
-                    type="number"
-                    step="0.01"
-                    required
-                    value={newCost}
-                    onChange={(e) => setNewCost(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 text-xs">
-                <div className="space-y-1">
-                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Estoque Inicial (Peças)</label>
-                  <input 
-                    id="new-product-stock"
-                    type="number"
-                    required
-                    value={newStock}
-                    readOnly
-                    className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 focus:outline-hidden transition-all font-medium font-mono cursor-not-allowed"
-                    title="Calculado automaticamente como a soma das quantidades por cor abaixo"
-                  />
-                  <p className="text-[8px] text-pink-600 font-semibold leading-none">Soma das quantidades por cor abaixo</p>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Alerta Estoque Baixo (Peças)</label>
-                  <input 
-                    id="new-product-min-stock"
-                    type="number"
-                    required
-                    value={newMinStock}
-                    onChange={(e) => setNewMinStock(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono"
-                  />
-                </div>
-              </div>
-
-              {/* Dimensões & Peso para Frete (Melhor Envio / Correios) */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-[10px] text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                    📦 Dimensões & Peso para Frete (Melhor Envio)
-                  </span>
-                  <span className="text-[9px] bg-pink-100 text-pink-700 font-semibold px-2 py-0.5 rounded-full">Etiquetas / Cotação</span>
-                </div>
-                <div className="grid grid-cols-4 gap-2 text-xs">
-                  <div className="space-y-1">
-                    <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Peso (kg)</label>
-                    <input 
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      required
-                      placeholder="0.35"
-                      value={newWeight}
-                      onChange={(e) => setNewWeight(Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
-                    />
-                    <span className="text-[8px] text-slate-400 block leading-none">Ex: 0.35 = 350g</span>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Compr. (cm)</label>
-                    <input 
-                      type="number"
-                      step="1"
-                      min="1"
-                      required
-                      placeholder="25"
-                      value={newLength}
-                      onChange={(e) => setNewLength(Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
+                      placeholder="Ex: Legging Sculpt Seamless Pink Glow"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 transition-all font-medium"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Largura (cm)</label>
-                    <input 
-                      type="number"
-                      step="1"
-                      min="1"
-                      required
-                      placeholder="20"
-                      value={newWidth}
-                      onChange={(e) => setNewWidth(Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Altura (cm)</label>
-                    <input 
-                      type="number"
-                      step="1"
-                      min="1"
-                      required
-                      placeholder="5"
-                      value={newHeight}
-                      onChange={(e) => setNewHeight(Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
-                    />
-                  </div>
-                </div>
-              </div>
 
-              <div className="space-y-1 text-xs">
-                <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Descrição Detalhada (Aparece no Site)</label>
-                <textarea 
-                  placeholder="Descreva detalhes premium da peça: tecido, toque gelado, compressão, se fica transparente..."
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 transition-all font-medium h-16 resize-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 text-xs">
-                <div className="space-y-1">
-                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Cores Disponíveis (Gerais)</label>
-                  <input 
-                    type="text"
-                    placeholder="Preto, Pink Glow, Azul Celeste"
-                    value={newColors}
-                    onChange={(e) => setNewColors(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Tamanhos Disponíveis</label>
-                  <input 
-                    type="text"
-                    placeholder="P, M, G, GG"
-                    value={newSizes}
-                    onChange={(e) => setNewSizes(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono"
-                  />
-                </div>
-              </div>
-
-              {/* Seletor Dinâmico de Cores */}
-              {newColors.split(',').map(c => c.trim()).filter(Boolean).length > 0 && (
-                <div className="mt-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1 animate-in fade-in duration-200">
-                  <div className="font-extrabold text-[8px] text-slate-500 uppercase tracking-wider">Ajustar Tons de Cores (Seletor Dinâmico):</div>
-                  <div className="flex flex-wrap gap-2">
-                    {newColors.split(',').map(c => c.trim()).filter(Boolean).map(color => {
-                      const normColor = color.toLowerCase().trim();
-                      const hex = customColorMap[normColor] || colorToHex(color);
-                      const displayHex = hex.startsWith('#') ? hex : '#cccccc';
-                      return (
-                        <div key={color} className="flex items-center gap-1.5 bg-white border border-slate-150 px-2 py-0.5 rounded-lg shadow-3xs hover:border-pink-200 transition-all">
-                          <input
-                            type="color"
-                            value={displayHex}
-                            onChange={(e) => handleColorHexChange(color, e.target.value)}
-                            className="w-5 h-5 rounded-md cursor-pointer border-none bg-transparent shrink-0 p-0"
-                            title={`Escolher tom para ${color}`}
-                          />
-                          <span className="text-[9px] font-bold text-slate-700 capitalize truncate max-w-[80px]">{color}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Tabela de Medidas de Referência (Provador Virtual) */}
-              {newSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).length > 0 && (
-                <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="font-extrabold text-[9px] text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                      <Ruler size={11} className="text-pink-600" />
-                      Tabela de Medidas de Referência (cm)
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div className="space-y-1">
+                      <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Cód SKU único</label>
+                      <input 
+                        id="new-product-sku"
+                        type="text"
+                        required
+                        placeholder="Ex: LEG-SCUL-P"
+                        value={newSku}
+                        onChange={(e) => setNewSku(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono"
+                      />
                     </div>
-                    <span className="text-[8px] text-slate-400 font-bold">Provador Virtual</span>
-                  </div>
-                  <p className="text-[8.5px] text-slate-400">Insira as faixas de medida recomendadas para cada tamanho.</p>
-                  <div className="space-y-2.5 max-h-40 overflow-y-auto pr-1">
-                    {newSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).map(sz => {
-                      const normSz = sz.toUpperCase().trim();
-                      const currentSpec = newMeasurementSpecs[normSz] || newMeasurementSpecs[sz] || getFallbackSpecsForSize(sz);
-                      
-                      const updateSpec = (field: 'bustoMin' | 'bustoMax' | 'cinturaMin' | 'cinturaMax' | 'quadrilMin' | 'quadrilMax', value: number) => {
-                        setNewMeasurementSpecs(prev => ({
-                          ...prev,
-                          [sz]: {
-                            ...(prev[sz] || getFallbackSpecsForSize(sz)),
-                            [field]: value
-                          }
-                        }));
-                      };
 
-                      return (
-                        <div key={sz} className="p-2 bg-white rounded-lg border border-slate-150 space-y-1.5">
-                          <div className="flex justify-between items-center text-[10px] font-extrabold text-slate-700 bg-slate-100/60 px-1.5 py-0.5 rounded">
-                            <span>Tamanho {sz}</span>
-                            <span className="text-[8px] text-pink-600">Recomendado padrão ativo</span>
-                          </div>
-                          <div className="grid grid-cols-3 gap-2 text-[9px]">
-                            <div>
-                              <span className="block text-slate-400 uppercase font-bold text-[7.5px] mb-0.5">Busto (cm)</span>
-                              <div className="flex items-center gap-1">
-                                <input
-                                  type="number"
-                                  value={currentSpec.bustoMin}
-                                  onChange={(e) => updateSpec('bustoMin', Number(e.target.value))}
-                                  className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
-                                  placeholder="Mín"
-                                />
-                                <span className="text-slate-350">-</span>
-                                <input
-                                  type="number"
-                                  value={currentSpec.bustoMax}
-                                  onChange={(e) => updateSpec('bustoMax', Number(e.target.value))}
-                                  className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
-                                  placeholder="Máx"
-                                />
-                              </div>
-                            </div>
-
-                            <div>
-                              <span className="block text-slate-400 uppercase font-bold text-[7.5px] mb-0.5">Cintura (cm)</span>
-                              <div className="flex items-center gap-1">
-                                <input
-                                  type="number"
-                                  value={currentSpec.cinturaMin}
-                                  onChange={(e) => updateSpec('cinturaMin', Number(e.target.value))}
-                                  className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
-                                  placeholder="Mín"
-                                />
-                                <span className="text-slate-350">-</span>
-                                <input
-                                  type="number"
-                                  value={currentSpec.cinturaMax}
-                                  onChange={(e) => updateSpec('cinturaMax', Number(e.target.value))}
-                                  className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
-                                  placeholder="Máx"
-                                />
-                              </div>
-                            </div>
-
-                            <div>
-                              <span className="block text-slate-400 uppercase font-bold text-[7.5px] mb-0.5">Quadril (cm)</span>
-                              <div className="flex items-center gap-1">
-                                <input
-                                  type="number"
-                                  value={currentSpec.quadrilMin}
-                                  onChange={(e) => updateSpec('quadrilMin', Number(e.target.value))}
-                                  className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
-                                  placeholder="Mín"
-                                />
-                                <span className="text-slate-350">-</span>
-                                <input
-                                  type="number"
-                                  value={currentSpec.quadrilMax}
-                                  onChange={(e) => updateSpec('quadrilMax', Number(e.target.value))}
-                                  className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
-                                  placeholder="Máx"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {newSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).length > 0 ? (
-                <div className="space-y-3 mt-1 border border-pink-100 bg-pink-50/10 p-3 rounded-xl text-xs animate-fadeIn">
-                  <div className="flex items-center gap-1.5 text-pink-700 font-bold uppercase text-[9px] tracking-widest">
-                    <Sparkles size={11} className="text-pink-600 animate-pulse" />
-                    <span>Estoque por Tamanho e Cor</span>
-                  </div>
-                  <p className="text-[9px] text-slate-400 leading-normal">
-                    Informe a quantidade de peças para cada combinação de tamanho e cor. O estoque total será calculado automaticamente.
-                  </p>
-                  
-                  <div className="space-y-3 pt-1">
-                    {newSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).map(sz => {
-                      const generalColors = newColors.split(',').map(c => c.trim()).filter(Boolean);
-                      const sizeColorsArr = newSizeColors[sz]
-                        ? newSizeColors[sz].split(',').map(c => c.trim()).filter(c => generalColors.includes(c))
-                        : generalColors;
-
-                      if (sizeColorsArr.length === 0) return null;
-
-                      return (
-                        <div key={sz} className="border border-slate-100 bg-white p-2.5 rounded-lg shadow-2xs">
-                          <div className="font-extrabold text-[10px] text-slate-800 bg-slate-150 px-2 py-0.5 rounded-md inline-block mb-2">
-                            TAMANHO {sz}
-                          </div>
-                          
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {sizeColorsArr.map(color => (
-                              <div key={color} className="flex items-center justify-between gap-2 bg-slate-50/50 p-2 rounded-lg border border-slate-100">
-                                <div className="flex items-center gap-1.5 truncate">
-                                  <span className="w-2.5 h-2.5 rounded-full border border-slate-200 shrink-0" style={{ backgroundColor: colorToHex(color) }} />
-                                  <span className="font-semibold text-[10px] text-slate-700 truncate">{color}</span>
-                                </div>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  placeholder="0"
-                                  value={newSizeColorStocks[sz]?.[color] !== undefined ? newSizeColorStocks[sz][color] : 0}
-                                  onChange={(e) => {
-                                    const val = Math.max(0, parseInt(e.target.value) || 0);
-                                    setNewSizeColorStocks(prev => ({
-                                      ...prev,
-                                      [sz]: {
-                                        ...(prev[sz] || {}),
-                                        [color]: val
-                                      }
-                                    }));
-                                  }}
-                                  className="w-16 px-2 py-0.5 bg-white border border-slate-200 rounded-md text-slate-705 text-[10px] font-medium font-mono focus:outline-hidden focus:border-pink-500 text-center"
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                newColors.split(',').map(c => c.trim()).filter(Boolean).length > 0 && (
-                  <div className="space-y-2 mt-1 border border-pink-100 bg-pink-50/10 p-3 rounded-xl text-xs">
-                    <div className="flex items-center gap-1.5 text-pink-700 font-bold uppercase text-[9px] tracking-widest">
-                      <Sparkles size={11} className="text-pink-600 animate-pulse" />
-                      <span>Estoque por Cor</span>
-                    </div>
-                    <p className="text-[9px] text-slate-400 leading-normal">
-                      Informe a quantidade de peças para cada cor informada acima. A soma total irá definir o estoque inicial do produto automaticamente.
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                      {newColors.split(',').map(c => c.trim()).filter(Boolean).map(color => (
-                        <div key={color} className="flex items-center justify-between gap-2 bg-white p-2 rounded-lg border border-slate-150 shadow-2xs">
-                          <div className="flex items-center gap-1.5 truncate">
-                            <span className="w-2.5 h-2.5 rounded-full border border-slate-200 shrink-0 animate-pulse" style={{ backgroundColor: colorToHex(color) }} />
-                            <span className="font-semibold text-[10px] text-slate-700 truncate">{color}</span>
-                          </div>
-                          <input
-                            type="number"
-                            min="0"
-                            placeholder="0"
-                            value={newColorStocks[color] !== undefined ? newColorStocks[color] : 0}
-                            onChange={(e) => {
-                              const val = Math.max(0, parseInt(e.target.value) || 0);
-                              setNewColorStocks(prev => ({
-                                ...prev,
-                                [color]: val
-                              }));
-                            }}
-                            className="w-16 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-md text-slate-705 text-[10px] font-medium font-mono focus:outline-hidden focus:border-pink-500 text-center"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              )}
-
-              {newSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).length > 0 && (
-                <div className="space-y-2 mt-1 border border-slate-100 bg-slate-50/50 p-3 rounded-xl text-xs">
-                  <div className="flex items-center gap-1.5 text-slate-700 font-bold uppercase text-[9px] tracking-widest">
-                    <Sparkles size={11} className="text-pink-600 animate-pulse" />
-                    <span>CORES ESPECÍFICAS POR TAMANHO (OPCIONAL)</span>
-                  </div>
-                  <p className="text-[9px] text-slate-400 leading-normal">
-                    Associe cores a cada tamanho. Se configurado, o cliente verá apenas as cores vinculadas ao selecionar o respectivo tamanho. Digite as cores separadas por vírgula.
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                    {newSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).map(sz => (
-                      <div key={sz} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-150 shadow-2xs">
-                        <span className="font-extrabold text-[10px] text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md min-w-[28px] text-center">{sz}</span>
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Categoria</label>
+                        <button
+                          type="button"
+                          onClick={() => setIsCreatingNewCategory(!isCreatingNewCategory)}
+                          className="text-[10px] text-pink-600 hover:text-pink-700 font-semibold cursor-pointer"
+                        >
+                          {isCreatingNewCategory ? "Selecionar" : "+ Criar"}
+                        </button>
+                      </div>
+                      {isCreatingNewCategory ? (
                         <input
                           type="text"
-                          placeholder="Ex: Azul Marinho, Preto, Vermelho"
-                          value={newSizeColors[sz] || ''}
-                          onChange={(e) => {
-                            setNewSizeColors(prev => ({
-                              ...prev,
-                              [sz]: e.target.value
-                            }));
-                          }}
-                          className="flex-1 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-md text-slate-705 focus:outline-hidden focus:border-pink-500 transition-all text-[10px] font-medium font-mono"
+                          placeholder="Nova categoria..."
+                          value={newCustomCategoryInput}
+                          onChange={(e) => setNewCustomCategoryInput(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 transition-all font-medium text-xs"
+                          required
                         />
-                      </div>
-                    ))}
+                      ) : (
+                        <select 
+                          id="new-product-category"
+                          value={newCategory}
+                          onChange={(e) => setNewCategory(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium text-xs"
+                        >
+                          {productCategoriesOnly.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                    <div className="space-y-1">
+                      <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Preço de Venda (R$)</label>
+                      <input 
+                        id="new-product-price"
+                        type="number"
+                        step="0.01"
+                        required
+                        value={newPrice}
+                        onChange={(e) => setNewPrice(Number(e.target.value))}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Preço Regular (Opcional)</label>
+                      <input 
+                        id="new-product-compare-at"
+                        type="number"
+                        step="0.01"
+                        value={newCompareAtPrice ?? ''}
+                        onChange={(e) => setNewCompareAtPrice(e.target.value ? Number(e.target.value) : undefined)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono"
+                        placeholder="Sem desconto"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Custo de Fabr./Aq. (R$)</label>
+                      <input 
+                        id="new-product-cost"
+                        type="number"
+                        step="0.01"
+                        required
+                        value={newCost}
+                        onChange={(e) => setNewCost(Number(e.target.value))}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div className="space-y-1">
+                      <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Estoque Inicial (Peças)</label>
+                      <input 
+                        id="new-product-stock"
+                        type="number"
+                        required
+                        value={newStock}
+                        readOnly
+                        className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 focus:outline-hidden transition-all font-medium font-mono cursor-not-allowed"
+                        title="Calculado automaticamente na aba Cores & Estoque"
+                      />
+                      <p className="text-[9px] text-pink-600 font-semibold leading-none">Ajuste na aba Cores & Estoque</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Alerta Estoque Baixo (Peças)</label>
+                      <input 
+                        id="new-product-min-stock"
+                        type="number"
+                        required
+                        value={newMinStock}
+                        onChange={(e) => setNewMinStock(Number(e.target.value))}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 text-xs">
+                    <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Descrição Detalhada (Aparece no Site)</label>
+                    <textarea 
+                      placeholder="Descreva detalhes premium da peça: tecido, toque gelado, compressão, se fica transparente..."
+                      value={newDescription}
+                      onChange={(e) => setNewDescription(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 transition-all font-medium h-20 resize-none"
+                    />
                   </div>
                 </div>
               )}
 
-              <div className="space-y-1 text-xs">
-                <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Link de Vídeo MP4 ou YouTube (Showcase)</label>
-                <input 
-                  type="text"
-                  placeholder="Ex: https://www.w3schools.com/html/movie.mp4"
-                  value={newVideoUrl}
-                  onChange={(e) => setNewVideoUrl(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono text-xs"
-                />
-              </div>
-
-              <div className="space-y-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <label className="text-slate-600 font-extrabold uppercase text-[10px] tracking-wide block">Galeria de Fotos do Produto (Múltiplas Fotos)</label>
-                
-                {/* Previews grid */}
-                <div className="grid grid-cols-5 gap-2">
-                  {newImages.map((img, idx) => (
-                    <div key={idx} className="relative aspect-square rounded-lg border border-slate-200 overflow-hidden bg-slate-100 group shadow-xs">
-                      <img 
-                        src={getOptimizedImageUrl(img, 200)} 
-                        alt={`Preview ${idx + 1}`} 
-                        className="w-full h-full object-cover" 
-                        referrerPolicy="no-referrer" 
-                        onError={handleImageFallback}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const updated = newImages.filter((_, i) => i !== idx);
-                          setNewImages(updated);
-                        }}
-                        className="absolute top-1 right-1 bg-rose-600 hover:bg-rose-700 text-white p-1 rounded-full cursor-pointer transition-all shadow-md flex items-center justify-center border-none"
-                        title="Remover esta foto"
-                      >
-                        <X size={10} />
-                      </button>
-                      {idx === 0 && (
-                        <span className="absolute bottom-0 inset-x-0 bg-pink-600/90 text-white font-extrabold text-[8px] text-center tracking-wider py-0.5 uppercase">CAPA</span>
-                      )}
+              {addModalTab === 'frete' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        📦 Dimensões & Peso para Frete (Melhor Envio / Correios)
+                      </span>
+                      <span className="text-[10px] bg-pink-100 text-pink-700 font-semibold px-2 py-0.5 rounded-full">Etiquetas / Cotação</span>
                     </div>
-                  ))}
-                  {newImages.length === 0 && (
-                    <div className="col-span-5 py-4 text-center text-slate-400 font-medium text-xs">
-                      Nenhuma foto adicionada. Adicione pelo menos uma foto abaixo.
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      <div className="space-y-1">
+                        <label className="text-slate-500 font-bold uppercase text-[9px] tracking-tight block">Peso (kg)</label>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          required
+                          placeholder="0.35"
+                          value={newWeight}
+                          onChange={(e) => setNewWeight(Number(e.target.value))}
+                          className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
+                        />
+                        <span className="text-[9px] text-slate-400 block leading-none">Ex: 0.35 = 350g</span>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-slate-500 font-bold uppercase text-[9px] tracking-tight block">Compr. (cm)</label>
+                        <input 
+                          type="number"
+                          step="1"
+                          min="1"
+                          required
+                          placeholder="25"
+                          value={newLength}
+                          onChange={(e) => setNewLength(Number(e.target.value))}
+                          className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-slate-500 font-bold uppercase text-[9px] tracking-tight block">Largura (cm)</label>
+                        <input 
+                          type="number"
+                          step="1"
+                          min="1"
+                          required
+                          placeholder="20"
+                          value={newWidth}
+                          onChange={(e) => setNewWidth(Number(e.target.value))}
+                          className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-slate-500 font-bold uppercase text-[9px] tracking-tight block">Altura (cm)</label>
+                        <input 
+                          type="number"
+                          step="1"
+                          min="1"
+                          required
+                          placeholder="5"
+                          value={newHeight}
+                          onChange={(e) => setNewHeight(Number(e.target.value))}
+                          className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium font-mono text-xs focus:outline-hidden focus:border-pink-500"
+                        />
+                      </div>
                     </div>
-                  )}
-                </div>
-
-                {/* Direct File Picker / Uploader */}
-                <div className="bg-pink-50/50 border border-pink-100 p-2.5 rounded-lg text-[9.5px] leading-snug text-slate-700 flex items-start gap-1.5 font-sans my-1 select-none">
-                  <span className="text-pink-600">💡</span>
-                  <p><strong>Dimensões Recomendadas para Moda/Fitness:</strong> Prefira fotos na proporção <strong>4:5 Vertical</strong> (ex: 800×1000 px) ou <strong>1:1 Quadrada</strong> (ex: 800×800 px) para valorizar as peças no caimento corporal e na vitrine.</p>
-                </div>
-
-                <div className="space-y-1">
-                  <span className="text-[10px] text-slate-500 font-bold block">1. Enviar nova foto direto do aparelho:</span>
-                  <ImageUploader 
-                    onUploadSuccess={(url) => {
-                      if (url) {
-                        setNewImages(prev => [...prev, url]);
-                      }
-                    }} 
-                    currentImageUrl=""
-                  />
-                </div>
-                
-                {/* Manual Link Input */}
-                <div className="space-y-1.5 pt-1.5 border-t border-slate-200/60 font-sans">
-                  <span className="text-[10px] text-slate-500 font-bold block">2. Ou cole o link de uma foto da internet:</span>
-                  <div className="flex gap-2">
-                    <input 
-                      id="new-product-image-add-input"
-                      type="text"
-                      disabled={isResolvingNew}
-                      placeholder={isResolvingNew ? "Processando imagem..." : "Cole o link da foto (i.ibb.co, ibb.co, Google Drive ou código HTML)..."}
-                      className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-md text-slate-600 focus:outline-hidden focus:border-pink-500 transition-all font-mono text-[10px] disabled:bg-slate-100 disabled:text-slate-400"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          const val = (e.target as HTMLInputElement).value.trim();
-                          if (val) {
-                            resolveImageAndAdd(val, 'new');
-                            (e.target as HTMLInputElement).value = '';
-                          }
-                        }
-                      }}
-                    />
-                    <button 
-                      type="button" 
-                      disabled={isResolvingNew}
-                      onClick={(e) => {
-                        const input = document.getElementById('new-product-image-add-input') as HTMLInputElement;
-                        if (input && input.value.trim()) {
-                          resolveImageAndAdd(input.value.trim(), 'new');
-                          input.value = '';
-                        }
-                      }}
-                      className="px-3 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-md transition-all cursor-pointer text-xs border-none flex items-center gap-1 disabled:bg-pink-400/80 disabled:cursor-not-allowed"
-                    >
-                      {isResolvingNew ? (
-                        <>
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          <span>Aguarde...</span>
-                        </>
-                      ) : (
-                        <span>Adicionar</span>
-                      )}
-                    </button>
                   </div>
-                  {imageFeedback && imageFeedback.type === 'new' && (
-                    <div className={`text-xs px-2.5 py-1 rounded-md font-semibold ${imageFeedback.isError ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'} animate-fadeIn`}>
-                      {imageFeedback.message}
+                </div>
+              )}
+
+              {addModalTab === 'cores' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div className="space-y-1">
+                      <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Cores Disponíveis (Gerais)</label>
+                      <input 
+                        type="text"
+                        placeholder="Preto, Pink Glow, Azul Celeste"
+                        value={newColors}
+                        onChange={(e) => setNewColors(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide">Tamanhos Disponíveis</label>
+                      <input 
+                        type="text"
+                        placeholder="P, M, G, GG"
+                        value={newSizes}
+                        onChange={(e) => setNewSizes(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  {newColors.split(',').map(c => c.trim()).filter(Boolean).length > 0 && (
+                    <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                      <div className="font-extrabold text-[9px] text-slate-500 uppercase tracking-wider">Ajustar Tons de Cores (Seletor Dinâmico):</div>
+                      <div className="flex flex-wrap gap-2">
+                        {newColors.split(',').map(c => c.trim()).filter(Boolean).map(color => {
+                          const normColor = color.toLowerCase().trim();
+                          const hex = customColorMap[normColor] || colorToHex(color);
+                          const displayHex = hex.startsWith('#') ? hex : '#cccccc';
+                          return (
+                            <div key={color} className="flex items-center gap-1.5 bg-white border border-slate-200 px-2 py-0.5 rounded-lg shadow-2xs hover:border-pink-200 transition-all">
+                              <input
+                                type="color"
+                                value={displayHex}
+                                onChange={(e) => handleColorHexChange(color, e.target.value)}
+                                className="w-5 h-5 rounded-md cursor-pointer border-none bg-transparent shrink-0 p-0"
+                                title={`Escolher tom para ${color}`}
+                              />
+                              <span className="text-[10px] font-bold text-slate-700 capitalize truncate max-w-[90px]">{color}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
-                  <span className="text-[9px] text-slate-400 block">💡 Aceita links do ImgBB (i.ibb.co ou ibb.co), Google Drive ou códigos de incorporação HTML/BBCode.</span>
-                </div>
-              </div>
 
+                  {newSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).length > 0 ? (
+                    <div className="space-y-3 border border-pink-100 bg-pink-50/10 p-3 rounded-xl text-xs">
+                      <div className="flex items-center gap-1.5 text-pink-700 font-bold uppercase text-[9px] tracking-widest">
+                        <Sparkles size={11} className="text-pink-600" />
+                        <span>Estoque por Tamanho e Cor (Total: {newStock} un)</span>
+                      </div>
+                      <div className="space-y-3 pt-1">
+                        {newSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).map(sz => {
+                          const generalColors = newColors.split(',').map(c => c.trim()).filter(Boolean);
+                          const sizeColorsArr = newSizeColors[sz]
+                            ? newSizeColors[sz].split(',').map(c => c.trim()).filter(c => generalColors.includes(c))
+                            : generalColors;
+                          if (sizeColorsArr.length === 0) return null;
+                          return (
+                            <div key={sz} className="border border-slate-100 bg-white p-2.5 rounded-lg shadow-2xs">
+                              <div className="font-extrabold text-[10px] text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md inline-block mb-2">
+                                TAMANHO {sz}
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {sizeColorsArr.map(color => (
+                                  <div key={color} className="flex items-center justify-between gap-2 bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                                    <div className="flex items-center gap-1.5 truncate">
+                                      <span className="w-2.5 h-2.5 rounded-full border border-slate-200 shrink-0" style={{ backgroundColor: colorToHex(color) }} />
+                                      <span className="font-semibold text-[10px] text-slate-700 truncate">{color}</span>
+                                    </div>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      placeholder="0"
+                                      value={newSizeColorStocks[sz]?.[color] !== undefined ? newSizeColorStocks[sz][color] : 0}
+                                      onChange={(e) => {
+                                        const val = Math.max(0, parseInt(e.target.value) || 0);
+                                        setNewSizeColorStocks(prev => ({
+                                          ...prev,
+                                          [sz]: { ...(prev[sz] || {}), [color]: val }
+                                        }));
+                                      }}
+                                      className="w-16 px-2 py-0.5 bg-white border border-slate-200 rounded-md text-slate-700 text-[10px] font-medium font-mono focus:outline-hidden focus:border-pink-500 text-center"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    newColors.split(',').map(c => c.trim()).filter(Boolean).length > 0 && (
+                      <div className="space-y-2 border border-pink-100 bg-pink-50/10 p-3 rounded-xl text-xs">
+                        <div className="flex items-center gap-1.5 text-pink-700 font-bold uppercase text-[9px] tracking-widest">
+                          <Sparkles size={11} className="text-pink-600" />
+                          <span>Estoque por Cor (Total: {newStock} un)</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                          {newColors.split(',').map(c => c.trim()).filter(Boolean).map(color => (
+                            <div key={color} className="flex items-center justify-between gap-2 bg-white p-2 rounded-lg border border-slate-200 shadow-2xs">
+                              <div className="flex items-center gap-1.5 truncate">
+                                <span className="w-2.5 h-2.5 rounded-full border border-slate-200 shrink-0" style={{ backgroundColor: colorToHex(color) }} />
+                                <span className="font-semibold text-[10px] text-slate-700 truncate">{color}</span>
+                              </div>
+                              <input
+                                type="number"
+                                min="0"
+                                placeholder="0"
+                                value={newColorStocks[color] !== undefined ? newColorStocks[color] : 0}
+                                onChange={(e) => {
+                                  const val = Math.max(0, parseInt(e.target.value) || 0);
+                                  setNewColorStocks(prev => ({ ...prev, [color]: val }));
+                                }}
+                                className="w-16 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-md text-slate-700 text-[10px] font-medium font-mono focus:outline-hidden focus:border-pink-500 text-center"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  )}
+
+                  {newSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).length > 0 && (
+                    <div className="space-y-2 border border-slate-100 bg-slate-50/50 p-3 rounded-xl text-xs">
+                      <div className="flex items-center gap-1.5 text-slate-700 font-bold uppercase text-[9px] tracking-widest">
+                        <span>CORES ESPECÍFICAS POR TAMANHO (OPCIONAL)</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                        {newSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).map(sz => (
+                          <div key={sz} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-200 shadow-2xs">
+                            <span className="font-extrabold text-[10px] text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md min-w-[28px] text-center">{sz}</span>
+                            <input
+                              type="text"
+                              placeholder="Ex: Azul Marinho, Preto, Vermelho"
+                              value={newSizeColors[sz] || ''}
+                              onChange={(e) => setNewSizeColors(prev => ({ ...prev, [sz]: e.target.value }))}
+                              className="flex-1 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-md text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all text-[10px] font-medium font-mono"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {addModalTab === 'medidas' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  {newSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).length > 0 ? (
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="font-extrabold text-[10px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                          <Ruler size={12} className="text-pink-600" />
+                          Tabela de Medidas de Referência (cm)
+                        </div>
+                        <span className="text-[9px] text-slate-400 font-bold">Provador Virtual</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500">Insira as faixas de medida recomendadas para cada tamanho.</p>
+                      <div className="space-y-2.5">
+                        {newSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).map(sz => {
+                          const normSz = sz.toUpperCase().trim();
+                          const currentSpec = newMeasurementSpecs[normSz] || newMeasurementSpecs[sz] || getFallbackSpecsForSize(sz);
+                          const updateSpec = (field: 'bustoMin' | 'bustoMax' | 'cinturaMin' | 'cinturaMax' | 'quadrilMin' | 'quadrilMax', value: number) => {
+                            setNewMeasurementSpecs(prev => ({
+                              ...prev,
+                              [sz]: { ...(prev[sz] || getFallbackSpecsForSize(sz)), [field]: value }
+                            }));
+                          };
+                          return (
+                            <div key={sz} className="p-2.5 bg-white rounded-lg border border-slate-200 space-y-1.5">
+                              <div className="flex justify-between items-center text-[10px] font-extrabold text-slate-700 bg-slate-100/80 px-2 py-0.5 rounded">
+                                <span>Tamanho {sz}</span>
+                                <span className="text-[8px] text-pink-600">Recomendado padrão ativo</span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 text-[9px]">
+                                <div>
+                                  <span className="block text-slate-400 uppercase font-bold text-[8px] mb-0.5">Busto (cm)</span>
+                                  <div className="flex items-center gap-1">
+                                    <input type="number" value={currentSpec.bustoMin} onChange={(e) => updateSpec('bustoMin', Number(e.target.value))} className="w-full px-1 py-1 bg-slate-50 border border-slate-200 rounded text-[10px] text-center font-semibold text-slate-700 focus:outline-hidden" placeholder="Mín" />
+                                    <span className="text-slate-400">-</span>
+                                    <input type="number" value={currentSpec.bustoMax} onChange={(e) => updateSpec('bustoMax', Number(e.target.value))} className="w-full px-1 py-1 bg-slate-50 border border-slate-200 rounded text-[10px] text-center font-semibold text-slate-700 focus:outline-hidden" placeholder="Máx" />
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="block text-slate-400 uppercase font-bold text-[8px] mb-0.5">Cintura (cm)</span>
+                                  <div className="flex items-center gap-1">
+                                    <input type="number" value={currentSpec.cinturaMin} onChange={(e) => updateSpec('cinturaMin', Number(e.target.value))} className="w-full px-1 py-1 bg-slate-50 border border-slate-200 rounded text-[10px] text-center font-semibold text-slate-700 focus:outline-hidden" placeholder="Mín" />
+                                    <span className="text-slate-400">-</span>
+                                    <input type="number" value={currentSpec.cinturaMax} onChange={(e) => updateSpec('cinturaMax', Number(e.target.value))} className="w-full px-1 py-1 bg-slate-50 border border-slate-200 rounded text-[10px] text-center font-semibold text-slate-700 focus:outline-hidden" placeholder="Máx" />
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="block text-slate-400 uppercase font-bold text-[8px] mb-0.5">Quadril (cm)</span>
+                                  <div className="flex items-center gap-1">
+                                    <input type="number" value={currentSpec.quadrilMin} onChange={(e) => updateSpec('quadrilMin', Number(e.target.value))} className="w-full px-1 py-1 bg-slate-50 border border-slate-200 rounded text-[10px] text-center font-semibold text-slate-700 focus:outline-hidden" placeholder="Mín" />
+                                    <span className="text-slate-400">-</span>
+                                    <input type="number" value={currentSpec.quadrilMax} onChange={(e) => updateSpec('quadrilMax', Number(e.target.value))} className="w-full px-1 py-1 bg-slate-50 border border-slate-200 rounded text-[10px] text-center font-semibold text-slate-700 focus:outline-hidden" placeholder="Máx" />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center text-slate-400 bg-slate-50 rounded-xl border border-slate-200">
+                      Informe os tamanhos disponíveis na aba "Cores & Estoque" para configurar a tabela do Provador Virtual.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {addModalTab === 'fotos' && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  <div className="space-y-1 text-xs">
+                    <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Link de Vídeo MP4 ou YouTube (Showcase)</label>
+                    <input 
+                      type="text"
+                      placeholder="Ex: https://www.w3schools.com/html/movie.mp4"
+                      value={newVideoUrl}
+                      onChange={(e) => setNewVideoUrl(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <label className="text-slate-600 font-extrabold uppercase text-[10px] tracking-wide block">Galeria de Fotos do Produto (Múltiplas Fotos)</label>
+                    <div className="grid grid-cols-5 gap-2">
+                      {newImages.map((img, idx) => (
+                        <div key={idx} className="relative aspect-square rounded-lg border border-slate-200 overflow-hidden bg-slate-100 group shadow-xs">
+                          <img 
+                            src={getOptimizedImageUrl(img, 200)} 
+                            alt={`Preview ${idx + 1}`} 
+                            className="w-full h-full object-cover" 
+                            referrerPolicy="no-referrer" 
+                            onError={handleImageFallback}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setNewImages(newImages.filter((_, i) => i !== idx))}
+                            className="absolute top-1 right-1 bg-rose-600 hover:bg-rose-700 text-white p-1 rounded-full cursor-pointer transition-all shadow-md flex items-center justify-center border-none"
+                            title="Remover esta foto"
+                          >
+                            <X size={10} />
+                          </button>
+                          {idx === 0 && (
+                            <span className="absolute bottom-0 inset-x-0 bg-pink-600/90 text-white font-extrabold text-[8px] text-center tracking-wider py-0.5 uppercase">CAPA</span>
+                          )}
+                        </div>
+                      ))}
+                      {newImages.length === 0 && (
+                        <div className="col-span-5 py-4 text-center text-slate-400 font-medium text-xs">
+                          Nenhuma foto adicionada. Adicione pelo menos uma foto abaixo.
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-pink-50/50 border border-pink-100 p-2.5 rounded-lg text-[9.5px] leading-snug text-slate-700 flex items-start gap-1.5 font-sans my-1 select-none">
+                      <span className="text-pink-600">💡</span>
+                      <p><strong>Dimensões Recomendadas para Moda/Fitness:</strong> Prefira fotos na proporção <strong>4:5 Vertical</strong> (ex: 800×1000 px) ou <strong>1:1 Quadrada</strong> (ex: 800×800 px) para valorizar as peças no caimento corporal e na vitrine.</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-500 font-bold block">1. Enviar nova foto direto do aparelho:</span>
+                      <ImageUploader 
+                        onUploadSuccess={(url) => {
+                          if (url) setNewImages(prev => [...prev, url]);
+                        }} 
+                        currentImageUrl=""
+                      />
+                    </div>
+                    
+                    <div className="space-y-1.5 pt-1.5 border-t border-slate-200/60 font-sans">
+                      <span className="text-[10px] text-slate-500 font-bold block">2. Ou cole o link de uma foto da internet:</span>
+                      <div className="flex gap-2">
+                        <input 
+                          id="new-product-image-add-input"
+                          type="text"
+                          disabled={isResolvingNew}
+                          placeholder={isResolvingNew ? "Processando imagem..." : "Cole o link da foto (i.ibb.co, ibb.co, Google Drive ou código HTML)..."}
+                          className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-md text-slate-600 focus:outline-hidden focus:border-pink-500 transition-all font-mono text-[10px] disabled:bg-slate-100 disabled:text-slate-400"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const val = (e.target as HTMLInputElement).value.trim();
+                              if (val) {
+                                resolveImageAndAdd(val, 'new');
+                                (e.target as HTMLInputElement).value = '';
+                              }
+                            }
+                          }}
+                        />
+                        <button 
+                          type="button" 
+                          disabled={isResolvingNew}
+                          onClick={() => {
+                            const input = document.getElementById('new-product-image-add-input') as HTMLInputElement;
+                            if (input && input.value.trim()) {
+                              resolveImageAndAdd(input.value.trim(), 'new');
+                              input.value = '';
+                            }
+                          }}
+                          className="px-3 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-md transition-all cursor-pointer text-xs border-none flex items-center gap-1 disabled:bg-pink-400/80 disabled:cursor-not-allowed"
+                        >
+                          {isResolvingNew ? (
+                            <>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <span>Aguarde...</span>
+                            </>
+                          ) : (
+                            <span>Adicionar</span>
+                          )}
+                        </button>
+                      </div>
+                      {imageFeedback && imageFeedback.type === 'new' && (
+                        <div className={`text-xs px-2.5 py-1 rounded-md font-semibold ${imageFeedback.isError ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'} animate-fadeIn`}>
+                          {imageFeedback.message}
+                        </div>
+                      )}
+                      <span className="text-[9px] text-slate-400 block">💡 Aceita links do ImgBB (i.ibb.co ou ibb.co), Google Drive ou códigos de incorporação HTML/BBCode.</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </form>
 
-            {/* Sticky Action Footer - Always visible on Notebook screens */}
+            {/* Sticky Action Footer */}
             <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
               <button 
                 type="button" 
                 disabled={isSaving}
                 onClick={() => setIsAddModalOpen(false)}
-                className="py-2.5 px-4 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-xl transition-all cursor-pointer border border-slate-250 text-xs shadow-2xs"
+                className="py-2.5 px-4 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-xl transition-all cursor-pointer border border-slate-200 text-xs shadow-2xs"
               >
                 Cancelar
               </button>
@@ -3304,7 +3309,7 @@ export default function CatalogInventory({
                   placeholder="Ex: Legging Sculpt Seamless Pink Glow"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder-slate-450 focus:outline-hidden focus:border-pink-500 transition-all font-medium text-xs"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 transition-all font-medium text-xs"
                 />
               </div>
 
@@ -3318,7 +3323,7 @@ export default function CatalogInventory({
                     placeholder="Ex: LEG-SCUL-P"
                     value={editSku}
                     onChange={(e) => setEditSku(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder-slate-450 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono text-xs"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 transition-all font-medium font-mono text-xs"
                   />
                 </div>
 
@@ -3339,7 +3344,7 @@ export default function CatalogInventory({
                       placeholder="Nova categoria..."
                       value={editCustomCategoryInput}
                       onChange={(e) => setEditCustomCategoryInput(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder-slate-450 focus:outline-hidden focus:border-pink-500 transition-all font-medium text-xs"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 transition-all font-medium text-xs"
                       required
                     />
                   ) : (
@@ -3454,7 +3459,7 @@ export default function CatalogInventory({
                       placeholder="Descreva detalhes premium da peça: tecido, toque gelado, compressão, se fica transparente..."
                       value={editDescription}
                       onChange={(e) => setEditDescription(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder-slate-450 focus:outline-hidden focus:border-pink-500 transition-all font-medium h-20 resize-none"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 placeholder-slate-400 focus:outline-hidden focus:border-pink-500 transition-all font-medium h-20 resize-none"
                     />
                   </div>
 
@@ -3590,7 +3595,7 @@ export default function CatalogInventory({
                           const hex = customColorMap[normColor] || colorToHex(color);
                           const displayHex = hex.startsWith('#') ? hex : '#cccccc';
                           return (
-                            <div key={color} className="flex items-center gap-1.5 bg-white border border-slate-150 px-2 py-0.5 rounded-lg shadow-3xs hover:border-pink-200 transition-all">
+                            <div key={color} className="flex items-center gap-1.5 bg-white border border-slate-100 px-2 py-0.5 rounded-lg shadow-2xs hover:border-pink-200 transition-all">
                               <input
                                 type="color"
                                 value={displayHex}
@@ -3628,7 +3633,7 @@ export default function CatalogInventory({
 
                           return (
                             <div key={sz} className="border border-slate-100 bg-white p-2.5 rounded-lg shadow-2xs">
-                              <div className="font-extrabold text-[10px] text-slate-800 bg-slate-150 px-2 py-0.5 rounded-md inline-block mb-2">
+                              <div className="font-extrabold text-[10px] text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md inline-block mb-2">
                                 TAMANHO {sz}
                               </div>
                               
@@ -3654,7 +3659,7 @@ export default function CatalogInventory({
                                           }
                                         }));
                                       }}
-                                      className="w-16 px-2 py-0.5 bg-white border border-slate-200 rounded-md text-slate-705 text-[10px] font-medium font-mono focus:outline-hidden focus:border-pink-500 text-center"
+                                      className="w-16 px-2 py-0.5 bg-white border border-slate-200 rounded-md text-slate-700 text-[10px] font-medium font-mono focus:outline-hidden focus:border-pink-500 text-center"
                                     />
                                   </div>
                                 ))}
@@ -3676,7 +3681,7 @@ export default function CatalogInventory({
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                           {editColors.split(',').map(c => c.trim()).filter(Boolean).map(color => (
-                            <div key={color} className="flex items-center justify-between gap-2 bg-white p-2 rounded-lg border border-slate-150 shadow-2xs">
+                            <div key={color} className="flex items-center justify-between gap-2 bg-white p-2 rounded-lg border border-slate-100 shadow-2xs">
                               <div className="flex items-center gap-1.5 truncate">
                                 <span className="w-2.5 h-2.5 rounded-full border border-slate-200 shrink-0 animate-pulse" style={{ backgroundColor: colorToHex(color) }} />
                                 <span className="font-semibold text-[10px] text-slate-700 truncate">{color}</span>
@@ -3693,7 +3698,7 @@ export default function CatalogInventory({
                                     [color]: val
                                   }));
                                 }}
-                                className="w-16 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-md text-slate-705 text-[10px] font-medium font-mono focus:outline-hidden focus:border-pink-500 text-center"
+                                className="w-16 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-md text-slate-700 text-[10px] font-medium font-mono focus:outline-hidden focus:border-pink-500 text-center"
                               />
                             </div>
                           ))}
@@ -3714,7 +3719,7 @@ export default function CatalogInventory({
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                         {editSizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).map(sz => (
-                          <div key={sz} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-150 shadow-2xs">
+                          <div key={sz} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-100 shadow-2xs">
                             <span className="font-extrabold text-[10px] text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md min-w-[28px] text-center">{sz}</span>
                             <input
                               type="text"
@@ -3726,7 +3731,7 @@ export default function CatalogInventory({
                                   [sz]: e.target.value
                                 }));
                               }}
-                              className="flex-1 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-md text-slate-705 focus:outline-hidden focus:border-pink-500 transition-all text-[10px] font-medium font-mono"
+                              className="flex-1 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-md text-slate-700 focus:outline-hidden focus:border-pink-500 transition-all text-[10px] font-medium font-mono"
                             />
                           </div>
                         ))}
@@ -3765,7 +3770,7 @@ export default function CatalogInventory({
                           };
 
                           return (
-                            <div key={sz} className="p-2 bg-white rounded-lg border border-slate-150 space-y-1.5">
+                            <div key={sz} className="p-2 bg-white rounded-lg border border-slate-100 space-y-1.5">
                               <div className="flex justify-between items-center text-[10px] font-extrabold text-slate-700 bg-slate-100/60 px-1.5 py-0.5 rounded">
                                 <span>Tamanho {sz}</span>
                                 <span className="text-[8px] text-pink-600">Recomendado padrão ativo</span>
@@ -3781,7 +3786,7 @@ export default function CatalogInventory({
                                       className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
                                       placeholder="Mín"
                                     />
-                                    <span className="text-slate-350">-</span>
+                                    <span className="text-slate-300">-</span>
                                     <input
                                       type="number"
                                       value={currentSpec.bustoMax}
@@ -3802,7 +3807,7 @@ export default function CatalogInventory({
                                       className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
                                       placeholder="Mín"
                                     />
-                                    <span className="text-slate-350">-</span>
+                                    <span className="text-slate-300">-</span>
                                     <input
                                       type="number"
                                       value={currentSpec.cinturaMax}
@@ -3823,7 +3828,7 @@ export default function CatalogInventory({
                                       className="w-full px-1 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] text-center font-semibold text-slate-700 focus:outline-hidden"
                                       placeholder="Mín"
                                     />
-                                    <span className="text-slate-350">-</span>
+                                    <span className="text-slate-300">-</span>
                                     <input
                                       type="number"
                                       value={currentSpec.quadrilMax}
@@ -3982,7 +3987,7 @@ export default function CatalogInventory({
                     setIsEditModalOpen(false);
                     setEditingProduct(null);
                   }}
-                  className="py-2.5 px-3.5 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-xl transition-all cursor-pointer border border-slate-250 text-xs shadow-2xs"
+                  className="py-2.5 px-3.5 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-xl transition-all cursor-pointer border border-slate-200 text-xs shadow-2xs"
                 >
                   Cancelar
                 </button>
@@ -4159,7 +4164,7 @@ export default function CatalogInventory({
                 <button 
                   type="button" 
                   onClick={() => setIsComboModalOpen(false)}
-                  className="flex-1 py-2 bg-slate-100 text-slate-650 rounded-lg font-bold transition-all hover:bg-slate-205 cursor-pointer text-center border-none"
+                  className="flex-1 py-2 bg-slate-100 text-slate-600 rounded-lg font-bold transition-all hover:bg-slate-200 cursor-pointer text-center border-none"
                 >
                   Cancelar
                 </button>
@@ -4631,7 +4636,7 @@ function ProductGradeCard({ product, onUpdateProduct }: ProductGradeCardProps) {
             <div className="flex flex-wrap items-center gap-2 mt-1">
               <span className="font-mono text-[9px] font-bold text-slate-400">SKU: {product.sku}</span>
               <span className="text-slate-300 text-[10px]">•</span>
-              <span className="bg-slate-100 text-slate-650 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase">{product.category}</span>
+              <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase">{product.category}</span>
               <span className="text-slate-300 text-[10px]">•</span>
               <span className="text-pink-600 font-bold text-[10px] font-mono">
                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)}
@@ -4655,7 +4660,7 @@ function ProductGradeCard({ product, onUpdateProduct }: ProductGradeCardProps) {
                 <th className="py-2 text-right w-12">Total</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50 text-slate-650">
+            <tbody className="divide-y divide-slate-50 text-slate-600">
               {colorsList.map(col => {
                 let rowTotal = 0;
                 sizesList.forEach(sz => {
@@ -4679,8 +4684,8 @@ function ProductGradeCard({ product, onUpdateProduct }: ProductGradeCardProps) {
                             onChange={(e) => handleCellChange(sz, col, parseInt(e.target.value))}
                             className={`w-12 text-center border focus:outline-hidden rounded-lg p-1 font-mono text-xs font-bold transition-all ${
                               isCritical
-                                ? 'bg-rose-50 hover:bg-rose-100 text-rose-750 border-rose-250 focus:border-red-500 focus:ring-red-500/10'
-                                : 'bg-slate-50 hover:bg-slate-100 text-slate-850 border-slate-200 focus:border-pink-500 focus:bg-white focus:ring-pink-500/10'
+                                ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200 focus:border-red-500 focus:ring-red-500/10'
+                                : 'bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-200 focus:border-pink-500 focus:bg-white focus:ring-pink-500/10'
                             }`}
                           />
                         </td>

@@ -369,7 +369,7 @@ export default function DashboardPerformanceAnalytics({
 
       {/* TOP 3 CAMPEÕES VISUAL HIGHLIGHTS */}
       <div className="bg-slate-900 border border-slate-800 text-white rounded-2xl p-6 shadow-xl" id="top-desejados-highlights">
-        <h3 className="text-xs font-black text-slate-450 uppercase tracking-widest flex items-center gap-2 mb-5">
+        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-5">
           <Flame size={14} className="text-orange-500 animate-pulse" />
           <span>Destaques: Líderes de Acesso e Venda</span>
         </h3>

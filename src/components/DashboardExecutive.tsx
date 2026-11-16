@@ -459,7 +459,7 @@ export default function DashboardExecutive({
             {topChannels.map((chan, idx) => (
               <div key={idx} className="space-y-1">
                 <div className="flex justify-between text-xs font-medium font-sans">
-                  <span className="text-slate-650 flex items-center gap-1.5 font-semibold">
+                  <span className="text-slate-600 flex items-center gap-1.5 font-semibold">
                     <span className="w-2 h-2 rounded-full" style={{ backgroundColor: chan.color }} />
                     {chan.name}
                   </span>
@@ -486,7 +486,7 @@ export default function DashboardExecutive({
                 <span className="text-slate-600 font-semibold">Faturamento Mês</span>
                 <span className="font-bold font-mono text-slate-800">{monthlyRevenuePct}%</span>
               </div>
-              <div className="w-full bg-slate-150 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                 <div className="h-full bg-pink-500 rounded-full transition-all duration-500" style={{ width: `${monthlyRevenuePct}%` }} />
               </div>
             </div>
@@ -496,7 +496,7 @@ export default function DashboardExecutive({
                 <span className="text-slate-600 font-semibold">Novos Clientes</span>
                 <span className="font-bold font-mono text-slate-800">{monthlyNewClientsPct}%</span>
               </div>
-              <div className="w-full bg-slate-150 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                 <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${monthlyNewClientsPct}%` }} />
               </div>
             </div>
@@ -506,7 +506,7 @@ export default function DashboardExecutive({
                 <span className="text-slate-600 font-semibold">NPS Geral Target</span>
                 <span className="font-bold font-mono text-slate-800">{monthlyNpsPct}%</span>
               </div>
-              <div className="w-full bg-slate-150 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                 <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${monthlyNpsPct}%` }} />
               </div>
             </div>
@@ -518,7 +518,7 @@ export default function DashboardExecutive({
           <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider border-b border-slate-50 pb-3">Indicadores Chave</h4>
           <div className="mt-4 space-y-3.5 text-xs font-sans">
             <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
-              <span className="text-slate-650 flex items-center gap-1 font-semibold">
+              <span className="text-slate-600 flex items-center gap-1 font-semibold">
                 Clientes Ativos
                 <HelpCircle size={12} className="text-slate-400 cursor-pointer" />
               </span>
@@ -528,7 +528,7 @@ export default function DashboardExecutive({
             </div>
 
             <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
-              <span className="text-slate-650 flex items-center gap-1 font-semibold">
+              <span className="text-slate-600 flex items-center gap-1 font-semibold">
                 Taxa de Recompra
                 <HelpCircle size={12} className="text-slate-400 cursor-pointer" />
               </span>
@@ -538,19 +538,19 @@ export default function DashboardExecutive({
             </div>
 
             <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
-              <span className="text-slate-650 flex items-center gap-1 font-semibold">
+              <span className="text-slate-600 flex items-center gap-1 font-semibold">
                 CAC (Custo de Aquisição)
               </span>
-              <span className="font-bold font-mono text-slate-850">
+              <span className="font-bold font-mono text-slate-800">
                 {formatCurrency(cacValue)}
               </span>
             </div>
 
             <div className="flex items-center justify-between py-1.5">
-              <span className="text-slate-650 flex items-center gap-1 font-semibold">
+              <span className="text-slate-600 flex items-center gap-1 font-semibold">
                 LTV (Lifetime Value)
               </span>
-              <span className="font-bold font-mono text-slate-855 text-pink-650">
+              <span className="font-bold font-mono text-slate-800 text-pink-600">
                 {formatCurrency(ltvValue)}
               </span>
             </div>
@@ -571,7 +571,7 @@ export default function DashboardExecutive({
             <p className="text-slate-400 text-xs mt-0.5">Acompanhe as metas atingidas, comissões individuais e faturamento de cada vendedora parceira</p>
           </div>
           
-          <div className="bg-slate-50 border border-slate-150 px-3 py-1.5 rounded-xl font-mono text-xs text-slate-650 font-bold flex items-center gap-2">
+          <div className="bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl font-mono text-xs text-slate-600 font-bold flex items-center gap-2">
             <span>Total Comissão Devida:</span>
             <span className="text-pink-600 font-black">
               {formatCurrency(salespersonStats.reduce((sum, s) => sum + s.commission, 0))}
@@ -598,11 +598,11 @@ export default function DashboardExecutive({
                     <tr key={seller.name} className="hover:bg-slate-50/40 transition-colors">
                       <td className="py-3 flex items-center gap-2.5">
                         <div className={`w-8 h-8 rounded-lg font-black text-xs flex items-center justify-center 
-                          ${idx === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-150 text-slate-600'}`}>
+                          ${idx === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
                           {idx === 0 ? '🥇' : avatarLetters}
                         </div>
                         <div>
-                          <p className="font-bold text-slate-750">{seller.name}</p>
+                          <p className="font-bold text-slate-700">{seller.name}</p>
                           {idx === 0 && <span className="text-[9px] text-amber-600 font-bold bg-amber-50 px-1 py-0.5 rounded-md">Destaque do Mês</span>}
                         </div>
                       </td>
@@ -631,7 +631,7 @@ export default function DashboardExecutive({
                 return (
                   <div key={seller.name} className="space-y-1">
                     <div className="flex justify-between text-[11px] font-sans font-medium">
-                      <span className="text-slate-650 font-bold">{seller.name}</span>
+                      <span className="text-slate-600 font-bold">{seller.name}</span>
                       <span className="text-slate-400 font-mono">{sharePct}% ({formatCurrency(seller.revenue)})</span>
                     </div>
                     <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">

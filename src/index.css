@@ -29,6 +29,17 @@
   background: rgba(148, 163, 184, 0.5);
 }
 
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* ==========================================================================
    CUSTOM SYSTEM-WIDE DARK MODE OVERRIDES
    ========================================================================== */

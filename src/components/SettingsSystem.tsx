@@ -1625,14 +1625,14 @@ export default function SettingsSystem({
       </div>
 
       {/* Tabs list */}
-      <div className="flex border-b border-slate-100">
+      <div className="flex border-b border-slate-100 overflow-x-auto no-scrollbar whitespace-nowrap">
         <button
           type="button"
           onClick={() => setActiveSubTab('empresa')}
-          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
+          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0
             ${activeSubTab === 'empresa' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <Sliders size={14} />
           <span>Dados da Boutique & Telefone</span>
@@ -1640,10 +1640,10 @@ export default function SettingsSystem({
         <button
           type="button"
           onClick={() => setActiveSubTab('frete')}
-          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
+          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0
             ${activeSubTab === 'frete' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <Truck size={14} />
           <span>Frete, Motoboy & Entregas 🚚</span>
@@ -1651,10 +1651,10 @@ export default function SettingsSystem({
         <button
           type="button"
           onClick={() => setActiveSubTab('integracoes')}
-          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
+          className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer shrink-0
             ${activeSubTab === 'integracoes' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <Database size={14} />
           <span>Supabase, ImgBB & Webhook</span>
@@ -1665,7 +1665,7 @@ export default function SettingsSystem({
           className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
             ${activeSubTab === 'seguranca' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <ShieldCheck size={14} />
           <span>Hierarquia, Usuários & Auditoria</span>
@@ -1676,7 +1676,7 @@ export default function SettingsSystem({
           className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
             ${activeSubTab === 'roadmap' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <Activity size={14} />
           <span>Roadmap Tecnologia</span>
@@ -1687,7 +1687,7 @@ export default function SettingsSystem({
           className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
             ${activeSubTab === 'vitrine' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
           <Layout size={14} />
           <span>Vitrine & Campanhas</span>
@@ -1698,9 +1698,9 @@ export default function SettingsSystem({
           className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
             ${activeSubTab === 'diagnostico' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
-          <HeartPulse size={14} className={activeSubTab === 'diagnostico' ? 'text-pink-600 animate-pulse' : 'text-slate-450'} />
+          <HeartPulse size={14} className={activeSubTab === 'diagnostico' ? 'text-pink-600 animate-pulse' : 'text-slate-400'} />
           <span>Diagnóstico & Saúde</span>
         </button>
         <button
@@ -1709,9 +1709,9 @@ export default function SettingsSystem({
           className={`px-4 py-2.5 font-sans text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer
             ${activeSubTab === 'hardware' 
               ? 'border-pink-600 text-pink-600' 
-              : 'border-transparent text-slate-450 hover:text-slate-700'}`}
+              : 'border-transparent text-slate-400 hover:text-slate-700'}`}
         >
-          <CreditCard size={14} className={activeSubTab === 'hardware' ? 'text-pink-600' : 'text-slate-450'} />
+          <CreditCard size={14} className={activeSubTab === 'hardware' ? 'text-pink-600' : 'text-slate-400'} />
           <span>Hardware & Maquininhas</span>
         </button>
       </div>
@@ -1754,64 +1754,64 @@ export default function SettingsSystem({
             <form id="store-settings-form" onSubmit={handleSaveStoreSettings} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-slate-405 font-semibold mb-1">Razão Social / Nome da Loja</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Razão Social / Nome da Loja</label>
                   <input
                     type="text"
                     required
                     value={storeName}
                     onChange={(e) => setStoreName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2.5 font-medium text-slate-755 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 font-medium text-slate-700 focus:outline-hidden"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-405 font-semibold mb-1">CNPJ de Emissão NFC-e</label>
+                  <label className="block text-slate-400 font-semibold mb-1">CNPJ de Emissão NFC-e</label>
                   <input
                     type="text"
                     required
                     value={storeCnpj}
                     onChange={(e) => setStoreCnpj(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2.5 font-medium text-slate-755 focus:outline-hidden font-mono"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 font-medium text-slate-700 focus:outline-hidden font-mono"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-405 font-semibold mb-1">Lema / Slogan da Empresa</label>
+                <label className="block text-slate-400 font-semibold mb-1">Lema / Slogan da Empresa</label>
                 <input
                   type="text"
                   required
                   value={storeSlogan}
                   onChange={(e) => setStoreSlogan(e.target.value)}
                   placeholder="Ex: Onde o seu limite vira ponto de partida"
-                  className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2.5 font-medium text-slate-755 focus:outline-hidden"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 font-medium text-slate-700 focus:outline-hidden"
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-slate-405 font-semibold mb-1">Endereço da Sede Física</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Endereço da Sede Física</label>
                   <input
                     type="text"
                     required
                     value={storeAddress}
                     onChange={(e) => setStoreAddress(e.target.value)}
                     placeholder="Ex: Travessa José Jorge, 51, Centro"
-                    className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2.5 font-medium text-slate-755 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 font-medium text-slate-700 focus:outline-hidden"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-405 font-semibold mb-1">Cidade da Loja</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Cidade da Loja</label>
                   <input
                     type="text"
                     required
                     value={storeCity}
                     onChange={(e) => setStoreCity(e.target.value)}
                     placeholder="Ex: São José de Mipibu"
-                    className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2.5 font-medium text-slate-755 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 font-medium text-slate-700 focus:outline-hidden"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-405 font-semibold mb-1">Estado / UF</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Estado / UF</label>
                   <input
                     type="text"
                     required
@@ -1819,7 +1819,7 @@ export default function SettingsSystem({
                     onChange={(e) => setStoreState(e.target.value.toUpperCase())}
                     placeholder="Ex: RN"
                     maxLength={2}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2.5 font-medium text-slate-755 focus:outline-hidden font-mono uppercase"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 font-medium text-slate-700 focus:outline-hidden font-mono uppercase"
                   />
                 </div>
               </div>
@@ -1866,14 +1866,14 @@ export default function SettingsSystem({
                   </p>
                 </div>
                 <div>
-                  <label className="block text-slate-405 font-semibold mb-1">Chave Pix de Recebimento</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Chave Pix de Recebimento</label>
                   <input
                     type="text"
                     required
                     value={storePixKey}
                     onChange={(e) => setStorePixKey(e.target.value)}
                     placeholder="Chave Pix de Recebimento"
-                    className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2.5 font-medium text-slate-755 focus:outline-hidden font-mono"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 font-medium text-slate-700 focus:outline-hidden font-mono"
                   />
                 </div>
               </div>
@@ -1915,7 +1915,7 @@ export default function SettingsSystem({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-pink-650 font-bold mb-1 uppercase text-[10px] tracking-wide">Comissão de Venda Padrão dos Vendedores (%)</label>
+                  <label className="block text-pink-600 font-bold mb-1 uppercase text-[10px] tracking-wide">Comissão de Venda Padrão dos Vendedores (%)</label>
                   <input
                     type="number"
                     required
@@ -1930,7 +1930,7 @@ export default function SettingsSystem({
                 </div>
               </div>
 
-               <div className="bg-pink-50/40 border border-pink-150 rounded-2xl p-4.5 space-y-3.5">
+               <div className="bg-pink-50/40 border border-pink-100 rounded-2xl p-4.5 space-y-3.5">
                 <div className="flex items-center justify-between">
                   <div>
                     <label className="block text-slate-800 font-extrabold text-xs uppercase tracking-wide">
@@ -2007,12 +2007,12 @@ export default function SettingsSystem({
               </div>
 
               <div>
-                <label className="block text-slate-450 font-semibold mb-1">Mensagem de Rodapé do Cupom de Venda</label>
+                <label className="block text-slate-400 font-semibold mb-1">Mensagem de Rodapé do Cupom de Venda</label>
                 <textarea
                   rows={3}
                   value={storeFooter}
                   onChange={(e) => setStoreFooter(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2.5 text-slate-700 focus:outline-hidden leading-relaxed font-sans"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-slate-700 focus:outline-hidden leading-relaxed font-sans"
                 />
               </div>
 
@@ -2038,13 +2038,13 @@ export default function SettingsSystem({
             </p>
 
             {/* Form to Add/Edit Region */}
-            <form onSubmit={handleSaveRegion} className="bg-slate-50 border border-slate-150 rounded-xl p-3.5 space-y-3">
+            <form onSubmit={handleSaveRegion} className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 space-y-3">
               <p className="font-bold text-slate-700 text-[11px] uppercase tracking-wide">
                 {editingRegionId ? '📝 Editar Região de Entrega' : '➕ Adicionar Nova Área/Bairro'}
               </p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-slate-450 font-semibold mb-1">Cidade da Região</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Cidade da Região</label>
                   <input 
                     type="text" 
                     required
@@ -2055,7 +2055,7 @@ export default function SettingsSystem({
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-450 font-semibold mb-1">Bairro(s) ou Área de Abrangência</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Bairro(s) ou Área de Abrangência</label>
                   <input 
                     type="text" 
                     required
@@ -2066,7 +2066,7 @@ export default function SettingsSystem({
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-450 font-semibold mb-1">Taxa de Entrega (R$)</label>
+                  <label className="block text-slate-400 font-semibold mb-1">Taxa de Entrega (R$)</label>
                   <input 
                     type="number" 
                     required
@@ -2107,7 +2107,7 @@ export default function SettingsSystem({
             <div className="border border-slate-100 rounded-xl overflow-hidden bg-white">
               <table className="w-full border-collapse text-left text-xs font-sans">
                 <thead>
-                  <tr className="bg-slate-50 text-slate-450 font-bold border-b border-slate-100 uppercase text-[9px] tracking-wider">
+                  <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-100 uppercase text-[9px] tracking-wider">
                     <th className="p-3">Cidade</th>
                     <th className="p-3">Região / Bairro de Atuação</th>
                     <th className="p-3 text-right">Taxa (R$)</th>
@@ -2160,11 +2160,11 @@ export default function SettingsSystem({
           <div className="space-y-6">
             {/* Quick Info details */}
             <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-5 space-y-4">
-              <h4 className="font-bold text-slate-755 uppercase tracking-widest text-[10px] flex items-center gap-1.5 border-b border-slate-50 pb-2">
+              <h4 className="font-bold text-slate-700 uppercase tracking-widest text-[10px] flex items-center gap-1.5 border-b border-slate-50 pb-2">
                 <FileCheck2 size={13} className="text-pink-600" />
                 <span>Informações Úteis para Cupons</span>
               </h4>
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-150/50 leading-relaxed text-slate-650">
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100/50 leading-relaxed text-slate-600">
                 <p className="font-semibold text-slate-800">Emissão de NFC-e ativa:</p>
                 <p className="mt-1 text-[11px]">Ao finalizar a venda no PDV e clicar em "Imprimir Cupom", o sistema calcula de forma instantânea a chave de acesso NFC-e baseada no CNPJ configurado e no protocolo de homologação SEFAZ, gerando a Nota Fiscal de Consumidor integrada.</p>
               </div>
@@ -2172,7 +2172,7 @@ export default function SettingsSystem({
 
             {/* Backup de Dados Card */}
             <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-5 space-y-4">
-              <h4 className="font-bold text-slate-755 uppercase tracking-widest text-[10px] flex items-center gap-1.5 border-b border-slate-50 pb-2">
+              <h4 className="font-bold text-slate-700 uppercase tracking-widest text-[10px] flex items-center gap-1.5 border-b border-slate-50 pb-2">
                 <Database size={13} className="text-pink-600" />
                 <span>Backup & Segurança de Dados</span>
               </h4>
@@ -2182,7 +2182,7 @@ export default function SettingsSystem({
 
               <div className="space-y-3.5 pt-1">
                 {/* Save LocalStorage Option */}
-                <div className="bg-slate-50 border border-slate-150 rounded-xl p-3 space-y-2">
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-700">Backup em Navegador</span>
                     <span className="text-[10px] bg-slate-900 text-white font-bold px-1.5 py-0.5 rounded">Rápido</span>
@@ -2213,7 +2213,7 @@ export default function SettingsSystem({
                       type="button"
                       disabled={!snapshotDate}
                       onClick={handleRestoreSnapshot}
-                      className="py-1.5 px-2 bg-white border border-slate-205 hover:bg-slate-50 text-slate-700 font-bold rounded-lg text-[10.5px] transition flex items-center justify-center gap-1 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed"
+                      className="py-1.5 px-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-lg text-[10.5px] transition flex items-center justify-center gap-1 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed"
                     >
                       <RefreshCw size={11} className={snapshotDate ? 'text-pink-600' : ''} />
                       <span>Restaurar</span>
@@ -2222,7 +2222,7 @@ export default function SettingsSystem({
                 </div>
 
                 {/* Local JSON File Option */}
-                <div className="bg-slate-50 border border-slate-150 rounded-xl p-3 space-y-2">
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-700">Exportar Arquivo JSON</span>
                     <span className="text-[10px] bg-pink-50 text-pink-600 font-bold px-1.5 py-0.5 rounded">Recomendado</span>
@@ -2242,7 +2242,7 @@ export default function SettingsSystem({
                 </div>
 
                 {/* Import File Option */}
-                <div className="bg-slate-50 border border-slate-150 rounded-xl p-3 space-y-2">
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-2">
                   <span className="font-bold text-slate-700 block">Restaurar de Arquivo JSON</span>
                   <p className="text-[10.5px] text-slate-500 leading-relaxed">
                     Selecione um arquivo de backup baixado anteriormente para restaurar todas as mercadorias, caixa e faturamento.
@@ -2258,7 +2258,7 @@ export default function SettingsSystem({
                     />
                     <label
                       htmlFor="import-backup-file-settings"
-                      className="w-full py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-750 font-bold rounded-lg text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer border-dashed border-2"
+                      className="w-full py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold rounded-lg text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer border-dashed border-2"
                     >
                       <Upload size={12} className="text-slate-500" />
                       <span>Carregar Arquivo (.json)</span>
@@ -2267,7 +2267,7 @@ export default function SettingsSystem({
                 </div>
 
                 {/* Advanced Data Mode management buttons */}
-                <div className="pt-4 border-t border-slate-150 flex flex-col gap-2">
+                <div className="pt-4 border-t border-slate-100 flex flex-col gap-2">
                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                     Modos de Inicialização do Sistema
                   </div>
@@ -2325,7 +2325,7 @@ export default function SettingsSystem({
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Coluna 1 e 2: Taxas e Regiões de Motoboy */}
-            <div className="lg:col-span-2 bg-white border border-slate-150 rounded-2xl shadow-xs p-5 space-y-4">
+            <div className="lg:col-span-2 bg-white border border-slate-100 rounded-2xl shadow-xs p-5 space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
                   <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
@@ -2466,13 +2466,13 @@ export default function SettingsSystem({
             {/* Coluna 3: Melhor Envio & Políticas de Frete */}
             <div className="space-y-5">
               {/* Card Melhor Envio */}
-              <div className="bg-white border border-slate-150 rounded-2xl shadow-xs p-5 space-y-3.5">
+              <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-5 space-y-3.5">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                   <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5">
                     <Package size={16} className="text-sky-600" />
                     <span>Melhor Envio (Correios & Fretes)</span>
                   </h4>
-                  <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full ${melhorEnvioToken ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-650'}`}>
+                  <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full ${melhorEnvioToken ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
                     {melhorEnvioToken ? 'Conectado' : 'Chave Opcional'}
                   </span>
                 </div>
@@ -2518,7 +2518,7 @@ export default function SettingsSystem({
               </div>
 
               {/* Guia Rápido de Dimensões dos Produtos */}
-              <div className="bg-white border border-slate-150 rounded-2xl shadow-xs p-5 space-y-3">
+              <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-5 space-y-3">
                 <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5 pb-2 border-b border-slate-100">
                   <Sparkles size={16} className="text-pink-600" />
                   <span>Dica de Frete para os Produtos</span>
@@ -2577,7 +2577,7 @@ export default function SettingsSystem({
 
             {/* Active Services Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3 bg-slate-50 border border-slate-150/70 rounded-xl space-y-1">
+              <div className="p-3 bg-slate-50 border border-slate-100/70 rounded-xl space-y-1">
                 <div className="flex items-center gap-1.5 text-blue-600 font-bold text-[11px]">
                   <HardDrive size={13} />
                   <span>Google Drive</span>
@@ -2586,7 +2586,7 @@ export default function SettingsSystem({
                 <span className="inline-block text-[8.5px] font-mono bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-bold">drive.file</span>
               </div>
 
-              <div className="p-3 bg-slate-50 border border-slate-150/70 rounded-xl space-y-1">
+              <div className="p-3 bg-slate-50 border border-slate-100/70 rounded-xl space-y-1">
                 <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-[11px]">
                   <FileSpreadsheet size={13} />
                   <span>Google Sheets</span>
@@ -2595,7 +2595,7 @@ export default function SettingsSystem({
                 <span className="inline-block text-[8.5px] font-mono bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">spreadsheets</span>
               </div>
 
-              <div className="p-3 bg-slate-50 border border-slate-150/70 rounded-xl space-y-1">
+              <div className="p-3 bg-slate-50 border border-slate-100/70 rounded-xl space-y-1">
                 <div className="flex items-center gap-1.5 text-amber-600 font-bold text-[11px]">
                   <Calendar size={13} />
                   <span>Google Calendar</span>
@@ -2604,7 +2604,7 @@ export default function SettingsSystem({
                 <span className="inline-block text-[8.5px] font-mono bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded font-bold">calendar</span>
               </div>
 
-              <div className="p-3 bg-slate-50 border border-slate-150/70 rounded-xl space-y-1">
+              <div className="p-3 bg-slate-50 border border-slate-100/70 rounded-xl space-y-1">
                 <div className="flex items-center gap-1.5 text-red-600 font-bold text-[11px]">
                   <Mail size={13} />
                   <span>Gmail</span>
@@ -2807,7 +2807,7 @@ export default function SettingsSystem({
                   value={geminiApiKey}
                   onChange={(e) => setGeminiApiKey(e.target.value)}
                   placeholder="Cole sua chave aqui (ex: AIzaSy...)"
-                  className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 font-mono text-[10px] text-slate-700 focus:outline-hidden"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 font-mono text-[10px] text-slate-700 focus:outline-hidden"
                 />
               </div>
 
@@ -2861,19 +2861,19 @@ export default function SettingsSystem({
               </p>
 
               <div>
-                <label className="block text-slate-405 font-semibold mb-1 text-[10px]">URL do Projeto Supabase (API URL)</label>
+                <label className="block text-slate-400 font-semibold mb-1 text-[10px]">URL do Projeto Supabase (API URL)</label>
                 <input
                   type="text"
                   value={supabaseUrl}
                   onChange={(e) => setSupabaseUrl(e.target.value)}
                   placeholder="https://suachave.supabase.co"
-                  className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 font-mono text-[10px] text-slate-700 focus:outline-hidden"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 font-mono text-[10px] text-slate-700 focus:outline-hidden"
                 />
               </div>
 
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <label className="block text-slate-405 font-semibold text-[10px]">Chave de API Pública (Anon/Public Key)</label>
+                  <label className="block text-slate-400 font-semibold text-[10px]">Chave de API Pública (Anon/Public Key)</label>
                   <button
                     type="button"
                     onClick={() => setShowSupabaseKey(!showSupabaseKey)}
@@ -2887,7 +2887,7 @@ export default function SettingsSystem({
                   value={supabaseKey}
                   onChange={(e) => setSupabaseKey(e.target.value)}
                   placeholder="Chave pública anon do Supabase"
-                  className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 font-mono text-[10px] text-slate-700 focus:outline-hidden"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 font-mono text-[10px] text-slate-700 focus:outline-hidden"
                 />
               </div>
 
@@ -2912,7 +2912,7 @@ export default function SettingsSystem({
             </form>
 
             <div className="border-t border-slate-100 pt-3 space-y-2 text-[10px] font-sans">
-              <div className="p-2.5 bg-slate-900 border border-slate-850 rounded-xl space-y-1 font-mono text-zinc-400">
+              <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl space-y-1 font-mono text-zinc-400">
                 <p className="text-emerald-400 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   Sincronismo Supabase Ativo
@@ -3010,7 +3010,7 @@ export default function SettingsSystem({
                       localStorage.setItem('ap_imgbb_key', imgbbKey);
                       await pushSystemConfigToSupabase('ap_imgbb_key', imgbbKey);
                     }}
-                    className="flex-grow bg-slate-50 border border-slate-150 rounded-lg p-2 font-mono font-bold text-slate-700 focus:outline-hidden text-xs"
+                    className="flex-grow bg-slate-50 border border-slate-100 rounded-lg p-2 font-mono font-bold text-slate-700 focus:outline-hidden text-xs"
                   />
                   <button
                     type="button"
@@ -3026,7 +3026,7 @@ export default function SettingsSystem({
                 </div>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-150/50">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100/50">
                 <p className="font-medium text-slate-800">Uploader de Fotos e Vídeos:</p>
                 <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">As mídias das suas vendedoras ou catálogos de produtos no menu "Produtos e Estoque" são integrados a essa chave para gerar URLs web automáticas de alta performance CDN.</p>
               </div>
@@ -3064,7 +3064,7 @@ export default function SettingsSystem({
                       localStorage.setItem('ap_discord_webhook', discordWebhook);
                       await pushSystemConfigToSupabase('ap_discord_webhook', discordWebhook);
                     }}
-                    className="flex-grow bg-slate-50 border border-slate-150 rounded-lg p-2 font-mono text-[10px] text-slate-700 focus:outline-hidden"
+                    className="flex-grow bg-slate-50 border border-slate-100 rounded-lg p-2 font-mono text-[10px] text-slate-700 focus:outline-hidden"
                   />
                   <button
                     type="button"
@@ -3080,7 +3080,7 @@ export default function SettingsSystem({
                 </div>
               </div>
 
-              <div className="p-3 bg-pink-55/30 border border-pink-100/55 rounded-xl text-pink-900/80 leading-relaxed text-[10px]">
+              <div className="p-3 bg-pink-50/30 border border-pink-100/55 rounded-xl text-pink-900/80 leading-relaxed text-[10px]">
                 🚀 <strong>Alertas Sonoros Automáticos:</strong> Ao receber um novo pedido de e-commerce da sua boutique, o sistema emite um toque especial eletrônico e envia o payload completo (itens, endereço, total) para seu grupo do Discord/Telegram automaticamente!
               </div>
 
@@ -3123,7 +3123,7 @@ export default function SettingsSystem({
 
             <form onSubmit={handleSaveWhatsappSettings} className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-3">
-                <p className="text-[10.5px] text-slate-505 leading-relaxed">
+                <p className="text-[10.5px] text-slate-500 leading-relaxed">
                   Envie notificações automáticas em tempo real para seu celular ou grupo de atendimento ao concluir novas vendas no PDV e quando os estoques entrarem no limite mínimo crítico.
                 </p>
               </div>
@@ -3135,9 +3135,9 @@ export default function SettingsSystem({
                   placeholder="Token temporário ou permanente EAAB..."
                   value={whatsappToken}
                   onChange={(e) => setWhatsappToken(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 font-mono text-[10.5px] text-slate-700 focus:outline-hidden"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 font-mono text-[10.5px] text-slate-700 focus:outline-hidden"
                 />
-                <p className="text-[9.5px] text-slate-405 mt-1">Token de Portador (Bearer Token) obtido no painel de desenvolvedores Meta para WhatsApp.</p>
+                <p className="text-[9.5px] text-slate-400 mt-1">Token de Portador (Bearer Token) obtido no painel de desenvolvedores Meta para WhatsApp.</p>
               </div>
 
               <div>
@@ -3147,9 +3147,9 @@ export default function SettingsSystem({
                   placeholder="Ex: 1092837234..."
                   value={whatsappPhoneId}
                   onChange={(e) => setWhatsappPhoneId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 font-mono text-[10.5px] text-slate-700 focus:outline-hidden"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 font-mono text-[10.5px] text-slate-700 focus:outline-hidden"
                 />
-                <p className="text-[9.5px] text-slate-405 mt-1">Identificador exclusivo do número emissor configurado na plataforma Cloud API.</p>
+                <p className="text-[9.5px] text-slate-400 mt-1">Identificador exclusivo do número emissor configurado na plataforma Cloud API.</p>
               </div>
 
               <div>
@@ -3159,9 +3159,9 @@ export default function SettingsSystem({
                   placeholder="Ex: 5521991234567"
                   value={whatsappRecipient}
                   onChange={(e) => setWhatsappRecipient(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 font-mono text-[10.5px] text-slate-700 focus:outline-hidden"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 font-mono text-[10.5px] text-slate-700 focus:outline-hidden"
                 />
-                <p className="text-[9.5px] text-slate-405 mt-1">Número completo com DDI (55 para Brasil), DDD e celular para receber as notificações.</p>
+                <p className="text-[9.5px] text-slate-400 mt-1">Número completo com DDI (55 para Brasil), DDD e celular para receber as notificações.</p>
               </div>
 
               <div className="md:col-span-3 flex justify-end gap-3 pt-1">
@@ -3177,19 +3177,19 @@ export default function SettingsSystem({
             {/* Simulated Live Testing Sandbox Board */}
             <div className="border-t border-slate-100 pt-4 space-y-4">
               <div>
-                <h4 className="font-bold text-slate-804 uppercase tracking-wider text-[10px] flex items-center gap-1.5 mb-1 text-slate-700">
+                <h4 className="font-bold text-slate-800 uppercase tracking-wider text-[10px] flex items-center gap-1.5 mb-1 text-slate-700">
                   <span>Laboratório de Monitoramento & Validação de Layout</span>
                 </h4>
                 <p className="text-[10px] text-slate-400">Clique para disparar mensagens de teste, validar o design dos alertas automáticos e inspecionar o payload.</p>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-150">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
                 <div className="flex-grow flex items-center gap-2">
                   <span className="text-[10.5px] font-bold text-slate-600 shrink-0">Simular Notificação:</span>
                   <select
                     value={testType}
                     onChange={(e) => setTestType(e.target.value as any)}
-                    className="flex-grow bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-750 font-bold focus:outline-hidden"
+                    className="flex-grow bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-700 font-bold focus:outline-hidden"
                   >
                     <option value="sale_completed">Venda Concluída (Exemplo: Letícia Mendonça - R$ 359,70)</option>
                     <option value="stock_alert">Estoque Mínimo Atingido (Exemplo: Legging Seamless - 2 un.)</option>
@@ -3269,7 +3269,7 @@ export default function SettingsSystem({
                     placeholder="Cole seu token do Melhor Envio (ex: eyJ0eXAiOiJKV1QiLCJhbGci...)"
                     value={melhorEnvioToken}
                     onChange={(e) => setMelhorEnvioToken(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 font-mono text-[10.5px] text-slate-700 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 font-mono text-[10.5px] text-slate-700 focus:outline-hidden"
                   />
                 </div>
                 <button
@@ -3303,7 +3303,7 @@ export default function SettingsSystem({
                         alert(`✅ Ambiente alterado para ${isSandbox ? 'Sandbox / Simulador' : 'Produção'} com sucesso!`);
                       }
                     }}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 text-slate-700 text-[10.5px] focus:outline-hidden cursor-pointer"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-slate-700 text-[10.5px] focus:outline-hidden cursor-pointer"
                   >
                     <option value="false">Produção (Real / Oficial)</option>
                     <option value="true">Sandbox (Simulado / Demonstração / Sem Custo)</option>
@@ -3398,12 +3398,12 @@ export default function SettingsSystem({
                     <div>
                       <span className="text-[9px] text-zinc-500 block">Valor Bruto da Venda (R$)</span>
                       <div className="relative">
-                        <span className="absolute left-2 top-1.5 text-[10px] text-zinc-505">R$</span>
+                        <span className="absolute left-2 top-1.5 text-[10px] text-zinc-500">R$</span>
                         <input
                           type="number"
                           id="calc-bruto-input2"
                           defaultValue="100.00"
-                          className="w-full bg-slate-800 text-zinc-150 pl-7 pr-2 py-1 text-xs rounded-lg focus:outline-hidden font-bold"
+                          className="w-full bg-slate-800 text-zinc-100 pl-7 pr-2 py-1 text-xs rounded-lg focus:outline-hidden font-bold"
                           onChange={() => {}} 
                         />
                       </div>
@@ -3415,7 +3415,7 @@ export default function SettingsSystem({
                         <select
                           id="calc-type-select2"
                           defaultValue="credit"
-                          className="w-full bg-slate-800 text-zinc-150 text-xs rounded-lg p-1 focus:outline-hidden font-bold"
+                          className="w-full bg-slate-800 text-zinc-100 text-xs rounded-lg p-1 focus:outline-hidden font-bold"
                           onChange={() => {}}
                         >
                           <option value="credit">Crédito</option>
@@ -3423,11 +3423,11 @@ export default function SettingsSystem({
                         </select>
                       </div>
                       <div>
-                        <span className="text-[9px] text-zinc-550 block">Parcelas</span>
+                        <span className="text-[9px] text-zinc-500 block">Parcelas</span>
                         <select
                           id="calc-installments-select2"
                           defaultValue="3"
-                          className="w-full bg-slate-800 text-zinc-150 text-xs rounded-lg p-1 focus:outline-hidden font-bold"
+                          className="w-full bg-slate-800 text-zinc-100 text-xs rounded-lg p-1 focus:outline-hidden font-bold"
                         >
                           {[1,2,3,4,5,6,7,8,9,10,11,12].map(p => (
                             <option key={p} value={p}>{p}x</option>
@@ -3466,7 +3466,7 @@ export default function SettingsSystem({
                         Calcular Margem Estimada
                       </button>
 
-                      <div id="calc-results2" className="mt-2 text-[9px] space-y-1.5 bg-slate-850 p-2 rounded-lg font-mono">
+                      <div id="calc-results2" className="mt-2 text-[9px] space-y-1.5 bg-slate-800 p-2 rounded-lg font-mono">
                         <div className="flex justify-between text-zinc-400">
                           <span>Taxa Aplicada:</span>
                           <span className="text-zinc-100 font-bold">
@@ -3504,7 +3504,7 @@ export default function SettingsSystem({
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-sans">
                         <div>
-                          <label className="block text-[10px] font-bold text-slate-650 mb-1">Taxa de Débito (%)</label>
+                          <label className="block text-[10px] font-bold text-slate-600 mb-1">Taxa de Débito (%)</label>
                           <div className="relative">
                             <input
                               type="number"
@@ -3522,15 +3522,15 @@ export default function SettingsSystem({
                                 });
                                 setCardMachines(updated);
                               }}
-                              className="w-full bg-white border border-slate-250 rounded-lg p-2 font-mono font-bold text-xs focus:outline-hidden focus:border-pink-500"
+                              className="w-full bg-white border border-slate-200 rounded-lg p-2 font-mono font-bold text-xs focus:outline-hidden focus:border-pink-500"
                             />
                             <span className="absolute right-3 top-2 text-slate-400 font-bold">%</span>
                           </div>
-                          <p className="text-[9px] text-slate-450 mt-1">Custo retido pela maquininha na compra em débito.</p>
+                          <p className="text-[9px] text-slate-400 mt-1">Custo retido pela maquininha na compra em débito.</p>
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-bold text-slate-650 mb-1">Desconto no Débito (%)</label>
+                          <label className="block text-[10px] font-bold text-slate-600 mb-1">Desconto no Débito (%)</label>
                           <div className="relative">
                             <input
                               type="number"
@@ -3548,15 +3548,15 @@ export default function SettingsSystem({
                                 });
                                 setCardMachines(updated);
                               }}
-                              className="w-full bg-white border border-slate-250 rounded-lg p-2 font-mono font-bold text-xs focus:outline-hidden focus:border-pink-500"
+                              className="w-full bg-white border border-slate-200 rounded-lg p-2 font-mono font-bold text-xs focus:outline-hidden focus:border-pink-500"
                             />
                             <span className="absolute right-3 top-2 text-slate-400 font-bold">%</span>
                           </div>
-                          <p className="text-[9px] text-slate-450 mt-1">Desconto concedido da venda ao pagar no débito.</p>
+                          <p className="text-[9px] text-slate-400 mt-1">Desconto concedido da venda ao pagar no débito.</p>
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-bold text-slate-650 mb-1">Desconto no Crédito (%)</label>
+                          <label className="block text-[10px] font-bold text-slate-600 mb-1">Desconto no Crédito (%)</label>
                           <div className="relative">
                             <input
                               type="number"
@@ -3574,16 +3574,16 @@ export default function SettingsSystem({
                                 });
                                 setCardMachines(updated);
                               }}
-                              className="w-full bg-white border border-slate-250 rounded-lg p-2 font-mono font-bold text-xs focus:outline-hidden focus:border-pink-500"
+                              className="w-full bg-white border border-slate-200 rounded-lg p-2 font-mono font-bold text-xs focus:outline-hidden focus:border-pink-500"
                             />
                             <span className="absolute right-3 top-2 text-slate-400 font-bold">%</span>
                           </div>
-                          <p className="text-[9px] text-slate-450 mt-1">Desconto concedido da venda ao pagar no crédito.</p>
+                          <p className="text-[9px] text-slate-400 mt-1">Desconto concedido da venda ao pagar no crédito.</p>
                         </div>
                       </div>
 
                       <div className="font-sans">
-                        <span className="block text-[10px] font-bold text-slate-605 mb-2.5 uppercase tracking-wider text-slate-500">Tabela de Crédito e Parcelamento (1x a 12x)</span>
+                        <span className="block text-[10px] font-bold text-slate-600 mb-2.5 uppercase tracking-wider text-slate-500">Tabela de Crédito e Parcelamento (1x a 12x)</span>
                         
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                           {[1,2,3,4,5,6,7,8,9,10,11,12].map((p) => {
@@ -3715,7 +3715,7 @@ export default function SettingsSystem({
                     placeholder="Nome completo..."
                     value={memberFormName}
                     onChange={(e) => setMemberFormName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 text-xs text-slate-700 focus:outline-none focus:border-pink-500 transition-all"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs text-slate-700 focus:outline-none focus:border-pink-500 transition-all"
                   />
                 </div>
 
@@ -3725,7 +3725,7 @@ export default function SettingsSystem({
                     <select
                       value={memberFormRole}
                       onChange={(e: any) => setMemberFormRole(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 text-xs text-slate-700 focus:outline-none focus:border-pink-500 transition-all font-sans cursor-pointer"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs text-slate-700 focus:outline-none focus:border-pink-500 transition-all font-sans cursor-pointer"
                     >
                       <option value="Admin">Administrador</option>
                       <option value="Gerente">Gerente</option>
@@ -3743,7 +3743,7 @@ export default function SettingsSystem({
                       placeholder="Username (Ex: juliana, ana)"
                       value={memberFormLogin}
                       onChange={(e) => setMemberFormLogin(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 text-xs text-slate-700 focus:outline-none focus:border-pink-500 font-mono transition-all"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs text-slate-700 focus:outline-none focus:border-pink-500 font-mono transition-all"
                     />
                   </div>
                 </div>
@@ -3757,7 +3757,7 @@ export default function SettingsSystem({
                       placeholder="Senha para este perfil..."
                       value={memberFormPassword}
                       onChange={(e) => setMemberFormPassword(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 text-xs text-slate-700 focus:outline-none focus:border-pink-500 font-mono transition-all"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs text-slate-700 focus:outline-none focus:border-pink-500 font-mono transition-all"
                     />
                     <button
                       type="button"
@@ -3778,7 +3778,7 @@ export default function SettingsSystem({
                       placeholder="https://exemplo.com/sua-foto.jpg"
                       value={memberFormAvatar}
                       onChange={(e) => setMemberFormAvatar(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 text-xs text-slate-700 focus:outline-none focus:border-pink-500 font-mono transition-all"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs text-slate-700 focus:outline-none focus:border-pink-500 font-mono transition-all"
                     />
                     
                     <div className="flex flex-wrap items-center gap-1 bg-slate-50 p-2 rounded-xl border border-slate-100">
@@ -3786,7 +3786,7 @@ export default function SettingsSystem({
                       <button
                         type="button"
                         onClick={() => setMemberFormAvatar('https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&q=80')}
-                        className="text-[9px] bg-white border border-slate-150 px-1.5 py-0.5 rounded-lg text-slate-600 hover:border-pink-500 hover:text-pink-600 cursor-pointer transition-all"
+                        className="text-[9px] bg-white border border-slate-100 px-1.5 py-0.5 rounded-lg text-slate-600 hover:border-pink-500 hover:text-pink-600 cursor-pointer transition-all"
                         title="Mulher elegante (Administração / Diretoria)"
                       >
                         👩‍💼 Adm/Exec
@@ -3794,7 +3794,7 @@ export default function SettingsSystem({
                       <button
                         type="button"
                         onClick={() => setMemberFormAvatar('https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&q=80')}
-                        className="text-[9px] bg-white border border-slate-150 px-1.5 py-0.5 rounded-lg text-slate-600 hover:border-pink-500 hover:text-pink-600 cursor-pointer transition-all"
+                        className="text-[9px] bg-white border border-slate-100 px-1.5 py-0.5 rounded-lg text-slate-600 hover:border-pink-500 hover:text-pink-600 cursor-pointer transition-all"
                         title="Mulher Gerente de Loja de Moda"
                       >
                         👩 Gerente
@@ -3802,7 +3802,7 @@ export default function SettingsSystem({
                       <button
                         type="button"
                         onClick={() => setMemberFormAvatar('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80')}
-                        className="text-[9px] bg-white border border-slate-150 px-1.5 py-0.5 rounded-lg text-slate-600 hover:border-pink-500 hover:text-pink-600 cursor-pointer transition-all"
+                        className="text-[9px] bg-white border border-slate-100 px-1.5 py-0.5 rounded-lg text-slate-600 hover:border-pink-500 hover:text-pink-600 cursor-pointer transition-all"
                         title="Vendedora Sorridente"
                       >
                         👩‍⚕️ Vendedor A
@@ -3810,7 +3810,7 @@ export default function SettingsSystem({
                       <button
                         type="button"
                         onClick={() => setMemberFormAvatar('https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&q=80')}
-                        className="text-[9px] bg-white border border-slate-150 px-1.5 py-0.5 rounded-lg text-slate-600 hover:border-pink-500 hover:text-pink-600 cursor-pointer transition-all"
+                        className="text-[9px] bg-white border border-slate-100 px-1.5 py-0.5 rounded-lg text-slate-600 hover:border-pink-500 hover:text-pink-600 cursor-pointer transition-all"
                         title="Vendedora Estilo Fashion"
                       >
                         👩‍🦰 Vendedor B
@@ -3818,7 +3818,7 @@ export default function SettingsSystem({
                       <button
                         type="button"
                         onClick={() => setMemberFormAvatar('https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&q=80')}
-                        className="text-[9px] bg-white border border-slate-150 px-1.5 py-0.5 rounded-lg text-slate-600 hover:border-pink-500 hover:text-pink-600 cursor-pointer transition-all"
+                        className="text-[9px] bg-white border border-slate-100 px-1.5 py-0.5 rounded-lg text-slate-600 hover:border-pink-500 hover:text-pink-600 cursor-pointer transition-all"
                         title="Homem Modelo para Equipes"
                       >
                         👨 Parceira/Parceiro
@@ -3826,7 +3826,7 @@ export default function SettingsSystem({
                       <button
                         type="button"
                         onClick={() => setMemberFormAvatar('https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&q=80')}
-                        className="text-[9px] bg-white border border-slate-150 px-1.5 py-0.5 rounded-lg text-slate-600 hover:border-pink-500 hover:text-pink-600 cursor-pointer transition-all"
+                        className="text-[9px] bg-white border border-slate-100 px-1.5 py-0.5 rounded-lg text-slate-600 hover:border-pink-500 hover:text-pink-600 cursor-pointer transition-all"
                         title="Modelo para Equipe de Entregas"
                       >
                         🏍️ Motoboy
@@ -3852,7 +3852,7 @@ export default function SettingsSystem({
                       placeholder="Ex: 25/08"
                       value={memberFormBirthDate}
                       onChange={(e) => setMemberFormBirthDate(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 text-xs text-slate-700 focus:outline-none focus:border-pink-500 transition-all font-mono"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs text-slate-700 focus:outline-none focus:border-pink-500 transition-all font-mono"
                     />
                   </div>
 
@@ -3867,14 +3867,14 @@ export default function SettingsSystem({
                       }
                       value={memberFormDetails}
                       onChange={(e) => setMemberFormDetails(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 text-xs text-slate-700 focus:outline-none focus:border-pink-500 transition-all"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-xs text-slate-700 focus:outline-none focus:border-pink-500 transition-all"
                     />
                   </div>
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-2.5 bg-pink-605 bg-pink-600 hover:bg-pink-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition shadow-lg shadow-pink-550/10 cursor-pointer border-none flex items-center justify-center gap-1.5"
+                  className="w-full py-2.5 bg-pink-600 bg-pink-600 hover:bg-pink-700 text-white font-black text-xs uppercase tracking-wider rounded-xl transition shadow-lg shadow-pink-500/10 cursor-pointer border-none flex items-center justify-center gap-1.5"
                 >
                   <Save size={13} />
                   <span>{editingMemberId ? 'Salvar Alterações Credenciais' : 'Registrar Colaborador'}</span>
@@ -3883,8 +3883,8 @@ export default function SettingsSystem({
             </div>
             
             {/* Quick helper about access levels */}
-            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-[10px] text-slate-550 leading-relaxed space-y-1 font-mono">
-              <span className="font-bold text-slate-450 uppercase text-[9px] block">Níveis de Permissões:</span>
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-[10px] text-slate-500 leading-relaxed space-y-1 font-mono">
+              <span className="font-bold text-slate-400 uppercase text-[9px] block">Níveis de Permissões:</span>
               <div>📌 <strong className="text-pink-600 uppercase">Admin:</strong> Controle absoluto e auditoria de logs.</div>
               <div>📌 <strong className="text-pink-600 uppercase">Gerente:</strong> Vendas, Produtos, Loja Online e Financeiro.</div>
               <div>📌 <strong className="text-pink-600 uppercase">Vendedor:</strong> Operações rápidas de PDV e CRM.</div>
@@ -3918,7 +3918,7 @@ export default function SettingsSystem({
                       className={`px-2 py-1 rounded text-[9px] font-bold uppercase transition cursor-pointer border-none
                         ${teamFilterRole === roleFilter 
                           ? 'bg-slate-900 text-white' 
-                          : 'bg-slate-55 bg-slate-100 text-slate-500 hover:text-slate-700 hover:bg-slate-200'}`}
+                          : 'bg-slate-50 bg-slate-100 text-slate-500 hover:text-slate-700 hover:bg-slate-200'}`}
                     >
                       {roleFilter === 'all' ? 'Tudo' : roleFilter}
                     </button>
@@ -4017,7 +4017,7 @@ export default function SettingsSystem({
                                 {m.password}
                               </span>
                             </td>
-                            <td className="p-3 text-slate-450 italic text-[11px] max-w-[150px] truncate">
+                            <td className="p-3 text-slate-400 italic text-[11px] max-w-[150px] truncate">
                               {m.details || <span className="text-slate-300">Nenhum</span>}
                             </td>
                             <td className="p-3">
@@ -4092,7 +4092,7 @@ export default function SettingsSystem({
                           <span className={`w-1.5 h-1.5 rounded-full ${log.level === 'Admin' ? 'bg-rose-500' : log.level === 'Gerente' ? 'bg-amber-500' : 'bg-blue-400'}`} />
                           <span>{log.user}</span>
                         </td>
-                        <td className="p-3 font-semibold text-slate-650">{log.action}</td>
+                        <td className="p-3 font-semibold text-slate-600">{log.action}</td>
                         <td className="p-3 text-slate-500">{log.target}</td>
                         <td className="p-3 text-right font-mono text-[10px] text-slate-400">{log.ip}</td>
                       </tr>
@@ -4152,7 +4152,7 @@ export default function SettingsSystem({
                   <select 
                     value={announcement.show ? 'sim' : 'nao'}
                     onChange={(e) => setAnnouncement({...announcement, show: e.target.value === 'sim'})}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2.5 font-medium text-slate-700 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 font-medium text-slate-700 focus:outline-hidden"
                   >
                     <option value="sim">Sim, Fixado no Topo</option>
                     <option value="nao">Não, Ocultar Faixa</option>
@@ -4166,7 +4166,7 @@ export default function SettingsSystem({
                     value={announcement.text}
                     onChange={(e) => setAnnouncement({...announcement, text: e.target.value})}
                     placeholder="Ex: ⚡ DESCONTOS ATÉ 50% • FRETE GRÁTIS ACIMA DE R$ 300 ⚡"
-                    className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2.5 font-medium text-slate-700 focus:outline-hidden text-[10px]"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 font-medium text-slate-700 focus:outline-hidden text-[10px]"
                   />
                 </div>
 
@@ -4176,7 +4176,7 @@ export default function SettingsSystem({
                     type="color"
                     value={announcement.bgColor}
                     onChange={(e) => setAnnouncement({...announcement, bgColor: e.target.value})}
-                    className="w-full h-10 bg-slate-50 border border-slate-150 rounded-xl cursor-pointer"
+                    className="w-full h-10 bg-slate-50 border border-slate-100 rounded-xl cursor-pointer"
                   />
                 </div>
 
@@ -4186,7 +4186,7 @@ export default function SettingsSystem({
                     type="color"
                     value={announcement.textColor}
                     onChange={(e) => setAnnouncement({...announcement, textColor: e.target.value})}
-                    className="w-full h-10 bg-slate-50 border border-slate-150 rounded-xl cursor-pointer"
+                    className="w-full h-10 bg-slate-50 border border-slate-100 rounded-xl cursor-pointer"
                   />
                 </div>
               </div>
@@ -4208,7 +4208,7 @@ export default function SettingsSystem({
                     setSlideFormTitle('NOVIDADE NA LOJA');
                     setSlideFormDesc('Descrição contendo os benefícios da nova coleção...');
                   }}
-                  className="bg-pink-50 hover:bg-pink-100 text-pink-650 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 cursor-pointer transition border-none font-sans"
+                  className="bg-pink-50 hover:bg-pink-100 text-pink-600 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 cursor-pointer transition border-none font-sans"
                 >
                   <Plus size={14} />
                   <span>Novo Slide</span>
@@ -4359,7 +4359,7 @@ export default function SettingsSystem({
                   </div>
                 ))}
                 {lookbookSlides.length === 0 && (
-                  <div className="p-8 text-center text-slate-450 italic md:col-span-3">Nenhum slide em exibição. Adicione um para iniciar seu marketing visual!</div>
+                  <div className="p-8 text-center text-slate-400 italic md:col-span-3">Nenhum slide em exibição. Adicione um para iniciar seu marketing visual!</div>
                 )}
               </div>
             </div>
@@ -4398,7 +4398,7 @@ export default function SettingsSystem({
                         type="text"
                         value={categoryBanners.slimFit}
                         onChange={(e) => setCategoryBanners({...categoryBanners, slimFit: e.target.value})}
-                        className="w-full bg-white border border-slate-150 rounded-lg p-2 font-mono text-[9px] mt-1.5 focus:outline-hidden"
+                        className="w-full bg-white border border-slate-100 rounded-lg p-2 font-mono text-[9px] mt-1.5 focus:outline-hidden"
                       />
                     </div>
                   </div>
@@ -4421,7 +4421,7 @@ export default function SettingsSystem({
                         type="text"
                         value={categoryBanners.plusSize}
                         onChange={(e) => setCategoryBanners({...categoryBanners, plusSize: e.target.value})}
-                        className="w-full bg-white border border-slate-150 rounded-lg p-2 font-mono text-[9px] mt-1.5 focus:outline-hidden"
+                        className="w-full bg-white border border-slate-100 rounded-lg p-2 font-mono text-[9px] mt-1.5 focus:outline-hidden"
                       />
                     </div>
                   </div>
@@ -4444,11 +4444,11 @@ export default function SettingsSystem({
 
               <div className="space-y-3 text-left">
                 <div>
-                  <label className="block text-slate-450 font-bold mb-1 uppercase text-[9px]">Exibir Banner Flutuante?</label>
+                  <label className="block text-slate-400 font-bold mb-1 uppercase text-[9px]">Exibir Banner Flutuante?</label>
                   <select 
                     value={floatingBanner.show ? 'sim' : 'nao'}
                     onChange={(e) => setFloatingBanner({...floatingBanner, show: e.target.value === 'sim'})}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2.5 font-medium text-slate-700 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 font-medium text-slate-700 focus:outline-hidden"
                   >
                     <option value="sim">Sim, Exibir de Forma Visível</option>
                     <option value="nao">Não, Manter Oculto</option>
@@ -4456,56 +4456,56 @@ export default function SettingsSystem({
                 </div>
 
                 <div>
-                  <label className="block text-slate-450 font-bold mb-1 uppercase text-[9px]">Título Chamativo</label>
+                  <label className="block text-slate-400 font-bold mb-1 uppercase text-[9px]">Título Chamativo</label>
                   <input 
                     type="text"
                     value={floatingBanner.title}
                     onChange={(e) => setFloatingBanner({...floatingBanner, title: e.target.value})}
                     placeholder="Ex: ✨ GANHE CUPOM DE 10% OFF!"
-                    className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2.5 font-semibold text-slate-700 focus:outline-hidden text-[11px]"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 font-semibold text-slate-700 focus:outline-hidden text-[11px]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-450 font-bold mb-1 uppercase text-[9px]">Descrição da Campanha</label>
+                  <label className="block text-slate-400 font-bold mb-1 uppercase text-[9px]">Descrição da Campanha</label>
                   <textarea 
                     rows={2}
                     value={floatingBanner.subtitle}
                     onChange={(e) => setFloatingBanner({...floatingBanner, subtitle: e.target.value})}
                     placeholder="Mande sua mensagem de persuasão aqui..."
-                    className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2.5 font-medium text-slate-700 focus:outline-hidden text-[10px]"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 font-medium text-slate-700 focus:outline-hidden text-[10px]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-450 font-bold mb-1 uppercase text-[9px]">Texto do Botão CTA</label>
+                  <label className="block text-slate-400 font-bold mb-1 uppercase text-[9px]">Texto do Botão CTA</label>
                   <input 
                     type="text"
                     value={floatingBanner.ctaText}
                     onChange={(e) => setFloatingBanner({...floatingBanner, ctaText: e.target.value})}
                     placeholder="Ex: Quero Desconto!"
-                    className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2.5 font-semibold text-slate-700 focus:outline-hidden text-[11px]"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 font-semibold text-slate-700 focus:outline-hidden text-[11px]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-450 font-bold mb-1 uppercase text-[9px]">Link de Destino do Botão (WhatsApp / Interno)</label>
+                  <label className="block text-slate-400 font-bold mb-1 uppercase text-[9px]">Link de Destino do Botão (WhatsApp / Interno)</label>
                   <input 
                     type="text"
                     value={floatingBanner.ctaLink}
                     onChange={(e) => setFloatingBanner({...floatingBanner, ctaLink: e.target.value})}
                     placeholder="Ex: https://wa.me/55..."
-                    className="w-full bg-slate-50 border border-slate-150 rounded-xl p-2.5 font-mono text-[9px] text-slate-650 focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 font-mono text-[9px] text-slate-600 focus:outline-hidden"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-450 font-bold mb-1 uppercase text-[9px]">Cor Temática do Popup (Hex)</label>
+                  <label className="block text-slate-400 font-bold mb-1 uppercase text-[9px]">Cor Temática do Popup (Hex)</label>
                   <input 
                     type="color"
                     value={floatingBanner.bgColor}
                     onChange={(e) => setFloatingBanner({...floatingBanner, bgColor: e.target.value})}
-                    className="w-full h-8 bg-slate-50 border border-slate-150 rounded-xl cursor-pointer"
+                    className="w-full h-8 bg-slate-50 border border-slate-100 rounded-xl cursor-pointer"
                   />
                 </div>
 
@@ -4520,7 +4520,7 @@ export default function SettingsSystem({
                     value={floatingBanner.image || ''}
                     onChange={(e) => setFloatingBanner({...floatingBanner, image: e.target.value})}
                     placeholder="URL direta do gráfico do popup..."
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg p-2 font-mono text-[9px] mt-1 bg-white focus:outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 font-mono text-[9px] mt-1 bg-white focus:outline-hidden"
                   />
                 </div>
 
@@ -4544,7 +4544,7 @@ export default function SettingsSystem({
                     <span className="font-extrabold text-[10.5px] text-pink-900">Carrossel Lookbook</span>
                     <span className="bg-pink-600 text-white font-mono font-bold text-[8.5px] px-2 py-0.5 rounded uppercase">1200 × 480 px</span>
                   </div>
-                  <p className="text-[9.5px] text-slate-550 leading-relaxed font-sans">
+                  <p className="text-[9.5px] text-slate-500 leading-relaxed font-sans">
                     Proporção horizontal larga (2.5:1). Banner principal que aparece no início da vitrine para campanhas e coleções em destaque.
                   </p>
                 </div>
@@ -4558,7 +4558,7 @@ export default function SettingsSystem({
                       <span className="bg-slate-500 text-white font-mono font-bold text-[8.5px] px-1.5 py-0.5 rounded">Vertical 4:5</span>
                     </div>
                   </div>
-                  <p className="text-[9.5px] text-slate-550 leading-relaxed font-sans">
+                  <p className="text-[9.5px] text-slate-500 leading-relaxed font-sans">
                     Proporção vertical (4:5) ou quadrada (800x800). O padrão vertical valoriza o caimento das roupas esportivas (leggings, tops, shorts, conjuntos).
                   </p>
                 </div>
@@ -4569,7 +4569,7 @@ export default function SettingsSystem({
                     <span className="font-extrabold text-[10.5px] text-slate-800">Banners de Categoria</span>
                     <span className="bg-slate-700 text-white font-mono font-bold text-[8.5px] px-2 py-0.5 rounded uppercase">600 × 300 px</span>
                   </div>
-                  <p className="text-[9.5px] text-slate-550 leading-relaxed font-sans">
+                  <p className="text-[9.5px] text-slate-500 leading-relaxed font-sans">
                     Proporção horizontal (2:1). Usados nos cards de chamada rápida da coleção Slim Fit e Plus Size.
                   </p>
                 </div>
@@ -4580,7 +4580,7 @@ export default function SettingsSystem({
                     <span className="font-extrabold text-[10.5px] text-slate-800">Popup Flutuante</span>
                     <span className="bg-slate-700 text-white font-mono font-bold text-[8.5px] px-2 py-0.5 rounded uppercase">600 × 600 px</span>
                   </div>
-                  <p className="text-[9.5px] text-slate-550 leading-relaxed font-sans">
+                  <p className="text-[9.5px] text-slate-500 leading-relaxed font-sans">
                     Proporção quadrada (1:1). Banner que surge na tela para atrair atenção para cupons ativos ou anúncios imediatos.
                   </p>
                 </div>
@@ -4591,13 +4591,13 @@ export default function SettingsSystem({
                     <span className="font-extrabold text-[10.5px] text-slate-800">Logo e Ícones</span>
                     <span className="bg-slate-700 text-white font-mono font-bold text-[8.5px] px-2 py-0.5 rounded uppercase">250 × 250 px</span>
                   </div>
-                  <p className="text-[9.5px] text-slate-550 leading-relaxed font-sans">
+                  <p className="text-[9.5px] text-slate-500 leading-relaxed font-sans">
                     Proporção quadrada com fundo transparente (.PNG) de preferência, mantendo o visual limpo no cabeçalho e nos comprovantes térmicos.
                   </p>
                 </div>
               </div>
 
-              <div className="bg-yellow-50 text-yellow-800 p-2.5 rounded-xl border border-yellow-250 select-none text-[9px] leading-snug flex items-start gap-1.5">
+              <div className="bg-yellow-50 text-yellow-800 p-2.5 rounded-xl border border-yellow-200 select-none text-[9px] leading-snug flex items-start gap-1.5">
                 <span>💡</span>
                 <span className="font-sans font-medium text-left"><strong>Dica de Carregamento:</strong> Procure otimizar as imagens comprimindo-as em formato <strong>WebP</strong> antes de fazer o envio. Isso acelera o carregamento em redes 3G/4G das suas clientes!</span>
               </div>
@@ -4634,7 +4634,7 @@ export default function SettingsSystem({
                     alert('Erro ao persistir configurações da vitrine. Por favor, tente novamente!');
                   }
                 }}
-                className="w-full py-3 bg-white hover:bg-slate-50 text-pink-750 font-extrabold text-xs rounded-xl transition duration-300 shadow-md flex items-center justify-center gap-2 cursor-pointer border-none font-sans active:scale-97"
+                className="w-full py-3 bg-white hover:bg-slate-50 text-pink-700 font-extrabold text-xs rounded-xl transition duration-300 shadow-md flex items-center justify-center gap-2 cursor-pointer border-none font-sans active:scale-97"
               >
                 <Save size={15} />
                 <span>Salvar Todas Campanhas</span>
@@ -4653,10 +4653,10 @@ export default function SettingsSystem({
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Status overview card */}
             <div className={`md:col-span-2 p-5 rounded-2xl border flex flex-col justify-between ${
-              !diagnosticResult ? 'bg-slate-50 border-slate-150 text-slate-700' :
-              diagnosticResult.overallStatus === 'healthy' ? 'bg-emerald-50/50 border-emerald-150 text-emerald-900' :
-              diagnosticResult.overallStatus === 'warning' ? 'bg-amber-50/50 border-amber-150 text-amber-900' :
-              'bg-rose-50/50 border-rose-150 text-rose-900'
+              !diagnosticResult ? 'bg-slate-50 border-slate-100 text-slate-700' :
+              diagnosticResult.overallStatus === 'healthy' ? 'bg-emerald-50/50 border-emerald-100 text-emerald-900' :
+              diagnosticResult.overallStatus === 'warning' ? 'bg-amber-50/50 border-amber-100 text-amber-900' :
+              'bg-rose-50/50 border-rose-100 text-rose-900'
             }`}>
               <div className="space-y-2">
                 <span className="text-[9px] font-bold uppercase tracking-wider block opacity-70">Status do Ecossistema</span>
@@ -4733,10 +4733,10 @@ export default function SettingsSystem({
                 <span className="font-mono text-2xl font-black text-slate-800 tracking-tight">
                   {diagnosticResult ? diagnosticResult.metrics.tablesVerifiedCount : 0}
                 </span>
-                <span className="text-[10px] text-slate-450 block font-medium leading-none mt-1">Tabelas e Schemas Sincronizados</span>
+                <span className="text-[10px] text-slate-400 block font-medium leading-none mt-1">Tabelas e Schemas Sincronizados</span>
               </div>
               <div className="text-[9px] text-slate-400 flex items-center gap-1.5 mt-auto pt-2 border-t border-slate-50">
-                <Database size={11} className="text-slate-450" />
+                <Database size={11} className="text-slate-400" />
                 <span>Supabase: {diagnosticResult?.supabaseConnected ? 'Conectado 🟢' : 'Modo Local 🟡'}</span>
               </div>
             </div>
@@ -4748,10 +4748,10 @@ export default function SettingsSystem({
                 <span className={`font-mono text-2xl font-black tracking-tight ${diagnosticResult && diagnosticResult.metrics.errorsCount > 0 ? 'text-rose-600' : 'text-slate-800'}`}>
                   {diagnosticResult ? diagnosticResult.metrics.errorsCount : 0}
                 </span>
-                <span className="text-[10px] text-slate-450 block font-medium leading-none mt-1">Inconsistências impeditivas</span>
+                <span className="text-[10px] text-slate-400 block font-medium leading-none mt-1">Inconsistências impeditivas</span>
               </div>
               <div className="text-[9px] text-slate-400 flex items-center gap-1.5 mt-auto pt-2 border-t border-slate-50">
-                <XCircle size={11} className={diagnosticResult && diagnosticResult.metrics.errorsCount > 0 ? 'text-rose-500' : 'text-slate-350'} />
+                <XCircle size={11} className={diagnosticResult && diagnosticResult.metrics.errorsCount > 0 ? 'text-rose-500' : 'text-slate-300'} />
                 <span>Nenhum travamento pendente</span>
               </div>
             </div>
@@ -4763,10 +4763,10 @@ export default function SettingsSystem({
                 <span className={`font-mono text-2xl font-black tracking-tight ${diagnosticResult && diagnosticResult.metrics.warningsCount > 0 ? 'text-amber-500' : 'text-slate-800'}`}>
                   {diagnosticResult ? diagnosticResult.metrics.warningsCount : 0}
                 </span>
-                <span className="text-[10px] text-slate-450 block font-medium leading-none mt-1">Melhorias estruturais</span>
+                <span className="text-[10px] text-slate-400 block font-medium leading-none mt-1">Melhorias estruturais</span>
               </div>
               <div className="text-[9px] text-slate-400 flex items-center gap-1.5 mt-auto pt-2 border-t border-slate-50">
-                <AlertTriangle size={11} className={diagnosticResult && diagnosticResult.metrics.warningsCount > 0 ? 'text-amber-500' : 'text-slate-350'} />
+                <AlertTriangle size={11} className={diagnosticResult && diagnosticResult.metrics.warningsCount > 0 ? 'text-amber-500' : 'text-slate-300'} />
                 <span>Análises opcionais de RLS</span>
               </div>
             </div>
@@ -4777,7 +4777,7 @@ export default function SettingsSystem({
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div className="text-left">
                 <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-tight">Logs de Execução do Diagnóstico</h4>
-                <p className="text-[10px] text-slate-450">Varredura contínua de integridade do ecossistema corporativo AP Moda Fitness.</p>
+                <p className="text-[10px] text-slate-400">Varredura contínua de integridade do ecossistema corporativo AP Moda Fitness.</p>
               </div>
 
               {/* Filters */}
@@ -4787,7 +4787,7 @@ export default function SettingsSystem({
                   <select
                     value={selectedScopeFilter}
                     onChange={(e) => setSelectedScopeFilter(e.target.value as any)}
-                    className="bg-slate-50 border border-slate-150 rounded-lg px-2 py-1 text-[10px] font-semibold text-slate-650 focus:outline-hidden"
+                    className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-1 text-[10px] font-semibold text-slate-600 focus:outline-hidden"
                   >
                     <option value="todos">Todos Escopos</option>
                     <option value="database">Database & Schemas</option>
@@ -4802,7 +4802,7 @@ export default function SettingsSystem({
                   <select
                     value={selectedStatusFilter}
                     onChange={(e) => setSelectedStatusFilter(e.target.value as any)}
-                    className="bg-slate-50 border border-slate-150 rounded-lg px-2 py-1 text-[10px] font-semibold text-slate-650 focus:outline-hidden"
+                    className="bg-slate-50 border border-slate-100 rounded-lg px-2 py-1 text-[10px] font-semibold text-slate-600 focus:outline-hidden"
                   >
                     <option value="todos">Todos Status</option>
                     <option value="success">Sucesso</option>
@@ -4819,7 +4819,7 @@ export default function SettingsSystem({
                 <div className="py-12 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
                   <HeartPulse size={28} className="text-slate-300 animate-pulse" />
                   <p className="font-bold">Nenhum teste executado nesta sessão.</p>
-                  <p className="text-[10px] text-slate-450">Clique em "Disparar Varredura" acima para inspecionar os logs de integridade do Supabase e fluxo analítico.</p>
+                  <p className="text-[10px] text-slate-400">Clique em "Disparar Varredura" acima para inspecionar os logs de integridade do Supabase e fluxo analítico.</p>
                 </div>
               ) : (
                 (() => {
@@ -4881,7 +4881,7 @@ export default function SettingsSystem({
                           {l.message}
                         </p>
                         {l.details && (
-                          <div className="mt-1 text-[9px] font-mono text-slate-450 bg-slate-50 p-1.5 rounded-lg border border-slate-100 overflow-x-auto break-all">
+                          <div className="mt-1 text-[9px] font-mono text-slate-400 bg-slate-50 p-1.5 rounded-lg border border-slate-100 overflow-x-auto break-all">
                             {l.details}
                           </div>
                         )}
@@ -4929,7 +4929,7 @@ export default function SettingsSystem({
                     value={terminalFormName}
                     onChange={(e) => setTerminalFormName(e.target.value)}
                     placeholder="Ex: Stone Balcão, Moderninha Sem Fio"
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg px-2.5 py-1.5 text-xs focus:outline-hidden font-medium"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:outline-hidden font-medium"
                     required
                   />
                 </div>
@@ -4939,7 +4939,7 @@ export default function SettingsSystem({
                   <select
                     value={terminalFormBrand}
                     onChange={(e) => setTerminalFormBrand(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg px-2.5 py-1.5 text-xs focus:outline-hidden font-medium"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:outline-hidden font-medium"
                   >
                     <option value="stone">Stone</option>
                     <option value="pagseguro">PagSeguro</option>
@@ -4961,7 +4961,7 @@ export default function SettingsSystem({
                     value={terminalFormFee || ''}
                     onChange={(e) => setTerminalFormFee(Number(e.target.value))}
                     placeholder="Ex: 1.99"
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg px-2.5 py-1.5 text-xs focus:outline-hidden font-medium font-mono"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:outline-hidden font-medium font-mono"
                   />
                 </div>
 
@@ -4970,7 +4970,7 @@ export default function SettingsSystem({
                   <select
                     value={terminalFormStatus}
                     onChange={(e) => setTerminalFormStatus(e.target.value as any)}
-                    className="w-full bg-slate-50 border border-slate-150 rounded-lg px-2.5 py-1.5 text-xs focus:outline-hidden font-medium"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:outline-hidden font-medium"
                   >
                     <option value="ativo">Ativa (Habilitada no PDV)</option>
                     <option value="inativo">Inativa (Ocultar do PDV)</option>
@@ -5112,13 +5112,13 @@ export default function SettingsSystem({
                 ) : (
                   <div className="space-y-2">
                     {usbDevices.map((device, idx) => (
-                      <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-150 flex items-center justify-between">
+                      <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
                         <div className="space-y-1">
                           <div className="flex items-center gap-1.5">
                             <Usb size={13} className="text-pink-600" />
                             <span className="font-extrabold text-slate-800 text-xs">{device.name}</span>
                           </div>
-                          <p className="text-[9px] text-slate-450 font-mono">
+                          <p className="text-[9px] text-slate-400 font-mono">
                             Vendor ID: {device.vendorId} | Product ID: {device.productId}
                           </p>
                         </div>
@@ -5143,7 +5143,7 @@ export default function SettingsSystem({
                     <button
                       type="button"
                       onClick={handleClearUSBList}
-                      className="py-2 px-3 bg-slate-150 hover:bg-slate-200 text-slate-600 rounded-lg font-bold text-xs transition cursor-pointer border-none font-sans"
+                      className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold text-xs transition cursor-pointer border-none font-sans"
                     >
                       Limpar
                     </button>

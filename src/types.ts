@@ -67,6 +67,11 @@ export interface SaleItem {
   quantity: number;
   price: number;
   cost: number;
+  selectedColor?: string;
+  selectedSize?: string;
+  color?: string;
+  size?: string;
+  sku?: string;
 }
 
 export interface Sale {

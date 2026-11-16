@@ -226,9 +226,9 @@ export default function DashboardOverview({
     return entries;
   }, [sales, products]);
 
-  // Generate dynamic sales over last 7 or 14 days
+  // Generate dynamic sales over last 7, 14 or 30 days
   const dailyPerformanceData = useMemo(() => {
-    const daysToCover = timeRange === '14d' ? 14 : 7;
+    const daysToCover = timeRange === '30d' ? 30 : timeRange === '14d' ? 14 : 7;
     const result = [];
     
     for (let i = daysToCover - 1; i >= 0; i--) {
@@ -330,7 +330,7 @@ export default function DashboardOverview({
 
   const pendingWithdraws = useMemo(() => {
     return getStoredPartnerWithdrawRequests().filter(r => r.status === 'Pendente');
-  }, []);
+  }, [transactions, sales]);
 
   return (
     <div className="space-y-6">
@@ -559,14 +559,14 @@ export default function DashboardOverview({
                 <button 
                   type="button"
                   onClick={() => setTimeRange('7d')}
-                  className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer ${timeRange === '7d' ? 'bg-white text-slate-850 shadow-xs' : 'text-slate-400 hover:text-slate-700'}`}
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer ${timeRange === '7d' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-400 hover:text-slate-700'}`}
                 >
                   7d
                 </button>
                 <button 
                   type="button"
                   onClick={() => setTimeRange('14d')}
-                  className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer ${timeRange === '14d' ? 'bg-white text-slate-850 shadow-xs' : 'text-slate-400 hover:text-slate-700'}`}
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer ${timeRange === '14d' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-400 hover:text-slate-700'}`}
                 >
                   14d
                 </button>
@@ -576,14 +576,14 @@ export default function DashboardOverview({
                 <button 
                   type="button"
                   onClick={() => setChartType('area')}
-                  className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer ${chartType === 'area' ? 'bg-white text-slate-850 shadow-xs' : 'text-slate-400 hover:text-slate-700'}`}
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer ${chartType === 'area' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-400 hover:text-slate-700'}`}
                 >
                   Área
                 </button>
                 <button 
                   type="button"
                   onClick={() => setChartType('bar')}
-                  className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer ${chartType === 'bar' ? 'bg-white text-slate-850 shadow-xs' : 'text-slate-400 hover:text-slate-700'}`}
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer ${chartType === 'bar' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-400 hover:text-slate-700'}`}
                 >
                   Barras
                 </button>
@@ -638,14 +638,14 @@ export default function DashboardOverview({
               <button 
                 type="button"
                 onClick={() => setPieMode('categoria')}
-                className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-colors cursor-pointer ${pieMode === 'categoria' ? 'bg-white text-slate-850 shadow-xs' : 'text-slate-400 hover:text-slate-700'}`}
+                className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-colors cursor-pointer ${pieMode === 'categoria' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-400 hover:text-slate-700'}`}
               >
                 Categoria
               </button>
               <button 
                 type="button"
                 onClick={() => setPieMode('canal')}
-                className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-colors cursor-pointer ${pieMode === 'canal' ? 'bg-white text-slate-850 shadow-xs' : 'text-slate-400 hover:text-slate-700'}`}
+                className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-colors cursor-pointer ${pieMode === 'canal' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-400 hover:text-slate-700'}`}
               >
                 Canal
               </button>
@@ -764,7 +764,7 @@ export default function DashboardOverview({
                   </div>
 
                   <div className="text-right">
-                    <div className="font-bold text-slate-850 font-mono">{formatCurrency(sale.total)}</div>
+                    <div className="font-bold text-slate-800 font-mono">{formatCurrency(sale.total)}</div>
                     <span className={`inline-block text-[9px] font-bold font-sans px-1.5 py-0.5 rounded-full mt-1
                       ${sale.status === 'Concluída' 
                         ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' 
@@ -885,7 +885,7 @@ export default function DashboardOverview({
 
               {/* Customer Info */}
               <div className="space-y-1.5 text-xs font-sans">
-                <h5 className="font-bold text-[10px] text-slate-450 uppercase tracking-widest font-mono">Cliente</h5>
+                <h5 className="font-bold text-[10px] text-slate-400 uppercase tracking-widest font-mono">Cliente</h5>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Nome:</span>
                   <span className="font-semibold text-slate-700">{selectedSaleDetail.clientName}</span>
@@ -898,7 +898,7 @@ export default function DashboardOverview({
 
               {/* Items Table */}
               <div className="space-y-2 pt-2 border-t border-slate-100">
-                <h5 className="font-bold text-[10px] text-slate-450 uppercase tracking-widest font-mono select-none">Produtos Adquiridos</h5>
+                <h5 className="font-bold text-[10px] text-slate-400 uppercase tracking-widest font-mono select-none">Produtos Adquiridos</h5>
                 <div className="divide-y divide-slate-100 max-h-44 overflow-y-auto pr-1">
                   {selectedSaleDetail.items.map((item, index) => (
                     <div key={index} className="py-2.5 flex justify-between text-xs font-sans">
@@ -920,7 +920,7 @@ export default function DashboardOverview({
                     {selectedSaleDetail.status.toUpperCase()}
                   </span>
                 </div>
-                <div className="flex justify-between border-t border-slate-150 pt-1.5">
+                <div className="flex justify-between border-t border-slate-100 pt-1.5">
                   <span className="text-slate-500 font-bold">Subtotal:</span>
                   <span className="font-bold text-slate-800">{formatCurrency(selectedSaleDetail.total)}</span>
                 </div>
@@ -932,7 +932,7 @@ export default function DashboardOverview({
                   <h5 className="font-bold text-[9px] text-slate-400 uppercase tracking-widest font-mono">Formas de Pagamento Combinadas</h5>
                   <div className="space-y-1 divide-y divide-slate-100/35">
                     {selectedSaleDetail.payments.map((p, idx) => (
-                      <div key={idx} className="flex justify-between text-xs text-slate-650 font-sans pt-1 first:pt-0">
+                      <div key={idx} className="flex justify-between text-xs text-slate-600 font-sans pt-1 first:pt-0">
                         <span>{p.method}</span>
                         <span className="font-bold font-mono text-slate-800">{formatCurrency(p.amount)}</span>
                       </div>
