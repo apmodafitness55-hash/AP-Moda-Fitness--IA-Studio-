@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { Product } from '../types';
 import ImageUploader from './ImageUploader';
-import { getOptimizedImageUrl, handleImageFallback, getProductMainImage, extractImageUrlsFromText } from '../utils/imageUtils';
+import { getOptimizedImageUrl, handleImageFallback, getProductMainImage, extractImageUrlsFromText, isFallbackOrPlaceholderUrl } from '../utils/imageUtils';
 
 interface CatalogInventoryProps {
   products: Product[];
@@ -147,6 +147,7 @@ export default function CatalogInventory({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [addModalTab, setAddModalTab] = useState<'basico' | 'frete' | 'cores' | 'medidas' | 'fotos'>('basico');
   const [isSaving, setIsSaving] = useState(false);
+  const [brokenGalleryUrls, setBrokenGalleryUrls] = useState<Set<string>>(new Set());
 
   // Dynamic custom color map state
   const [customColorMap, setCustomColorMap] = useState<Record<string, string>>(() => {
@@ -398,6 +399,49 @@ export default function CatalogInventory({
     ];
   });
 
+  const mixMatchTelemetry = useMemo(() => {
+    try {
+      const clicksMap: Record<string, number> = JSON.parse(localStorage.getItem('ap_product_clicks_map') || '{}');
+      const localSales: any[] = JSON.parse(localStorage.getItem('ap_moda_sales') || '[]');
+      const localCheckouts: any[] = JSON.parse(localStorage.getItem('ap_moda_checkouts') || '[]');
+      const validSales = Array.isArray(localSales) ? localSales.filter(s => s && s.status !== 'Cancelada') : [];
+
+      const totalProductClicks = Object.values(clicksMap).reduce((sum, n) => sum + (Number(n) || 0), 0);
+      const comboRelatedCheckouts = Array.isArray(localCheckouts)
+        ? localCheckouts.filter(c => Array.isArray(c?.items) && c.items.length >= 2).length
+        : 0;
+      const multiItemSales = validSales.filter(s => Array.isArray(s.items) && s.items.length >= 2);
+      const comboRows = combos.map((combo: any) => {
+        const comboEntries = Array.isArray(combo.products) ? combo.products : (Array.isArray(combo.items) ? combo.items : []);
+        const comboProdIds = new Set(comboEntries.map((cp: any) => cp.productId).filter(Boolean));
+        const comboClicks = comboEntries.reduce((sum: number, cp: any) => sum + (Number(clicksMap[cp.productId]) || 0), 0);
+        const matchingSales = validSales.filter(s =>
+          Array.isArray(s.items) && s.items.some((it: any) => comboProdIds.has(it.productId))
+        );
+        const salesCount = matchingSales.length;
+        const revenue = matchingSales.reduce((acc: number, s: any) => acc + (Number(s.total) || 0), 0);
+        const conversionRate = comboClicks > 0 ? ((salesCount / comboClicks) * 100).toFixed(1) : '0.0';
+        return {
+          id: combo.id,
+          name: combo.name,
+          clicks: comboClicks,
+          salesCount,
+          conversionRate,
+          revenue
+        };
+      }).sort((a: any, b: any) => b.revenue - a.revenue || b.salesCount - a.salesCount);
+
+      return {
+        totalClicks: totalProductClicks,
+        cartAdds: comboRelatedCheckouts + multiItemSales.length,
+        convertedSales: multiItemSales.length,
+        comboRows
+      };
+    } catch {
+      return { totalClicks: 0, cartAdds: 0, convertedSales: 0, comboRows: [] as any[] };
+    }
+  }, [combos, products]);
+
   // Sync combos
   React.useEffect(() => {
     localStorage.setItem('ap_moda_combos', JSON.stringify(combos));
@@ -557,13 +601,14 @@ export default function CatalogInventory({
       let addedCount = 0;
 
       // Add all direct URLs immediately to state without needing any network roundtrip
-      if (directUrlsToAdd.length > 0) {
+      const validDirectUrls = directUrlsToAdd.filter(u => !isFallbackOrPlaceholderUrl(u));
+      if (validDirectUrls.length > 0) {
         if (type === 'new') {
-          setNewImages(prev => Array.from(new Set([...prev, ...directUrlsToAdd])));
+          setNewImages(prev => Array.from(new Set([...prev, ...validDirectUrls])));
         } else {
-          setEditImages(prev => Array.from(new Set([...prev, ...directUrlsToAdd])));
+          setEditImages(prev => Array.from(new Set([...prev, ...validDirectUrls])));
         }
-        addedCount += directUrlsToAdd.length;
+        addedCount += validDirectUrls.length;
       }
 
       // If there are viewer URLs that need resolving via the server proxy
@@ -577,7 +622,7 @@ export default function CatalogInventory({
             });
             if (response.ok) {
               const result = await response.json();
-              if (result && result.resolved) {
+              if (result && result.resolved && !isFallbackOrPlaceholderUrl(result.resolved)) {
                 const finalUrl = result.resolved;
                 if (type === 'new') {
                   setNewImages(prev => prev.includes(finalUrl) ? prev : [...prev, finalUrl]);
@@ -592,7 +637,7 @@ export default function CatalogInventory({
             console.warn('[Proxy Resolve Warning]:', fetchErr);
           }
           // If server could not resolve, only add if it looks like a valid URL
-          if (vUrl.startsWith('http://') || vUrl.startsWith('https://')) {
+          if ((vUrl.startsWith('http://') || vUrl.startsWith('https://')) && !isFallbackOrPlaceholderUrl(vUrl)) {
             if (type === 'new') {
               setNewImages(prev => prev.includes(vUrl) ? prev : [...prev, vUrl]);
             } else {
@@ -793,10 +838,12 @@ export default function CatalogInventory({
         }
       }
 
-      const cleanNewImages = allNewImages
-        .map(img => (typeof img === 'string' ? img.trim() : ''))
-        .filter(img => img && (img.startsWith('http') || img.startsWith('data:image/') || img.startsWith('/')));
-      const primaryImage = cleanNewImages[0] || (typeof newImage === 'string' && (newImage.startsWith('http') || newImage.startsWith('data:image/') || newImage.startsWith('/')) ? newImage.trim() : '');
+      const cleanNewImages = Array.from(new Set(
+        allNewImages
+          .map(img => (typeof img === 'string' ? img.trim() : ''))
+          .filter(img => img && !isFallbackOrPlaceholderUrl(img) && (img.startsWith('http') || img.startsWith('data:image/') || img.startsWith('/')))
+      ));
+      const primaryImage = cleanNewImages[0] || (typeof newImage === 'string' && !isFallbackOrPlaceholderUrl(newImage) && (newImage.startsWith('http') || newImage.startsWith('data:image/') || newImage.startsWith('/')) ? newImage.trim() : '');
 
       const newProd: Product = {
         id: `prod-${Date.now()}`,
@@ -873,9 +920,10 @@ export default function CatalogInventory({
     setEditCost(p.cost);
     setEditStock(p.stock);
     setEditMinStock(p.minStock);
-    setEditImage(p.image || '');
+    setEditImage(isFallbackOrPlaceholderUrl(p.image) ? '' : (p.image || ''));
+    setBrokenGalleryUrls(new Set());
     let initialImgs: string[] = [];
-    const isValidUrl = (url: any) => typeof url === 'string' && url.trim().length > 0 && (url.startsWith('http') || url.startsWith('data:image/') || url.startsWith('/'));
+    const isValidUrl = (url: any) => typeof url === 'string' && !isFallbackOrPlaceholderUrl(url) && url.trim().length > 0 && (url.trim().startsWith('http') || url.trim().startsWith('data:image/') || url.trim().startsWith('/'));
     const rawImages: any = (p as any).images;
     if (Array.isArray(rawImages) && rawImages.length > 0) {
       initialImgs = rawImages.filter(isValidUrl).map((img: string) => img.trim());
@@ -892,7 +940,7 @@ export default function CatalogInventory({
     if (initialImgs.length === 0 && p.image && isValidUrl(p.image)) {
       initialImgs = [p.image.trim()];
     }
-    setEditImages(initialImgs);
+    setEditImages(Array.from(new Set(initialImgs)));
     setEditDescription(p.description || '');
     setEditVideoUrl(p.videoUrl || '');
     setEditColors(p.colors ? p.colors.join(', ') : 'Preto');
@@ -994,10 +1042,12 @@ export default function CatalogInventory({
         }
       }
 
-      const cleanEditImages = allEditImages
-        .map(img => (typeof img === 'string' ? img.trim() : ''))
-        .filter(img => img && (img.startsWith('http') || img.startsWith('data:image/') || img.startsWith('/')));
-      const primaryImage = cleanEditImages[0] || (typeof editImage === 'string' && (editImage.startsWith('http') || editImage.startsWith('data:image/') || editImage.startsWith('/')) ? editImage.trim() : '');
+      const cleanEditImages = Array.from(new Set(
+        allEditImages
+          .map(img => (typeof img === 'string' ? img.trim() : ''))
+          .filter(img => img && !isFallbackOrPlaceholderUrl(img) && (img.startsWith('http') || img.startsWith('data:image/') || img.startsWith('/')))
+      ));
+      const primaryImage = cleanEditImages[0] || (typeof editImage === 'string' && !isFallbackOrPlaceholderUrl(editImage) && (editImage.startsWith('http') || editImage.startsWith('data:image/') || editImage.startsWith('/')) ? editImage.trim() : '');
 
       await onUpdateProduct({
         ...editingProduct,
@@ -1201,7 +1251,7 @@ export default function CatalogInventory({
           <h2 className="text-2xl font-bold font-sans text-slate-800 tracking-tight">Produtos e Estoque</h2>
           <p className="text-slate-400 text-sm font-sans">Cadastre peças de moda fitness, monitore níveis críticos e reabasteça o estoque</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button 
             type="button"
             onClick={() => window.dispatchEvent(new Event('open_quick_store_settings'))}
@@ -1212,7 +1262,10 @@ export default function CatalogInventory({
           </button>
           <button 
             id="add-product-modal-btn"
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={() => {
+              setBrokenGalleryUrls(new Set());
+              setIsAddModalOpen(true);
+            }}
             className="inline-flex items-center gap-2 bg-pink-600 hover:bg-pink-700 font-sans font-medium text-white px-4 py-2 rounded-xl text-xs shadow-md shadow-pink-500/10 transition-all cursor-pointer"
           >
             <Plus size={16} />
@@ -1364,8 +1417,8 @@ export default function CatalogInventory({
           <span className="text-[10px] text-slate-400 font-medium font-sans">Dica: clique em (+10) ou (-1) para ajustar estoques</span>
         </div>
 
-        {/* DESKTOP TABLE VIEW (Visible on large screens >= 1024px so Chrome desktop-on-phone & tablets get cards with zero clipping) */}
-        <div className="hidden lg:block overflow-x-auto">
+        {/* DESKTOP TABLE VIEW (Visible on xl >= 1280px so Chrome desktop-mode ~980px & tablets render clean mobile cards without clipping) */}
+        <div className="hidden xl:block overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs font-sans table-auto">
             <thead>
               <tr className="bg-slate-50/70 border-b border-slate-50 text-slate-400 font-bold uppercase text-[10px] tracking-wider select-none">
@@ -1686,8 +1739,8 @@ export default function CatalogInventory({
           </table>
         </div>
 
-        {/* MOBILE & TABLET CARDS VIEW (Visible below lg < 1024px for zero clipping on Chrome mobile/desktop-mode) */}
-        <div className="lg:hidden divide-y divide-slate-100 bg-white">
+        {/* MOBILE & TABLET CARDS VIEW (Visible below xl < 1280px for zero clipping on Chrome mobile & desktop-mode) */}
+        <div className="xl:hidden divide-y divide-slate-100 bg-white">
           {filteredProducts.map((p) => {
             const isLowStock = p.stock < p.minStock;
             const isOutOfStock = p.stock === 0;
@@ -2003,79 +2056,66 @@ export default function CatalogInventory({
                 </div>
               </div>
 
-              {/* Metrics cards row */}
+              {/* Metrics cards row (Real live calculations) */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800/80">
-                  <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block font-sans">Total de Cliques nos Looks</span>
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block font-sans">Total de Cliques nos Produtos</span>
                   <div className="flex items-baseline gap-2 mt-1">
-                    <span className="text-2xl font-black font-mono text-white">1.842</span>
-                    <span className="text-emerald-400 text-[11px] font-bold font-mono">↑ 18.4%</span>
+                    <span className="text-2xl font-black font-mono text-white">{mixMatchTelemetry.totalClicks.toLocaleString('pt-BR')}</span>
                   </div>
-                  <span className="text-[9px] text-slate-500 mt-1 block">Visualizações de combinações na vitrine</span>
+                  <span className="text-[9px] text-slate-500 mt-1 block">Visualizações reais registradas na vitrine</span>
                 </div>
 
                 <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800/80">
-                  <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block font-sans">Looks Adicionados ao Carrinho</span>
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block font-sans">Carrinhos com Múltiplas Peças</span>
                   <div className="flex items-baseline gap-2 mt-1">
-                    <span className="text-2xl font-black font-mono text-white">412</span>
-                    <span className="text-pink-400 text-[11px] font-bold font-mono">↓ 3.1%</span>
+                    <span className="text-2xl font-black font-mono text-white">{mixMatchTelemetry.cartAdds}</span>
                   </div>
-                  <span className="text-[9px] text-slate-500 mt-1 block">Adições via botão "Adicionar Look Completo"</span>
+                  <span className="text-[9px] text-slate-500 mt-1 block">Pedidos/checkouts iniciados com 2+ peças</span>
                 </div>
 
                 <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800/80">
-                  <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block font-sans">Conversão Final e Vendas</span>
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block font-sans">Conversão Final em Combos</span>
                   <div className="flex items-baseline gap-2 mt-1">
-                    <span className="text-2xl font-black font-mono text-white">128 <span className="text-xs text-slate-400 font-normal">vendas</span></span>
-                    <span className="text-emerald-400 text-[11px] font-bold font-mono font-sans">↑ 12.5%</span>
+                    <span className="text-2xl font-black font-mono text-white">{mixMatchTelemetry.convertedSales} <span className="text-xs text-slate-400 font-normal">vendas</span></span>
                   </div>
-                  <span className="text-[9px] text-slate-500 mt-1 block">Pedidos concluídos com looks integrados</span>
+                  <span className="text-[9px] text-slate-500 mt-1 block">Pedidos concluídos com múltiplas peças</span>
                 </div>
               </div>
 
               {/* Top performing combinations list */}
               <div className="space-y-3">
-                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">🔥 Combinações de Looks Líderes de Vendas</h4>
-                <div className="border border-slate-800 rounded-xl overflow-hidden text-xs">
-                  <div className="grid grid-cols-12 bg-slate-950/80 text-slate-400 font-extrabold uppercase text-[9px] tracking-wider p-3">
-                    <div className="col-span-5">Combinação Customizada (Top + Bottom)</div>
-                    <div className="col-span-2 text-center">Cliques</div>
-                    <div className="col-span-2 text-center">Vendas</div>
-                    <div className="col-span-2 text-center">Conversão</div>
-                    <div className="col-span-1 text-right">Receita</div>
-                  </div>
-                  <div className="divide-y divide-slate-800 bg-slate-900/50">
-                    <div className="grid grid-cols-12 p-3 items-center font-medium hover:bg-slate-800/40">
-                      <div className="col-span-5 flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-pink-500 shrink-0" />
-                        <span className="text-slate-200 truncate font-sans">Cropped Dry-Fit + Calça Legging</span>
-                      </div>
-                      <div className="col-span-2 text-center font-mono font-bold text-slate-400">842</div>
-                      <div className="col-span-2 text-center font-mono font-bold text-emerald-400">58 un</div>
-                      <div className="col-span-2 text-center font-mono text-slate-300">6.9%</div>
-                      <div className="col-span-1 text-right font-mono text-slate-200 font-bold">R$ 11.230</div>
+                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">🔥 Combinações de Combos Cadastrados ({mixMatchTelemetry.comboRows.length})</h4>
+                <div className="border border-slate-800 rounded-xl overflow-x-auto text-xs">
+                  <div className="min-w-[580px]">
+                    <div className="grid grid-cols-12 bg-slate-950/80 text-slate-400 font-extrabold uppercase text-[9px] tracking-wider p-3">
+                      <div className="col-span-5">Combo / Look Cadastrado</div>
+                      <div className="col-span-2 text-center">Cliques</div>
+                      <div className="col-span-2 text-center">Vendas</div>
+                      <div className="col-span-1 text-center">Conv.</div>
+                      <div className="col-span-2 text-right">Receita</div>
                     </div>
-
-                    <div className="grid grid-cols-12 p-3 items-center font-medium hover:bg-slate-800/40">
-                      <div className="col-span-5 flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-pink-500 shrink-0" />
-                        <span className="text-slate-200 truncate font-sans">Regata Light + Shorts Ativo</span>
-                      </div>
-                      <div className="col-span-2 text-center font-mono font-bold text-slate-400">620</div>
-                      <div className="col-span-2 text-center font-mono font-bold text-emerald-400">42 un</div>
-                      <div className="col-span-2 text-center font-mono text-slate-300">6.7%</div>
-                      <div className="col-span-1 text-right font-mono text-slate-200 font-bold">R$ 7.980</div>
-                    </div>
-
-                    <div className="grid grid-cols-12 p-3 items-center font-medium hover:bg-slate-800/40">
-                      <div className="col-span-5 flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-pink-500 shrink-0" />
-                        <span className="text-slate-200 truncate font-sans">Top Ativo + Bermuda Compressão</span>
-                      </div>
-                      <div className="col-span-2 text-center font-mono font-bold text-slate-400">380</div>
-                      <div className="col-span-2 text-center font-mono font-bold text-emerald-400">28 un</div>
-                      <div className="col-span-2 text-center font-mono text-slate-300">7.3%</div>
-                      <div className="col-span-1 text-right font-mono text-slate-200 font-bold">R$ 5.430</div>
+                    <div className="divide-y divide-slate-800 bg-slate-900/50">
+                      {mixMatchTelemetry.comboRows.length === 0 ? (
+                        <div className="p-4 text-center text-slate-500 italic">
+                          Nenhum combo cadastrado ainda. Crie combos acima para acompanhar o desempenho em tempo real.
+                        </div>
+                      ) : (
+                        mixMatchTelemetry.comboRows.map(row => (
+                          <div key={row.id} className="grid grid-cols-12 p-3 items-center font-medium hover:bg-slate-800/40">
+                            <div className="col-span-5 flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-pink-500 shrink-0" />
+                              <span className="text-slate-200 truncate font-sans">{row.name}</span>
+                            </div>
+                            <div className="col-span-2 text-center font-mono font-bold text-slate-400">{row.clicks}</div>
+                            <div className="col-span-2 text-center font-mono font-bold text-emerald-400">{row.salesCount} un</div>
+                            <div className="col-span-1 text-center font-mono text-slate-300">{row.conversionRate}%</div>
+                            <div className="col-span-2 text-right font-mono text-slate-200 font-bold">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(row.revenue)}
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2083,7 +2123,10 @@ export default function CatalogInventory({
 
               {/* Insights banner */}
               <div className="p-4.5 bg-slate-950/40 rounded-xl border border-slate-800 text-[11px] text-slate-400 leading-relaxed font-sans">
-                💡 <strong>Análise Inteligente AP Moda Fitness:</strong> A combinação <strong>Cropped Dry-Fit + Calça Legging</strong> possui o maior volume de vendas e cliques. Recomendamos manter banners dessa combinação na página inicial e destacar o desconto exclusivo de 5% para alavancar ainda mais a conversão destas peças avulsas.
+                💡 <strong>Resumo Operacional:</strong>{' '}
+                {mixMatchTelemetry.comboRows[0]
+                  ? <>O combo líder atual é <strong>{mixMatchTelemetry.comboRows[0].name}</strong> com <strong>{mixMatchTelemetry.comboRows[0].salesCount}</strong> vendas associadas e receita de <strong>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(mixMatchTelemetry.comboRows[0].revenue)}</strong>.</>
+                  : 'Assim que os combos receberem pedidos e acessos na vitrine, o resumo de conversão será exibido aqui automaticamente.'}
               </div>
             </div>
           </div>
@@ -2474,8 +2517,8 @@ export default function CatalogInventory({
                 </p>
               </div>
 
-              <div className="border border-slate-100 rounded-xl overflow-hidden bg-slate-50/50">
-                <table className="w-full text-left border-collapse text-xs font-sans">
+              <div className="border border-slate-100 rounded-xl overflow-x-auto bg-slate-50/50">
+                <table className="w-full min-w-[540px] text-left border-collapse text-xs font-sans">
                   <thead>
                     <tr className="bg-slate-100 border-b border-slate-200 text-slate-500 font-bold uppercase text-[9px] tracking-wider select-none">
                       <th className="p-3">Produto</th>
@@ -3074,32 +3117,64 @@ export default function CatalogInventory({
                   </div>
 
                   <div className="space-y-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
-                    <label className="text-slate-600 font-extrabold uppercase text-[10px] tracking-wide block">Galeria de Fotos do Produto (Múltiplas Fotos)</label>
-                    <div className="grid grid-cols-5 gap-2">
-                      {newImages.map((img, idx) => (
-                        <div key={idx} className="relative aspect-square rounded-lg border border-slate-200 overflow-hidden bg-slate-100 group shadow-xs">
-                          <img 
-                            src={getOptimizedImageUrl(img, 200)} 
-                            alt={`Preview ${idx + 1}`} 
-                            className="w-full h-full object-cover" 
-                            referrerPolicy="no-referrer" 
-                            onError={handleImageFallback}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setNewImages(newImages.filter((_, i) => i !== idx))}
-                            className="absolute top-1 right-1 bg-rose-600 hover:bg-rose-700 text-white p-1 rounded-full cursor-pointer transition-all shadow-md flex items-center justify-center border-none"
-                            title="Remover esta foto"
-                          >
-                            <X size={10} />
-                          </button>
-                          {idx === 0 && (
-                            <span className="absolute bottom-0 inset-x-0 bg-pink-600/90 text-white font-extrabold text-[8px] text-center tracking-wider py-0.5 uppercase">CAPA</span>
-                          )}
-                        </div>
-                      ))}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="text-slate-600 font-extrabold uppercase text-[10px] tracking-wide block">Galeria de Fotos do Produto (Múltiplas Fotos)</label>
+                      {newImages.some(u => brokenGalleryUrls.has(u) || isFallbackOrPlaceholderUrl(u)) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewImages(prev => prev.filter(u => !brokenGalleryUrls.has(u) && !isFallbackOrPlaceholderUrl(u)));
+                          }}
+                          className="text-[10px] font-bold bg-rose-100 hover:bg-rose-200 text-rose-700 px-2.5 py-1 rounded-lg transition cursor-pointer border border-rose-200"
+                        >
+                          🧹 Remover Links Quebrados
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                      {newImages.map((img, idx) => {
+                        const isBroken = brokenGalleryUrls.has(img) || isFallbackOrPlaceholderUrl(img);
+                        return (
+                          <div key={`${img}-${idx}`} className={`relative aspect-square rounded-lg border overflow-hidden group shadow-xs ${isBroken ? 'border-rose-300 bg-rose-50' : 'border-slate-200 bg-slate-100'}`}>
+                            {isBroken ? (
+                              <div className="w-full h-full flex flex-col items-center justify-center p-1.5 text-center text-rose-700">
+                                <AlertTriangle size={16} className="mb-1 shrink-0" />
+                                <span className="text-[9px] font-extrabold leading-tight">Link Quebrado</span>
+                                <span className="text-[8px] text-rose-500 truncate w-full mt-0.5 font-mono" title={img}>
+                                  {img.replace(/^https?:\/\//, '').slice(0, 18)}
+                                </span>
+                              </div>
+                            ) : (
+                              <img 
+                                src={getOptimizedImageUrl(img, 200)} 
+                                alt={`Preview ${idx + 1}`} 
+                                className="w-full h-full object-cover" 
+                                referrerPolicy="no-referrer" 
+                                onError={() => {
+                                  setBrokenGalleryUrls(prev => {
+                                    const next = new Set(prev);
+                                    next.add(img);
+                                    return next;
+                                  });
+                                }}
+                              />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setNewImages(newImages.filter((_, i) => i !== idx))}
+                              className="absolute top-1 right-1 bg-rose-600 hover:bg-rose-700 text-white p-1 rounded-full cursor-pointer transition-all shadow-md flex items-center justify-center border-none"
+                              title="Remover esta foto"
+                            >
+                              <X size={10} />
+                            </button>
+                            {idx === 0 && !isBroken && (
+                              <span className="absolute bottom-0 inset-x-0 bg-pink-600/90 text-white font-extrabold text-[8px] text-center tracking-wider py-0.5 uppercase">CAPA</span>
+                            )}
+                          </div>
+                        );
+                      })}
                       {newImages.length === 0 && (
-                        <div className="col-span-5 py-4 text-center text-slate-400 font-medium text-xs">
+                        <div className="col-span-3 sm:col-span-5 py-4 text-center text-slate-400 font-medium text-xs">
                           Nenhuma foto adicionada. Adicione pelo menos uma foto abaixo.
                         </div>
                       )}
@@ -3313,7 +3388,7 @@ export default function CatalogInventory({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Cód SKU único</label>
                   <input 
@@ -3383,7 +3458,7 @@ export default function CatalogInventory({
                   </button>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                   <div className="space-y-1">
                     <label className="text-emerald-950 font-bold uppercase text-[9px] tracking-wide block">Preço de Venda (R$) *</label>
                     <input 
@@ -3425,7 +3500,7 @@ export default function CatalogInventory({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-slate-500 font-bold uppercase text-[9px] tracking-wide block">Estoque (Peças)</label>
                   <input 
@@ -3500,7 +3575,7 @@ export default function CatalogInventory({
                         <span className="text-[9px] bg-sky-200 text-sky-800 font-bold px-2 py-0.5 rounded-full">Etiquetas / Cotação</span>
                       </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-2 text-xs">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                       <div className="space-y-1">
                         <label className="text-slate-500 font-bold uppercase text-[8px] tracking-tight block">Peso (kg)</label>
                         <input 
@@ -3867,37 +3942,69 @@ export default function CatalogInventory({
                   </div>
 
                   <div className="space-y-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
-                    <label className="text-slate-600 font-extrabold uppercase text-[10px] tracking-wide block">Galeria de Fotos do Produto (Múltiplas Fotos)</label>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="text-slate-600 font-extrabold uppercase text-[10px] tracking-wide block">Galeria de Fotos do Produto (Múltiplas Fotos)</label>
+                      {editImages.some(u => brokenGalleryUrls.has(u) || isFallbackOrPlaceholderUrl(u)) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditImages(prev => prev.filter(u => !brokenGalleryUrls.has(u) && !isFallbackOrPlaceholderUrl(u)));
+                          }}
+                          className="text-[10px] font-bold bg-rose-100 hover:bg-rose-200 text-rose-700 px-2.5 py-1 rounded-lg transition cursor-pointer border border-rose-200"
+                        >
+                          🧹 Remover Links Quebrados
+                        </button>
+                      )}
+                    </div>
                     
                     {/* Previews grid */}
-                    <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
-                      {editImages.map((img, idx) => (
-                        <div key={idx} className="relative aspect-square rounded-lg border border-slate-200 overflow-hidden bg-slate-100 group shadow-xs">
-                          <img 
-                            src={getOptimizedImageUrl(img, 200)} 
-                            alt={`Preview ${idx + 1}`} 
-                            className="w-full h-full object-cover" 
-                            referrerPolicy="no-referrer" 
-                            onError={handleImageFallback}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const updated = editImages.filter((_, i) => i !== idx);
-                              setEditImages(updated);
-                            }}
-                            className="absolute top-1 right-1 bg-rose-600 hover:bg-rose-700 text-white p-1 rounded-full cursor-pointer transition-all shadow-md flex items-center justify-center border-none"
-                            title="Remover esta foto"
-                          >
-                            <X size={10} />
-                          </button>
-                          {idx === 0 && (
-                            <span className="absolute bottom-0 inset-x-0 bg-pink-600/90 text-white font-extrabold text-[8px] text-center tracking-wider py-0.5 uppercase">CAPA</span>
-                          )}
-                        </div>
-                      ))}
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                      {editImages.map((img, idx) => {
+                        const isBroken = brokenGalleryUrls.has(img) || isFallbackOrPlaceholderUrl(img);
+                        return (
+                          <div key={`${img}-${idx}`} className={`relative aspect-square rounded-lg border overflow-hidden group shadow-xs ${isBroken ? 'border-rose-300 bg-rose-50' : 'border-slate-200 bg-slate-100'}`}>
+                            {isBroken ? (
+                              <div className="w-full h-full flex flex-col items-center justify-center p-1.5 text-center text-rose-700">
+                                <AlertTriangle size={16} className="mb-1 shrink-0" />
+                                <span className="text-[9px] font-extrabold leading-tight">Link Quebrado</span>
+                                <span className="text-[8px] text-rose-500 truncate w-full mt-0.5 font-mono" title={img}>
+                                  {img.replace(/^https?:\/\//, '').slice(0, 18)}
+                                </span>
+                              </div>
+                            ) : (
+                              <img 
+                                src={getOptimizedImageUrl(img, 200)} 
+                                alt={`Preview ${idx + 1}`} 
+                                className="w-full h-full object-cover" 
+                                referrerPolicy="no-referrer" 
+                                onError={() => {
+                                  setBrokenGalleryUrls(prev => {
+                                    const next = new Set(prev);
+                                    next.add(img);
+                                    return next;
+                                  });
+                                }}
+                              />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = editImages.filter((_, i) => i !== idx);
+                                setEditImages(updated);
+                              }}
+                              className="absolute top-1 right-1 bg-rose-600 hover:bg-rose-700 text-white p-1 rounded-full cursor-pointer transition-all shadow-md flex items-center justify-center border-none"
+                              title="Remover esta foto"
+                            >
+                              <X size={10} />
+                            </button>
+                            {idx === 0 && !isBroken && (
+                              <span className="absolute bottom-0 inset-x-0 bg-pink-600/90 text-white font-extrabold text-[8px] text-center tracking-wider py-0.5 uppercase">CAPA</span>
+                            )}
+                          </div>
+                        );
+                      })}
                       {editImages.length === 0 && (
-                        <div className="col-span-5 py-4 text-center text-slate-400 font-medium text-xs">
+                        <div className="col-span-3 sm:col-span-5 py-4 text-center text-slate-400 font-medium text-xs">
                           Nenhuma foto adicionada. Adicione pelo menos uma foto abaixo.
                         </div>
                       )}

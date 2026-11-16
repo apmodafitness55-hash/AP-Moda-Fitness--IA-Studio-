@@ -31,7 +31,7 @@ import { getWhatsAppUrl } from '../utils/storeConfig';
 // Locally extend OnlineOrder to cover standard fields
 interface DriverAppPortalProps {
   onlineOrders: any[];
-  onUpdateOrderStatus: (orderId: string, status: any) => void;
+  onUpdateOrderStatus: (orderId: string, status: any, statusPagamento?: string, trackingCode?: string, statusLogistico?: string, motoboy?: string) => void;
   onExitPortal: () => void;
   currentUser?: any;
   onLogout?: () => void;
@@ -47,14 +47,14 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
     return ['Bruno Ramos (Moto 1)', 'Lucas Correia (Moto 2)', 'Thales Silva (Bike/Região Central)', 'Cláudio Santos (Parceiro Envio Rápido)'];
   }, [motoboys]);
 
-  const [selectedRider, setSelectedRider] = useState<string>('Bruno Ramos');
+  const [selectedRider, setSelectedRider] = useState<string>(() => riders[0] || '');
   const [activeStep, setActiveStep] = useState<'login' | 'feed' | 'delivery_detail' | 'signature'>('login');
 
   // Automatically adapt to logged deliveries driver
   useEffect(() => {
     if (currentUser && currentUser.role === 'Entregador') {
       const cName = (currentUser.name || '').toLowerCase();
-      const matched = riders.find(r => r.toLowerCase().includes(cName) || cName.includes(r.toLowerCase().split(' ')[0]));
+      const matched = riders.find(r => r.toLowerCase().includes(cName) || cName.includes(r.toLowerCase().split('(')[0].trim()));
       setSelectedRider(matched || currentUser.name);
       setActiveStep('feed');
     }
@@ -87,33 +87,36 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
   const [feedFilter, setFeedFilter] = useState<'mine' | 'all'>('mine');
   const [showWhatsappModal, setShowWhatsappModal] = useState<any | null>(null);
 
+  const riderBaseName = useMemo(() => selectedRider.split('(')[0].trim().toLowerCase(), [selectedRider]);
+
+  const isOrderAssignedToRider = (o: any) => {
+    if (!o.motoboy || !riderBaseName) return false;
+    const assigned = String(o.motoboy).split('(')[0].trim().toLowerCase();
+    return assigned === riderBaseName || String(o.motoboy).toLowerCase() === selectedRider.toLowerCase();
+  };
+
   // Dynamically filter orders allocated to this specific rider
   const riderOrders = useMemo(() => {
-    return onlineOrders.filter(o => {
-      if (!o.motoboy) return false;
-      return o.motoboy.toLowerCase().includes(selectedRider.toLowerCase());
-    });
-  }, [onlineOrders, selectedRider]);
+    return onlineOrders.filter(o => isOrderAssignedToRider(o));
+  }, [onlineOrders, riderBaseName, selectedRider]);
 
   // Dynamically filter orders allocated for the visual feed list
   const filteredFeedOrders = useMemo(() => {
     return onlineOrders.filter(o => {
-      const isAssignedToMe = o.motoboy && o.motoboy.toLowerCase().includes(selectedRider.toLowerCase());
+      const isAssignedToMe = isOrderAssignedToRider(o);
       const isUnassigned = !o.motoboy || o.motoboy.trim() === '';
       
       const matchesRiderType = feedFilter === 'mine' ? isAssignedToMe : isUnassigned;
       const statusLower = (o.status || '').toLowerCase();
       
       if (feedTab === 'pending') {
-        // Pending physical routes: Pago, Saiu para Entrega, Pronto
-        const isPending = statusLower === 'pago' || statusLower === 'saiu para entrega' || statusLower === 'saiu para entrega' || statusLower === 'pronto';
+        const isPending = ['pago', 'saiu para entrega', 'pronto', 'separando', 'pendente'].includes(statusLower);
         return matchesRiderType && isPending;
       } else {
-        // Completed routes
         return matchesRiderType && statusLower === 'entregue';
       }
     });
-  }, [onlineOrders, selectedRider, feedFilter, feedTab]);
+  }, [onlineOrders, riderBaseName, selectedRider, feedFilter, feedTab]);
 
   // Delivery total calculations
   const stats = useMemo(() => {
@@ -250,11 +253,12 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
     return () => clearInterval(timer);
   }, [routeStep, activeOrder]);
 
-  const handleStartRoute = (order: any) => {
-    setActiveOrder(order);
+  const handleStartRoute = (order: any, assignedMotoboy?: string) => {
+    const nextOrder = assignedMotoboy ? { ...order, motoboy: assignedMotoboy } : order;
+    setActiveOrder(nextOrder);
     setRouteStep(1);
     setSimulatedDistance(4.5);
-    onUpdateOrderStatus(order.id, 'Saiu para Entrega');
+    onUpdateOrderStatus(order.id, 'Saiu para Entrega', undefined, undefined, undefined, assignedMotoboy);
 
     // Build automated WhatsApp link and show modal
     const rawPhone = order.phone || '';
@@ -335,7 +339,7 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
       </div>
 
       {/* Primary Simulator Screen Core */}
-      <div className="relative w-[345px] h-[660px] bg-slate-950 rounded-[44px] shadow-2xl p-3 border-[6px] border-slate-800 flex flex-col scale-95 md:scale-100 transition-transform mt-5">
+      <div className="relative w-full max-w-[345px] h-[660px] bg-slate-950 rounded-[44px] shadow-2xl p-3 border-[6px] border-slate-800 flex flex-col scale-95 md:scale-100 transition-transform mt-5">
         
         {/* Notch details */}
         <div className="absolute top-4 left-1/2 -translate-x-1/2 w-32 h-6 bg-slate-950 rounded-b-xl z-50 flex items-center justify-between px-4">
@@ -455,13 +459,13 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
                   onClick={() => setFeedTab('pending')}
                   className={`flex-1 py-1.5 text-center text-[10px] font-extrabold rounded-lg transition-all cursor-pointer ${feedTab === 'pending' ? 'bg-pink-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
                 >
-                  A Entregar ({onlineOrders.filter(o => o.motoboy?.toLowerCase().includes(selectedRider.toLowerCase()) && ['pago', 'saiu para entrega', 'saiu para entrega', 'pronto'].includes((o.status || '').toLowerCase())).length})
+                  A Entregar ({onlineOrders.filter(o => (feedFilter === 'mine' ? isOrderAssignedToRider(o) : (!o.motoboy || o.motoboy.trim() === '')) && ['pago', 'saiu para entrega', 'pronto', 'separando', 'pendente'].includes((o.status || '').toLowerCase())).length})
                 </button>
                 <button
                   onClick={() => setFeedTab('completed')}
                   className={`flex-1 py-1.5 text-center text-[10px] font-extrabold rounded-lg transition-all cursor-pointer ${feedTab === 'completed' ? 'bg-pink-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
                 >
-                  Concluídos ({onlineOrders.filter(o => o.motoboy?.toLowerCase().includes(selectedRider.toLowerCase()) && (o.status || '').toLowerCase() === 'entregue').length})
+                  Concluídos ({onlineOrders.filter(o => (feedFilter === 'mine' ? isOrderAssignedToRider(o) : (!o.motoboy || o.motoboy.trim() === '')) && (o.status || '').toLowerCase() === 'entregue').length})
                 </button>
               </div>
 
@@ -479,7 +483,7 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
                     onClick={() => setFeedFilter('all')}
                     className={`px-2 py-0.5 rounded font-extrabold cursor-pointer transition-colors ${feedFilter === 'all' ? 'bg-pink-900/20 text-pink-400 border border-pink-500/30' : 'text-slate-500 hover:text-slate-400'}`}
                   >
-                    Sem Entregador ({onlineOrders.filter(o => (!o.motoboy || o.motoboy.trim() === '') && ['pago', 'pronto'].includes((o.status || '').toLowerCase())).length})
+                    Sem Entregador ({onlineOrders.filter(o => (!o.motoboy || o.motoboy.trim() === '') && ['pago', 'saiu para entrega', 'pronto', 'separando', 'pendente'].includes((o.status || '').toLowerCase())).length})
                   </button>
                 </div>
               </div>
@@ -536,7 +540,7 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
 
                         <div className="flex justify-between items-center text-[10px] text-slate-400 border-t border-slate-800 pt-2 font-mono">
                           <span>Total Coleta:</span>
-                          <span className="font-extrabold text-pink-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ord.total + (ord.deliveryFee || 0))}</span>
+                          <span className="font-extrabold text-pink-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((Number(ord.total) || 0) + (Number(ord.deliveryFee) || 0))}</span>
                         </div>
 
                         <div className="grid grid-cols-3 gap-1.5 pt-1">
@@ -569,13 +573,11 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
                         </div>
 
                         <div className="pt-1">
-                          {statusLower === 'pago' || statusLower === 'pronto' || statusLower === 'pendente' ? (
+                          {['pago', 'pronto', 'separando', 'pendente'].includes(statusLower) ? (
                             <button
                               onClick={() => {
-                                if (!ord.motoboy || ord.motoboy.trim() === '') {
-                                  ord.motoboy = selectedRider;
-                                }
-                                handleStartRoute(ord);
+                                const assigned = (!ord.motoboy || ord.motoboy.trim() === '') ? selectedRider : undefined;
+                                handleStartRoute(ord, assigned);
                               }}
                               className="w-full py-2 bg-pink-600 hover:bg-pink-700 text-white text-[10px] font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer border-0 shadow-md"
                             >
@@ -826,7 +828,7 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
                   {/* Payment reminder block */}
                   <div className="p-2 bg-pink-900/10 border border-pink-500/20 text-pink-300 rounded-xl flex items-center justify-between text-[11px] font-bold">
                     <span>Valide a Cobrança:</span>
-                    <span className="font-mono text-emerald-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(activeOrder.total + activeOrder.deliveryFee)}</span>
+                    <span className="font-mono text-emerald-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((Number(activeOrder.total) || 0) + (Number(activeOrder.deliveryFee) || 0))}</span>
                   </div>
 
                   <button

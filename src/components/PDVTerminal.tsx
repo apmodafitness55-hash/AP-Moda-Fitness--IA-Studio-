@@ -38,6 +38,7 @@ import {
 import { Product, SaleItem, Sale, Client, SalesChannel, ActiveTab } from '../types';
 import { getCardMachinesConfig, CardMachineConfig } from '../lib/cardMachines';
 import { validateCouponForCpf, calculateEligibleCouponDiscount } from '../utils/couponUtils';
+import { getStoreConfig } from '../utils/storeConfig';
 import ThermalReceipt from './ThermalReceipt';
 import CorreiosLabel from './CorreiosLabel';
 import { playSaleSuccessSound, playBarcodeBeepSound } from '../lib/audioFeedback';
@@ -502,10 +503,14 @@ export default function PDVTerminal({
   const [isGeneratingLinkMap, setIsGeneratingLinkMap] = useState<{[key: number]: boolean}>({});
 
   const generateStaticPix = (amount: number) => {
-    const cnpjKey = '67074681000103'; // CNPJ da loja: 67.074.681/0001-03
+    const storeCfg = getStoreConfig();
+    const rawPix = storeCfg.pixKey || storeCfg.cnpj || '67074681000103';
+    const cnpjKey = (rawPix.includes('@') || /[a-zA-Z]/.test(rawPix))
+      ? rawPix.trim()
+      : rawPix.replace(/\D/g, '');
     const amountStr = amount.toFixed(2);
-    const cleanMerchant = 'AP MODA FITNESS';
-    const cleanCity = 'SAO JOSE DE MIPIBU';
+    const cleanMerchant = (storeCfg.name || 'AP MODA FITNESS').toUpperCase();
+    const cleanCity = (storeCfg.city || 'SAO JOSE DE MIPIBU').toUpperCase();
 
     const p00 = '000201';
     const p01 = '010211'; // Static QR Code
@@ -2034,7 +2039,7 @@ export default function PDVTerminal({
                           <span>
                             Tarifa ({p.cardFeePercent}%):{' '}
                             <strong className="text-rose-500 font-mono">
-                              R$ {(((p.amount - (p.amount * (p.cardDiscountPercent || 0)) / 100) * (p.cardFeePercent || 0)) / 105).toFixed(2)}
+                              R$ {(((p.amount - (p.amount * (p.cardDiscountPercent || 0)) / 100) * (p.cardFeePercent || 0)) / 100).toFixed(2)}
                             </strong>
                           </span>
                           <span>
@@ -2130,7 +2135,7 @@ export default function PDVTerminal({
                             referrerPolicy="no-referrer"
                           />
                           <p className="text-[9px] text-slate-500 font-medium mt-1.5 text-center">
-                            Chave CNPJ: <strong className="text-slate-700">67.074.681/0001-03</strong>
+                            Chave PIX: <strong className="text-slate-700">{getStoreConfig().pixKey || getStoreConfig().cnpj}</strong>
                           </p>
                           <p className="text-[9.5px] text-emerald-700 font-extrabold font-mono mt-0.5">
                             R$ {(p.amount || 0).toFixed(2)}

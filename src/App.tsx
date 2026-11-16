@@ -237,9 +237,10 @@ export default function App() {
 
       let changed = currentPartnersList.length !== initialLength;
       const updatedPartnersList = [...currentPartnersList];
+      const isSystemCleared = localStorage.getItem('ap_system_cleared') === 'true';
 
-      // Guarantee authentic partner Patricia Cardoso exists
-      if (!updatedPartnersList.some(p => p.name?.toLowerCase().includes('patricia') || p.couponCode?.toUpperCase() === 'PATRICIA10')) {
+      // Guarantee authentic partner Patricia Cardoso exists on fresh install only
+      if (!isSystemCleared && !savedPartners && !updatedPartnersList.some(p => p.name?.toLowerCase().includes('patricia') || p.couponCode?.toUpperCase() === 'PATRICIA10')) {
         updatedPartnersList.push({
           id: 'part-patricia',
           name: 'Patricia Cardoso',
@@ -258,7 +259,7 @@ export default function App() {
       // Merge teamMembers with role === 'Parceiro'
       const teamPartners = teamMembers.filter(m => m.role === 'Parceiro' && !fakeNames.includes(m.name?.toLowerCase()));
       teamPartners.forEach(tp => {
-        const existing = updatedPartnersList.find(p => p.id === tp.id || p.name.toLowerCase() === tp.name.toLowerCase() || (tp.login && p.couponCode.toLowerCase() === tp.login.toLowerCase()));
+        const existing = updatedPartnersList.find(p => p.id === tp.id || p.name.toLowerCase() === tp.name.toLowerCase());
         if (!existing) {
           updatedPartnersList.push({
             id: tp.id,
@@ -266,7 +267,7 @@ export default function App() {
             login: tp.login,
             password: tp.password || '123',
             instagram: tp.details || '@' + tp.login,
-            couponCode: (tp.couponCode || tp.login).toUpperCase() + (tp.couponCode ? '' : '10'),
+            couponCode: (tp.couponCode || '').toUpperCase(),
             commissionRate: 10,
             salesCount: 0,
             totalGenerated: 0,
@@ -419,8 +420,24 @@ export default function App() {
     const handlePopState = () => {
       setCurrentPath(window.location.pathname);
     };
+    const handleNavigateTab = (e: Event) => {
+      const customEv = e as CustomEvent<string>;
+      const target = (customEv.detail || '').toString().trim();
+      if (target === 'crm') {
+        setActiveTab(ActiveTab.CLIENTES);
+        setCustomersCRMSubTab('parceiros');
+      } else if (target === 'METODOS_PAGAMENTO') {
+        setActiveTab(ActiveTab.METODOS_PAGAMENTO);
+      } else if (Object.values(ActiveTab).includes(target as ActiveTab)) {
+        setActiveTab(target as ActiveTab);
+      }
+    };
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('ap-navigate-tab', handleNavigateTab as EventListener);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('ap-navigate-tab', handleNavigateTab as EventListener);
+    };
   }, []);
 
   const navigateTo = (path: string) => {
@@ -564,23 +581,14 @@ export default function App() {
   // State for online orders synced across delivery components
   const [onlineOrders, setOnlineOrders] = useState(() => {
     const saved = localStorage.getItem('ap_moda_online_orders');
+    const isCleared = localStorage.getItem('ap_system_cleared') === 'true';
     try {
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const parsedMap = new Map(parsed.map((o: any) => [o.id, o]));
-          const merged = [...parsed];
-          for (const initO of INITIAL_ONLINE_ORDERS) {
-            if (!parsedMap.has(initO.id)) {
-              merged.push(initO);
-              parsedMap.set(initO.id, initO);
-            }
-          }
-          return merged;
-        }
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
-    return INITIAL_ONLINE_ORDERS;
+    return isCleared ? [] : INITIAL_ONLINE_ORDERS;
   });
 
   // State for checkouts (abandoned carts) synced
@@ -591,65 +599,38 @@ export default function App() {
 
   const [clients, setClients] = useState<Client[]>(() => {
     const saved = localStorage.getItem('ap_moda_clients');
+    const isCleared = localStorage.getItem('ap_system_cleared') === 'true';
     try {
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const parsedMap = new Map(parsed.map((c: Client) => [c.id, c]));
-          const merged = [...parsed];
-          for (const initC of INITIAL_CLIENTS) {
-            if (!parsedMap.has(initC.id)) {
-              merged.push(initC);
-              parsedMap.set(initC.id, initC);
-            }
-          }
-          return merged;
-        }
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
-    return INITIAL_CLIENTS;
+    return isCleared ? [] : INITIAL_CLIENTS;
   });
 
   const [sales, setSales] = useState<Sale[]>(() => {
     const saved = localStorage.getItem('ap_moda_sales');
+    const isCleared = localStorage.getItem('ap_system_cleared') === 'true';
     try {
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const parsedMap = new Map(parsed.map((s: Sale) => [s.id, s]));
-          const merged = [...parsed];
-          for (const initS of INITIAL_SALES) {
-            if (!parsedMap.has(initS.id)) {
-              merged.push(initS);
-              parsedMap.set(initS.id, initS);
-            }
-          }
-          return merged;
-        }
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
-    return INITIAL_SALES;
+    return isCleared ? [] : INITIAL_SALES;
   });
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('ap_moda_transactions');
+    const isCleared = localStorage.getItem('ap_system_cleared') === 'true';
     try {
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const parsedMap = new Map(parsed.map((t: Transaction) => [t.id, t]));
-          const merged = [...parsed];
-          for (const initT of INITIAL_TRANSACTIONS) {
-            if (!parsedMap.has(initT.id)) {
-              merged.push(initT);
-              parsedMap.set(initT.id, initT);
-            }
-          }
-          return merged;
-        }
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
-    return INITIAL_TRANSACTIONS;
+    return isCleared ? [] : INITIAL_TRANSACTIONS;
   });
 
   // State for notification dropdown and real-time sale alert toast
@@ -988,18 +969,6 @@ export default function App() {
     setTimeout(() => {
       setNewWithdrawToast(prev => (prev?.id === withdrawData.id ? null : prev));
     }, 15000);
-
-    // 5. System Notification List Item
-    const newNotify = {
-      id: Date.now() + Math.random(),
-      title: `💸 Saque Pix: ${withdrawData.partnerName}`,
-      detail: `${withdrawData.partnerName} solicitou resgate de R$ ${(withdrawData.amount || 0).toFixed(2)}. Chave Pix (${withdrawData.pixKeyType || 'Pix'}): ${withdrawData.pixKey}.`,
-      read: false,
-      type: 'partner_withdraw' as const,
-      requestId: withdrawData.id,
-      data: withdrawData
-    };
-    setNotifications(prev => [newNotify, ...prev]);
   }, []);
 
   // Previous state refs for delta comparisons
@@ -1565,25 +1534,24 @@ export default function App() {
       }));
 
       // 4. Sincroniza Clientes
+      const isSystemCleared = localStorage.getItem('ap_system_cleared') === 'true';
       const dbClients = await fetchClientsFromSupabase();
       if (dbClients && dbClients.length > 0) {
-        const dbClientMap = new Map(dbClients.map((c: Client) => [c.id, c]));
-        const mergedClients = [...dbClients];
-        for (const initC of INITIAL_CLIENTS) {
-          if (!dbClientMap.has(initC.id)) {
-            mergedClients.push(initC);
-            dbClientMap.set(initC.id, initC);
-          }
-        }
-        setClients(mergedClients);
-        localStorage.setItem('ap_moda_clients', JSON.stringify(mergedClients));
+        setClients(dbClients);
+        localStorage.setItem('ap_moda_clients', JSON.stringify(dbClients));
       } else {
-        const localClients = lastClientsRef.current && lastClientsRef.current.length > 0 ? lastClientsRef.current : (clients.length > 0 ? clients : INITIAL_CLIENTS);
+        const hasSavedClients = localStorage.getItem('ap_moda_clients') !== null;
+        const localClients = lastClientsRef.current && lastClientsRef.current.length > 0
+          ? lastClientsRef.current
+          : (clients.length > 0 ? clients : (isSystemCleared || hasSavedClients ? [] : INITIAL_CLIENTS));
         if (localClients && localClients.length > 0) {
           console.log('[Supabase Sync] Enviando clientes autênticos para o Supabase:', localClients.length);
           await syncBulkClientsToSupabase(localClients);
           setClients(localClients);
           localStorage.setItem('ap_moda_clients', JSON.stringify(localClients));
+        } else if (isSystemCleared) {
+          setClients([]);
+          localStorage.setItem('ap_moda_clients', JSON.stringify([]));
         }
       }
 
@@ -1637,24 +1605,21 @@ export default function App() {
           };
         });
 
-        // Merge with INITIAL_SALES to guarantee no historic sales ever vanish
-        const currentSalesMap = new Map(mergedDbSales.map(s => [s.id, s]));
-        for (const initS of INITIAL_SALES) {
-          if (!currentSalesMap.has(initS.id)) {
-            mergedDbSales.push(initS);
-            currentSalesMap.set(initS.id, initS);
-          }
-        }
-
         setSales(mergedDbSales);
         localStorage.setItem('ap_moda_sales', JSON.stringify(mergedDbSales));
       } else {
-        const localSales = lastSalesRef.current && lastSalesRef.current.length > 0 ? lastSalesRef.current : (sales && sales.length > 0 ? sales : INITIAL_SALES);
+        const hasSavedSales = localStorage.getItem('ap_moda_sales') !== null;
+        const localSales = lastSalesRef.current && lastSalesRef.current.length > 0
+          ? lastSalesRef.current
+          : (sales && sales.length > 0 ? sales : (isSystemCleared || hasSavedSales ? [] : INITIAL_SALES));
         if (localSales && localSales.length > 0) {
           console.log('[Supabase Sync] Restaurando histórico de vendas autênticas para o Supabase:', localSales.length);
           await syncBulkSalesToSupabase(localSales);
           setSales(localSales);
           localStorage.setItem('ap_moda_sales', JSON.stringify(localSales));
+        } else if (isSystemCleared) {
+          setSales([]);
+          localStorage.setItem('ap_moda_sales', JSON.stringify([]));
         }
       }
 
@@ -1668,23 +1633,21 @@ export default function App() {
       // 6. Sincroniza Lançamentos Financeiros (Fluxo de Caixa / Prestação de Contas)
       const dbTransactions = await fetchTransactionsFromSupabase();
       if (dbTransactions && dbTransactions.length > 0) {
-        const dbTxMap = new Map(dbTransactions.map((t: Transaction) => [t.id, t]));
-        const mergedTxs = [...dbTransactions];
-        for (const initT of INITIAL_TRANSACTIONS) {
-          if (!dbTxMap.has(initT.id)) {
-            mergedTxs.push(initT);
-            dbTxMap.set(initT.id, initT);
-          }
-        }
-        setTransactions(mergedTxs);
-        localStorage.setItem('ap_moda_transactions', JSON.stringify(mergedTxs));
+        setTransactions(dbTransactions);
+        localStorage.setItem('ap_moda_transactions', JSON.stringify(dbTransactions));
       } else {
-        const localTxs = lastTransactionsRef.current && lastTransactionsRef.current.length > 0 ? lastTransactionsRef.current : (transactions && transactions.length > 0 ? transactions : INITIAL_TRANSACTIONS);
+        const hasSavedTxs = localStorage.getItem('ap_moda_transactions') !== null;
+        const localTxs = lastTransactionsRef.current && lastTransactionsRef.current.length > 0
+          ? lastTransactionsRef.current
+          : (transactions && transactions.length > 0 ? transactions : (isSystemCleared || hasSavedTxs ? [] : INITIAL_TRANSACTIONS));
         if (localTxs && localTxs.length > 0) {
           console.log('[Supabase Sync] Preservando fluxo de caixa local e enviando para o banco:', localTxs.length);
           await syncBulkTransactionsToSupabase(localTxs);
           setTransactions(localTxs);
           localStorage.setItem('ap_moda_transactions', JSON.stringify(localTxs));
+        } else if (isSystemCleared) {
+          setTransactions([]);
+          localStorage.setItem('ap_moda_transactions', JSON.stringify([]));
         }
       }
 
@@ -1703,23 +1666,21 @@ export default function App() {
       // 7. Sincroniza Pedidos Online
       const dbOrders = await fetchOnlineOrdersFromSupabase();
       if (dbOrders && dbOrders.length > 0) {
-        const dbOrderMap = new Map(dbOrders.map((o: any) => [o.id, o]));
-        const mergedOrders = [...dbOrders];
-        for (const initO of INITIAL_ONLINE_ORDERS) {
-          if (!dbOrderMap.has(initO.id)) {
-            mergedOrders.push(initO);
-            dbOrderMap.set(initO.id, initO);
-          }
-        }
-        setOnlineOrders(mergedOrders);
-        localStorage.setItem('ap_moda_online_orders', JSON.stringify(mergedOrders));
+        setOnlineOrders(dbOrders);
+        localStorage.setItem('ap_moda_online_orders', JSON.stringify(dbOrders));
       } else {
-        const localOrders = lastOnlineOrdersRef.current && lastOnlineOrdersRef.current.length > 0 ? lastOnlineOrdersRef.current : (onlineOrders && onlineOrders.length > 0 ? onlineOrders : INITIAL_ONLINE_ORDERS);
+        const hasSavedOrders = localStorage.getItem('ap_moda_online_orders') !== null;
+        const localOrders = lastOnlineOrdersRef.current && lastOnlineOrdersRef.current.length > 0
+          ? lastOnlineOrdersRef.current
+          : (onlineOrders && onlineOrders.length > 0 ? onlineOrders : (isSystemCleared || hasSavedOrders ? [] : INITIAL_ONLINE_ORDERS));
         if (localOrders && localOrders.length > 0) {
           console.log('[Supabase Sync] Enviando sacolas online locais para o Supabase:', localOrders.length);
           await syncBulkOnlineOrdersToSupabase(localOrders);
           setOnlineOrders(localOrders);
           localStorage.setItem('ap_moda_online_orders', JSON.stringify(localOrders));
+        } else if (isSystemCleared) {
+          setOnlineOrders([]);
+          localStorage.setItem('ap_moda_online_orders', JSON.stringify([]));
         }
       }
 
@@ -3824,7 +3785,7 @@ export default function App() {
     setNotifications(prev => [newNotify, ...prev]);
   };
 
-  const handleUpdateOnlineOrderStatus = (orderId: string, newStatus: any, statusPagamento?: string, trackingCode?: string, statusLogistico?: string) => {
+  const handleUpdateOnlineOrderStatus = (orderId: string, newStatus: any, statusPagamento?: string, trackingCode?: string, statusLogistico?: string, motoboy?: string) => {
     setOnlineOrders(prev => {
       const updated = prev.map(o => {
         if (o.id === orderId) {
@@ -3863,7 +3824,7 @@ export default function App() {
               status: 'Concluída',
               createdAt: o.createdAt || new Date().toISOString(),
               payments: [{ method: o.paymentMethod || 'Cartão/Pix', amount: o.total }],
-              salesperson: o.motoboy || 'E-commerce',
+              salesperson: motoboy || o.motoboy || 'E-commerce',
               trackingCode: o.trackingCode || trackingCode || '',
               deliveryMethod: o.deliveryMethod || '',
               address: o.address || '',
@@ -3952,7 +3913,8 @@ export default function App() {
             status: newStatus, 
             status_pagamento: updatedStatusPag,
             ...(trackingCode !== undefined ? { trackingCode } : {}),
-            ...(statusLogistico !== undefined ? { status_logistico: statusLogistico } : {})
+            ...(statusLogistico !== undefined ? { status_logistico: statusLogistico } : {}),
+            ...(motoboy !== undefined ? { motoboy } : {})
           };
         }
         return o;
@@ -4141,7 +4103,7 @@ export default function App() {
 
   const handleClearAllData = async () => {
     const adminUser = teamMembers.find(m => m.role === 'Admin');
-    const adminPassword = adminUser ? adminUser.password : 'ApB1695*';
+    const adminPassword = adminUser ? adminUser.password : 'Ap01695*';
     
     const enteredPassword = prompt('Confirmação de Segurança: Por favor, insira a sua senha de ADMINISTRADOR para autorizar o reset e a formatação total dos dados fantasmas do Dashboard:');
     
@@ -4155,7 +4117,9 @@ export default function App() {
     }
 
     if (confirm('ATENÇÃO: Você confirmou a senha com sucesso! Deseja realmente apagar COMPLETAMENTE todos os produtos, clientes, vendas, despesas, caixa, equipe (mantendo apenas administradores) e pedidos do sistema para iniciar o trabalho do zero (Produção)?')) {
-      
+      localStorage.setItem('ap_system_cleared', 'true');
+      pushSystemConfigToSupabase('ap_system_cleared', 'true').catch(() => {});
+
       // Clear all cloud data from Supabase if connected
       const client = getSupabaseClient();
       if (client) {
@@ -4210,6 +4174,8 @@ export default function App() {
 
   const handleLoadDemoData = () => {
     if (confirm('Isso irá substituir os dados atuais pelas mercadorias e vendas de testes para demonstração da loja de Moda Fitness. Deseja prosseguir?')) {
+      localStorage.removeItem('ap_system_cleared');
+      pushSystemConfigToSupabase('ap_system_cleared', 'false').catch(() => {});
       localStorage.setItem('ap_moda_products', JSON.stringify(INITIAL_PRODUCTS));
       localStorage.setItem('ap_moda_clients', JSON.stringify(INITIAL_CLIENTS));
       localStorage.setItem('ap_moda_sales', JSON.stringify(INITIAL_SALES));
@@ -4373,12 +4339,11 @@ export default function App() {
           let updated = false;
           partnersList = partnersList.map(p => {
             const pCoupon = (p.couponCode || '').trim().toUpperCase();
-            const pLogin = (p.login || '').trim().toUpperCase();
             const pName = (p.name || '').trim().toLowerCase();
             const pId = p.id;
 
-            const matchesCoupon = couponCodeForPartner && (pCoupon === couponCodeForPartner || pLogin === couponCodeForPartner || (pLogin && pLogin + '10' === couponCodeForPartner));
-            const matchesName = partnerNameForSale && (pName === partnerNameForSale || pId === partnerNameForSale);
+            const matchesCoupon = Boolean(couponCodeForPartner && pCoupon && pCoupon === couponCodeForPartner);
+            const matchesName = Boolean(partnerNameForSale && (pName === partnerNameForSale || pId === partnerNameForSale));
 
             if (matchesCoupon || matchesName) {
               updated = true;
@@ -4421,6 +4386,8 @@ export default function App() {
       };
     });
 
+    const isPaidOnline = newOrder.status_pagamento === 'pago' || newOrder.status === 'Pago' || newOrder.status === 'Entregue';
+
     const newSaleFromOrder: Sale = {
       id: newOrder.id,
       clientName: newOrder.clientName || 'Cliente Online',
@@ -4429,7 +4396,7 @@ export default function App() {
       items: saleItems,
       total: Number(newOrder.total || 0),
       costTotal: saleItems.reduce((acc: number, it: any) => acc + (it.cost * it.quantity), 0),
-      status: 'Concluída',
+      status: isPaidOnline ? 'Concluída' : 'Pendente',
       createdAt: newOrder.createdAt || new Date().toISOString(),
       payments: [{ method: newOrder.paymentMethod || 'Cartão/Pix Online', amount: Number(newOrder.total || 0) }],
       salesperson: newOrder.motoboy || 'Loja Virtual',
@@ -4460,6 +4427,7 @@ export default function App() {
       category: 'Venda Online',
       description: `Pedido Loja Virtual #${newOrder.id.toUpperCase()} - ${newOrder.clientName} (${newOrder.paymentMethod || 'Pix/Cartão'})`,
       amount: Number(newOrder.total || 0),
+      status: isPaidOnline ? 'pago' : 'pendente',
       date: newOrder.createdAt || new Date().toISOString()
     };
 
@@ -4926,7 +4894,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-slate-50 flex" id="main-app-container">
+      <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-slate-50 flex" id="main-app-container">
         {/* ============================================================== */}
         {/* URGENT ONLINE ORDER DISPATCH MODAL (LOUD AUDIO & ACTIONABLE)   */}
         {/* ============================================================== */}
@@ -5287,8 +5255,8 @@ export default function App() {
           </div>
 
           {/* Right: Scrollable Action Pills + Pinned Bell / Theme / Profile (dropdown outside overflow-x-auto) */}
-          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0">
+          <div className="flex-1 flex items-center justify-end gap-1.5 sm:gap-2 min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0 max-w-full">
               {/* Audio & Notification permission activator */}
               {notificationPermission !== 'granted' && (
                 <button 

@@ -62,17 +62,29 @@ export default function DashboardPerformanceAnalytics({
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
-  // 1. Faturamento Bruto Real (Apenas faturamento de pedidos reais concluídos no banco Supabase)
-  const totalRevenue = useMemo(() => {
-    return sales
-      .filter(s => s.status === 'Concluída')
-      .reduce((sum, s) => sum + s.total, 0);
-  }, [sales]);
+  const isWithinPeriod = (dateStr?: string) => {
+    if (activePeriod === 'total') return true;
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return false;
+    const days = activePeriod === '7d' ? 7 : 30;
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    return d >= cutoff;
+  };
 
-  // Total de pedidos concluídos reais
+  const filteredCompletedSales = useMemo(() => {
+    return sales.filter(s => s.status === 'Concluída' && isWithinPeriod(s.createdAt));
+  }, [sales, activePeriod]);
+
+  // 1. Faturamento Bruto Real (Apenas faturamento de pedidos reais concluídos no período)
+  const totalRevenue = useMemo(() => {
+    return filteredCompletedSales.reduce((sum, s) => sum + s.total, 0);
+  }, [filteredCompletedSales]);
+
+  // Total de pedidos concluídos reais no período
   const salesCount = useMemo(() => {
-    return sales.filter(s => s.status === 'Concluída').length;
-  }, [sales]);
+    return filteredCompletedSales.length;
+  }, [filteredCompletedSales]);
 
   // 2. Carrinhos Convertidos vs. Abandonados Reais do Supabase / localStorage
   const localCheckouts: Checkout[] = useMemo(() => {
@@ -89,8 +101,9 @@ export default function DashboardPerformanceAnalytics({
   }, [checkouts]);
 
   const checkoutStats = useMemo(() => {
-    const converted = localCheckouts.filter(c => c.status === 'concluido' || c.status === 'recuperado').length;
-    const pending = localCheckouts.filter(c => c.status === 'pendente').length;
+    const scopedCheckouts = localCheckouts.filter(c => isWithinPeriod((c as any).createdAt || (c as any).date));
+    const converted = scopedCheckouts.filter(c => c.status === 'concluido' || c.status === 'recuperado').length;
+    const pending = scopedCheckouts.filter(c => c.status === 'pendente').length;
 
     const total = converted + pending;
     const efficiencyRate = total > 0 ? (converted / total) * 100 : 0;
@@ -101,7 +114,7 @@ export default function DashboardPerformanceAnalytics({
       total,
       efficiencyRate
     };
-  }, [localCheckouts]);
+  }, [localCheckouts, activePeriod]);
 
   // 3. Uso Real do Provador Virtual (Iniciado em 0 por padrão, sem baseline fictício)
   const provadorUses = useMemo(() => {
@@ -129,17 +142,15 @@ export default function DashboardPerformanceAnalytics({
     }
 
     const salesCountMap: Record<string, number> = {};
-    sales
-      .filter(s => s.status === 'Concluída')
-      .forEach(s => {
-        if (s.items && Array.isArray(s.items)) {
-          s.items.forEach(item => {
-            if (item.productId) {
-              salesCountMap[item.productId] = (salesCountMap[item.productId] || 0) + (item.quantity || 1);
-            }
-          });
-        }
-      });
+    filteredCompletedSales.forEach(s => {
+      if (s.items && Array.isArray(s.items)) {
+        s.items.forEach(item => {
+          if (item.productId) {
+            salesCountMap[item.productId] = (salesCountMap[item.productId] || 0) + (item.quantity || 1);
+          }
+        });
+      }
+    });
 
     const mapped = products.map((prod) => {
       const trackedClicks = clickMap[prod.id] || 0;
@@ -155,7 +166,7 @@ export default function DashboardPerformanceAnalytics({
     });
 
     return mapped.sort((a, b) => b.interactions - a.interactions);
-  }, [products, sales, isRefreshing]);
+  }, [products, filteredCompletedSales, isRefreshing]);
 
   // Dynamic growth rate calculation comparing last 30 days to the 30 days before that
   const growthRate = useMemo(() => {

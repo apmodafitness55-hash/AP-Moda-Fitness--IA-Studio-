@@ -146,33 +146,41 @@ export default function OrdersLogistics({
     }
 
     if (confirm(`Deseja lançar e faturar o pedido #${order.id} diretamente no PDV/Faturamento de Vendas?`)) {
-      const wasPaid = order.status_pagamento === 'pago' || order.status === 'Pago' || order.status === 'Entregue';
       onUpdateOnlineOrderStatus(order.id, 'Entregue', 'pago');
 
-      if (wasPaid && !alreadyInvoiced) {
+      if (!alreadyInvoiced) {
         const items = Array.isArray(order.items) && order.items.length > 0
           ? order.items
           : [{ productName: 'Item Pedido Web', quantity: 1, price: order.total || 0 }];
 
-        const subtotal = items.reduce((sum: number, it: any) => sum + (Number(it.price) * Number(it.quantity)), 0) || order.total || 0;
+        const subtotal = items.reduce((sum: number, it: any) => sum + (Number(it.price) * (Number(it.quantity) || 1)), 0) || order.total || 0;
         const deliveryFee = Number(order.deliveryFee) || 0;
+        const mappedItems = items.map((it: any) => {
+          const itemName = (it.productName || it.name || 'Produto Online').toString();
+          const matchedProd = products.find(p =>
+            p.id === it.productId || p.name.toLowerCase() === itemName.toLowerCase()
+          );
+          const unitCost = Number(it.cost ?? matchedProd?.cost ?? 0);
+          return {
+            productId: matchedProd?.id || it.productId || 'p1',
+            name: itemName,
+            quantity: Number(it.quantity) || 1,
+            price: Number(it.price) || 0,
+            cost: unitCost,
+            selectedColor: it.color || it.selectedColor || undefined,
+            selectedSize: it.size || it.selectedSize || undefined
+          };
+        });
+        const totalCost = mappedItems.reduce((sum: number, it: any) => sum + (it.cost * it.quantity), 0);
 
         const newSale: Sale = {
           id: order.id,
           clientName: order.clientName || 'Cliente Online',
           salesperson: order.motoboy || 'Loja Online (E-commerce)',
           channel: 'E-commerce',
-          items: items.map((it: any) => ({
-            productId: it.productId || 'p1',
-            name: it.productName || it.name || 'Produto Online',
-            quantity: Number(it.quantity) || 1,
-            price: Number(it.price) || 0,
-            cost: 0,
-            selectedColor: it.color || it.selectedColor || undefined,
-            selectedSize: it.size || it.selectedSize || undefined
-          })),
+          items: mappedItems,
           total: Number(order.total ?? (subtotal + deliveryFee)),
-          costTotal: 0,
+          costTotal: totalCost,
           status: 'Concluída',
           createdAt: order.createdAt || new Date().toISOString(),
           address: order.address || undefined,
@@ -1537,23 +1545,35 @@ export default function OrdersLogistics({
                 <span>Gestão Logística de Encomendas & Motoboys</span>
               </h3>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <span className="text-slate-400 font-bold block">Faturamento Envio</span>
-                  <span className="text-lg font-bold text-slate-800 mt-0.5">R$ 45,00</span>
-                  <p className="text-[9px] text-slate-400 mt-1">Taxas de entregas coletadas ontem/hoje</p>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <span className="text-slate-400 font-bold block">Média Tempo de Entrega</span>
-                  <span className="text-lg font-bold text-slate-800 mt-0.5">32 minutos</span>
-                  <p className="text-[9px] text-slate-400 mt-1">Desde a expedição até o recebimento</p>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <span className="text-slate-400 font-bold block">Modos Disponíveis</span>
-                  <span className="text-lg font-bold text-slate-800 mt-0.5">Motoboy VIP, Correios</span>
-                  <p className="text-[9px] text-slate-400 mt-1">Disponíveis para checkout no e-commerce</p>
-                </div>
-              </div>
+              {(() => {
+                const activeOrders = onlineOrders.filter(o => o.status !== 'Cancelado' && o.status !== 'Recusado');
+                const shippingCollected = activeOrders
+                  .filter(o => o.status_pagamento === 'pago' || o.status === 'Pago' || o.status === 'Entregue')
+                  .reduce((sum, o) => sum + (Number(o.deliveryFee) || 0), 0);
+                const inTransitCount = activeOrders.filter(o => (o.status || '').toLowerCase() === 'saiu para entrega').length;
+                const deliveredCount = activeOrders.filter(o => (o.status || '').toLowerCase() === 'entregue').length;
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <span className="text-slate-400 font-bold block">Faturamento Envio</span>
+                      <span className="text-lg font-bold text-slate-800 mt-0.5">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(shippingCollected)}
+                      </span>
+                      <p className="text-[9px] text-slate-400 mt-1">Taxas de entrega em pedidos pagos</p>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <span className="text-slate-400 font-bold block">Entregas em Rota / Concluídas</span>
+                      <span className="text-lg font-bold text-slate-800 mt-0.5">{inTransitCount} em rota • {deliveredCount} entregues</span>
+                      <p className="text-[9px] text-slate-400 mt-1">Contagem real dos pedidos ativos</p>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <span className="text-slate-400 font-bold block">Modos Disponíveis</span>
+                      <span className="text-lg font-bold text-slate-800 mt-0.5">Motoboy VIP, Correios</span>
+                      <p className="text-[9px] text-slate-400 mt-1">Disponíveis para checkout no e-commerce</p>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Delivery Riders statuses */}
               <div className="flex items-center justify-between mb-3">

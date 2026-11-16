@@ -33,6 +33,7 @@ import {
   CheckSquare
 } from 'lucide-react';
 import { Client, Sale, Product } from '../types';
+import { getStoreConfig } from '../utils/storeConfig';
 
 interface CustomerPortalProps {
   currentUser: {
@@ -812,7 +813,7 @@ export default function CustomerPortal({
                     ) : (
                       <>
                         <Save size={13} />
-                        Slavar Minhas Medidas
+                        Salvar Minhas Medidas
                       </>
                     )}
                   </button>
@@ -843,7 +844,7 @@ export default function CustomerPortal({
                   <div className="bg-slate-950 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between">
                     <div className="space-y-3">
                       <span className="text-[9px] font-mono uppercase bg-pink-950/40 text-pink-300 border border-pink-900/35 px-2 py-0.5 rounded-md font-bold">
-                        Diagnóstio de Shape
+                        Diagnóstico de Shape
                       </span>
                       
                       <div className="flex items-center gap-5">
@@ -1170,7 +1171,7 @@ export default function CustomerPortal({
                   }}
                   className="text-[9px] font-semibold text-slate-500 hover:text-slate-400 font-mono underline cursor-pointer"
                 >
-                  Sorteiro de Amanhã (Limpar Ticket)
+                  Sorteio de Amanhã (Limpar Ticket)
                 </button>
               </div>
             </div>
@@ -1219,7 +1220,7 @@ export default function CustomerPortal({
               </div>
               <div className="flex gap-2 font-mono">
                 <span className="bg-slate-900 border border-slate-800 text-[10px] font-bold text-slate-300 px-3 py-1.5 rounded-xl flex items-center gap-1 select-all">
-                  <Phone size={12} /> (11) 98765-4321
+                  <Phone size={12} /> {getStoreConfig().phone}
                 </span>
               </div>
             </div>
@@ -1231,7 +1232,7 @@ export default function CustomerPortal({
       {/* Mini Brand Footer */}
       <footer id="customer-vip-footer" className="bg-slate-950 border-t border-slate-900/60 py-6 text-center text-slate-500 text-[10px] font-mono select-none space-y-1">
         <p>AP VIP LOYALTY ENGINE • SEGURANÇA SSL CRIPTOGRAFADO</p>
-        <p className="text-slate-600">© 2026 AP MODA FITNESS. TODOS OS DIREITOS RESERVADOS.</p>
+        <p className="text-slate-600">© {new Date().getFullYear()} AP MODA FITNESS. TODOS OS DIREITOS RESERVADOS.</p>
       </footer>
     </div>
   );

@@ -25,6 +25,20 @@ export const AP_FALLBACK_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent
 </svg>
 `.trim());
 
+export function isFallbackOrPlaceholderUrl(url?: string | null): boolean {
+  if (!url || typeof url !== 'string') return true;
+  const trimmed = url.trim();
+  if (!trimmed) return true;
+  if (trimmed === AP_FALLBACK_IMAGE) return true;
+  if (trimmed.startsWith('data:image/svg+xml')) {
+    const decoded = decodeURIComponent(trimmed);
+    if (decoded.includes('AP MODA FITNESS') || decoded.includes('ALTA PERFORMANCE')) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Pre-compressed WebP maps for instant zero-latency loading from static bundle
 export const PRE_OPTIMIZED_IMAGES: Record<string, string> = {
   "https://i.ibb.co/HDJgD4rc/1000568172-jpg.jpg": "fe86abeaefbd3f05f209a5eb5fa4fc19.webp",
@@ -193,15 +207,15 @@ export function resolveClientDirectImageUrl(url?: string | null): string {
  */
 export function getProductMainImage(prod: any): string {
   if (!prod) return '';
-  if (typeof prod.image === 'string' && prod.image.trim()) {
+  if (typeof prod.image === 'string' && !isFallbackOrPlaceholderUrl(prod.image)) {
     return prod.image.trim();
   }
   if (Array.isArray(prod.images) && prod.images.length > 0) {
-    const found = prod.images.find((img: any) => typeof img === 'string' && img.trim());
+    const found = prod.images.find((img: any) => typeof img === 'string' && !isFallbackOrPlaceholderUrl(img));
     if (found) return found.trim();
   }
   if (Array.isArray(prod.image) && prod.image.length > 0) {
-    const found = prod.image.find((img: any) => typeof img === 'string' && img.trim());
+    const found = prod.image.find((img: any) => typeof img === 'string' && !isFallbackOrPlaceholderUrl(img));
     if (found) return found.trim();
   }
   return '';

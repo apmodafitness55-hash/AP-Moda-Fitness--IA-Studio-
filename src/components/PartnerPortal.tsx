@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { saveStoredPartners, addPartnerWithdrawRequest, getStoredPartnerWithdrawRequests, syncPartnerWithdrawRequestsWithServer, saveStoredPartnerWithdrawRequests, PartnerWithdrawRequest } from '../utils/partnerUtils';
 import { getAppUrl } from '../config';
-import { pushSystemConfigToSupabase, syncBulkSalesToSupabase, syncBulkOnlineOrdersToSupabase, fetchSystemConfigsFromSupabase } from '../supabase';
+import { pushSystemConfigToSupabase, syncBulkSalesToSupabase, syncBulkOnlineOrdersToSupabase, syncBulkTransactionsToSupabase, fetchSystemConfigsFromSupabase } from '../supabase';
 import { 
   Award, 
   DollarSign, 
@@ -92,14 +92,20 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
 
   // Find the exact partner match for this logged user
   const currentPartner = useMemo(() => {
-    const match = partners.find(p => p.name.toLowerCase().includes(currentUser.name.toLowerCase()) || currentUser.name.toLowerCase().includes(p.name.toLowerCase()) || (p.couponCode && currentUser.couponCode && p.couponCode.toUpperCase() === currentUser.couponCode.toUpperCase()));
+    const uName = (currentUser.name || '').toLowerCase().trim();
+    const uCoupon = (currentUser.couponCode || '').toUpperCase().trim();
+    const match = partners.find(p =>
+      (currentUser.id && p.id === currentUser.id) ||
+      (uName && p.name.toLowerCase().trim() === uName) ||
+      (uCoupon && p.couponCode && p.couponCode.toUpperCase().trim() === uCoupon)
+    );
     if (match) return match;
     
     return {
       id: currentUser.id || 'part-temp',
       name: currentUser.name || 'Parceiro Master',
       instagram: '@' + (currentUser.login || 'apmodafit_parceira'),
-      couponCode: currentUser.couponCode || currentUser.details?.couponCode || (currentUser.login ? currentUser.login.toUpperCase() + '10' : 'APMODAFIT10'),
+      couponCode: currentUser.couponCode || currentUser.details?.couponCode || '',
       commissionRate: 10,
       salesCount: 0,
       totalGenerated: 0,
@@ -150,91 +156,47 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
     if (Array.isArray(onlineOrders)) setActiveOrders(onlineOrders);
   }, [onlineOrders]);
 
-  // Extract all token variations for currentPartner to ensure 100% failproof auto-matching
+  // Extract strict token set for currentPartner (NEVER uses login or split name substrings)
   const partnerTokens = useMemo(() => {
     const tokens = new Set<string>();
     const sanitize = (str: string) => (str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
 
-    const rawName = currentPartner.name || '';
-    const rawCoupon = currentPartner.couponCode || '';
-    const rawLogin = ((currentPartner as any).login || currentUser?.login || '');
-    const rawId = currentPartner.id || '';
+    const cleanCoupon = sanitize(currentPartner.couponCode || '');
+    const cleanId = sanitize(currentPartner.id || '');
 
-    const cleanName = sanitize(rawName);
-    const cleanCoupon = sanitize(rawCoupon);
-    const cleanLogin = sanitize(rawLogin);
-    const cleanId = sanitize(rawId);
-
-    if (cleanCoupon) {
-      tokens.add(cleanCoupon);
-      const alpha = cleanCoupon.replace(/[^A-Z]/g, '');
-      if (alpha.length >= 3) tokens.add(alpha);
-    }
-
-    if (cleanLogin) {
-      tokens.add(cleanLogin);
-      const alpha = cleanLogin.replace(/[^A-Z]/g, '');
-      if (alpha.length >= 3) tokens.add(alpha);
-    }
-
-    if (cleanName) {
-      tokens.add(cleanName);
-      cleanName.split(/\s+/).forEach(part => {
-        const p = part.trim();
-        if (p.length >= 3 && !['DOS', 'DAS', 'DA', 'DE', 'DO', 'MODA', 'FITNESS'].includes(p)) {
-          tokens.add(p);
-        }
-      });
-    }
-
+    if (cleanCoupon) tokens.add(cleanCoupon);
     if (cleanId) tokens.add(cleanId);
 
     return Array.from(tokens);
-  }, [currentPartner, currentUser]);
-  // Compute REAL sales matching this partner's couponCode / ID / name / login / tokens + manual sales
+  }, [currentPartner]);
+
+  // Compute REAL sales matching this partner's exact ID / exact Name / exact official couponCode + manual sales
   const partnerSales = useMemo(() => {
     const matched: any[] = [];
     const sanitize = (str: string) => (str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
 
     const currentPId = sanitize(currentPartner.id || '');
     const currentPName = sanitize(currentPartner.name || '');
+    const currentPCoupon = sanitize(currentPartner.couponCode || '');
 
-    const isPartnerMatch = (cCode: string, pName: string, pId: string, notes: string) => {
+    const isPartnerMatch = (cCode: string, pName: string, pId: string, _notes: string) => {
       const cleanCCode = sanitize(cCode);
       const cleanPName = sanitize(pName);
       const cleanPId = sanitize(pId);
-      const cleanNotes = sanitize(notes);
 
       // 1. Explicit Partner ID assignment takes absolute top precedence & exclusivity
       if (cleanPId) {
         return cleanPId === currentPId;
       }
 
-      // 2. Explicit Partner Name assignment takes second precedence & exclusivity
+      // 2. Explicit Partner Name assignment takes second precedence & exclusivity (exact match only)
       if (cleanPName) {
-        return currentPName ? (cleanPName === currentPName || cleanPName.includes(currentPName) || currentPName.includes(cleanPName)) : false;
+        return Boolean(currentPName && cleanPName === currentPName);
       }
 
-      // 3. Check coupon code matching against tokens (strict match)
-      if (cleanCCode) {
-        for (const token of partnerTokens) {
-          if (!token) continue;
-          if (cleanCCode === token || cleanCCode.includes(token) || token.includes(cleanCCode)) {
-            return true;
-          }
-        }
-        // If sale has a specific coupon code that doesn't match this partner, do NOT match via notes
-        return false;
-      }
-
-      // 4. Check notes matching against partner tokens
-      if (cleanNotes) {
-        for (const token of partnerTokens) {
-          if (!token || token.length < 4) continue;
-          if (cleanNotes.includes(token)) {
-            return true;
-          }
-        }
+      // 3. Exact official coupon code match only (never login or partial substring)
+      if (cleanCCode && currentPCoupon) {
+        return cleanCCode === currentPCoupon;
       }
 
       return false;
@@ -644,7 +606,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
   const realTotalGenerated = partnerSales.reduce((acc, curr) => acc + (curr.total || 0), 0);
   const realEarnedCommission = partnerSales.reduce((acc, curr) => acc + (curr.commission || 0), 0);
   const totalWithdrawn = withdrawRequests
-    .filter(r => r.status === 'Aprovado' || r.status === 'Pendente')
+    .filter(r => r.status === 'Aprovado' || r.status === 'Pendente' || r.status === 'Pago')
     .reduce((acc, curr) => acc + (curr.amount || 0), 0);
 
   const currentAvailableBalance = Math.max(0, realEarnedCommission - totalWithdrawn);
@@ -814,19 +776,21 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
       }
     } catch (e) {}
 
-    // Also register inflow transaction in general cashflow to appear pending or outflow in the core system
+    // Also register outflow transaction in general cashflow to appear pending or outflow in the core system
     try {
       const savedTrans = localStorage.getItem('ap_moda_transactions');
       const coreTransactions = savedTrans ? JSON.parse(savedTrans) : [];
       const trackingTrans = {
         id: `TX-PRT-${Math.floor(1000 + Math.random() * 9000)}`,
-        type: 'Outflow',
+        type: 'Outflow' as const,
         category: 'Comissão Parceiro',
         description: `Saque comissão Pix solicitado por ${currentPartner.name} (${currentPartner.couponCode})`,
         amount: val,
+        status: 'pendente' as const,
         date: new Date().toISOString().split('T')[0]
       };
       localStorage.setItem('ap_moda_transactions', JSON.stringify([trackingTrans, ...coreTransactions]));
+      syncBulkTransactionsToSupabase([trackingTrans]).catch(() => {});
     } catch(e){}
 
     setWithdrawAmount('');
@@ -1117,7 +1081,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
               <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="space-y-1 text-center sm:text-left select-none">
                   <span className="text-[9px] font-extrabold uppercase bg-pink-600/15 border border-pink-500/20 text-pink-400 px-2 py-0.5 rounded">Cupom Exclusivo</span>
-                  <p className="text-xs text-slate-300 pr-4 mt-1 font-medium">Oferece desconto especial de 5% no checkout de atacado ou varejo.</p>
+                  <p className="text-xs text-slate-300 pr-4 mt-1 font-medium">Oferece desconto especial exclusivo no checkout da loja.</p>
                 </div>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -1488,7 +1452,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
                         <td className="py-3 text-right font-mono font-bold text-white">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(req.amount)}</td>
                         <td className="py-3 text-right font-sans">
                           <span className={`font-black text-[9px] px-2 py-0.5 rounded border
-                            ${req.status === 'Aprovado' 
+                            ${(req.status === 'Aprovado' || req.status === 'Pago')
                               ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
                               : req.status === 'Pendente'
                               ? 'bg-amber-500/10 border-amber-500/20 text-amber-400 animate-pulse'

@@ -33,14 +33,20 @@ interface SalesGoalSimulatorProps {
 }
 
 export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
-  // Current Month definition: June 2026 (based on mockData.ts system year)
-  const simulatedYear = 2026;
-  const simulatedMonth = 5; // 0-indexed, June is 5
-  const simulatedTodayDay = 13; // June 13, 2026
+  // Dynamic current calendar month & day
+  const nowDate = new Date();
+  const simulatedYear = nowDate.getFullYear();
+  const simulatedMonth = nowDate.getMonth();
+  const simulatedTodayDay = nowDate.getDate();
+  const totalDaysInMonth = new Date(simulatedYear, simulatedMonth + 1, 0).getDate();
+  const rawMonthName = nowDate.toLocaleDateString('pt-BR', { month: 'long' });
+  const monthNameCapitalized = rawMonthName.charAt(0).toUpperCase() + rawMonthName.slice(1);
+  const monthNumberStr = String(simulatedMonth + 1).padStart(2, '0');
+  const naturalRemainingDays = Math.max(1, totalDaysInMonth - simulatedTodayDay);
   
   // States for interactive simulations
   const [monthlyGoal, setMonthlyGoal] = useState<number>(20000); // Default R$ 20.000,00
-  const [remainingDays, setRemainingDays] = useState<number>(17); // Days remaining in June (30 - 13 = 17)
+  const [remainingDays, setRemainingDays] = useState<number>(() => Math.max(1, totalDaysInMonth - simulatedTodayDay));
   const [useOnlyBusinessDays, setUseOnlyBusinessDays] = useState<boolean>(false);
   const [simulatedExtraSale, setSimulatedExtraSale] = useState<number>(0);
   const [showHelperTips, setShowHelperTips] = useState<boolean>(true);
@@ -53,16 +59,16 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
-  // 1. Calculate Real Completed Revenue for June 2026
+  // 1. Calculate Real Completed Revenue for the current month
   const realizedRevenue = useMemo(() => {
-    const juneSales = sales.filter(sale => {
+    const monthSales = sales.filter(sale => {
       if (sale.status !== 'Concluída') return false;
       const saleDate = new Date(sale.createdAt);
       return saleDate.getFullYear() === simulatedYear && saleDate.getMonth() === simulatedMonth;
     });
     
-    return juneSales.reduce((sum, s) => sum + s.total, 0);
-  }, [sales]);
+    return monthSales.reduce((sum, s) => sum + s.total, 0);
+  }, [sales, simulatedYear, simulatedMonth]);
 
   // Adjust current total in real-time if user plays with the simulated extra sale input
   const totalWithSimulated = useMemo(() => {
@@ -81,10 +87,10 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
     return Number(pct.toFixed(1));
   }, [totalWithSimulated, monthlyGoal]);
 
-  // 3. Historical daily average (June 1st to June 13th = 13 days)
+  // 3. Historical daily average (Day 1 to today)
   const currentDailyAverage = useMemo(() => {
-    return totalWithSimulated / simulatedTodayDay;
-  }, [totalWithSimulated]);
+    return totalWithSimulated / Math.max(1, simulatedTodayDay);
+  }, [totalWithSimulated, simulatedTodayDay]);
 
   // 4. Required Daily Average over the remaining days
   const requiredDailyAverage = useMemo(() => {
@@ -138,18 +144,18 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
     }
   }, [requiredDailyAverage, currentDailyAverage, remainingToGoal]);
 
-  // 5. Generate Trajectory Curve (Days 1 to 30 of June)
+  // 5. Generate Trajectory Curve (Days 1 to end of current month)
   const trajectoryChartData = useMemo(() => {
-    const totalDays = 30;
+    const totalDays = totalDaysInMonth;
     const data = [];
     
-    // Group completed sales by day of month (June 1 - 30) for historical calculation
+    // Group completed sales by day of month for historical calculation
     const dailySalesMap: Record<number, number> = {};
     for (let d = 1; d <= totalDays; d++) {
       dailySalesMap[d] = 0;
     }
 
-    // Add extra simulated sale spread safely on today (June 13) just for active graphing
+    // Add extra simulated sale safely on today just for active graphing
     dailySalesMap[simulatedTodayDay] += simulatedExtraSale;
 
     sales.forEach(sale => {
@@ -166,7 +172,7 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
     let cumulativeReal = 0;
     
     for (let day = 1; day <= totalDays; day++) {
-      const formattedLabel = `${day.toString().padStart(2, '0')}/06`;
+      const formattedLabel = `${day.toString().padStart(2, '0')}/${monthNumberStr}`;
       
       // Calculate linear target trajectory (perfectly straight path to target)
       const linearTarget = (monthlyGoal / totalDays) * day;
@@ -178,14 +184,14 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
         realCumulative = Number(cumulativeReal.toFixed(2));
       }
 
-      // Projected progress (starts from Today's cumulative real value, then grows linearly to hit exactly the Goal at day 30)
+      // Projected progress (starts from Today's cumulative real value, then grows linearly to hit the Goal at month end)
       let projectedCumulative: number | null = null;
       if (day >= simulatedTodayDay) {
         if (day === simulatedTodayDay) {
           projectedCumulative = Number(cumulativeReal.toFixed(2));
         } else {
           const daysProjectedElapsed = day - simulatedTodayDay;
-          const totalDaysProjectedLeft = totalDays - simulatedTodayDay;
+          const totalDaysProjectedLeft = Math.max(1, totalDays - simulatedTodayDay);
           const realFactor = cumulativeReal + (monthlyGoal - cumulativeReal) * (daysProjectedElapsed / totalDaysProjectedLeft);
           projectedCumulative = Number(realFactor.toFixed(2));
         }
@@ -201,7 +207,7 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
     }
 
     return data;
-  }, [sales, monthlyGoal, simulatedExtraSale]);
+  }, [sales, monthlyGoal, simulatedExtraSale, simulatedYear, simulatedMonth, totalDaysInMonth, simulatedTodayDay, monthNumberStr]);
 
   return (
     <div className="bg-white border border-slate-100 rounded-2xl p-5 md:p-6 shadow-xs flex flex-col gap-6" id="sales-goals-simulator">
@@ -346,7 +352,7 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
             </div>
             
             {/* Context feedback of current simulated day */}
-            <p className="text-[10px] text-slate-400 font-medium">Hoje é dia <span className="font-bold text-slate-600">13 de Junho</span>. Faltam exatamente 17 dias corridos para o fim de Junho.</p>
+            <p className="text-[10px] text-slate-400 font-medium">Hoje é dia <span className="font-bold text-slate-600">{simulatedTodayDay} de {monthNameCapitalized}</span>. Faltam exatamente {naturalRemainingDays} dias corridos para o fim de {monthNameCapitalized}.</p>
           </div>
 
           {/* Extra Simulated Large Order Box */}
@@ -450,14 +456,14 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
                   className="h-full bg-amber-400 absolute top-0 block animate-pulse duration-1000"
                   style={{ 
                     left: `${Math.min(100, (realizedRevenue / monthlyGoal) * 100)}%`,
-                    width: `${Math.min(100 - (realizedRevenue / monthlyGoal) * 105, (simulatedExtraSale / monthlyGoal) * 100)}%` 
+                    width: `${Math.max(0, Math.min(100 - (realizedRevenue / monthlyGoal) * 100, (simulatedExtraSale / monthlyGoal) * 100))}%` 
                   }}
                 />
               )}
             </div>
             <div className="flex justify-between text-[9px] text-slate-400">
               <span>Começo (R$ 0)</span>
-              <span>Hoje (Dia 13)</span>
+              <span>Hoje (Dia {simulatedTodayDay})</span>
               <span>Meta ({formatValue(monthlyGoal)})</span>
             </div>
           </div>

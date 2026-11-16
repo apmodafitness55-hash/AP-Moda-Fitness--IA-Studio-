@@ -736,17 +736,25 @@ export default function PublicCatalog({
     if (refParam) {
       const cleanRef = refParam.trim().toUpperCase();
       setAffiliateRefCode(cleanRef);
-      setCouponCode(cleanRef);
-      setAppliedCoupon({
-        code: cleanRef,
-        discountPercent: 5,
-        fixedDiscount: 0,
-        maxPerCpf: 1,
-        isFirstPurchase: false
-      });
-      try {
-        localStorage.setItem('ap_applied_coupon', cleanRef);
-      } catch (e) {}
+      const res = validateCouponForCpf(cleanRef, currentUser?.details?.cpf, sales, onlineOrders, cart);
+      if (res.valid && res.couponObj) {
+        const couponPayload = {
+          code: res.couponObj.code,
+          discountPercent: res.couponObj.type === 'percent' ? res.couponObj.value : 0,
+          fixedDiscount: res.couponObj.type === 'fixed' ? res.couponObj.value : 0,
+          maxPerCpf: res.couponObj.maxPerCpf,
+          isFirstPurchase: res.couponObj.isFirstPurchase,
+          category: res.couponObj.category,
+          partnerName: res.couponObj.partnerName,
+          partnerId: res.couponObj.partnerId,
+          commissionRate: res.couponObj.commissionRate
+        };
+        setCouponCode(couponPayload.code);
+        setAppliedCoupon(couponPayload);
+        try {
+          localStorage.setItem('ap_applied_coupon', JSON.stringify(couponPayload));
+        } catch (e) {}
+      }
     }
 
     if (prodsParam) {
@@ -2563,11 +2571,21 @@ export default function PublicCatalog({
     });
 
     if (!appliedCoupon) {
-      const firstPurchaseCoupon = { code: 'PRIMEIRACOMPRA', discountPercent: 10, fixedDiscount: 0 };
-      setAppliedCoupon(firstPurchaseCoupon);
-      setCouponCode('PRIMEIRACOMPRA');
-      setCouponToastMsg('🎁 Cupom de 1ª Compra PRIMEIRACOMPRA (10% OFF + Frete Grátis) aplicado automaticamente!');
-      setShowCouponToast(true);
+      const res = validateCouponForCpf('PRIMEIRACOMPRA', currentUser?.details?.cpf, sales, onlineOrders, cart);
+      if (res.valid && res.couponObj) {
+        const firstPurchaseCoupon = {
+          code: res.couponObj.code,
+          discountPercent: res.couponObj.type === 'percent' ? res.couponObj.value : 0,
+          fixedDiscount: res.couponObj.type === 'fixed' ? res.couponObj.value : 0,
+          category: res.couponObj.category,
+          maxPerCpf: res.couponObj.maxPerCpf,
+          isFirstPurchase: res.couponObj.isFirstPurchase
+        };
+        setAppliedCoupon(firstPurchaseCoupon);
+        setCouponCode(firstPurchaseCoupon.code);
+        setCouponToastMsg(`🎁 Cupom de 1ª Compra ${firstPurchaseCoupon.code} (${firstPurchaseCoupon.discountPercent}% OFF + Frete Grátis) aplicado automaticamente!`);
+        setShowCouponToast(true);
+      }
     }
 
     handleOpenCart(1);
@@ -2621,11 +2639,21 @@ export default function PublicCatalog({
     });
 
     if (!appliedCoupon) {
-      const firstPurchaseCoupon = { code: 'PRIMEIRACOMPRA', discountPercent: 10, fixedDiscount: 0 };
-      setAppliedCoupon(firstPurchaseCoupon);
-      setCouponCode('PRIMEIRACOMPRA');
-      setCouponToastMsg('🎁 Cupom de 1ª Compra PRIMEIRACOMPRA (10% OFF + Frete Grátis) aplicado automaticamente!');
-      setShowCouponToast(true);
+      const res = validateCouponForCpf('PRIMEIRACOMPRA', currentUser?.details?.cpf, sales, onlineOrders, cart);
+      if (res.valid && res.couponObj) {
+        const firstPurchaseCoupon = {
+          code: res.couponObj.code,
+          discountPercent: res.couponObj.type === 'percent' ? res.couponObj.value : 0,
+          fixedDiscount: res.couponObj.type === 'fixed' ? res.couponObj.value : 0,
+          category: res.couponObj.category,
+          maxPerCpf: res.couponObj.maxPerCpf,
+          isFirstPurchase: res.couponObj.isFirstPurchase
+        };
+        setAppliedCoupon(firstPurchaseCoupon);
+        setCouponCode(firstPurchaseCoupon.code);
+        setCouponToastMsg(`🎁 Cupom de 1ª Compra ${firstPurchaseCoupon.code} (${firstPurchaseCoupon.discountPercent}% OFF + Frete Grátis) aplicado automaticamente!`);
+        setShowCouponToast(true);
+      }
     }
   };
 
@@ -5468,7 +5496,7 @@ export default function PublicCatalog({
                   id: `nws-${Date.now()}`,
                   name: newsletterName.trim(),
                   email: newsletterEmail.trim(),
-                  phone: "(21) 99999-1234",
+                  phone: "",
                   channel: "E-commerce",
                   npsScore: 10,
                   totalSpent: 0,
@@ -5952,11 +5980,30 @@ export default function PublicCatalog({
               type="button"
               onClick={() => {
                 const campaignCoupon = extractCampaignCoupon() || 'PRIMEIRACOMPRA';
-                const discountPct = 10;
-                const couponObj = { code: campaignCoupon, discountPercent: discountPct, fixedDiscount: 0 };
+                const res = validateCouponForCpf(campaignCoupon, currentUser?.details?.cpf, sales, onlineOrders, cart);
+                if (!res.valid || !res.couponObj) {
+                  setCouponToastMsg(res.message || `Cupom ${campaignCoupon} indisponível no momento.`);
+                  setShowCouponToast(true);
+                  setIsFloatingDismissed(true);
+                  handleOpenCart(1);
+                  return;
+                }
+                const couponObj = {
+                  code: res.couponObj.code,
+                  discountPercent: res.couponObj.type === 'percent' ? res.couponObj.value : 0,
+                  fixedDiscount: res.couponObj.type === 'fixed' ? res.couponObj.value : 0,
+                  category: res.couponObj.category,
+                  maxPerCpf: res.couponObj.maxPerCpf,
+                  isFirstPurchase: res.couponObj.isFirstPurchase,
+                  partnerName: res.couponObj.partnerName,
+                  partnerId: res.couponObj.partnerId,
+                  commissionRate: res.couponObj.commissionRate
+                };
                 setAppliedCoupon(couponObj);
-                setCouponCode(campaignCoupon);
-                const msg = `🎁 Cupom de 1ª Compra ${campaignCoupon} (${discountPct}% OFF + Frete Grátis) foi ativado e adicionado à sua sacola! 🎉`;
+                setCouponCode(couponObj.code);
+                const msg = couponObj.discountPercent > 0
+                  ? `🎁 Cupom ${couponObj.code} (${couponObj.discountPercent}% OFF) foi ativado e adicionado à sua sacola! 🎉`
+                  : `🎁 Cupom ${couponObj.code} ativado na sua sacola! 🎉`;
                 setCouponSuccess(msg);
                 setCouponToastMsg(msg);
                 setShowCouponToast(true);
@@ -5967,7 +6014,7 @@ export default function PublicCatalog({
 
                 try {
                   localStorage.setItem('ap_applied_coupon', JSON.stringify(couponObj));
-                  localStorage.setItem('ap_coupon_code', campaignCoupon);
+                  localStorage.setItem('ap_coupon_code', couponObj.code);
                 } catch (e) {}
               }}
               className="block w-full text-center py-2 px-4 rounded-xl text-[10px] font-bold text-white transition hover:opacity-90 tracking-wide border-none cursor-pointer"

@@ -149,8 +149,7 @@ export default function VendasList({
     if (partnerName && !couponCode) {
       const matchPartner = registeredPartners.find((p: any) => 
         p.id === partnerId || 
-        (p.name && p.name.toLowerCase().trim() === String(partnerName).toLowerCase().trim()) ||
-        (p.name && String(partnerName).toLowerCase().trim().includes(p.name.toLowerCase().trim()))
+        (p.name && p.name.toLowerCase().trim() === String(partnerName).toLowerCase().trim())
       );
       if (matchPartner) {
         couponCode = matchPartner.couponCode;
@@ -311,7 +310,7 @@ export default function VendasList({
             if (s.status === 'Cancelada') return false;
             const sInfo = resolveSalePartnerInfo(s);
             if (sInfo.partnerId && sInfo.partnerId === pId) return true;
-            if (sInfo.partnerName && (sInfo.partnerName.toLowerCase().trim() === pNameLower || sInfo.partnerName.toLowerCase().trim().includes(pNameLower))) return true;
+            if (sInfo.partnerName && sInfo.partnerName.toLowerCase().trim() === pNameLower) return true;
             if (sInfo.couponCode && pCouponUpper && sInfo.couponCode.toUpperCase().trim() === pCouponUpper) return true;
             return false;
           });
@@ -848,6 +847,8 @@ export default function VendasList({
               className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2 font-medium text-slate-700 focus:outline-hidden"
             >
               <option value="all">-- Todos Canais de Venda --</option>
+              <option value="Loja Online">Loja Online</option>
+              <option value="PDV">PDV</option>
               <option value="Instagram">Instagram</option>
               <option value="WhatsApp">WhatsApp</option>
               <option value="E-commerce">E-commerce</option>
@@ -1241,7 +1242,8 @@ export default function VendasList({
                 {/* Products Table */}
                 <div className="space-y-2">
                   <span className="text-[9px] uppercase tracking-wider font-extrabold text-slate-400 block">ITENS COMPRADOS</span>
-                  <table className="w-full text-left border-collapse text-[11px]">
+                  <div className="overflow-x-auto">
+                  <table className="w-full min-w-[440px] text-left border-collapse text-[11px]">
                     <thead>
                       <tr className="border-b-2 border-slate-200 text-slate-400 font-extrabold uppercase text-[9px]">
                         <th className="py-2 pb-1.5">Descrição do Produto</th>
@@ -1273,6 +1275,7 @@ export default function VendasList({
                       })}
                     </tbody>
                   </table>
+                  </div>
                 </div>
 
                 {/* Totals block */}

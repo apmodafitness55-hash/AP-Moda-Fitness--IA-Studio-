@@ -586,7 +586,7 @@ export default function FinanceCashflow({
             {/* Ledger quick sub-tabs filter bar */}
         <div className="p-4 bg-slate-50/55 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs font-sans">
           
-          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 self-start font-bold">
+          <div className="flex flex-wrap max-w-full bg-slate-100 p-1 rounded-xl border border-slate-200 self-start font-bold gap-1">
             <button 
               onClick={() => setActiveFilterTab('all')}
               className={`px-3 py-2 rounded-lg transition-all cursor-pointer text-[11px] ${activeFilterTab === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-400 hover:text-slate-700'}`}
@@ -613,7 +613,7 @@ export default function FinanceCashflow({
             </button>
           </div>
 
-          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 self-end md:self-auto font-bold text-slate-400">
+          <div className="flex flex-wrap max-w-full bg-slate-100 p-1 rounded-xl border border-slate-200 self-end md:self-auto font-bold text-slate-400 gap-1">
             <button 
               onClick={() => setSelectedType('All')}
               className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer text-[10px] uppercase tracking-wider ${selectedType === 'All' ? 'bg-white text-slate-800' : 'hover:text-slate-700'}`}
@@ -777,7 +777,7 @@ export default function FinanceCashflow({
               <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wide">Filtrar Período de Análise</h4>
               <p className="text-[10px] text-slate-400 font-medium">Os indicadores de margem e saúde serão recalculados dinamicamente.</p>
             </div>
-            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 font-bold self-start sm:self-auto">
+            <div className="flex flex-wrap max-w-full bg-slate-100 p-1 rounded-xl border border-slate-200 font-bold self-start sm:self-auto gap-1">
               {(['current_month', 'last_month', 'last_30', 'last_90', 'all'] as const).map((period) => {
                 const labels: Record<typeof period, string> = {
                   current_month: 'Mês Atual',

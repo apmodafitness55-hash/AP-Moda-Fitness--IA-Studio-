@@ -187,29 +187,25 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
     const cleanCouponInput = targetLogin.toUpperCase().trim();
 
     const validatePwd = (userPwd: string) => {
-      const uPwd = (userPwd || '').trim().toLowerCase();
-      const tPwd = targetPassword.trim().toLowerCase();
-      if (!uPwd || uPwd === '123') return true;
-      if (tPwd === uPwd) return true;
-      if (tPwd === '123' || tPwd === 'patricia123' || tPwd === 'admin123' || tPwd === 'admin' || isMasterAdmin) return true;
-      return true; // Smart bypass to prevent blocking staff/partners on different devices
+      const uPwd = (userPwd || '').trim();
+      const tPwd = targetPassword.trim();
+      if (isMasterAdmin) return true;
+      if (!uPwd) return tPwd === '123';
+      return tPwd === uPwd;
     };
 
     let authenticatedUser: any = null;
 
-    // 1. Search in allTeamMembers
+    // 1. Search in allTeamMembers (strict matching by login or exact normalized name)
     authenticatedUser = allTeamMembers.find(m => {
       const mLogin = (m.login || '').toLowerCase().replace(/[@\s]/g, '');
-      const mName = (m.name || '').toLowerCase();
-      const mCoupon = (m.couponCode || m.login || '').toUpperCase().trim();
-      const mDetails = (m.details || '').toLowerCase();
+      const mName = (m.name || '').toLowerCase().trim();
+      const mInsta = (m.details || '').toLowerCase().replace(/[@\s]/g, '');
 
-      const matchesLogin = 
-        mLogin === targetLoginLower ||
-        mCoupon === cleanCouponInput ||
-        mName === targetLogin.toLowerCase() ||
-        mName.replace(/\s+/g, '').includes(targetLoginLower) ||
-        mDetails.includes(targetLoginLower);
+      const matchesLogin =
+        (mLogin && mLogin === targetLoginLower) ||
+        (mInsta && mInsta === targetLoginLower) ||
+        (mName && mName === targetLogin.toLowerCase().trim());
 
       if (!matchesLogin) return false;
 
@@ -217,20 +213,17 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
       return validatePwd(m.password || '123');
     });
 
-    // 2. Search in localPartners
+    // 2. Search in localPartners (strict matching by login, Instagram, or exact name — NEVER couponCode)
     if (!authenticatedUser) {
       const matchedPartnerObj = localPartners.find(p => {
-        const pCoupon = (p.couponCode || '').toUpperCase().trim();
-        const pName = (p.name || '').toLowerCase();
+        const pName = (p.name || '').toLowerCase().trim();
         const pInsta = (p.instagram || '').toLowerCase().replace(/[@\s]/g, '');
-        const pLogin = (p.login || p.couponCode || '').toLowerCase().replace(/[@\s]/g, '');
+        const pLogin = (p.login || '').toLowerCase().replace(/[@\s]/g, '');
 
-        const matchesLogin = 
-          pCoupon === cleanCouponInput ||
-          pName === targetLogin.toLowerCase() ||
-          pName.replace(/\s+/g, '').includes(targetLoginLower) ||
-          pInsta === targetLoginLower ||
-          pLogin === targetLoginLower;
+        const matchesLogin =
+          (pLogin && pLogin === targetLoginLower) ||
+          (pInsta && pInsta === targetLoginLower) ||
+          (pName && pName === targetLogin.toLowerCase().trim());
 
         if (!matchesLogin) return false;
 
@@ -239,65 +232,20 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
 
       if (matchedPartnerObj) {
         authenticatedUser = {
-          id: matchedPartnerObj.id || `partner-${matchedPartnerObj.couponCode}`,
+          id: matchedPartnerObj.id || `partner-${matchedPartnerObj.login || matchedPartnerObj.name}`,
           name: matchedPartnerObj.name,
-          login: matchedPartnerObj.login || matchedPartnerObj.couponCode.toLowerCase(),
+          login: matchedPartnerObj.login || '',
           role: 'Parceiro',
-          password: matchedPartnerObj.password || targetPassword || '123',
+          password: matchedPartnerObj.password || '123',
           details: matchedPartnerObj,
-          couponCode: matchedPartnerObj.couponCode
+          couponCode: matchedPartnerObj.couponCode || ''
         };
       }
     }
 
-    // 3. Universal Fallback: If account not found locally on this device, automatically provision and authenticate
-    if (!authenticatedUser && targetLogin) {
-      const cleanName = targetLogin.replace(/[@_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-      const generatedRole = role || 'Parceiro';
-      authenticatedUser = {
-        id: `usr-auto-${Date.now()}`,
-        name: cleanName || 'Profissional AP Moda',
-        login: targetLoginLower,
-        role: generatedRole,
-        password: targetPassword || '123',
-        couponCode: (targetLogin.replace(/[^a-zA-Z0-9]/g, '') || 'APMODAFIT').toUpperCase() + '10',
-        details: {
-          name: cleanName,
-          instagram: targetLogin.startsWith('@') ? targetLogin : '@' + targetLogin,
-          couponCode: (targetLogin.replace(/[^a-zA-Z0-9]/g, '') || 'APMODAFIT').toUpperCase() + '10'
-        }
-      };
-
-      // Auto-save to device localStorage so account persists locally
-      try {
-        if (generatedRole === 'Parceiro') {
-          const currentP = localStorage.getItem('ap_moda_partners');
-          const list = currentP ? JSON.parse(currentP) : [];
-          list.push({
-            id: authenticatedUser.id,
-            name: authenticatedUser.name,
-            login: authenticatedUser.login,
-            instagram: '@' + targetLoginLower,
-            couponCode: authenticatedUser.couponCode,
-            password: targetPassword || '123',
-            commissionRate: 10,
-            salesCount: 0,
-            totalGenerated: 0,
-            availableBalance: 0
-          });
-          localStorage.setItem('ap_moda_partners', JSON.stringify(list));
-        } else {
-          const currentT = localStorage.getItem('ap_moda_team_users');
-          const list = currentT ? JSON.parse(currentT) : [];
-          list.push(authenticatedUser);
-          localStorage.setItem('ap_moda_team_users', JSON.stringify(list));
-        }
-      } catch(e){}
-    }
-
     if (!authenticatedUser) {
       if (role === 'Parceiro') {
-        setErrorMsg('Credencial de parceira não encontrada ou senha incorreta. (Dica: Você pode entrar com seu Login, Cupom de Desconto, Instagram ou Nome e a senha padrão 123).');
+        setErrorMsg('Credencial de parceira não encontrada ou senha incorreta. Entre com seu Login, Instagram ou Nome completo cadastrado pela loja.');
       } else {
         setErrorMsg('Senha ou login de profissional inválido. Verifique suas credenciais.');
       }

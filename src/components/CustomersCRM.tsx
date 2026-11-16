@@ -838,7 +838,7 @@ export default function CustomersCRM({
   // Form states for new Follow-up
   const [fClient, setFClient] = useState('');
   const [fChannel, setFChannel] = useState<'WhatsApp' | 'Instagram' | 'Call' | 'E-mail'>('WhatsApp');
-  const [fDate, setFDate] = useState('2026-06-14');
+  const [fDate, setFDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [fNotes, setFNotes] = useState('');
 
   // Form states for new Partner
@@ -3792,7 +3792,9 @@ export default function CustomersCRM({
                   >
                     <option value="Instagram">Instagram</option>
                     <option value="WhatsApp">WhatsApp</option>
+                    <option value="Loja Online">Loja Online</option>
                     <option value="E-commerce">E-commerce</option>
+                    <option value="PDV">PDV</option>
                     <option value="Loja Física">Loja Física</option>
                     <option value="Outros">Outros</option>
                   </select>
@@ -4024,7 +4026,12 @@ export default function CustomersCRM({
                     }
 
                     return filteredSystemSales.slice(0, 15).map((saleItem: any) => {
-                      const isLinkedToThis = (saleItem.partner && saleItem.partner.toLowerCase().includes(selectedPartnerForLinkingCRM.name.toLowerCase())) || saleItem.couponCode === selectedPartnerForLinkingCRM.couponCode;
+                      const pNameLower = (selectedPartnerForLinkingCRM.name || '').trim().toLowerCase();
+                      const salePartnerLower = (saleItem.partner || saleItem.partnerName || '').trim().toLowerCase();
+                      const isLinkedToThis =
+                        (Boolean(saleItem.partnerId) && saleItem.partnerId === selectedPartnerForLinkingCRM.id) ||
+                        (Boolean(pNameLower) && salePartnerLower === pNameLower) ||
+                        (Boolean(selectedPartnerForLinkingCRM.couponCode) && (saleItem.couponCode || '').toUpperCase() === selectedPartnerForLinkingCRM.couponCode.toUpperCase());
 
                       return (
                         <div key={saleItem.id} className="p-3 flex items-center justify-between gap-3 hover:bg-white transition">

@@ -132,9 +132,9 @@ export default function GoogleWorkspace({
   // Listen to OAuth success postMessages from popup window
   useEffect(() => {
     const handleOAuthMessage = (event: MessageEvent) => {
-      // Validate origin to avoid security issues
+      // Validate origin to avoid security issues (allow same-origin custom domain + preview domains)
       const origin = event.origin;
-      if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
+      if (origin !== window.location.origin && !origin.endsWith('.run.app') && !origin.includes('localhost')) {
         return;
       }
 
@@ -930,7 +930,7 @@ export default function GoogleWorkspace({
           </div>
           <div>
             <h1 className="text-xl font-black tracking-tight flex items-center gap-2">
-              Microsoft Google Workspace <span className="text-[10px] bg-emerald-500/20 text-emerald-400 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Ativo</span>
+              Google Workspace <span className="text-[10px] bg-emerald-500/20 text-emerald-400 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Ativo</span>
             </h1>
             <p className="text-slate-400 text-xs mt-0.5">Controlador central integrador de serviços em nuvem para escritório da AP Moda Fitness</p>
           </div>

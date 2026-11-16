@@ -17,13 +17,13 @@ export interface Coupon {
 }
 
 export const DEFAULT_COUPONS: Coupon[] = [
-  { code: 'PRIMEIRACOMPRA', type: 'percent', value: 10, minPurchase: 0, limitUses: 1000, usedCount: 12, validUntil: '2026-12-31', maxPerCpf: 1, isFirstPurchase: true, category: 'Todas' },
-  { code: 'FITNESS10', type: 'percent', value: 10, minPurchase: 150, limitUses: 100, usedCount: 32, validUntil: '2026-06-30', maxPerCpf: 1, category: 'Todas' },
-  { code: 'BEMVINDA50', type: 'fixed', value: 50, minPurchase: 300, limitUses: 50, usedCount: 15, validUntil: '2026-07-15', maxPerCpf: 1, category: 'Todas' },
-  { code: 'FRETEGRATIS', type: 'percent', value: 0, minPurchase: 399, limitUses: 500, usedCount: 88, validUntil: '2026-12-31', maxPerCpf: 0, category: 'Todas' },
-  { code: 'MACACAO20', type: 'percent', value: 20, minPurchase: 0, limitUses: 100, usedCount: 5, validUntil: '2026-12-31', maxPerCpf: 1, category: 'Macacões' },
-  { code: 'LEGGING15', type: 'percent', value: 15, minPurchase: 0, limitUses: 100, usedCount: 8, validUntil: '2026-12-31', maxPerCpf: 1, category: 'Leggings' },
-  { code: 'PATRICIA10', type: 'percent', value: 10, minPurchase: 0, limitUses: 500, usedCount: 18, validUntil: '2026-12-31', maxPerCpf: 0, category: 'Todas', partnerName: 'Patricia Cardoso', partnerId: 'part-patricia', commissionRate: 10 }
+  { code: 'PRIMEIRACOMPRA', type: 'percent', value: 10, minPurchase: 0, limitUses: 1000, usedCount: 12, validUntil: '2027-12-31', maxPerCpf: 1, isFirstPurchase: true, category: 'Todas' },
+  { code: 'FITNESS10', type: 'percent', value: 10, minPurchase: 150, limitUses: 100, usedCount: 32, validUntil: '2027-12-31', maxPerCpf: 1, category: 'Todas' },
+  { code: 'BEMVINDA50', type: 'fixed', value: 50, minPurchase: 300, limitUses: 50, usedCount: 15, validUntil: '2027-12-31', maxPerCpf: 1, category: 'Todas' },
+  { code: 'FRETEGRATIS', type: 'percent', value: 0, minPurchase: 399, limitUses: 500, usedCount: 88, validUntil: '2027-12-31', maxPerCpf: 0, category: 'Todas' },
+  { code: 'MACACAO20', type: 'percent', value: 20, minPurchase: 0, limitUses: 100, usedCount: 5, validUntil: '2027-12-31', maxPerCpf: 1, category: 'Macacões' },
+  { code: 'LEGGING15', type: 'percent', value: 15, minPurchase: 0, limitUses: 100, usedCount: 8, validUntil: '2027-12-31', maxPerCpf: 1, category: 'Leggings' },
+  { code: 'PATRICIA10', type: 'percent', value: 10, minPurchase: 0, limitUses: 500, usedCount: 18, validUntil: '2027-12-31', maxPerCpf: 0, category: 'Todas', partnerName: 'Patricia Cardoso', partnerId: 'part-patricia', commissionRate: 10 }
 ];
 
 export function getStoredCoupons(): Coupon[] {
@@ -89,7 +89,7 @@ export function validateCouponForCpf(
             minPurchase: 0,
             limitUses: 1000,
             usedCount: 0,
-            validUntil: '2026-12-31',
+            validUntil: '2027-12-31',
             maxPerCpf: 0,
             category: 'Todas',
             partnerName: foundPartnerByCoupon.name,
@@ -106,10 +106,12 @@ export function validateCouponForCpf(
           });
 
           if (foundPartnerByLoginOrName) {
-            const officialCode = foundPartnerByLoginOrName.couponCode || `${foundPartnerByLoginOrName.login?.toUpperCase()}10`;
+            const officialCode = (foundPartnerByLoginOrName.couponCode || '').trim().toUpperCase();
             return {
               valid: false,
-              message: `O texto "${cleanCode}" é o usuário/nome da parceira. Utilize o cupom oficial dela: ${officialCode}`
+              message: officialCode
+                ? `O texto "${cleanCode}" é o usuário/nome da parceira. Utilize o cupom oficial dela: ${officialCode}`
+                : `O texto "${cleanCode}" é o usuário/nome da parceira e não funciona como cupom. Peça o cupom oficial diretamente com a parceira ou com a loja.`
             };
           }
         }
@@ -150,7 +152,7 @@ export function validateCouponForCpf(
         minPurchase: 0,
         limitUses: 1000,
         usedCount: 0,
-        validUntil: '2026-12-31',
+        validUntil: '2027-12-31',
         maxPerCpf: 1,
         isFirstPurchase: true,
         category: 'Todas'
@@ -163,7 +165,7 @@ export function validateCouponForCpf(
         minPurchase: 0,
         limitUses: 1000,
         usedCount: 0,
-        validUntil: '2026-12-31',
+        validUntil: '2027-12-31',
         maxPerCpf: 1,
         category: 'Todas'
       };
@@ -175,7 +177,7 @@ export function validateCouponForCpf(
         minPurchase: 0,
         limitUses: 1000,
         usedCount: 0,
-        validUntil: '2026-12-31',
+        validUntil: '2027-12-31',
         maxPerCpf: 1,
         category: 'Todas'
       };
@@ -187,7 +189,7 @@ export function validateCouponForCpf(
         minPurchase: 300,
         limitUses: 1000,
         usedCount: 0,
-        validUntil: '2026-12-31',
+        validUntil: '2027-12-31',
         maxPerCpf: 1,
         category: 'Todas'
       };
@@ -199,7 +201,7 @@ export function validateCouponForCpf(
         minPurchase: 399,
         limitUses: 1000,
         usedCount: 0,
-        validUntil: '2026-12-31',
+        validUntil: '2027-12-31',
         maxPerCpf: 0,
         category: 'Todas'
       };
@@ -211,7 +213,7 @@ export function validateCouponForCpf(
         minPurchase: 0,
         limitUses: 1000,
         usedCount: 0,
-        validUntil: '2026-12-31',
+        validUntil: '2027-12-31',
         maxPerCpf: 1,
         category: 'Todas'
       };
@@ -220,6 +222,17 @@ export function validateCouponForCpf(
 
   if (!matchedCoupon) {
     return { valid: false, message: `Este cupom promocional (${cleanCode}) é inválido ou expirou.` };
+  }
+
+  // Validate expiration date if provided in YYYY-MM-DD format
+  const todayIso = new Date().toISOString().split('T')[0];
+  if (matchedCoupon.validUntil && /^\d{4}-\d{2}-\d{2}$/.test(matchedCoupon.validUntil) && matchedCoupon.validUntil < todayIso) {
+    return { valid: false, message: `Este cupom (${cleanCode}) expirou em ${matchedCoupon.validUntil}.` };
+  }
+
+  // Validate global usage limit
+  if (matchedCoupon.limitUses > 0 && (matchedCoupon.usedCount || 0) >= matchedCoupon.limitUses) {
+    return { valid: false, message: `Este cupom (${cleanCode}) atingiu o limite máximo de usos.` };
   }
 
   // Check Category Restriction if specified (and not 'Todas' / 'Livre')

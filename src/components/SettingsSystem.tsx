@@ -843,22 +843,12 @@ export default function SettingsSystem({
       
       // Simular detecção segura para fins de demonstração
       setTimeout(() => {
-        const dummyDevice = {
-          name: "Terminal USB de Cartão (Simulado)",
-          brand: "Stone S920",
-          vendorId: "0x0B5F",
-          productId: "0x0220",
-          status: "Conectado por Emulação"
-        };
-        const updated = [...usbDevices, dummyDevice];
-        setUsbDevices(updated);
-        localStorage.setItem('ap_moda_usb_devices', JSON.stringify(updated));
         setUsbLog(prev => [
           ...prev, 
-          `[${new Date().toLocaleTimeString()}] ⚡ Dispositivo de Contingência mapeado: ${dummyDevice.name} [V:${dummyDevice.vendorId} P:${dummyDevice.productId}]`
+          `[${new Date().toLocaleTimeString()}] ❌ WebUSB não é suportado neste navegador/dispositivo. Use o Chrome ou Edge em conexão HTTPS para parear leitores/terminais USB.`
         ]);
-        alert("⚠️ WebUSB não suportado neste navegador!\n\nPara fins de teste e desenvolvimento, o sistema mapeou um terminal emulado (Stone S920 USB) com sucesso!");
-      }, 800);
+        alert("⚠️ WebUSB não suportado neste navegador.\n\nUtilize Google Chrome ou Microsoft Edge em uma janela segura HTTPS para parear terminais USB.");
+      }, 300);
       return;
     }
 
@@ -895,27 +885,8 @@ export default function SettingsSystem({
       if (isCancellation) {
         setUsbLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ❌ Operação cancelada pelo usuário (Nenhum dispositivo selecionado).`]);
       } else {
-        setUsbLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ❌ Erro de Hardware: ${err.message || err}`]);
-        // Adicionar simulador se falhar devido a restrições de sandbox/iframe no visualizador do AI Studio
-        const dummyDevice = {
-          name: "Terminal USB de Cartão (Simulado)",
-          brand: "Stone S920",
-          vendorId: "0x0B5F",
-          productId: "0x0220",
-          status: "Conectado por Emulação"
-        };
-        const exists = usbDevices.some(d => d.vendorId === dummyDevice.vendorId && d.productId === dummyDevice.productId);
-        let updatedDevices = [...usbDevices];
-        if (!exists) {
-          updatedDevices = [...usbDevices, dummyDevice];
-          setUsbDevices(updatedDevices);
-          localStorage.setItem('ap_moda_usb_devices', JSON.stringify(updatedDevices));
-        }
-        setUsbLog(prev => [
-          ...prev, 
-          `[${new Date().toLocaleTimeString()}] ⚡ Conexão direta bloqueada pelo Iframe do Navegador. Dispositivo emulado com sucesso para contornar Sandbox.`
-        ]);
-        alert("⚠️ Iframe Restringido (Sandbox/CORS)!\n\nAs diretivas de iframe do navegador bloqueiam conexões diretas WebUSB de terceiros. Para fins de demonstração, o sistema emulou a conexão da maquininha USB (Stone S920)!");
+        setUsbLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ❌ Conexão WebUSB não autorizada ou bloqueada: ${err.message || err}`]);
+        alert(`❌ Não foi possível conectar ao dispositivo USB (${err.message || 'acesso bloqueado'}).\n\nVerifique se a página está aberta fora de iframe restrito e em HTTPS.`);
       }
     }
   };
@@ -1048,13 +1019,16 @@ export default function SettingsSystem({
     }
   };
 
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([
-    { id: 'log-1', user: 'Ana Paula (Admin)', level: 'Admin', action: 'Configuração Alterada', target: 'Logo da Loja atualizado', timestamp: '2026-06-13T10:04:12Z', ip: '191.132.88.10' },
-    { id: 'log-2', user: 'Carlos Silva (Vendedor)', level: 'Vendedor', action: 'Estoque Reabastecido', target: 'Corta Vento Dry +10 unidades', timestamp: '2026-06-13T09:42:00Z', ip: '191.132.88.14' },
-    { id: 'log-3', user: 'Ana Paula (Admin)', level: 'Admin', action: 'Exclusão de Cupom', target: 'FITNESS5 cancelado', timestamp: '2026-06-12T17:15:30Z', ip: '191.132.88.10' },
-    { id: 'log-4', user: 'Juliana Costa (Gerente)', level: 'Gerente', action: 'Nova Venda Especial', target: 'Faturamento via PDV (R$ 619,70)', timestamp: '2026-06-12T15:21:00Z', ip: '191.132.40.5' },
-    { id: 'log-5', user: 'Juliana Costa (Gerente)', level: 'Gerente', action: 'Abertura de Caixa', target: 'Fundo de troco de R$ 200,00 registrado', timestamp: '2026-06-12T08:00:00Z', ip: '191.132.40.5' }
-  ]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
+    try {
+      const saved = localStorage.getItem('ap_audit_logs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
 
   // Synchronize Settings to LocalStorage
   const handleSaveStoreSettings = async (e: React.FormEvent) => {
@@ -1207,7 +1181,13 @@ export default function SettingsSystem({
       timestamp: new Date().toISOString(),
       ip: '191.132.88.10'
     };
-    setAuditLogs(prev => [newLog, ...prev]);
+    setAuditLogs(prev => {
+      const updated = [newLog, ...prev].slice(0, 100);
+      try {
+        localStorage.setItem('ap_audit_logs', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
   };
 
   const handleExportJSON = () => {
@@ -2104,8 +2084,8 @@ export default function SettingsSystem({
             </form>
 
             {/* Table list of Regions */}
-            <div className="border border-slate-100 rounded-xl overflow-hidden bg-white">
-              <table className="w-full border-collapse text-left text-xs font-sans">
+            <div className="border border-slate-100 rounded-xl overflow-x-auto bg-white">
+              <table className="w-full min-w-[460px] border-collapse text-left text-xs font-sans">
                 <thead>
                   <tr className="bg-slate-50 text-slate-400 font-bold border-b border-slate-100 uppercase text-[9px] tracking-wider">
                     <th className="p-3">Cidade</th>
@@ -2418,8 +2398,8 @@ export default function SettingsSystem({
               </form>
 
               {/* Table list of Regions */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white max-h-96 overflow-y-auto">
-                <table className="w-full border-collapse text-left text-xs font-sans">
+              <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white max-h-96 overflow-y-auto">
+                <table className="w-full min-w-[460px] border-collapse text-left text-xs font-sans">
                   <thead className="sticky top-0 bg-slate-100 z-10">
                     <tr className="text-slate-600 font-bold border-b border-slate-200 uppercase text-[9px] tracking-wider">
                       <th className="p-3">Cidade</th>
@@ -2553,10 +2533,17 @@ export default function SettingsSystem({
                     <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">
                       Google Workspace (Drive, Sheets, Calendar & Gmail)
                     </h3>
-                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-extrabold rounded-full text-[9.5px] flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      Conectado (OAuth 2.0 Ativo)
-                    </span>
+                    {(() => {
+                      const hasGoogleToken = Boolean(localStorage.getItem('ap_google_access_token') || localStorage.getItem('ap_google_client_id'));
+                      return (
+                        <span className={`px-2 py-0.5 font-extrabold rounded-full text-[9.5px] flex items-center gap-1 ${
+                          hasGoogleToken ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${hasGoogleToken ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                          {hasGoogleToken ? 'Conectado (OAuth Ativo)' : 'Configurar OAuth'}
+                        </span>
+                      );
+                    })()}
                   </div>
                   <p className="text-[10.5px] text-slate-500 mt-0.5">
                     Integração nativa ativada para sincronização de arquivos, planilhas de vendas, agendamentos e envios de e-mail.

@@ -68,9 +68,13 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
     }
   };
 
-  // June 2026 definition (system date in the simulation)
-  const currentYear = 2026;
-  const currentMonth = 5; // 0-indexed (June is 5)
+  // Dynamic current year & month
+  const nowDate = new Date();
+  const currentYear = nowDate.getFullYear();
+  const currentMonth = nowDate.getMonth();
+  const rawMonthName = nowDate.toLocaleDateString('pt-BR', { month: 'long' });
+  const currentMonthName = rawMonthName.charAt(0).toUpperCase() + rawMonthName.slice(1);
+  const currentMonthYearLabel = `${currentMonthName}/${currentYear}`;
 
   // 1. Filter completed sales made by this salesperson in the current month
   const sellerMonthlySales = useMemo(() => {
@@ -86,7 +90,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
       
       return isCurrentMonth;
     });
-  }, [sales, currentUser]);
+  }, [sales, currentUser, currentYear, currentMonth]);
 
   // 2. Total accumulated sales revenue for this month
   const totalBilledMonth = useMemo(() => {
@@ -143,7 +147,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
                 Perfil Vendedor
               </span>
               <span className="text-[10px] bg-slate-800 text-slate-400 font-extrabold px-2 py-0.5 rounded-full tracking-wider">
-                Mês Corrente: Junho/2026
+                Mês Corrente: {currentMonthYearLabel}
               </span>
             </div>
             <h1 className="text-base font-black text-white leading-normal mt-0.5">
@@ -181,7 +185,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
           <div className="space-y-1.5 max-w-xl">
             <h3 className="text-sm font-black text-pink-400 flex items-center gap-1.5">
               <Sparkles size={16} />
-              <span>Seu Ritmo de Vendas e Metas de Junho</span>
+              <span>Seu Ritmo de Vendas e Metas de {currentMonthName}</span>
             </h3>
             <p className="text-xs text-slate-300 leading-relaxed">
               Continue acompanhando seu progresso diário e o acúmulo de suas comissões personalizadas. Atualmente, você está comissionada em <span className="font-extrabold text-white">{(commissionRate * 100).toFixed(1)}%</span> sobre cada venda concluída!
@@ -236,7 +240,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
               <p className="text-2xl font-black text-slate-50 font-mono tracking-tight">{formatValue(totalBilledMonth)}</p>
               <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-2">
                 <Calendar size={11} className="text-slate-500" />
-                <span>Junho/2026 • </span>
+                <span>{currentMonthYearLabel} • </span>
                 <span className="text-pink-400 font-bold">{sellerMonthlySales.filter(s => s.status === 'Concluída').length} pedidos concluídos</span>
               </div>
             </div>
@@ -323,7 +327,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
             <div className="space-y-1">
               <p className="font-extrabold text-slate-200">
                 {percentageReached === 100 
-                  ? 'Incrível! Você bateu sua meta individual do mês de junho. Suas comissões estão garantidas e você já pode buscar o bônus de superação!'
+                  ? `Incrível! Você bateu sua meta individual do mês de ${currentMonthName.toLowerCase()}. Suas comissões estão garantidas e você já pode buscar o bônus de superação!`
                   : percentageReached >= 75
                     ? 'Quase lá! Você já alcançou mais de 75% da sua meta individual. Foque nos follow-ups no WhatsApp para fechar as sacolas pendentes.'
                     : 'Foco e consistência! Use o PDV da loja para registrar novas vendas presenciais e aumente seu ticket médio sugerindo acessórios em cada atendimento.'

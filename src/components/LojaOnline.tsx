@@ -42,7 +42,7 @@ import AbandonedCarts from './AbandonedCarts';
 import { pushSystemConfigToSupabase } from '../supabase';
 import ImageUploader from './ImageUploader';
 import { MarketingSalesHub } from './MarketingSalesHub';
-import { Coupon, getStoredCoupons, saveStoredCoupons } from '../utils/couponUtils';
+import { Coupon, getStoredCoupons, saveStoredCoupons, validateCouponForCpf } from '../utils/couponUtils';
 import { getStoreConfig, getWhatsAppUrl } from '../utils/storeConfig';
 import CategoryBubblesManager, { resolveCategoryBubbleImage } from './CategoryBubblesManager';
 import { getOptimizedImageUrl, handleImageFallback, getProductMainImage } from '../utils/imageUtils';
@@ -313,15 +313,15 @@ export default function LojaOnline({
   const [activeConfigTab, setActiveConfigTab] = useState<'textos' | 'banners' | 'categorias' | 'cupons' | 'cadastro' | 'estoque'>('textos');
 
   // Registered Partners / Influencers for Coupon Linking
-  const [registeredPartners, setRegisteredPartners] = useState<{ id?: string; name: string; couponCode?: string }[]>(() => {
+  const [registeredPartners, setRegisteredPartners] = useState<{ id?: string; name: string; couponCode?: string; commissionRate?: number }[]>(() => {
     try {
-      const list: { id?: string; name: string; couponCode?: string }[] = [];
+      const list: { id?: string; name: string; couponCode?: string; commissionRate?: number }[] = [];
       const savedPartners = localStorage.getItem('ap_moda_partners');
       if (savedPartners) {
         const parsed = JSON.parse(savedPartners);
         if (Array.isArray(parsed)) {
           parsed.forEach((p: any) => {
-            if (p.name) list.push({ id: p.id, name: p.name, couponCode: p.couponCode });
+            if (p.name) list.push({ id: p.id, name: p.name, couponCode: p.couponCode, commissionRate: p.commissionRate });
           });
         }
       }
@@ -331,7 +331,7 @@ export default function LojaOnline({
         if (Array.isArray(parsedTeam)) {
           parsedTeam.filter((m: any) => m.role === 'Parceiro').forEach((m: any) => {
             if (m.name && !list.some(p => p.name.toLowerCase() === m.name.toLowerCase())) {
-              list.push({ id: m.id, name: m.name, couponCode: m.couponCode || m.login });
+              list.push({ id: m.id, name: m.name, couponCode: m.couponCode || '' });
             }
           });
         }
@@ -348,7 +348,7 @@ export default function LojaOnline({
   const [newCouponValue, setNewCouponValue] = useState<string>('15');
   const [newCouponCategory, setNewCouponCategory] = useState<string>('Todas');
   const [newCouponMinPurchase, setNewCouponMinPurchase] = useState<string>('0');
-  const [newCouponValidUntil, setNewCouponValidUntil] = useState<string>('2026-12-31');
+  const [newCouponValidUntil, setNewCouponValidUntil] = useState<string>('2027-12-31');
   const [newCouponIsFirstPurchase, setNewCouponIsFirstPurchase] = useState<boolean>(false);
   const [newCouponMaxPerCpf, setNewCouponMaxPerCpf] = useState<number>(1);
   const [newCouponPartnerName, setNewCouponPartnerName] = useState<string>('');
@@ -378,12 +378,13 @@ export default function LojaOnline({
       minPurchase: parseFloat(newCouponMinPurchase) || 0,
       limitUses: 1000,
       usedCount: 0,
-      validUntil: newCouponValidUntil || '2026-12-31',
+      validUntil: newCouponValidUntil || '2027-12-31',
       maxPerCpf: newCouponMaxPerCpf,
       isFirstPurchase: newCouponIsFirstPurchase,
       category: newCouponCategory,
       partnerName: cleanPartnerName || undefined,
-      partnerId: linkedPartnerObj?.id || undefined
+      partnerId: linkedPartnerObj?.id || undefined,
+      commissionRate: linkedPartnerObj?.commissionRate || (cleanPartnerName ? 10 : undefined)
     };
 
     const existingIdx = coupons.findIndex(c => c.code.toUpperCase() === cleanCode);
@@ -611,7 +612,7 @@ export default function LojaOnline({
       setNewProdMinStock('3');
       setNewProdDescription('');
     } else {
-      alert('Função de adição de produtos não encontrada no componente pai (App.tsx), mas simulada com sucesso!');
+      alert('Não foi possível salvar a peça porque o manipulador de produtos não está conectado neste contexto.');
     }
   };
 
@@ -645,13 +646,13 @@ export default function LojaOnline({
   };
 
   const handleApplyCouponInVitrine = () => {
-    const matched = coupons.find(c => c.code.toUpperCase() === couponInput.toUpperCase().trim());
-    if (!matched) {
-      alert('Cupom de desconto inválido ou inexistente!');
+    const res = validateCouponForCpf(couponInput, undefined, [], [], vitrineCart);
+    if (!res.valid || !res.couponObj) {
+      alert(res.message || 'Cupom de desconto inválido ou inexistente!');
       return;
     }
-    setAppliedCoupon(matched);
-    alert(`Cupom ${matched.code} aplicado com sucesso na Vitrine Online!`);
+    setAppliedCoupon(res.couponObj);
+    alert(`Cupom ${res.couponObj.code} aplicado com sucesso na Vitrine Online!`);
   };
 
   // Cart financial computations
@@ -690,56 +691,12 @@ export default function LojaOnline({
     const message = `Olá, AP Moda Fitness! 🌸\n\nAcabei de ver suas peças na sua *Vitrine Online* e montei meu carrinho de compras!\n\n🛍️ *Meu Carrinho:*\n${itemsText}${discountText}${shippingText}\n\n💵 *Subtotal:* R$ ${cartSubtotal.toFixed(2)}\n💸 *Total das Peças:* R$ ${totalPecas.toFixed(2)}\n💰 *Valor Final com Frete:* R$ ${cartTotal.toFixed(2)}\n\nPode confirmar se essas peças estão disponíveis e os prazos? Obrigada!`;
 
     try {
-      const storePhone = localStorage.getItem('ap_store_phone') || '';
-      window.open(getWhatsAppUrl(storePhone, message), '_blank');
+      const storePhone = localStorage.getItem('ap_store_phone') || '21999999999';
+      const cleanPhone = storePhone.replace(/\D/g, '') || '21999999999';
+      window.open(`https://wa.me/55${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank');
     } catch {
-      alert(`Mensagem do carrinho enviada de forma simulada:\n\n${message}`);
-    }
-  };
-
-  const handleCreateCouponSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCode.trim() || newValue < 0) {
-      alert('Preencha o código do cupom e o valor de desconto!');
-      return;
-    }
-
-    const uppercaseCode = newCode.trim().toUpperCase();
-    if (coupons.some(c => c.code.toUpperCase() === uppercaseCode)) {
-      alert('Este código de cupom já existe no sistema!');
-      return;
-    }
-
-    const newCouponItem: Coupon = {
-      code: uppercaseCode,
-      type: newType,
-      value: Number(newValue),
-      minPurchase: Number(newMinPurchase),
-      limitUses: Number(newLimitUses),
-      usedCount: 0,
-      validUntil: newValidUntil,
-      maxPerCpf: Number(newMaxPerCpf),
-      isFirstPurchase: Boolean(newIsFirstPurchase)
-    };
-
-    const updatedCoupons = [newCouponItem, ...coupons];
-    setCoupons(updatedCoupons);
-    saveStoredCoupons(updatedCoupons);
-
-    setNewCode('');
-    setNewValue(10);
-    setNewMinPurchase(100);
-    setNewMaxPerCpf(1);
-    setNewIsFirstPurchase(false);
-    
-    alert(`Cupom ${uppercaseCode} cadastrado com sucesso! Regra por CPF: ${newMaxPerCpf === 0 ? 'Sem limite por CPF' : `${newMaxPerCpf} uso(s) por CPF`}`);
-  };
-
-  const handleDeleteCoupon = (code: string) => {
-    if (confirm(`Excluir o cupom ${code}? Ele não poderá mais ser usado por clientes.`)) {
-      const updatedCoupons = coupons.filter(c => c.code !== code);
-      setCoupons(updatedCoupons);
-      saveStoredCoupons(updatedCoupons);
+      navigator.clipboard?.writeText(message).catch(() => {});
+      alert(`Não foi possível abrir o WhatsApp automaticamente. A mensagem do pedido foi copiada para a área de transferência:\n\n${message}`);
     }
   };
 
@@ -2957,8 +2914,8 @@ export default function LojaOnline({
                           </button>
                         </div>
 
-                        {/* Category Badge */}
-                        <div className="pt-0.5">
+                        {/* Category & Partner Badges */}
+                        <div className="pt-0.5 flex flex-wrap gap-1">
                           {isCategoryRestricted ? (
                             <span className="inline-flex items-center gap-1 text-[9.5px] font-black text-pink-700 bg-pink-50 border border-pink-200/90 px-2 py-0.5 rounded-md">
                               <span>🎯 Exclusivo:</span>
@@ -2967,6 +2924,11 @@ export default function LojaOnline({
                           ) : (
                             <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-slate-500 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-md">
                               <span>🌐 Válido para TODAS as peças</span>
+                            </span>
+                          )}
+                          {cup.partnerName && (
+                            <span className="inline-flex items-center gap-1 text-[9.5px] font-black text-indigo-700 bg-indigo-50 border border-indigo-200/90 px-2 py-0.5 rounded-md">
+                              🤝 {cup.partnerName}
                             </span>
                           )}
                         </div>
