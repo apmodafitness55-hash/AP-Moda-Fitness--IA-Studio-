@@ -82,7 +82,7 @@ import {
 } from '../supabase';
 import { Product, Sale, Client, Transaction } from '../types';
 import { getCardMachinesConfig, saveCardMachinesConfig, CardMachineConfig, DEFAULT_CARD_MACHINES } from '../lib/cardMachines';
-import { runDeepSystemDiagnostics, DiagnosticResult, DiagnosticLog } from '../lib/diagnostics';
+import { runDeepSystemDiagnostics, runSystemSelfHeal, DiagnosticResult, DiagnosticLog, SelfHealReport } from '../lib/diagnostics';
 
 interface SettingsSystemProps {
   onResetData?: () => void;
@@ -141,8 +141,9 @@ export default function SettingsSystem({
 
   // Diagnostic states
   const [diagnosticResult, setDiagnosticResult] = useState<DiagnosticResult | null>(null);
+  const [selfHealReport, setSelfHealReport] = useState<SelfHealReport | null>(null);
   const [isRunningDiagnostics, setIsRunningDiagnostics] = useState(false);
-  const [selectedScopeFilter, setSelectedScopeFilter] = useState<'todos' | 'database' | 'permissions' | 'workflows' | 'analytics'>('todos');
+  const [selectedScopeFilter, setSelectedScopeFilter] = useState<'todos' | 'database' | 'permissions' | 'hub' | 'infinitepay' | 'render' | 'integrity' | 'workflows' | 'analytics'>('todos');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'todos' | 'success' | 'warning' | 'error'>('todos');
   const [isSelfHealing, setIsSelfHealing] = useState(false);
 
@@ -630,12 +631,27 @@ export default function SettingsSystem({
   const handleTestGoogleConnection = async () => {
     setIsTestingGoogle(true);
     try {
-      const res = await fetch('/api/google/status');
-      const data = await res.json();
-      setGoogleActionLog({
-        timestamp: data.lastCheck,
-        message: `✅ Conexão Google Workspace Ativa! Conta: ${data.userEmail} (${data.scopes.length} escopos autorizados: Drive, Sheets, Calendar, Gmail).`
+      const token = localStorage.getItem('ap_google_access_token');
+      const res = await fetch('/api/google/status', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
+      const data = await res.json();
+      if (data.connected) {
+        setGoogleActionLog({
+          timestamp: data.lastCheck,
+          message: `✅ Conexão Google Workspace Ativa! Conta: ${data.userEmail} (${(data.scopes || []).length} escopos autorizados: Drive, Sheets, Calendar, Gmail).`
+        });
+      } else if (data.configured) {
+        setGoogleActionLog({
+          timestamp: data.lastCheck,
+          message: '🟡 Client ID e Client Secret configurados no servidor, porém nenhuma conta Google foi autorizada neste navegador ainda. Finalize o login na aba Google Workspace.'
+        });
+      } else {
+        setGoogleActionLog({
+          timestamp: data.lastCheck,
+          message: '⚠️ Google Workspace OAuth ainda não configurado no servidor (Client ID / Secret ausentes). Configure na aba Google Workspace para ativar Drive/Sheets/Gmail.'
+        });
+      }
     } catch (e: any) {
       setGoogleActionLog({
         timestamp: new Date().toISOString(),
@@ -1304,13 +1320,27 @@ export default function SettingsSystem({
     e.target.value = '';
   };
 
-  const handleTestUpload = () => {
-    if (!imgbbKey) {
+  const handleTestUpload = async () => {
+    if (!imgbbKey || !imgbbKey.trim()) {
       alert('Favor preencher o campo Token da API do ImgBB.');
       return;
     }
-    registerAuditLog('Upload de Mídia', 'Teste de upload efetuado via API ImgBB');
-    alert('Conexão ImgBB validada! Resposta HTTP: 200 OK. upload_token verificado. As fotos dos produtos serão convertidas em links públicos CDN do ImgBB.');
+    try {
+      const res = await fetch('/api/proxy/test-imgbb', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: imgbbKey.trim() })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        registerAuditLog('Upload de Mídia', 'Teste real de upload efetuado via API ImgBB');
+        alert(`✅ ${data.message}`);
+      } else {
+        alert(`❌ Falha na validação ImgBB: ${data.error || 'Chave recusada pela API ImgBB.'}`);
+      }
+    } catch (err: any) {
+      alert(`❌ Erro ao testar conexão com ImgBB: ${err.message || err}`);
+    }
   };
 
   const handleTestWebhook = () => {
@@ -4666,16 +4696,35 @@ export default function SettingsSystem({
                   </h3>
                 </div>
                 <p className="text-[10px] opacity-80 leading-normal max-w-md">
-                  {!diagnosticResult ? 'Inicie a varredura profunda para validar de ponta a ponta a integridade estrutural, permissões de gravação RLS e cálculos estatísticos.' :
-                   diagnosticResult.overallStatus === 'healthy' ? 'Parabéns! Todas as tabelas críticas do Supabase, políticas RLS, cálculos de Markup e fluxos de portal passaram nos testes de estresse de integração.' :
-                   diagnosticResult.overallStatus === 'warning' ? 'O sistema está operacional, porém algumas colunas opcionais ou respostas de teste retornaram avisos.' :
-                   'Erro de sincronização ou schema ausente no banco Supabase. Utilize o botão de Autocorreção para reparar instantaneamente.'}
+                  {!diagnosticResult ? 'Inicie a varredura real para validar de ponta a ponta o Supabase Cloud, ciclo Write/Read/Delete, Hub de IA (Gemini), InfinitePay, Melhor Envio, Render e integridade dos dados locais.' :
+                   diagnosticResult.overallStatus === 'healthy' ? 'Todas as integrações monitoradas (Supabase, R/W/D, Hub IA, InfinitePay, Melhor Envio e integridade dos caches) passaram na verificação real.' :
+                   diagnosticResult.overallStatus === 'warning' ? 'Sistema operacional, porém há alertas reais ou pendências externas (verifique os logs abaixo; use Autocorreção para reparos automáticos).' :
+                   'Erro crítico detectado em conexão, permissão ou cache local corrompido. Utilize a Autocorreção (Self-Heal) ou verifique os logs abaixo.'}
                 </p>
+                {diagnosticResult?.liveSummary && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold ${diagnosticResult.liveSummary.supabaseMode === 'cloud' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                      Base: {diagnosticResult.liveSummary.supabaseMode === 'cloud' ? 'Supabase Cloud' : 'Local Fallback'}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold ${diagnosticResult.liveSummary.hubOk ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                      Hub IA: {diagnosticResult.liveSummary.hubOk ? 'OK' : 'Pendente'}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold ${diagnosticResult.liveSummary.infinitePayOk ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                      InfinitePay: {diagnosticResult.liveSummary.infinitePayOk ? 'OK' : 'Falha'}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold ${diagnosticResult.liveSummary.melhorEnvioOk ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                      Frete: {diagnosticResult.liveSummary.melhorEnvioOk ? 'OK' : 'Pendente'}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold ${diagnosticResult.liveSummary.renderUpToDate ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                      Render: {diagnosticResult.liveSummary.renderUpToDate ? 'Atualizado' : (diagnosticResult.liveSummary.renderReachable ? 'Build Antigo' : 'Offline')}
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="mt-4 flex flex-wrap gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
-                  disabled={isRunningDiagnostics}
+                  disabled={isRunningDiagnostics || isSelfHealing}
                   onClick={triggerDiagnostics}
                   className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg hover:bg-slate-800 disabled:opacity-55 transition font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
@@ -4684,23 +4733,17 @@ export default function SettingsSystem({
                 </button>
                 <button
                   type="button"
-                  disabled={isSelfHealing}
+                  disabled={isSelfHealing || isRunningDiagnostics}
                   onClick={async () => {
                     setIsSelfHealing(true);
+                    setSelfHealReport(null);
                     try {
-                      // Execute self-healing migration via Supabase setup or clean local storage checks
-                      localStorage.setItem('ap_last_schema_heal', new Date().toISOString());
-                      
-                      // Also let's run clean mock repairs
-                      localStorage.removeItem('ap_moda_company_info_stale');
-                      
-                      // Simulate short delay
-                      await new Promise(r => setTimeout(r, 1500));
-                      
-                      alert('✨ Motor Self-Heal executado com sucesso! Os Schemas, chaves Pix espelhadas e colunas camelCase do Supabase foram recalibrados. Disparando re-verificação...');
-                      await triggerDiagnostics();
+                      const report = await runSystemSelfHeal();
+                      setSelfHealReport(report);
+                      setDiagnosticResult(report.diagnosticsAfter);
+                      registerAuditLog('Autocorreção (Self-Heal)', `${report.fixedCount} correção(ões) aplicada(s) automaticamente.`);
                     } catch (e: any) {
-                      alert('Erro ao rodar self-healing: ' + e.message);
+                      alert('Erro ao rodar self-healing: ' + (e.message || e));
                     } finally {
                       setIsSelfHealing(false);
                     }
@@ -4708,7 +4751,7 @@ export default function SettingsSystem({
                   className="px-3.5 py-1.5 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-55 transition font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Wrench size={11} className={isSelfHealing ? 'animate-bounce' : ''} />
-                  <span>{isSelfHealing ? 'Ajustando...' : 'Autocorreção (Self-Heal)'}</span>
+                  <span>{isSelfHealing ? 'Corrigindo...' : 'Autocorreção (Self-Heal)'}</span>
                 </button>
               </div>
             </div>
@@ -4720,11 +4763,11 @@ export default function SettingsSystem({
                 <span className="font-mono text-2xl font-black text-slate-800 tracking-tight">
                   {diagnosticResult ? diagnosticResult.metrics.tablesVerifiedCount : 0}
                 </span>
-                <span className="text-[10px] text-slate-400 block font-medium leading-none mt-1">Tabelas e Schemas Sincronizados</span>
+                <span className="text-[10px] text-slate-400 block font-medium leading-none mt-1">Tabelas Reais Verificadas</span>
               </div>
               <div className="text-[9px] text-slate-400 flex items-center gap-1.5 mt-auto pt-2 border-t border-slate-50">
                 <Database size={11} className="text-slate-400" />
-                <span>Supabase: {diagnosticResult?.supabaseConnected ? 'Conectado 🟢' : 'Modo Local 🟡'}</span>
+                <span>Supabase: {diagnosticResult?.supabaseConnected ? 'Conectado 🟢' : 'Fallback Local 🟡'}</span>
               </div>
             </div>
 
@@ -4739,7 +4782,7 @@ export default function SettingsSystem({
               </div>
               <div className="text-[9px] text-slate-400 flex items-center gap-1.5 mt-auto pt-2 border-t border-slate-50">
                 <XCircle size={11} className={diagnosticResult && diagnosticResult.metrics.errorsCount > 0 ? 'text-rose-500' : 'text-slate-300'} />
-                <span>Nenhum travamento pendente</span>
+                <span>{diagnosticResult?.metrics.errorsCount ? 'Requer correção' : 'Nenhum erro impeditivo'}</span>
               </div>
             </div>
 
@@ -4750,21 +4793,51 @@ export default function SettingsSystem({
                 <span className={`font-mono text-2xl font-black tracking-tight ${diagnosticResult && diagnosticResult.metrics.warningsCount > 0 ? 'text-amber-500' : 'text-slate-800'}`}>
                   {diagnosticResult ? diagnosticResult.metrics.warningsCount : 0}
                 </span>
-                <span className="text-[10px] text-slate-400 block font-medium leading-none mt-1">Melhorias estruturais</span>
+                <span className="text-[10px] text-slate-400 block font-medium leading-none mt-1">Pendências / Melhorias</span>
               </div>
               <div className="text-[9px] text-slate-400 flex items-center gap-1.5 mt-auto pt-2 border-t border-slate-50">
                 <AlertTriangle size={11} className={diagnosticResult && diagnosticResult.metrics.warningsCount > 0 ? 'text-amber-500' : 'text-slate-300'} />
-                <span>Análises opcionais de RLS</span>
+                <span>Checagem real de integrações</span>
               </div>
             </div>
           </div>
+
+          {/* Self-Heal Execution Report Card */}
+          {selfHealReport && (
+            <div className="bg-white border border-pink-200 rounded-2xl p-4 shadow-xs space-y-2 text-left">
+              <div className="flex items-center justify-between border-b border-pink-100 pb-2">
+                <h4 className="font-extrabold text-pink-700 text-xs uppercase tracking-tight flex items-center gap-1.5">
+                  <Wrench size={13} />
+                  <span>Relatório da Autocorreção ({selfHealReport.fixedCount} reparo(s) aplicado(s))</span>
+                </h4>
+                <span className="text-[9px] font-mono text-slate-400">
+                  {new Date(selfHealReport.timestamp).toLocaleTimeString()}
+                </span>
+              </div>
+              <ul className="space-y-1 text-[10.5px] text-slate-700 list-disc pl-4">
+                {selfHealReport.actions.map((act, idx) => (
+                  <li key={idx}>{act}</li>
+                ))}
+              </ul>
+              {selfHealReport.remainingWarnings.length > 0 && (
+                <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
+                  <span className="text-[9.5px] font-bold text-amber-800 uppercase block">Pendências externas (requerem ação manual/deploy):</span>
+                  <ul className="space-y-0.5 text-[10px] text-amber-800 list-disc pl-4">
+                    {selfHealReport.remainingWarnings.map((w, idx) => (
+                      <li key={idx}>{w}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Diagnostics and logs sections */}
           <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div className="text-left">
                 <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-tight">Logs de Execução do Diagnóstico</h4>
-                <p className="text-[10px] text-slate-400">Varredura contínua de integridade do ecossistema corporativo AP Moda Fitness.</p>
+                <p className="text-[10px] text-slate-400">Varredura real de conectividade (Supabase, Hub IA, InfinitePay, Render) e integridade de dados.</p>
               </div>
 
               {/* Filters */}
@@ -4778,9 +4851,11 @@ export default function SettingsSystem({
                   >
                     <option value="todos">Todos Escopos</option>
                     <option value="database">Database & Schemas</option>
-                    <option value="permissions">RLS & Permissões</option>
-                    <option value="workflows">Fluxos Simulados</option>
-                    <option value="analytics">Métricas & Analytics</option>
+                    <option value="permissions">RLS & Ciclo R/W/D</option>
+                    <option value="hub">Hub de IA (Gemini)</option>
+                    <option value="infinitepay">InfinitePay & Frete</option>
+                    <option value="render">Servidor & Render</option>
+                    <option value="integrity">Integridade de Dados</option>
                   </select>
                 </div>
 
@@ -4806,7 +4881,7 @@ export default function SettingsSystem({
                 <div className="py-12 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
                   <HeartPulse size={28} className="text-slate-300 animate-pulse" />
                   <p className="font-bold">Nenhum teste executado nesta sessão.</p>
-                  <p className="text-[10px] text-slate-400">Clique em "Disparar Varredura" acima para inspecionar os logs de integridade do Supabase e fluxo analítico.</p>
+                  <p className="text-[10px] text-slate-400">Clique em "Disparar Varredura" acima para inspecionar o banco Supabase, Hub de IA, InfinitePay, Render e integridade dos caches.</p>
                 </div>
               ) : (
                 (() => {
@@ -4821,8 +4896,12 @@ export default function SettingsSystem({
                       const lowScope = l.scope.toLowerCase();
                       if (selectedScopeFilter === 'database' && !lowScope.includes('data') && !lowScope.includes('schema') && !lowScope.includes('local')) return false;
                       if (selectedScopeFilter === 'permissions' && !lowScope.includes('security') && !lowScope.includes('rls')) return false;
-                      if (selectedScopeFilter === 'workflows' && !lowScope.includes('portal') && !lowScope.includes('staff') && !lowScope.includes('hierarchy') && !lowScope.includes('agent')) return false;
-                      if (selectedScopeFilter === 'analytics' && !lowScope.includes('calculat') && !lowScope.includes('hardcoded') && !lowScope.includes('sweeper')) return false;
+                      if (selectedScopeFilter === 'hub' && !lowScope.includes('hub') && !lowScope.includes('gemini')) return false;
+                      if (selectedScopeFilter === 'infinitepay' && !lowScope.includes('infinitepay') && !lowScope.includes('melhor envio') && !lowScope.includes('google')) return false;
+                      if (selectedScopeFilter === 'render' && !lowScope.includes('render') && !lowScope.includes('backend')) return false;
+                      if (selectedScopeFilter === 'integrity' && !lowScope.includes('integridade')) return false;
+                      if (selectedScopeFilter === 'workflows' && !lowScope.includes('hub') && !lowScope.includes('infinitepay') && !lowScope.includes('render') && !lowScope.includes('google') && !lowScope.includes('melhor')) return false;
+                      if (selectedScopeFilter === 'analytics' && !lowScope.includes('integridade')) return false;
                     }
                     // Status filter
                     if (selectedStatusFilter !== 'todos' && l.status !== selectedStatusFilter) return false;

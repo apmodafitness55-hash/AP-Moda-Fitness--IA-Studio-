@@ -919,7 +919,24 @@ function getFirebaseServerDb() {
 }
 
 const app = express();
-const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+const resolveServerPort = (): number => {
+  const argv = process.argv.slice(2);
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--port' && argv[i + 1]) {
+      const parsed = parseInt(argv[i + 1], 10);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+    if (argv[i].startsWith('--port=')) {
+      const parsed = parseInt(argv[i].split('=')[1], 10);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+  }
+  if (process.env.NGINX_PORT && process.env.PORT === process.env.NGINX_PORT) {
+    return parseInt(process.env.DEFAULT_APP_PORT || '3000', 10);
+  }
+  return process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+};
+const PORT = resolveServerPort();
 
 // Set high body payload limit for base64 image uploads
 app.use(express.json({ limit: '50mb' }));
@@ -1260,29 +1277,48 @@ function cleanGeminiError(error: any): string {
 }
 
 // Wrapper to perform Gemini model generation with multi-model fallbacks and exponential backoff
-async function generateContentWithRetry(params: { model: string; contents: any }, customApiKey?: string): Promise<any> {
-  const ai = getGeminiClient(customApiKey);
-  const requestedModel = params.model || 'gemini-flash-latest';
+async function resolveEffectiveGeminiKey(customApiKey?: string): Promise<string | undefined> {
+  if (customApiKey && customApiKey.trim()) return customApiKey.trim();
+  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim()) return process.env.GEMINI_API_KEY.trim();
+  if (process.env.VITE_GEMINI_API_KEY && process.env.VITE_GEMINI_API_KEY.trim()) return process.env.VITE_GEMINI_API_KEY.trim();
+  try {
+    const db = getFirebaseServerDb();
+    const { data: cfg } = await db.from('ap_system_configs').select('key, value');
+    if (Array.isArray(cfg)) {
+      const row = cfg.find((c: any) => c.key === 'gemini_api_key' || c.key === 'GEMINI_API_KEY');
+      if (row?.value && String(row.value).trim()) return String(row.value).trim();
+    }
+  } catch (e) {}
+  return undefined;
+}
+
+async function generateContentWithRetry(params: { model: string; contents: any; timeoutMs?: number }, customApiKey?: string): Promise<any> {
+  const effectiveKey = await resolveEffectiveGeminiKey(customApiKey);
+  const ai = getGeminiClient(effectiveKey);
+  const requestedModel = params.model || 'gemini-3-flash-preview';
   const candidateModels = Array.from(new Set([
-    'gemini-flash-latest',
     requestedModel,
-    'gemini-flash-lite-latest',
-    'gemini-flash-latest',
-    'gemini-flash-latest-lite-001'
+    'gemini-3-flash-preview',
+    'gemini-3.1-flash-lite-preview',
+    'gemini-flash-lite-latest'
   ].filter(Boolean)));
+  const attemptTimeoutMs = params.timeoutMs || 18000;
 
   let lastError: any = null;
 
   for (const modelCandidate of candidateModels) {
     const maxRetries = 2;
-    let delay = 500;
+    let delay = 400;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const response = await ai.models.generateContent({
-          ...params,
-          model: modelCandidate
-        });
+        const response = await Promise.race([
+          ai.models.generateContent({
+            contents: params.contents,
+            model: modelCandidate
+          }),
+          new Promise((_, rej) => setTimeout(() => rej(new Error(`Timeout (${attemptTimeoutMs}ms) no modelo ${modelCandidate}`)), attemptTimeoutMs))
+        ]);
         return response;
       } catch (error: any) {
         lastError = error;
@@ -1307,7 +1343,7 @@ async function generateContentWithRetry(params: { model: string; contents: any }
           continue;
         }
 
-        console.warn(`[Gemini Engine] Candidate model ${modelCandidate} failed after attempt ${attempt}. Switching to next candidate...`);
+        console.warn(`[Gemini Engine] Candidate model ${modelCandidate} failed (${errStr.slice(0, 120)}). Switching to next candidate...`);
         break; // Switch to next candidate model
       }
     }
@@ -1621,16 +1657,30 @@ const handleInfinitePayWebhook = async (req: any, res: any) => {
         return res.json({ success: true, message: `O pedido ${order_nsu} já constava como pago.` });
       }
 
-      // Update order to Pago and store fee calculation
+      // Update order to Pago and filter against existing schema columns so missing optional columns don't fail Postgres updates
+      let orderUpdatePayload: any = {
+        status: 'Pago',
+        status_pagamento: 'pago',
+        valor_bruto: valorBruto,
+        taxa_financeira: taxaFinanceira,
+        valor_liquido: valorLiquido
+      };
+      if (db.constructor.name !== 'LocalDBAdapter') {
+        try {
+          const { data: oneRow } = await db.from('ap_online_orders').select('*').limit(1);
+          const cols = oneRow && oneRow.length > 0 ? Object.keys(oneRow[0]) : ['status'];
+          const filtered: any = {};
+          cols.forEach(c => {
+            if (orderUpdatePayload[c] !== undefined) filtered[c] = orderUpdatePayload[c];
+          });
+          if (Object.keys(filtered).length === 0) filtered.status = 'Pago';
+          orderUpdatePayload = filtered;
+        } catch {}
+      }
+
       const { error: updateError } = await firebase
         .from('ap_online_orders')
-        .update({ 
-          status: 'Pago', 
-          status_pagamento: 'pago',
-          valor_bruto: valorBruto,
-          taxa_financeira: taxaFinanceira,
-          valor_liquido: valorLiquido
-        })
+        .update(orderUpdatePayload)
         .eq('id', order_nsu);
 
       if (updateError) {
@@ -1740,9 +1790,24 @@ const handleInfinitePayWebhook = async (req: any, res: any) => {
         valor_liquido: valorLiquido
       };
 
+      let filteredSalePayload: any = { ...salePayload };
+      if (db.constructor.name !== 'LocalDBAdapter') {
+        try {
+          const { data: oneSale } = await db.from('ap_sales').select('*').limit(1);
+          const cols = oneSale && oneSale.length > 0 ? Object.keys(oneSale[0]) : null;
+          if (cols && cols.length > 0) {
+            const filtered: any = { id: salePayload.id };
+            cols.forEach(c => {
+              if ((salePayload as any)[c] !== undefined) filtered[c] = (salePayload as any)[c];
+            });
+            filteredSalePayload = filtered;
+          }
+        } catch {}
+      }
+
       const { error: saleInsertErr } = await firebase
         .from('ap_sales')
-        .upsert([salePayload], { onConflict: 'id' });
+        .upsert([filteredSalePayload], { onConflict: 'id' });
 
       if (saleInsertErr) {
         console.error(`[InfinitePay Webhook Error] Erro ao gravar ap_sales no webhook:`, saleInsertErr);
@@ -1758,15 +1823,28 @@ const handleInfinitePayWebhook = async (req: any, res: any) => {
         return res.json({ success: true, message: `Venda ${order_nsu} já constava como paga.` });
       }
 
-      // Update Sale to Pago and store fee calculations
+      let saleUpdatePayload: any = {
+        status: 'Pago',
+        valor_bruto: valorBruto,
+        taxa_financeira: taxaFinanceira,
+        valor_liquido: valorLiquido
+      };
+      if (db.constructor.name !== 'LocalDBAdapter') {
+        try {
+          const { data: oneSale } = await db.from('ap_sales').select('*').limit(1);
+          const cols = oneSale && oneSale.length > 0 ? Object.keys(oneSale[0]) : ['status'];
+          const filtered: any = {};
+          cols.forEach(c => {
+            if (saleUpdatePayload[c] !== undefined) filtered[c] = saleUpdatePayload[c];
+          });
+          if (Object.keys(filtered).length === 0) filtered.status = 'Pago';
+          saleUpdatePayload = filtered;
+        } catch {}
+      }
+
       const { error: updateSaleErr } = await firebase
         .from('ap_sales')
-        .update({ 
-          status: 'Pago',
-          valor_bruto: valorBruto,
-          taxa_financeira: taxaFinanceira,
-          valor_liquido: valorLiquido
-        })
+        .update(saleUpdatePayload)
         .eq('id', order_nsu);
 
       if (updateSaleErr) {
@@ -3695,23 +3773,41 @@ app.delete('/api/proxy/products/:id', async (req, res) => {
 // GOOGLE WORKSPACE API ROUTES (Drive, Sheets, Calendar, Gmail)
 // ==========================================
 app.get('/api/google/status', (req, res) => {
-  res.json({
-    connected: true,
-    userEmail: 'apmodafitness55@gmail.com',
-    scopes: [
-      'https://www.googleapis.com/auth/drive.file',
-      'https://www.googleapis.com/auth/spreadsheets',
-      'https://www.googleapis.com/auth/calendar',
-      'https://www.googleapis.com/auth/gmail.send'
-    ],
-    services: {
-      drive: { active: true, name: 'Google Drive Backup & Arquivos' },
-      sheets: { active: true, name: 'Google Sheets Sincronia de Vendas e Estoque' },
-      calendar: { active: true, name: 'Google Calendar Provadores e Entregas' },
-      gmail: { active: true, name: 'Gmail Disparos de Comprovantes' }
-    },
-    lastCheck: new Date().toISOString()
-  });
+  try {
+    let config: any = {};
+    if (fs.existsSync(GOOGLE_CONFIG_PATH)) {
+      config = JSON.parse(fs.readFileSync(GOOGLE_CONFIG_PATH, 'utf-8'));
+    }
+    const configured = Boolean(config.clientId && config.clientSecret);
+    const headerHasToken = Boolean(req.headers.authorization && req.headers.authorization.startsWith('Bearer '));
+    res.json({
+      connected: configured && headerHasToken,
+      configured,
+      hasClientId: Boolean(config.clientId),
+      hasClientSecret: Boolean(config.clientSecret),
+      userEmail: config.userEmail || (configured ? 'Conta OAuth Configurada' : null),
+      scopes: [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/calendar',
+        'https://www.googleapis.com/auth/gmail.send'
+      ],
+      services: {
+        drive: { active: configured, name: 'Google Drive Backup & Arquivos' },
+        sheets: { active: configured, name: 'Google Sheets Sincronia de Vendas e Estoque' },
+        calendar: { active: configured, name: 'Google Calendar Provadores e Entregas' },
+        gmail: { active: configured, name: 'Gmail Disparos de Comprovantes' }
+      },
+      lastCheck: new Date().toISOString()
+    });
+  } catch (err: any) {
+    res.json({
+      connected: false,
+      configured: false,
+      error: err.message || 'Falha ao ler configuração OAuth do Google Workspace',
+      lastCheck: new Date().toISOString()
+    });
+  }
 });
 
 app.post('/api/google/sheets/export', async (req, res) => {
@@ -3850,6 +3946,463 @@ app.post(['/api/proxy/system-configs', '/api/proxy/system_configs'], async (req,
   } catch (err: any) {
     console.error('[Proxy Configs POST] Erro:', err);
     res.status(500).json({ error: err.message || 'Erro ao sincronizar configurações.' });
+  }
+});
+
+app.delete(['/api/proxy/system-configs/:key', '/api/proxy/system_configs/:key'], async (req, res) => {
+  try {
+    const configKey = decodeURIComponent(req.params.key || '');
+    if (!configKey) {
+      return res.status(400).json({ error: 'Chave de configuração ausente.' });
+    }
+    try {
+      const local = readLocalDb();
+      if (local && Array.isArray(local.ap_system_configs)) {
+        local.ap_system_configs = local.ap_system_configs.filter((c: any) => c && String(c.key) !== configKey);
+        writeLocalDb(local);
+      }
+    } catch {}
+    const db = getFirebaseServerDb();
+    const { error } = await db.from('ap_system_configs').delete().eq('key', configKey);
+    if (error) {
+      console.warn('[Proxy Configs DELETE Supabase Warn]:', error.message || error);
+    }
+    res.json({ success: true, deletedKey: configKey });
+  } catch (err: any) {
+    console.error('[Proxy Configs DELETE] Erro:', err);
+    res.status(500).json({ error: err.message || 'Erro ao excluir configuração.' });
+  }
+});
+
+// Real ImgBB Key Verification Endpoint
+app.post('/api/proxy/test-imgbb', async (req, res) => {
+  try {
+    const apiKey = String(req.body?.apiKey || process.env.IMGBB_API_KEY || '').trim();
+    if (!apiKey) {
+      return res.status(400).json({ success: false, error: 'Chave ImgBB não fornecida.' });
+    }
+    // Minimal 1x1 transparent PNG
+    const tinyPngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+    const form = new URLSearchParams();
+    form.set('key', apiKey);
+    form.set('image', tinyPngBase64);
+    form.set('name', `healthcheck_${Date.now()}`);
+    form.set('expiration', '60');
+
+    const response = await fetchWithTimeout('https://api.imgbb.com/1/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString()
+    }, 6000);
+    const data = await response.json();
+    if (response.ok && data?.success) {
+      return res.json({ success: true, message: 'Chave ImgBB validada com upload real na API ImgBB!', url: data?.data?.url || '' });
+    }
+    return res.status(400).json({ success: false, error: data?.error?.message || `ImgBB retornou HTTP ${response.status}` });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || 'Erro ao conectar com API ImgBB.' });
+  }
+});
+
+// Real Comprehensive System Health Check Endpoint (Probes Real Supabase Cloud, Hub/Gemini, InfinitePay, Melhor Envio & Render)
+app.get('/api/system/health-check', async (req, res) => {
+  const startedAt = Date.now();
+  const report: any = {
+    timestamp: new Date().toISOString(),
+    server: { ok: true, port: PORT, uptimeSec: Math.round(process.uptime()) },
+    supabase: { mode: 'unknown', cloudReachable: false, url: '', latencyMs: 0, tables: {}, rwTest: { ok: false, message: '' } },
+    hub: { configured: false, liveTested: false, ok: false, latencyMs: 0, message: '' },
+    infinitepay: { ok: false, handle: '', latencyMs: 0, message: '' },
+    melhorEnvio: { ok: false, mode: '', latencyMs: 0, message: '' },
+    googleOAuth: { configured: false, hasClientId: false, hasClientSecret: false },
+    render: { url: 'https://ap-moda-ia-studio.onrender.com', reachable: false, apiUpToDate: false, httpStatus: 0, message: '' },
+    integrity: { staleHealthKeys: 0, brokenProductImages: 0, duplicateIds: 0 }
+  };
+
+  try {
+    // 1. Real Supabase Cloud probe (no LocalDB mask)
+    const { url, key } = resolveSupabaseCredentials();
+    report.supabase.url = url || '';
+    const tSupaStart = Date.now();
+    let healthy = false;
+    let supaErrDetail = '';
+    if (url && key && url.startsWith('http') && !key.startsWith('MY_')) {
+      try {
+        const sRes = await fetchWithTimeout(`${url}/rest/v1/`, {
+          headers: { apikey: key, Authorization: `Bearer ${key}` }
+        }, 7000);
+        healthy = sRes.ok;
+        if (!sRes.ok) {
+          supaErrDetail = `HTTP ${sRes.status} ao acessar ${url}/rest/v1/`;
+        }
+      } catch (sEx: any) {
+        healthy = false;
+        supaErrDetail = sEx?.cause?.code
+          ? `${sEx.cause.code} (${sEx.cause.hostname || url})`
+          : (sEx?.message || String(sEx));
+      }
+    } else {
+      supaErrDetail = 'URL ou Chave do Supabase ausente/inválida.';
+    }
+    isSupabaseVerifiedHealthy = healthy;
+    report.supabase.cloudReachable = healthy;
+    report.supabase.mode = healthy ? 'cloud' : 'local-fallback';
+    report.supabase.errorDetail = supaErrDetail;
+    report.supabase.latencyMs = Date.now() - tSupaStart;
+
+    const directClient = healthy ? createClient(url, key) : null;
+    const expectedTables = [
+      'ap_system_configs', 'ap_products', 'ap_clients', 'ap_sales',
+      'ap_transactions', 'ap_online_orders', 'ap_checkouts', 'ap_team_members', 'card_terminals'
+    ];
+
+    if (directClient) {
+      await Promise.all(expectedTables.map(async (tbl) => {
+        try {
+          const { data, error } = await directClient.from(tbl).select('*').limit(1);
+          if (error) {
+            report.supabase.tables[tbl] = { ok: false, error: error.message };
+          } else {
+            report.supabase.tables[tbl] = { ok: true, sampleColumns: data && data[0] ? Object.keys(data[0]) : [] };
+          }
+        } catch (e: any) {
+          report.supabase.tables[tbl] = { ok: false, error: e.message || String(e) };
+        }
+      }));
+
+      // Real backend R/W/D round-trip on ap_system_configs
+      try {
+        const testKey = 'ap_healthcheck_write_test_key';
+        const testVal = `srv-ok-${Date.now()}`;
+        const { error: wErr } = await directClient.from('ap_system_configs').upsert([{ key: testKey, value: testVal }], { onConflict: 'key' });
+        if (wErr) {
+          report.supabase.rwTest = { ok: false, message: `Write falhou: ${wErr.message}` };
+        } else {
+          const { data: rData, error: rErr } = await directClient.from('ap_system_configs').select('key, value').eq('key', testKey);
+          if (rErr || !rData || rData[0]?.value !== testVal) {
+            report.supabase.rwTest = { ok: false, message: rErr ? rErr.message : 'Read divergiu do valor gravado.' };
+          } else {
+            const { error: dErr } = await directClient.from('ap_system_configs').delete().eq('key', testKey);
+            if (dErr) {
+              report.supabase.rwTest = { ok: false, message: `Delete falhou: ${dErr.message}` };
+            } else {
+              report.supabase.rwTest = { ok: true, message: 'Write / Read / Delete em ap_system_configs confirmado na nuvem Supabase.' };
+            }
+          }
+        }
+      } catch (rwEx: any) {
+        report.supabase.rwTest = { ok: false, message: rwEx.message || String(rwEx) };
+      }
+
+      // Check stale healthcheck keys or broken images in Supabase
+      try {
+        const { data: cfgs } = await directClient.from('ap_system_configs').select('key');
+        if (Array.isArray(cfgs)) {
+          report.integrity.staleHealthKeys = cfgs.filter((c: any) => c.key === 'ap_healthcheck_write_test_key').length;
+        }
+        const { data: prods } = await directClient.from('ap_products').select('id, image, images');
+        if (Array.isArray(prods)) {
+          const seenIds = new Set<string>();
+          for (const p of prods) {
+            if (p.id && seenIds.has(String(p.id))) report.integrity.duplicateIds++;
+            if (p.id) seenIds.add(String(p.id));
+            const imgStr = String(p.image || '');
+            if (imgStr.startsWith('data:image/svg+xml') || imgStr.includes('Imagem') || imgStr.includes('Foto 2')) {
+              report.integrity.brokenProductImages++;
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // 2. Hub de IA (Gemini) Check
+    const headerGeminiKey = req.headers['x-gemini-api-key'] as string | undefined;
+    const effectiveGeminiKey = await resolveEffectiveGeminiKey(headerGeminiKey);
+    report.hub.configured = Boolean(effectiveGeminiKey);
+    const shouldProbeGemini = req.query.probeGemini === '1';
+    if (!effectiveGeminiKey) {
+      report.hub.ok = false;
+      report.hub.message = 'Nenhuma chave GEMINI_API_KEY configurada no servidor ou painel.';
+    } else if (shouldProbeGemini) {
+      const tGem = Date.now();
+      try {
+        const gemRes = await Promise.race([
+          generateContentWithRetry({ model: 'gemini-3-flash-preview', contents: 'Responda apenas: OK', timeoutMs: 10000 }, effectiveGeminiKey),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout de 22s ao consultar Gemini')), 22000))
+        ]);
+        report.hub.liveTested = true;
+        report.hub.latencyMs = Date.now() - tGem;
+        report.hub.ok = Boolean((gemRes as any)?.text);
+        report.hub.message = report.hub.ok ? `Hub de IA (Gemini) respondeu ao vivo em ${report.hub.latencyMs}ms.` : 'Gemini retornou resposta vazia.';
+      } catch (gemErr: any) {
+        report.hub.liveTested = true;
+        report.hub.latencyMs = Date.now() - tGem;
+        report.hub.ok = false;
+        report.hub.message = cleanGeminiError(gemErr);
+      }
+    } else {
+      report.hub.ok = true;
+      report.hub.message = 'Chave Gemini ativa no ambiente. Envie ?probeGemini=1 para ping ao vivo.';
+    }
+
+    // 3. InfinitePay Check
+    try {
+      let activeHandle = process.env.INFINITEPAY_HANDLE || 'ap-moda-fitness';
+      if (directClient) {
+        const { data: cfgs } = await directClient.from('ap_system_configs').select('key, value').eq('key', 'infinitepay_handle');
+        if (cfgs && cfgs[0]?.value) activeHandle = String(cfgs[0].value).trim();
+      }
+      report.infinitepay.handle = activeHandle;
+      const tInf = Date.now();
+      const infRes = await fetchWithTimeout('https://api.checkout.infinitepay.io/links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          handle: activeHandle,
+          order_nsu: `DIAG-${Date.now()}`,
+          redirect_url: 'https://apmodafitness2.com.br',
+          items: [{ quantity: 1, price: 100, description: 'Healthcheck AP Moda Fitness' }]
+        })
+      }, 6000);
+      report.infinitepay.latencyMs = Date.now() - tInf;
+      const infData = await infRes.json().catch(() => ({}));
+      report.infinitepay.ok = Boolean(infRes.ok && (infData.url || infData.link_url));
+      report.infinitepay.message = report.infinitepay.ok
+        ? `API Checkout InfinitePay ativa (handle "${activeHandle}", ${report.infinitepay.latencyMs}ms).`
+        : (infData.error || infData.message || `HTTP ${infRes.status}`);
+    } catch (infEx: any) {
+      report.infinitepay.ok = false;
+      report.infinitepay.message = infEx.message || 'Falha de comunicação com InfinitePay.';
+    }
+
+    // 4. Melhor Envio Check
+    try {
+      const tMe = Date.now();
+      const db = getFirebaseServerDb();
+      const { data: configs } = await db.from('ap_system_configs').select('key, value');
+      const tokenRow = Array.isArray(configs) ? configs.find((c: any) => c.key === 'ap_melhor_envio_token') : null;
+      const sandboxRow = Array.isArray(configs) ? configs.find((c: any) => c.key === 'ap_melhor_envio_sandbox') : null;
+      const isSandbox = sandboxRow?.value === 'true';
+      let meToken = (tokenRow?.value || process.env.MELHOR_ENVIO_TOKEN || process.env.MELHOR_ENVIO_ACCESS_TOKEN || '').trim();
+      if (meToken.toLowerCase().startsWith('bearer ')) meToken = meToken.substring(7).trim();
+
+      if (isSandbox) {
+        report.melhorEnvio = { ok: true, mode: 'sandbox', latencyMs: Date.now() - tMe, message: 'Melhor Envio ativo em modo Sandbox/Simulação.' };
+      } else if (!meToken || meToken.length < 15) {
+        report.melhorEnvio = { ok: false, mode: 'unconfigured', latencyMs: Date.now() - tMe, message: 'Token do Melhor Envio não configurado.' };
+      } else {
+        const meRes = await fetchWithTimeout('https://melhorenvio.com.br/api/v2/me', {
+          headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${meToken}`, 'User-Agent': 'APModaFitness Integration (apmodafitness55@gmail.com)' }
+        }, 4500);
+        report.melhorEnvio.latencyMs = Date.now() - tMe;
+        if (meRes.ok) {
+          const meUser = await meRes.json().catch(() => ({}));
+          report.melhorEnvio = { ok: true, mode: 'production', latencyMs: report.melhorEnvio.latencyMs, message: `Conectado em Produção (${meUser.name || 'AP Moda Fitness'}).` };
+        } else {
+          report.melhorEnvio = { ok: false, mode: 'production', latencyMs: report.melhorEnvio.latencyMs, message: `Melhor Envio retornou HTTP ${meRes.status}.` };
+        }
+      }
+    } catch (meEx: any) {
+      report.melhorEnvio = { ok: false, mode: 'error', latencyMs: 0, message: meEx.message || 'Erro ao consultar Melhor Envio.' };
+    }
+
+    // 5. Google OAuth real config check
+    try {
+      if (fs.existsSync(GOOGLE_CONFIG_PATH)) {
+        const gCfg = JSON.parse(fs.readFileSync(GOOGLE_CONFIG_PATH, 'utf-8'));
+        report.googleOAuth = {
+          configured: Boolean(gCfg.clientId && gCfg.clientSecret),
+          hasClientId: Boolean(gCfg.clientId),
+          hasClientSecret: Boolean(gCfg.clientSecret)
+        };
+      }
+    } catch {}
+
+    // 6. Render Deployment Check (https://ap-moda-ia-studio.onrender.com)
+    if (req.query.checkRender !== '0') {
+      const renderBase = String(req.query.renderUrl || 'https://ap-moda-ia-studio.onrender.com').replace(/\/$/, '');
+      report.render.url = renderBase;
+      try {
+        const homeRes = await fetchWithTimeout(renderBase, { method: 'GET' }, 8000);
+        report.render.httpStatus = homeRes.status;
+        report.render.reachable = homeRes.ok;
+        if (homeRes.ok) {
+          // Verify if Render backend API matches current endpoints (e.g. /api/infinitepay/test-connection)
+          const apiProbe = await fetchWithTimeout(`${renderBase}/api/infinitepay/test-connection`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ handle: report.infinitepay.handle || 'ap-moda-fitness' })
+          }, 5000).catch(() => null);
+          report.render.apiUpToDate = Boolean(apiProbe && apiProbe.ok);
+          report.render.message = report.render.apiUpToDate
+            ? `Render online (HTTP ${homeRes.status}) e com endpoints de API atualizados.`
+            : `Render online (HTTP ${homeRes.status}), porém executando um build antigo (rotas de API recentes retornam 404/desatualizado — faça redeploy no Render).`;
+        } else {
+          report.render.message = `Render respondeu com HTTP ${homeRes.status}.`;
+        }
+      } catch (rEx: any) {
+        report.render.reachable = false;
+        report.render.message = `Falha ao alcançar Render: ${rEx.message || rEx}`;
+      }
+    }
+
+    report.totalElapsedMs = Date.now() - startedAt;
+    res.json(report);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Erro ao executar health-check do sistema.', partial: report });
+  }
+});
+
+// Real Backend Self-Heal Endpoint (Repairs Supabase residue, broken product images, duplicate IDs, and syncs local <-> cloud)
+app.post('/api/system/self-heal', async (req, res) => {
+  const actions: string[] = [];
+  const warnings: string[] = [];
+  let fixedCount = 0;
+
+  try {
+    const { url, key } = resolveSupabaseCredentials();
+    const cloudHealthy = (url && key) ? await checkSupabaseHealth(url, key) : false;
+    isSupabaseVerifiedHealthy = cloudHealthy;
+
+    const db = getFirebaseServerDb();
+
+    // 1. Clean orphaned healthcheck test keys from ap_system_configs (Supabase + local_db.json)
+    try {
+      const local = readLocalDb();
+      if (Array.isArray(local.ap_system_configs)) {
+        const before = local.ap_system_configs.length;
+        local.ap_system_configs = local.ap_system_configs.filter((c: any) => c && c.key !== 'ap_healthcheck_write_test_key');
+        if (local.ap_system_configs.length !== before) {
+          writeLocalDb(local);
+          fixedCount += (before - local.ap_system_configs.length);
+          actions.push('Resíduo de teste "ap_healthcheck_write_test_key" removido do cache local do servidor.');
+        }
+      }
+      if (cloudHealthy && url && key) {
+        const supa = createClient(url, key);
+        const { data: leftover } = await supa.from('ap_system_configs').select('key').eq('key', 'ap_healthcheck_write_test_key');
+        if (Array.isArray(leftover) && leftover.length > 0) {
+          await supa.from('ap_system_configs').delete().eq('key', 'ap_healthcheck_write_test_key');
+          fixedCount += leftover.length;
+          actions.push(`Removido ${leftover.length} registro(s) residual(is) de healthcheck da tabela ap_system_configs no Supabase.`);
+        }
+      }
+    } catch (e: any) {
+      warnings.push(`Limpeza de configs: ${e.message}`);
+    }
+
+    // 2. Sanitize broken SVG placeholder images & duplicate image URLs in ap_products (local + Supabase)
+    try {
+      const isBadPlaceholder = (imgUrl: any) => {
+        if (typeof imgUrl !== 'string') return false;
+        const t = imgUrl.trim();
+        return t.startsWith('data:image/svg+xml') && (t.includes('Imagem') || t.includes('Foto') || t.includes('Sem Foto'));
+      };
+      const { data: prods } = await db.from('ap_products').select('*');
+      if (Array.isArray(prods)) {
+        const sanitizedProds: any[] = [];
+        for (const p of prods) {
+          let changed = false;
+          const imgs: string[] = Array.isArray(p.images)
+            ? p.images
+            : (typeof p.images === 'string' && p.images.startsWith('[') ? JSON.parse(p.images) : []);
+          const cleanImgs = Array.from(new Set(imgs.filter((u: any) => typeof u === 'string' && u.trim() !== '' && !isBadPlaceholder(u))));
+          let mainImg = typeof p.image === 'string' ? p.image.trim() : '';
+          if (isBadPlaceholder(mainImg)) {
+            mainImg = cleanImgs[0] || '';
+            changed = true;
+          }
+          if (cleanImgs.length !== imgs.length) changed = true;
+          if (changed) {
+            fixedCount++;
+            sanitizedProds.push({ ...p, image: mainImg, images: cleanImgs });
+          }
+        }
+        if (sanitizedProds.length > 0) {
+          await db.from('ap_products').upsert(sanitizedProds, { onConflict: 'id' });
+          actions.push(`Corrigidas imagens placeholder/duplicadas em ${sanitizedProds.length} produto(s) no banco.`);
+        }
+      }
+    } catch (e: any) {
+      warnings.push(`Saneamento de imagens: ${e.message}`);
+    }
+
+    // 3. Deduplicate IDs in local_db.json across collections
+    try {
+      const local = readLocalDb();
+      let localChanged = false;
+      const collections = ['ap_products', 'ap_clients', 'ap_sales', 'ap_transactions', 'ap_online_orders', 'ap_team_members', 'card_terminals'];
+      for (const col of collections) {
+        if (Array.isArray(local[col])) {
+          const seen = new Set<string>();
+          const deduped: any[] = [];
+          for (const item of local[col]) {
+            const id = item?.id ? String(item.id) : '';
+            if (!id) { deduped.push(item); continue; }
+            if (!seen.has(id)) {
+              seen.add(id);
+              deduped.push(item);
+            } else {
+              fixedCount++;
+              localChanged = true;
+            }
+          }
+          local[col] = deduped;
+        }
+      }
+      if (localChanged) {
+        writeLocalDb(local);
+        actions.push('IDs duplicados removidos de local_db.json.');
+      }
+    } catch (e: any) {
+      warnings.push(`Deduplicação local_db: ${e.message}`);
+    }
+
+    // 4. Sync Pix Key & InfinitePay handle consistency in ap_system_configs
+    try {
+      const { data: configs } = await db.from('ap_system_configs').select('key, value');
+      if (Array.isArray(configs)) {
+        const pixRow = configs.find((c: any) => c.key === 'ap_pix_key');
+        const payRow = configs.find((c: any) => c.key === 'ap_moda_payment_config');
+        let payObj: any = null;
+        try { if (payRow?.value) payObj = typeof payRow.value === 'string' ? JSON.parse(payRow.value) : payRow.value; } catch {}
+
+        const canonicalPix = (payObj?.pixKey || pixRow?.value || '').trim();
+        if (canonicalPix) {
+          const updates: any[] = [];
+          if (!pixRow || String(pixRow.value || '').trim() !== canonicalPix) {
+            updates.push({ key: 'ap_pix_key', value: canonicalPix });
+          }
+          if (payObj && String(payObj.pixKey || '').trim() !== canonicalPix) {
+            updates.push({ key: 'ap_moda_payment_config', value: JSON.stringify({ ...payObj, pixKey: canonicalPix }) });
+          }
+          if (updates.length > 0) {
+            await db.from('ap_system_configs').upsert(updates, { onConflict: 'key' });
+            fixedCount += updates.length;
+            actions.push('Chave Pix espelhada e sincronizada em ap_system_configs.');
+          }
+        }
+      }
+    } catch (e: any) {
+      warnings.push(`Sincronia Pix em nuvem: ${e.message}`);
+    }
+
+    if (cloudHealthy) {
+      actions.push(`Conexão Supabase Cloud confirmada (${url}).`);
+    } else {
+      warnings.push('Supabase Cloud inacessível neste momento; reparos aplicados no armazenamento local.');
+    }
+
+    res.json({
+      success: true,
+      cloudHealthy,
+      fixedCount,
+      actions,
+      warnings,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'Falha no motor Self-Heal do servidor.', fixedCount, actions, warnings });
   }
 });
 
@@ -4059,7 +4612,7 @@ Por favor, gere e retorne APENAS a descrição estruturada com formatação Mark
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3-flash-preview',
       contents: { parts }
     }, clientKey);
 
@@ -4094,7 +4647,7 @@ Retorne os dois looks divididos de forma elegante com divisórias Markdown.`;
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3-flash-preview',
       contents: prompt
     }, clientKey);
 
@@ -4128,7 +4681,7 @@ Retorne duas versões do script:
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3-flash-preview',
       contents: prompt
     }, clientKey);
 
@@ -4170,7 +4723,7 @@ Retorne APENAS o texto da mensagem persuasiva pronta para ser enviada no WhatsAp
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3-flash-preview',
       contents: prompt
     }, clientKey);
 
@@ -4184,7 +4737,7 @@ Retorne APENAS o texto da mensagem persuasiva pronta para ser enviada no WhatsAp
 // 4. Stock & Profit Sentinel Analyzer Agent
 app.post('/api/gemini/stock-sentinel', async (req, res) => {
   try {
-    const { productsList } = req.body;
+    const productsList = req.body.productsList || req.body.products || [];
 
     // Serialize catalog parameters to keep payload light but smart
     const serializedProducts = (productsList || []).map((p: any) => ({
@@ -4210,7 +4763,7 @@ Por favor, seja direto, profissional, analítico e use tabelas Markdown para fac
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3-flash-preview',
       contents: prompt
     }, clientKey);
 
@@ -4255,7 +4808,7 @@ Por favor, retorne apenas o objeto JSON limpo e estruturado.`;
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3-flash-preview',
       contents: prompt
     }, clientKey);
 
@@ -4341,7 +4894,7 @@ RETORNE (Em formato Markdown com formatação impecável):
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3-flash-preview',
       contents: prompt
     }, clientKey);
 
@@ -4371,7 +4924,7 @@ INSTRUÇÕES DE TRADUÇÃO:
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3-flash-preview',
       contents: prompt
     }, clientKey);
 
@@ -4428,7 +4981,7 @@ Use formatação Markdown linda, profissional, tabelas limpas e com formatação
 
     const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3-flash-preview',
       contents: prompt
     }, clientKey);
 

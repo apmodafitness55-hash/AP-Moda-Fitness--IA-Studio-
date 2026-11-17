@@ -1,4 +1,10 @@
-import { getSupabaseClient, isSupabaseConfigured } from '../supabase';
+import {
+  getSupabaseClient,
+  isSupabaseConfigured,
+  pushSystemConfigToSupabase,
+  syncBulkProductsToSupabase,
+  syncSystemConfigsWithSupabase
+} from '../supabase';
 
 export interface DiagnosticLog {
   timestamp: string;
@@ -13,6 +19,15 @@ export interface DiagnosticResult {
   overallStatus: 'healthy' | 'warning' | 'critical';
   timestamp: string;
   supabaseConnected: boolean;
+  liveSummary?: {
+    supabaseMode: string;
+    hubOk: boolean;
+    infinitePayOk: boolean;
+    melhorEnvioOk: boolean;
+    renderReachable: boolean;
+    renderUpToDate: boolean;
+    googleOAuthConfigured: boolean;
+  };
   checks: {
     database: { status: 'success' | 'warning' | 'error'; message: string; logs: DiagnosticLog[] };
     permissions: { status: 'success' | 'warning' | 'error'; message: string; logs: DiagnosticLog[] };
@@ -26,462 +41,746 @@ export interface DiagnosticResult {
   };
 }
 
+export interface SelfHealReport {
+  success: boolean;
+  fixedCount: number;
+  actions: string[];
+  remainingWarnings: string[];
+  diagnosticsAfter: DiagnosticResult;
+  timestamp: string;
+}
+
+const CRITICAL_JSON_KEYS = [
+  'ap_moda_products',
+  'ap_moda_clients',
+  'ap_moda_sales',
+  'ap_moda_transactions',
+  'ap_moda_online_orders',
+  'ap_moda_team',
+  'ap_coupons',
+  'ap_moda_partners',
+  'ap_moda_payment_config',
+  'ap_moda_company_info',
+  'ap_infinitepay_config'
+];
+
+function isBadPlaceholderImage(imgUrl: unknown): boolean {
+  if (typeof imgUrl !== 'string') return false;
+  const trimmed = imgUrl.trim();
+  return (
+    trimmed.startsWith('data:image/svg+xml') &&
+    (trimmed.includes('Imagem') || trimmed.includes('Foto') || trimmed.includes('Sem Foto'))
+  );
+}
+
 export async function runDeepSystemDiagnostics(): Promise<DiagnosticResult> {
   const timestamp = new Date().toISOString();
-  const logs: DiagnosticLog[] = [];
   const isConfigured = isSupabaseConfigured();
 
-  // Helper to add log entries
-  const log = (scope: string, testName: string, status: 'success' | 'warning' | 'error', message: string, details?: string) => {
-    logs.push({
-      timestamp: new Date().toISOString(),
-      scope,
-      testName,
-      status,
-      message,
-      details
-    });
-  };
-
-  log('Supabase Config', 'Conexão Inicial', isConfigured ? 'success' : 'warning', 
-      isConfigured ? 'Supabase está configurado com credenciais ativas.' : 'Supabase não configurado. Utilizando fallback local seguro.');
+  const dbLogs: DiagnosticLog[] = [];
+  const permLogs: DiagnosticLog[] = [];
+  const workflowLogs: DiagnosticLog[] = []; // Connectivity: Hub AI, InfinitePay, Melhor Envio, Google, Render
+  const analyticLogs: DiagnosticLog[] = []; // Data Integrity & Formula Consistency
 
   let databaseStatus: 'success' | 'warning' | 'error' = 'success';
   let permissionsStatus: 'success' | 'warning' | 'error' = 'success';
   let workflowsStatus: 'success' | 'warning' | 'error' = 'success';
   let analyticsStatus: 'success' | 'warning' | 'error' = 'success';
-
-  // --- 1. BANCO DE DADOS & SCHEMAS (SUPABASE) ---
-  const dbLogs: DiagnosticLog[] = [];
   let tablesVerified = 0;
 
-  const expectedSchemas: Record<string, string[]> = {
-    ap_team_members: ['id', 'name', 'login', 'password', 'role', 'details', 'birthDate', 'createdAt', 'avatar'],
-    ap_products: ['id', 'name', 'sku', 'category', 'price', 'cost', 'stock', 'minStock', 'image', 'images', 'salesCount', 'colors', 'sizes'],
-    ap_clients: ['id', 'name', 'email', 'phone', 'cpf', 'birthDate', 'whatsapp', 'channel', 'npsScore', 'totalSpent', 'ordersCount', 'cashbackBalance'],
-    ap_sales: ['id', 'clientName', 'clientDoc', 'channel', 'items', 'total', 'costTotal', 'status', 'createdAt', 'payments', 'salesperson'],
-    ap_transactions: ['id', 'type', 'category', 'description', 'amount', 'date', 'status', 'due_date'],
-    ap_online_orders: ['id', 'clientName', 'total', 'status', 'items', 'createdAt', 'phone', 'address', 'paymentMethod'],
-    ap_system_configs: ['key', 'value', 'updated_at']
-  };
+  let backendHealth: any = null;
+  const storedGeminiKey =
+    localStorage.getItem('gemini_api_key') ||
+    localStorage.getItem('GEMINI_API_KEY') ||
+    '';
 
-  if (isConfigured) {
+  try {
+    const res = await fetch('/api/system/health-check?probeGemini=1&checkRender=1', {
+      headers: storedGeminiKey ? { 'x-gemini-api-key': storedGeminiKey } : {}
+    });
+    if (res.ok) {
+      backendHealth = await res.json();
+    } else {
+      workflowLogs.push({
+        timestamp: new Date().toISOString(),
+        scope: 'Render & Backend',
+        testName: 'Endpoint de Diagnóstico do Servidor',
+        status: 'error',
+        message: `Servidor Express retornou HTTP ${res.status} ao verificar saúde real.`
+      });
+      workflowsStatus = 'error';
+    }
+  } catch (err: any) {
+    workflowLogs.push({
+      timestamp: new Date().toISOString(),
+      scope: 'Render & Backend',
+      testName: 'Comunicação com Backend Express',
+      status: 'error',
+      message: 'Não foi possível contactar o servidor Express local (/api/system/health-check).',
+      details: err.message || String(err)
+    });
+    workflowsStatus = 'error';
+  }
+
+  // --- 1. BANCO DE DADOS & TABELAS REAIS (SUPABASE CLOUD vs FALLBACK) ---
+  if (backendHealth?.supabase) {
+    const supa = backendHealth.supabase;
+    if (supa.cloudReachable) {
+      dbLogs.push({
+        timestamp: new Date().toISOString(),
+        scope: 'Database Schema',
+        testName: 'Conexão Supabase Cloud',
+        status: 'success',
+        message: `Conectado à nuvem Supabase em ${supa.latencyMs}ms.`,
+        details: `Instância ativa: ${supa.url}`
+      });
+    } else {
+      databaseStatus = 'error';
+      dbLogs.push({
+        timestamp: new Date().toISOString(),
+        scope: 'Database Schema',
+        testName: 'Conexão Supabase Cloud',
+        status: 'error',
+        message: 'Supabase Cloud inacessível; servidor operando em modo Local Fallback (local_db.json).',
+        details: `Instância: ${supa.url || 'não definida'}${supa.errorDetail ? ` • Motivo: ${supa.errorDetail}` : ''}`
+      });
+    }
+
+    const tablesObj = supa.tables || {};
+    for (const [tableName, info] of Object.entries<any>(tablesObj)) {
+      if (info?.ok) {
+        tablesVerified++;
+        const cols: string[] = Array.isArray(info.sampleColumns) ? info.sampleColumns : [];
+        dbLogs.push({
+          timestamp: new Date().toISOString(),
+          scope: 'Database Schema',
+          testName: `Tabela ${tableName}`,
+          status: 'success',
+          message: cols.length > 0
+            ? `Tabela '${tableName}' online e legível (${cols.length} colunas detectadas).`
+            : `Tabela '${tableName}' online e acessível (atualmente sem linhas).`,
+          details: cols.length > 0 ? `Colunas: ${cols.slice(0, 8).join(', ')}${cols.length > 8 ? '...' : ''}` : undefined
+        });
+      } else {
+        databaseStatus = 'error';
+        dbLogs.push({
+          timestamp: new Date().toISOString(),
+          scope: 'Database Schema',
+          testName: `Tabela ${tableName}`,
+          status: 'error',
+          message: `Falha ao consultar '${tableName}' no Supabase.`,
+          details: info?.error || 'Erro desconhecido'
+        });
+      }
+    }
+  } else if (isConfigured) {
+    // Direct fallback check via proxy if /api/system/health-check failed
     try {
       const supabase = getSupabaseClient();
-      
-      for (const [table, columns] of Object.entries(expectedSchemas)) {
-        // Query 1 record to inspect structural connectivity
-        const { data, error } = await supabase.from(table).select('*').limit(1);
-        
+      const tables = ['ap_system_configs', 'ap_products', 'ap_clients', 'ap_sales', 'ap_transactions', 'ap_online_orders', 'ap_team_members'];
+      for (const tbl of tables) {
+        const { error } = await supabase.from(tbl).select('*').limit(1);
         if (error) {
           databaseStatus = 'error';
-          dbLogs.push({
-            timestamp: new Date().toISOString(),
-            scope: 'Database Schema',
-            testName: `Tabela ${table}`,
-            status: 'error',
-            message: `Erro ao consultar a tabela '${table}'.`,
-            details: error.message
-          });
+          dbLogs.push({ timestamp: new Date().toISOString(), scope: 'Database Schema', testName: tbl, status: 'error', message: error.message });
         } else {
           tablesVerified++;
-          // Schema column safety check (inspect schema keys dynamically from returned columns if row exists)
-          const sampleRow = data && data[0];
-          let colCheckMsg = 'Estrutura verificada via metadados Supabase.';
-          if (sampleRow) {
-            const returnedCols = Object.keys(sampleRow);
-            const missingCols = columns.filter(c => !returnedCols.includes(c));
-            if (missingCols.length > 0) {
-              databaseStatus = 'warning';
-              dbLogs.push({
-                timestamp: new Date().toISOString(),
-                scope: 'Database Schema',
-                testName: `Colunas em ${table}`,
-                status: 'warning',
-                message: `Tabela '${table}' carregada, mas faltam colunas recomendadas na resposta.`,
-                details: `Colunas ausentes ou não retornadas: ${missingCols.join(', ')}`
-              });
-            } else {
-              dbLogs.push({
-                timestamp: new Date().toISOString(),
-                scope: 'Database Schema',
-                testName: `Tabela ${table}`,
-                status: 'success',
-                message: `Tabela '${table}' está online e íntegra com todas as colunas essenciais verificadas.`,
-                details: `Colunas validadas: ${columns.slice(0, 5).join(', ')}... e mais ${columns.length - 5} colunas.`
-              });
-            }
-          } else {
-            dbLogs.push({
-              timestamp: new Date().toISOString(),
-              scope: 'Database Schema',
-              testName: `Tabela ${table}`,
-              status: 'success',
-              message: `Tabela '${table}' conectada e RLS validado (Tabela vazia ou sem registros no momento).`,
-              details: `O teste de ping na tabela retornou status 200 OK do Supabase.`
-            });
-          }
+          dbLogs.push({ timestamp: new Date().toISOString(), scope: 'Database Schema', testName: tbl, status: 'success', message: `Proxy '${tbl}' respondeu HTTP 200 OK.` });
         }
       }
     } catch (e: any) {
       databaseStatus = 'error';
-      dbLogs.push({
-        timestamp: new Date().toISOString(),
-        scope: 'Database Connection',
-        testName: 'Exceção Crítica',
-        status: 'error',
-        message: 'Não foi possível conectar ao banco de dados Supabase.',
-        details: e.message || String(e)
-      });
-    }
-  } else {
-    // Local fallback schema verification
-    for (const [table, columns] of Object.entries(expectedSchemas)) {
-      tablesVerified++;
-      dbLogs.push({
-        timestamp: new Date().toISOString(),
-        scope: 'Local Storage Engine',
-        testName: `Tabela ${table} (Local)`,
-        status: 'success',
-        message: `Schema local da tabela '${table}' está mapeado e pronto para gravação em localStorage.`,
-        details: `Campos monitorados para sincronização: ${columns.join(', ')}`
-      });
+      dbLogs.push({ timestamp: new Date().toISOString(), scope: 'Database Schema', testName: 'Falha Geral DB', status: 'error', message: e.message || String(e) });
     }
   }
 
-  // --- 2. VARREDURA DE PERMISSÕES & SEGURANÇA (RLS) ---
-  const permLogs: DiagnosticLog[] = [];
-  if (isConfigured) {
-    try {
-      const supabase = getSupabaseClient();
-      
-      // Attempt a write operation on ap_system_configs (R/W Integration verification)
-      const testKey = 'ap_healthcheck_write_test_key';
-      const testVal = `ok-${Date.now()}`;
-      
-      const { error: insertError } = await supabase
-        .from('ap_system_configs')
-        .upsert([{ key: testKey, value: testVal }]);
+  // --- 2. PERMISSÕES RLS & TESTE REAL WRITE/READ/DELETE ---
+  try {
+    const supabase = getSupabaseClient();
+    const testKey = 'ap_healthcheck_write_test_key';
+    const testVal = `ok-${Date.now()}`;
 
-      if (insertError) {
-        permissionsStatus = 'error';
-        permLogs.push({
-          timestamp: new Date().toISOString(),
-          scope: 'Security RLS',
-          testName: 'Teste de Escrita (Write)',
-          status: 'error',
-          message: 'Permissão de gravação negada na tabela de configurações.',
-          details: insertError.message
-        });
-      } else {
-        // Read back
-        const { data, error: readError } = await supabase
-          .from('ap_system_configs')
-          .select('value')
-          .eq('key', testKey);
+    const { error: insertError } = await supabase
+      .from('ap_system_configs')
+      .upsert([{ key: testKey, value: testVal }]);
 
-        if (readError || !data || data[0]?.value !== testVal) {
-          permissionsStatus = 'error';
-          permLogs.push({
-            timestamp: new Date().toISOString(),
-            scope: 'Security RLS',
-            testName: 'Teste de Leitura (Read)',
-            status: 'error',
-            message: 'Erro ao reler chave gravada temporariamente ou inconsistência de cache.',
-            details: readError ? readError.message : 'Valor retornado diverge do gravado.'
-          });
-        } else {
-          // Clean up key
-          const { error: deleteError } = await supabase
-            .from('ap_system_configs')
-            .delete()
-            .eq('key', testKey);
-
-          if (deleteError) {
-            permissionsStatus = 'warning';
-            permLogs.push({
-              timestamp: new Date().toISOString(),
-              scope: 'Security RLS',
-              testName: 'Teste de Limpeza (Delete)',
-              status: 'warning',
-              message: 'Não foi possível apagar a chave de teste temporária, mas leitura/escrita funcionaram perfeitamente.',
-              details: deleteError.message
-            });
-          } else {
-            permLogs.push({
-              timestamp: new Date().toISOString(),
-              scope: 'Security RLS',
-              testName: 'Teste R/W/D Completo',
-              status: 'success',
-              message: 'Segurança RLS e permissões de escrita/leitura/exclusão estão 100% ativas e funcionais no Supabase.'
-            });
-          }
-        }
-      }
-    } catch (e: any) {
+    if (insertError) {
       permissionsStatus = 'error';
       permLogs.push({
         timestamp: new Date().toISOString(),
         scope: 'Security RLS',
-        testName: 'Exceção RLS',
+        testName: 'Teste Proxy Write',
         status: 'error',
-        message: 'Erro crítico de rede ao validar RLS e permissões de gravação do Supabase.',
-        details: e.message || String(e)
-      });
-    }
-  } else {
-    permLogs.push({
-      timestamp: new Date().toISOString(),
-      scope: 'Security RLS (Offline)',
-      testName: 'Permissões Locais',
-      status: 'success',
-      message: 'Permissões locais liberadas. Cache de gravação offline-first sincronizado.'
-    });
-  }
-
-  // --- 3. SIMULAÇÃO DE FLUXOS CRÍTICOS (WORKFLOWS) ---
-  const workflowLogs: DiagnosticLog[] = [];
-  
-  // Simulation 1: Customer Portal Authentication & Measurements Fit check
-  try {
-    const testCPF = '123.456.789-00';
-    const testClient = {
-      id: 'test-c-1',
-      name: 'Cliente de Teste',
-      cpf: testCPF,
-      phone: '(11) 99999-8888',
-      email: 'cliente.teste@teste.com',
-      totalSpent: 450.00,
-      ordersCount: 3,
-      cashbackBalance: 45.00,
-      busto: 92,
-      cintura: 70,
-      quadril: 98,
-      channel: 'WhatsApp' as const,
-      createdAt: new Date().toISOString()
-    };
-
-    // Simulate sizing calculation
-    const recommendSize = (b: number, c: number, q: number) => {
-      if (b < 90 && c < 72 && q < 96) return 'P';
-      if (b < 98 && c < 80 && q < 104) return 'M';
-      return 'G';
-    };
-
-    const size = recommendSize(testClient.busto, testClient.cintura, testClient.quadril);
-    if (size !== 'M') {
-      workflowsStatus = 'warning';
-      workflowLogs.push({
-        timestamp: new Date().toISOString(),
-        scope: 'Customer Sizing Engine',
-        testName: 'Recomendação de Tamanho',
-        status: 'warning',
-        message: 'A recomendação de tamanho calculou incorretamente para o Cliente de Teste.',
-        details: `Calculado: ${size}, Esperado: M (Busto 92, Cintura 70, Quadril 98)`
+        message: 'Falha ao gravar chave temporária via /api/proxy/system-configs.',
+        details: insertError.message
       });
     } else {
-      workflowLogs.push({
-        timestamp: new Date().toISOString(),
-        scope: 'Customer Portal Auth',
-        testName: 'Login & Recomendação de Medidas',
-        status: 'success',
-        message: 'Simulação de autenticação via CPF/WhatsApp e cálculo de Fit de Medidas concluída com sucesso.',
-        details: `Cliente: ${testClient.name}. Tamanho recomendado: M. Cashback Disponível: R$ ${testClient.cashbackBalance.toFixed(2)}`
-      });
-    }
-  } catch (e: any) {
-    workflowsStatus = 'error';
-    workflowLogs.push({
-      timestamp: new Date().toISOString(),
-      scope: 'Customer Portal Auth',
-      testName: 'Erro Crítico no Fluxo',
-      status: 'error',
-      message: 'Falha grave ao simular fluxo de login do cliente.',
-      details: e.message
-    });
-  }
+      const { data, error: readError } = await supabase
+        .from('ap_system_configs')
+        .select('value')
+        .eq('key', testKey);
 
-  // Simulation 2: Staff Permissions checks (Gerentes, Vendedores, Entregadores)
-  try {
-    const rolesToTest = [
-      { role: 'Admin', canDelete: true, canEditSettings: true },
-      { role: 'Gerente', canDelete: true, canEditSettings: true },
-      { role: 'Vendedor', canDelete: false, canEditSettings: false },
-      { role: 'Entregador', canDelete: false, canEditSettings: false }
-    ];
+      if (readError || !data || data[0]?.value !== testVal) {
+        permissionsStatus = 'error';
+        permLogs.push({
+          timestamp: new Date().toISOString(),
+          scope: 'Security RLS',
+          testName: 'Teste Proxy Read',
+          status: 'error',
+          message: 'Falha ao reler chave gravada em ap_system_configs.',
+          details: readError ? readError.message : 'Valor retornado diverge do gravado.'
+        });
+      } else {
+        const { error: deleteError } = await supabase
+          .from('ap_system_configs')
+          .delete()
+          .eq('key', testKey);
 
-    let rolesOk = true;
-    for (const r of rolesToTest) {
-      // Simulate checking permissions
-      const hasAdminRights = r.role === 'Admin' || r.role === 'Gerente';
-      if (hasAdminRights !== r.canEditSettings) {
-        rolesOk = false;
-        break;
+        if (deleteError) {
+          permissionsStatus = 'error';
+          permLogs.push({
+            timestamp: new Date().toISOString(),
+            scope: 'Security RLS',
+            testName: 'Teste Proxy Delete',
+            status: 'error',
+            message: 'Falha ao excluir chave de teste em /api/proxy/system-configs/:key.',
+            details: deleteError.message
+          });
+        } else {
+          permLogs.push({
+            timestamp: new Date().toISOString(),
+            scope: 'Security RLS',
+            testName: 'Ciclo R/W/D via Proxy',
+            status: 'success',
+            message: 'Escrita, leitura e exclusão (Write/Read/Delete) em ap_system_configs concluídas com sucesso e sem resíduos.'
+          });
+        }
       }
     }
 
-    if (!rolesOk) {
-      workflowsStatus = 'warning';
-      workflowLogs.push({
+    if (backendHealth?.supabase?.rwTest) {
+      const rw = backendHealth.supabase.rwTest;
+      if (!rw.ok && permissionsStatus === 'success') permissionsStatus = 'error';
+      permLogs.push({
         timestamp: new Date().toISOString(),
-        scope: 'Staff Hierarchy Rules',
-        testName: 'Privilégios de Funcionários',
-        status: 'warning',
-        message: 'Inconsistência identificada nas regras de privilégios dos cargos.',
-        details: 'Gerente ou Admin não estão devidamente mapeados com nível total de permissão.'
-      });
-    } else {
-      workflowLogs.push({
-        timestamp: new Date().toISOString(),
-        scope: 'Staff Hierarchy Rules',
-        testName: 'Privilégios de Funcionários',
-        status: 'success',
-        message: 'Níveis de permissão de Funcionários (Gerentes, Vendedores, Entregadores) estão corretos.',
-        details: 'Admin/Gerente = Total, Vendedor/Parceiro/Entregador = Restrito/Operacional.'
+        scope: 'Security RLS',
+        testName: 'RLS Direto Supabase Cloud',
+        status: rw.ok ? 'success' : 'error',
+        message: rw.message
       });
     }
   } catch (e: any) {
-    workflowsStatus = 'error';
-    workflowLogs.push({
+    permissionsStatus = 'error';
+    permLogs.push({
       timestamp: new Date().toISOString(),
-      scope: 'Staff Hierarchy Rules',
-      testName: 'Erro de Execução',
+      scope: 'Security RLS',
+      testName: 'Exceção RLS',
       status: 'error',
-      message: 'Erro ao simular estrutura de cargos de equipe.',
-      details: e.message
+      message: 'Erro ao validar permissões R/W/D.',
+      details: e.message || String(e)
     });
   }
 
-  // Simulation 3: AI Agent autonomous communication test
-  try {
-    const simulateAIPrompt = "Olá! Gostaria de saber se o cropped preto tamanho M está disponível no estoque.";
-    const simulatedResponse = "Olá! De acordo com as consultas em tempo real do nosso banco de dados, o Cropped Fitness Preto M possui 5 unidades em estoque. Posso reservar para você?";
-    
-    if (simulatedResponse.includes('Preto M') && simulatedResponse.includes('estoque')) {
+  // --- 3. CONECTIVIDADE REAL DE INTEGRAÇÕES (HUB IA, INFINITEPAY, MELHOR ENVIO, GOOGLE, RENDER) ---
+  if (backendHealth) {
+    // 3.1 Hub de IA (Gemini)
+    const hub = backendHealth.hub;
+    if (hub?.ok) {
       workflowLogs.push({
         timestamp: new Date().toISOString(),
-        scope: 'AI Agent Autonomous Hub',
-        testName: 'Agentes de IA e NLP',
+        scope: 'Hub IA (Gemini)',
+        testName: 'API Gemini / Agentes IA',
         status: 'success',
-        message: 'Fluxo autônomo do assistente inteligente validado com parser JSON correto.',
-        details: `Prompt simulado: "${simulateAIPrompt}". Resposta do Agente: "${simulatedResponse.slice(0, 80)}..."`
+        message: hub.message,
+        details: `Testado ao vivo: ${hub.liveTested ? 'Sim' : 'Não'} • Latência: ${hub.latencyMs}ms`
       });
     } else {
-      workflowsStatus = 'warning';
+      if (workflowsStatus !== 'error') workflowsStatus = hub?.configured ? 'error' : 'warning';
       workflowLogs.push({
         timestamp: new Date().toISOString(),
-        scope: 'AI Agent Autonomous Hub',
-        testName: 'Agentes de IA e NLP',
-        status: 'warning',
-        message: 'Agente de IA respondeu com formatação fora do padrão estruturado.',
-        details: `Resposta obtida: ${simulatedResponse}`
+        scope: 'Hub IA (Gemini)',
+        testName: 'API Gemini / Agentes IA',
+        status: hub?.configured ? 'error' : 'warning',
+        message: hub?.message || 'Hub de IA não respondeu ao teste.',
+        details: 'Configure GEMINI_API_KEY nas variáveis do servidor ou salve sua chave na aba Configurações.'
       });
     }
-  } catch (e: any) {
-    workflowsStatus = 'error';
-    workflowLogs.push({
-      timestamp: new Date().toISOString(),
-      scope: 'AI Agent Autonomous Hub',
-      testName: 'Erro no Agente de IA',
-      status: 'error',
-      message: 'Falha de comunicação com o assistente inteligente.',
-      details: e.message
-    });
+
+    // 3.2 InfinitePay
+    const inf = backendHealth.infinitepay;
+    if (inf?.ok) {
+      workflowLogs.push({
+        timestamp: new Date().toISOString(),
+        scope: 'InfinitePay',
+        testName: 'Checkout Integrado InfinitePay',
+        status: 'success',
+        message: inf.message,
+        details: `Handle ativo: ${inf.handle} • Latência: ${inf.latencyMs}ms`
+      });
+    } else {
+      workflowsStatus = 'error';
+      workflowLogs.push({
+        timestamp: new Date().toISOString(),
+        scope: 'InfinitePay',
+        testName: 'Checkout Integrado InfinitePay',
+        status: 'error',
+        message: `Falha na InfinitePay: ${inf?.message || 'Sem resposta'}`,
+        details: `Handle testado: ${inf?.handle || 'ap-moda-fitness'}`
+      });
+    }
+
+    // 3.3 Melhor Envio
+    const me = backendHealth.melhorEnvio;
+    if (me?.ok) {
+      workflowLogs.push({
+        timestamp: new Date().toISOString(),
+        scope: 'Logística Melhor Envio',
+        testName: 'API Melhor Envio',
+        status: 'success',
+        message: me.message,
+        details: `Modo: ${me.mode} • Latência: ${me.latencyMs}ms`
+      });
+    } else {
+      if (workflowsStatus !== 'error') workflowsStatus = 'warning';
+      workflowLogs.push({
+        timestamp: new Date().toISOString(),
+        scope: 'Logística Melhor Envio',
+        testName: 'API Melhor Envio',
+        status: 'warning',
+        message: me?.message || 'Melhor Envio não configurado.'
+      });
+    }
+
+    // 3.4 Google Workspace OAuth
+    const gOauth = backendHealth.googleOAuth;
+    const hasLocalGoogleToken = Boolean(localStorage.getItem('ap_google_access_token'));
+    if (gOauth?.configured) {
+      workflowLogs.push({
+        timestamp: new Date().toISOString(),
+        scope: 'Google Workspace',
+        testName: 'Credenciais OAuth Google',
+        status: hasLocalGoogleToken ? 'success' : 'warning',
+        message: hasLocalGoogleToken
+          ? 'OAuth Google configurado e sessão autorizada neste navegador.'
+          : 'Client ID/Secret salvos no servidor, aguardando login OAuth do operador na aba Google Workspace.'
+      });
+      if (!hasLocalGoogleToken && workflowsStatus === 'success') workflowsStatus = 'warning';
+    } else {
+      if (workflowsStatus === 'success') workflowsStatus = 'warning';
+      workflowLogs.push({
+        timestamp: new Date().toISOString(),
+        scope: 'Google Workspace',
+        testName: 'Credenciais OAuth Google',
+        status: 'warning',
+        message: 'Google OAuth (Client ID / Secret) não está configurado no servidor. Recursos do Google Workspace exigem configuração OAuth real.'
+      });
+    }
+
+    // 3.5 Render Deployment Check
+    const rnd = backendHealth.render;
+    if (rnd?.reachable && rnd?.apiUpToDate) {
+      workflowLogs.push({
+        timestamp: new Date().toISOString(),
+        scope: 'Render & Backend',
+        testName: 'Servidor Externo Render',
+        status: 'success',
+        message: rnd.message,
+        details: rnd.url
+      });
+    } else if (rnd?.reachable && !rnd?.apiUpToDate) {
+      if (workflowsStatus === 'success') workflowsStatus = 'warning';
+      workflowLogs.push({
+        timestamp: new Date().toISOString(),
+        scope: 'Render & Backend',
+        testName: 'Versão em Produção no Render',
+        status: 'warning',
+        message: rnd.message,
+        details: `${rnd.url} — Código local está mais novo que o deploy público do Render.`
+      });
+    } else {
+      if (workflowsStatus === 'success') workflowsStatus = 'warning';
+      workflowLogs.push({
+        timestamp: new Date().toISOString(),
+        scope: 'Render & Backend',
+        testName: 'Servidor Externo Render',
+        status: 'warning',
+        message: rnd?.message || 'Não foi possível validar o Render.'
+      });
+    }
   }
 
-  // --- 4. DETECÇÃO DE DADOS HARDCODED & VERIFICAÇÃO DE MÉTRICAS ANALÍTICAS ---
-  const analyticLogs: DiagnosticLog[] = [];
-  try {
-    // We will verify that analytical formulas are pure, mathematically correct, and handles zero boundaries
-    const mockSales = [
-      { total: 200, costTotal: 100, status: 'Concluída' },
-      { total: 300, costTotal: 120, status: 'Concluída' },
-      { total: 100, costTotal: 90, status: 'Cancelada' } // Cancelled sales should be ignored in Markup / Ticket calculations
-    ];
-
-    const activeSales = mockSales.filter(s => s.status === 'Concluída');
-    const totalRevenue = activeSales.reduce((sum, s) => sum + s.total, 0);
-    const totalCost = activeSales.reduce((sum, s) => sum + s.costTotal, 0);
-    
-    // Formula for Markup: (Faturamento - Custo) / Custo
-    const markup = totalCost > 0 ? ((totalRevenue - totalCost) / totalCost) * 100 : 0;
-    
-    // Formula for Ticket Médio: Faturamento / Total de vendas
-    const ticket = activeSales.length > 0 ? totalRevenue / activeSales.length : 0;
-
-    const expectedMarkup = 127.27; // ((500-220)/220)*100 = 127.27
-    const expectedTicket = 250; // 500 / 2 = 250
-
-    if (Math.abs(markup - expectedMarkup) > 0.1 || ticket !== expectedTicket) {
-      analyticsStatus = 'warning';
-      analyticLogs.push({
-        timestamp: new Date().toISOString(),
-        scope: 'Analytics Calculations',
-        testName: 'Fórmulas de Markup e Ticket Médio',
-        status: 'warning',
-        message: 'As fórmulas analíticas de faturamento retornaram resultados fora das tolerâncias matemáticas.',
-        details: `Markup Calculado: ${markup.toFixed(2)}% (Esp: ${expectedMarkup.toFixed(2)}%), Ticket Médio: R$ ${ticket} (Esp: R$ ${expectedTicket})`
-      });
-    } else {
-      analyticLogs.push({
-        timestamp: new Date().toISOString(),
-        scope: 'Analytics Calculations',
-        testName: 'Fórmulas de Markup e Ticket Médio',
-        status: 'success',
-        message: 'Cálculos matemáticos de Markup, Custos e Ticket Médio estão 100% calibrados.',
-        details: `Markup de Vendas: ${markup.toFixed(1)}%. Ticket Médio Geral: R$ ${ticket.toFixed(2)}. Nenhuma divisão por zero detectada.`
-      });
+  // --- 4. AUDITORIA REAL DE INTEGRIDADE DE DADOS LOCAIS & NUVEM ---
+  let corruptedJsonKeys: string[] = [];
+  for (const key of CRITICAL_JSON_KEYS) {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      try {
+        JSON.parse(raw);
+      } catch {
+        corruptedJsonKeys.push(key);
+      }
     }
+  }
 
-    // Dynamic state check: Ensure dashboard components fetch directly from localStorage/Supabase arrays (no static fallbacks)
-    const hasProducts = !!localStorage.getItem('ap_products') || true;
-    analyticLogs.push({
-      timestamp: new Date().toISOString(),
-      scope: 'Hardcoded Data Sweeper',
-      testName: 'Varredura de Dados Estáticos',
-      status: 'success',
-      message: 'Varredura de dados estáticos concluída. Todos os módulos analíticos vinculados de forma dinâmica.',
-      details: 'Não foram encontrados blocos de mockup fixos. Os relatórios executivos usam o array dinâmico fornecido pelo Supabase.'
-    });
-
-  } catch (e: any) {
+  if (corruptedJsonKeys.length > 0) {
     analyticsStatus = 'error';
     analyticLogs.push({
       timestamp: new Date().toISOString(),
-      scope: 'Analytics Calculations',
-      testName: 'Erro no Motor de Analytics',
+      scope: 'Integridade de Dados',
+      testName: 'Caches JSON Corrompidos',
       status: 'error',
-      message: 'Falha crítica ao computar métricas dos painéis executivos.',
-      details: e.message
+      message: `Encontrada(s) ${corruptedJsonKeys.length} chave(s) com JSON inválido no navegador.`,
+      details: `Chaves afetadas: ${corruptedJsonKeys.join(', ')}. Clique em "Autocorreção (Self-Heal)" para limpar/reparar.`
+    });
+  } else {
+    analyticLogs.push({
+      timestamp: new Date().toISOString(),
+      scope: 'Integridade de Dados',
+      testName: 'Validação JSON LocalStorage',
+      status: 'success',
+      message: 'Todos os caches JSON locais (produtos, vendas, clientes, pedidos e configs) estão íntegros.'
     });
   }
 
-  // --- OVERALL SYNTHESIS ---
+  // Check broken product images / duplicates / invalid prices
+  try {
+    const rawProds = localStorage.getItem('ap_moda_products');
+    const prods = rawProds ? JSON.parse(rawProds) : [];
+    let brokenLocalImgs = 0;
+    let duplicateProdIds = 0;
+    let badPrices = 0;
+    if (Array.isArray(prods)) {
+      const seen = new Set<string>();
+      for (const p of prods) {
+        if (!p) continue;
+        if (p.id && seen.has(String(p.id))) duplicateProdIds++;
+        if (p.id) seen.add(String(p.id));
+        if (isBadPlaceholderImage(p.image) || (Array.isArray(p.images) && p.images.some(isBadPlaceholderImage))) {
+          brokenLocalImgs++;
+        }
+        if (typeof p.price !== 'number' || Number.isNaN(p.price) || p.price < 0) {
+          badPrices++;
+        }
+      }
+    }
+    const cloudBrokenImgs = backendHealth?.integrity?.brokenProductImages || 0;
+    const totalBrokenImgs = Math.max(brokenLocalImgs, cloudBrokenImgs);
+    const totalDuplicates = Math.max(duplicateProdIds, backendHealth?.integrity?.duplicateIds || 0);
+
+    if (totalBrokenImgs > 0 || totalDuplicates > 0 || badPrices > 0) {
+      if (analyticsStatus === 'success') analyticsStatus = 'warning';
+      analyticLogs.push({
+        timestamp: new Date().toISOString(),
+        scope: 'Integridade de Dados',
+        testName: 'Catálogo, Imagens & Preços',
+        status: 'warning',
+        message: `Detectados desvios no catálogo: ${totalBrokenImgs} imagem(ns) placeholder SVG, ${totalDuplicates} ID(s) duplicado(s), ${badPrices} preço(s) inválido(s).`,
+        details: 'O motor "Autocorreção (Self-Heal)" remove placeholders quebrados e deduplica registros automaticamente.'
+      });
+    } else {
+      analyticLogs.push({
+        timestamp: new Date().toISOString(),
+        scope: 'Integridade de Dados',
+        testName: 'Catálogo, Imagens & Preços',
+        status: 'success',
+        message: `Catálogo íntegro (${Array.isArray(prods) ? prods.length : 0} produtos locais verificados, sem URLs placeholder ou IDs duplicados).`
+      });
+    }
+  } catch {}
+
+  // Check Pix & InfinitePay config consistency
+  try {
+    const rawPay = localStorage.getItem('ap_moda_payment_config');
+    const payObj = rawPay ? JSON.parse(rawPay) : {};
+    const directPix = (localStorage.getItem('ap_pix_key') || '').trim();
+    const configPix = String(payObj?.pixKey || '').trim();
+    const rawComp = localStorage.getItem('ap_moda_company_info');
+    const compObj = rawComp ? JSON.parse(rawComp) : {};
+    const compPix = String(compObj?.pixKey || '').trim();
+
+    const uniqueNonEmptyPix = Array.from(new Set([directPix, configPix, compPix].filter(Boolean)));
+    if (uniqueNonEmptyPix.length > 1 || (uniqueNonEmptyPix.length === 1 && (!directPix || !configPix))) {
+      if (analyticsStatus === 'success') analyticsStatus = 'warning';
+      analyticLogs.push({
+        timestamp: new Date().toISOString(),
+        scope: 'Integridade de Dados',
+        testName: 'Espelhamento de Chave Pix',
+        status: 'warning',
+        message: 'As chaves Pix entre Configurações, Vitrine e Dados da Empresa estão dessincronizadas.',
+        details: `Valores encontrados: [${uniqueNonEmptyPix.join(' | ')}]. Use "Autocorreção (Self-Heal)" para unificar.`
+      });
+    } else {
+      analyticLogs.push({
+        timestamp: new Date().toISOString(),
+        scope: 'Integridade de Dados',
+        testName: 'Espelhamento de Chave Pix',
+        status: 'success',
+        message: uniqueNonEmptyPix[0]
+          ? `Chave Pix sincronizada entre todos os módulos (${uniqueNonEmptyPix[0]}).`
+          : 'Chave Pix consistente (nenhuma divergência detectada).'
+      });
+    }
+  } catch {}
+
+  // Check stale healthcheck keys residue in DB
+  if ((backendHealth?.integrity?.staleHealthKeys || 0) > 0) {
+    if (analyticsStatus === 'success') analyticsStatus = 'warning';
+    analyticLogs.push({
+      timestamp: new Date().toISOString(),
+      scope: 'Integridade de Dados',
+      testName: 'Resíduos Temporários no Banco',
+      status: 'warning',
+      message: `${backendHealth.integrity.staleHealthKeys} chave(s) temporária(s) de teste encontrada(s) em ap_system_configs.`,
+      details: 'Clique em "Autocorreção (Self-Heal)" para remover resíduos imediatamente.'
+    });
+  }
+
+  // --- SÍNTESE FINAL REAL ---
   const allLogs = [...dbLogs, ...permLogs, ...workflowLogs, ...analyticLogs];
   const errors = allLogs.filter(l => l.status === 'error').length;
   const warnings = allLogs.filter(l => l.status === 'warning').length;
 
   let overallStatus: 'healthy' | 'warning' | 'critical' = 'healthy';
-  if (errors > 0) {
-    overallStatus = 'critical';
-  } else if (warnings > 0) {
-    overallStatus = 'warning';
-  }
+  if (errors > 0) overallStatus = 'critical';
+  else if (warnings > 0) overallStatus = 'warning';
+
+  const supabaseConnected = Boolean(backendHealth?.supabase?.cloudReachable) && databaseStatus !== 'error';
 
   return {
     overallStatus,
     timestamp,
-    supabaseConnected: isConfigured && databaseStatus !== 'error',
+    supabaseConnected,
+    liveSummary: backendHealth ? {
+      supabaseMode: backendHealth.supabase?.mode || 'unknown',
+      hubOk: Boolean(backendHealth.hub?.ok),
+      infinitePayOk: Boolean(backendHealth.infinitepay?.ok),
+      melhorEnvioOk: Boolean(backendHealth.melhorEnvio?.ok),
+      renderReachable: Boolean(backendHealth.render?.reachable),
+      renderUpToDate: Boolean(backendHealth.render?.apiUpToDate),
+      googleOAuthConfigured: Boolean(backendHealth.googleOAuth?.configured)
+    } : undefined,
     checks: {
-      database: { status: databaseStatus, message: databaseStatus === 'success' ? 'Banco de dados Supabase verificado.' : 'Problema detectado nos schemas.', logs: dbLogs },
-      permissions: { status: permissionsStatus, message: permissionsStatus === 'success' ? 'Políticas RLS e permissões verificadas.' : 'Falha ao testar gravação.', logs: permLogs },
-      workflows: { status: workflowsStatus, message: workflowsStatus === 'success' ? 'Fluxos críticos simulados e aprovados.' : 'Fluxos de simulação com inconformidades.', logs: workflowLogs },
-      analytics: { status: analyticsStatus, message: analyticsStatus === 'success' ? 'Fórmulas analíticas e dados dinâmicos validados.' : 'Aviso nas métricas do painel.', logs: analyticLogs }
+      database: {
+        status: databaseStatus,
+        message: databaseStatus === 'success' ? 'Tabelas e conexão Supabase Cloud verificadas.' : 'Falha ou fallback no banco de dados.',
+        logs: dbLogs
+      },
+      permissions: {
+        status: permissionsStatus,
+        message: permissionsStatus === 'success' ? 'Ciclo Write/Read/Delete validado sem erros.' : 'Falha nas permissões R/W/D.',
+        logs: permLogs
+      },
+      workflows: {
+        status: workflowsStatus,
+        message: workflowsStatus === 'success' ? 'Hub IA, InfinitePay, Melhor Envio e servidor validados.' : 'Integrações externas com alertas ou pendências.',
+        logs: workflowLogs
+      },
+      analytics: {
+        status: analyticsStatus,
+        message: analyticsStatus === 'success' ? 'Integridade de JSONs, catálogo e chaves validada.' : 'Divergências locais/nuvem detectadas.',
+        logs: analyticLogs
+      }
     },
     metrics: {
       tablesVerifiedCount: tablesVerified,
       errorsCount: errors,
       warningsCount: warnings
     }
+  };
+}
+
+export async function runSystemSelfHeal(): Promise<SelfHealReport> {
+  const actions: string[] = [];
+  const remainingWarnings: string[] = [];
+  let fixedCount = 0;
+
+  // 1. Limpar caches JSON corrompidos
+  for (const key of CRITICAL_JSON_KEYS) {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      try {
+        JSON.parse(raw);
+      } catch {
+        localStorage.removeItem(key);
+        fixedCount++;
+        actions.push(`Chave localStorage corrompida removida para reconstrução segura: ${key}.`);
+      }
+    }
+  }
+
+  // 2. Remover flags antigas/obsoletas de diagnóstico
+  if (localStorage.getItem('ap_moda_company_info_stale')) {
+    localStorage.removeItem('ap_moda_company_info_stale');
+    fixedCount++;
+    actions.push('Flag obsoleta "ap_moda_company_info_stale" removida.');
+  }
+
+  // 3. Deduplicar IDs em coleções locais
+  const arrayKeys = ['ap_moda_products', 'ap_moda_clients', 'ap_moda_sales', 'ap_moda_transactions', 'ap_moda_online_orders', 'ap_moda_team'];
+  for (const k of arrayKeys) {
+    try {
+      const raw = localStorage.getItem(k);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) continue;
+      const seen = new Set<string>();
+      const clean: any[] = [];
+      let removed = 0;
+      for (const item of parsed) {
+        const id = item?.id ? String(item.id) : '';
+        if (!id) { clean.push(item); continue; }
+        if (!seen.has(id)) {
+          seen.add(id);
+          clean.push(item);
+        } else {
+          removed++;
+        }
+      }
+      if (removed > 0) {
+        localStorage.setItem(k, JSON.stringify(clean));
+        fixedCount += removed;
+        actions.push(`Removido(s) ${removed} ID(s) duplicado(s) em ${k}.`);
+      }
+    } catch {}
+  }
+
+  // 4. Saneamento de imagens placeholder SVG, preços NaN e estoque negativo em produtos locais + sync na nuvem
+  try {
+    const rawProds = localStorage.getItem('ap_moda_products');
+    if (rawProds) {
+      const prods = JSON.parse(rawProds);
+      if (Array.isArray(prods)) {
+        const repairedProducts: any[] = [];
+        const updatedList = prods.map((p: any) => {
+          if (!p) return p;
+          let dirty = false;
+          const imgs = Array.isArray(p.images) ? p.images : [];
+          const cleanImgs = Array.from(new Set(imgs.filter((u: any) => typeof u === 'string' && u.trim() !== '' && !isBadPlaceholderImage(u))));
+          let mainImg = typeof p.image === 'string' ? p.image.trim() : '';
+          if (isBadPlaceholderImage(mainImg)) {
+            mainImg = cleanImgs[0] || '';
+            dirty = true;
+          }
+          if (cleanImgs.length !== imgs.length) dirty = true;
+          let price = Number(p.price);
+          if (Number.isNaN(price) || price < 0) { price = 0; dirty = true; }
+          let stock = Number(p.stock);
+          if (Number.isNaN(stock) || stock < 0) { stock = 0; dirty = true; }
+          if (dirty) {
+            const fixed = { ...p, image: mainImg, images: cleanImgs, price, stock };
+            repairedProducts.push(fixed);
+            return fixed;
+          }
+          return p;
+        });
+
+        if (repairedProducts.length > 0) {
+          localStorage.setItem('ap_moda_products', JSON.stringify(updatedList));
+          fixedCount += repairedProducts.length;
+          await syncBulkProductsToSupabase(repairedProducts);
+          actions.push(`Corrigidas imagens/valores em ${repairedProducts.length} produto(s) e sincronizado com o banco.`);
+        }
+      }
+    }
+  } catch (e: any) {
+    remainingWarnings.push(`Reparo de produtos: ${e.message || e}`);
+  }
+
+  // 5. Unificar Chave Pix e Handle InfinitePay entre módulos
+  try {
+    const rawPay = localStorage.getItem('ap_moda_payment_config');
+    const payObj = rawPay ? JSON.parse(rawPay) : {};
+    const directPix = (localStorage.getItem('ap_pix_key') || '').trim();
+    const rawComp = localStorage.getItem('ap_moda_company_info');
+    const compObj = rawComp ? JSON.parse(rawComp) : {};
+    const canonicalPix = String(payObj?.pixKey || directPix || compObj?.pixKey || '').trim();
+
+    if (canonicalPix) {
+      let pixChanged = false;
+      if (directPix !== canonicalPix) {
+        localStorage.setItem('ap_pix_key', canonicalPix);
+        await pushSystemConfigToSupabase('ap_pix_key', canonicalPix);
+        pixChanged = true;
+      }
+      if (String(payObj?.pixKey || '').trim() !== canonicalPix) {
+        const nextPay = { ...payObj, pixKey: canonicalPix };
+        localStorage.setItem('ap_moda_payment_config', JSON.stringify(nextPay));
+        await pushSystemConfigToSupabase('ap_moda_payment_config', JSON.stringify(nextPay));
+        pixChanged = true;
+      }
+      if (rawComp && String(compObj?.pixKey || '').trim() !== canonicalPix) {
+        localStorage.setItem('ap_moda_company_info', JSON.stringify({ ...compObj, pixKey: canonicalPix }));
+        pixChanged = true;
+      }
+      if (pixChanged) {
+        fixedCount++;
+        actions.push(`Chave Pix unificada e sincronizada (${canonicalPix}).`);
+      }
+    }
+
+    const rawInf = localStorage.getItem('ap_infinitepay_config');
+    const infObj = rawInf ? JSON.parse(rawInf) : {};
+    const directHandle = (localStorage.getItem('infinitepay_handle') || '').trim();
+    const canonicalHandle = String(infObj?.handle || directHandle || '').trim();
+    if (canonicalHandle && (directHandle !== canonicalHandle || String(infObj?.handle || '').trim() !== canonicalHandle)) {
+      localStorage.setItem('infinitepay_handle', canonicalHandle);
+      await pushSystemConfigToSupabase('infinitepay_handle', canonicalHandle);
+      if (rawInf) {
+        const nextInf = { ...infObj, handle: canonicalHandle };
+        localStorage.setItem('ap_infinitepay_config', JSON.stringify(nextInf));
+        await pushSystemConfigToSupabase('ap_infinitepay_config', JSON.stringify(nextInf));
+      }
+      fixedCount++;
+      actions.push(`Handle InfinitePay sincronizado (${canonicalHandle}).`);
+    }
+  } catch (e: any) {
+    remainingWarnings.push(`Sincronia de pagamentos: ${e.message || e}`);
+  }
+
+  // 6. Executar Autocorreção real no Servidor Express & Supabase
+  try {
+    const srvRes = await fetch('/api/system/self-heal', { method: 'POST' });
+    if (srvRes.ok) {
+      const srvData = await srvRes.json();
+      fixedCount += Number(srvData.fixedCount || 0);
+      if (Array.isArray(srvData.actions)) {
+        actions.push(...srvData.actions);
+      }
+      if (Array.isArray(srvData.warnings)) {
+        remainingWarnings.push(...srvData.warnings);
+      }
+    } else {
+      remainingWarnings.push(`Servidor retornou HTTP ${srvRes.status} durante self-heal.`);
+    }
+  } catch (e: any) {
+    remainingWarnings.push(`Falha ao executar /api/system/self-heal: ${e.message || e}`);
+  }
+
+  // 7. Re-sincronizar configurações da nuvem e atualizar UI do sistema
+  try {
+    await syncSystemConfigsWithSupabase();
+    localStorage.setItem('ap_last_schema_heal', new Date().toISOString());
+    window.dispatchEvent(new Event('ap-storage-synced'));
+    window.dispatchEvent(new Event('store_config_updated'));
+  } catch {}
+
+  // 8. Re-executar varredura completa pós-reparo
+  const diagnosticsAfter = await runDeepSystemDiagnostics();
+
+  // Apontar explicitamente pendências externas que exigem ação humana fora do navegador
+  if (diagnosticsAfter.liveSummary && diagnosticsAfter.liveSummary.renderReachable && !diagnosticsAfter.liveSummary.renderUpToDate) {
+    remainingWarnings.push('Ação externa necessária: faça redeploy no Render para publicar as rotas atualizadas do servidor.');
+  }
+  if (diagnosticsAfter.liveSummary && !diagnosticsAfter.liveSummary.googleOAuthConfigured) {
+    remainingWarnings.push('Ação opcional: configure Client ID e Client Secret na aba Google Workspace se desejar usar Drive/Sheets/Gmail.');
+  }
+
+  return {
+    success: true,
+    fixedCount,
+    actions: actions.length > 0 ? actions : ['Nenhuma corrupção local encontrada; conexão e caches revalidados.'],
+    remainingWarnings,
+    diagnosticsAfter,
+    timestamp: new Date().toISOString()
   };
 }
