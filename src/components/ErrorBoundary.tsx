@@ -10,6 +10,7 @@ interface State {
   hasError: boolean;
   error: Error | null;
   errorInfo: ErrorInfo | null;
+  confirmingClear: boolean;
 }
 
 export default class ErrorBoundary extends React.Component<Props, State> {
@@ -17,9 +18,10 @@ export default class ErrorBoundary extends React.Component<Props, State> {
     hasError: false,
     error: null,
     errorInfo: null,
+    confirmingClear: false,
   };
 
-  public static getDerivedStateFromError(error: Error): State {
+  public static getDerivedStateFromError(error: Error): Partial<State> {
     // Update state so the next render will show the fallback UI.
     return { hasError: true, error, errorInfo: null };
   }
@@ -37,39 +39,46 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   };
 
   private handleClearAndReload = () => {
-    if (window.confirm('Isso redefinirá apenas o cache visual temporário mantendo seus cadastros e logins seguros. Deseja continuar?')) {
-      // Preserve critical database tables and remove only temporary UI caches
-      const keysToKeep = [
-        'ap_moda_team_users',
-        'ap_moda_team_users_backup',
-        'ap_moda_current_user',
-        'ap_moda_products',
-        'ap_moda_clients',
-        'ap_moda_sales',
-        'ap_moda_transactions',
-        'ap_moda_online_orders',
-        'ap_moda_checkouts',
-        'ap_moda_sellers',
-        'ap_moda_motoboys',
-        'ap_moda_partners'
-      ];
-      
-      const backupMap: Record<string, string> = {};
-      keysToKeep.forEach(key => {
+    if (!this.state.confirmingClear) {
+      this.setState({ confirmingClear: true });
+      return;
+    }
+    // Preserve critical database tables and remove only temporary UI caches
+    const keysToKeep = [
+      'ap_moda_team_users',
+      'ap_moda_team_users_backup',
+      'ap_moda_current_user',
+      'ap_moda_products',
+      'ap_moda_clients',
+      'ap_moda_sales',
+      'ap_moda_transactions',
+      'ap_moda_online_orders',
+      'ap_moda_checkouts',
+      'ap_moda_sellers',
+      'ap_moda_motoboys',
+      'ap_moda_partners'
+    ];
+    
+    const backupMap: Record<string, string> = {};
+    keysToKeep.forEach(key => {
+      try {
         const val = localStorage.getItem(key);
         if (val) backupMap[key] = val;
-      });
+      } catch { /* ignore */ }
+    });
 
-      // Clear non-essential items
+    try {
       localStorage.clear();
+    } catch { /* ignore */ }
 
-      // Immediately restore critical data
-      Object.entries(backupMap).forEach(([k, v]) => {
+    // Immediately restore critical data safely
+    Object.entries(backupMap).forEach(([k, v]) => {
+      try {
         localStorage.setItem(k, v);
-      });
+      } catch { /* ignore quota errors */ }
+    });
 
-      window.location.href = '/painel';
-    }
+    window.location.href = '/painel';
   };
 
   private handleGoHome = () => {
@@ -116,6 +125,28 @@ export default class ErrorBoundary extends React.Component<Props, State> {
                 </pre>
               )}
             </div>
+
+            {this.state.confirmingClear && (
+              <div className="bg-amber-950/50 border border-amber-500/40 rounded-2xl p-4 text-xs text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <span>Isso redefinirá apenas o cache visual temporário mantendo seus cadastros e logins seguros. Deseja continuar?</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => this.setState({ confirmingClear: false })}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 font-bold cursor-pointer border border-slate-700"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={this.handleClearAndReload}
+                    className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold cursor-pointer border-none"
+                  >
+                    Confirmar Limpeza
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Action buttons */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">

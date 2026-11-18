@@ -29,6 +29,8 @@ import {
 import { Product } from '../types';
 import ImageUploader from './ImageUploader';
 import { getOptimizedImageUrl, handleImageFallback, getProductMainImage, extractImageUrlsFromText, isFallbackOrPlaceholderUrl } from '../utils/imageUtils';
+import { showToast, showConfirm } from '../lib/uiDialog';
+import { safeLocalStorageSet, createUniqueId } from '../utils/dateUtils';
 
 interface CatalogInventoryProps {
   products: Product[];
@@ -171,7 +173,7 @@ export default function CatalogInventory({
       [norm]: hex
     };
     setCustomColorMap(updatedMap);
-    localStorage.setItem('ap_custom_color_map', JSON.stringify(updatedMap));
+    safeLocalStorageSet('ap_custom_color_map', JSON.stringify(updatedMap));
   };
 
   // States for size-specific colors
@@ -444,7 +446,7 @@ export default function CatalogInventory({
 
   // Sync combos
   React.useEffect(() => {
-    localStorage.setItem('ap_moda_combos', JSON.stringify(combos));
+    safeLocalStorageSet('ap_moda_combos', JSON.stringify(combos));
   }, [combos]);
 
   // Form states for creating custom combo
@@ -767,7 +769,7 @@ export default function CatalogInventory({
     e.preventDefault();
     if (!newName.trim() || !newSku.trim()) {
       setAddModalTab('basico');
-      alert('Por favor, preencha o Nome e o SKU do produto na aba Básico & Preço.');
+      showToast('Por favor, preencha o Nome e o SKU do produto na aba Básico & Preço.', 'warning');
       return;
     }
 
@@ -776,7 +778,7 @@ export default function CatalogInventory({
       : newCategory;
 
     if (isCreatingNewCategory && !newCustomCategoryInput.trim()) {
-      alert('Por favor, informe a nova categoria personalizada.');
+      showToast('Por favor, informe a nova categoria personalizada.', 'warning');
       return;
     }
 
@@ -846,7 +848,7 @@ export default function CatalogInventory({
       const primaryImage = cleanNewImages[0] || (typeof newImage === 'string' && !isFallbackOrPlaceholderUrl(newImage) && (newImage.startsWith('http') || newImage.startsWith('data:image/') || newImage.startsWith('/')) ? newImage.trim() : '');
 
       const newProd: Product = {
-        id: `prod-${Date.now()}`,
+        id: createUniqueId('prod'),
         name: newName.trim(),
         sku: newSku.trim().toUpperCase(),
         category: categoryToUse,
@@ -902,7 +904,7 @@ export default function CatalogInventory({
       setNewMeasurementSpecs({});
     } catch (error: any) {
       console.error('Erro ao cadastrar produto:', error);
-      alert('Erro ao cadastrar produto: ' + (error.message || error));
+      showToast('Erro ao cadastrar produto: ' + (error.message || error), 'error');
     } finally {
       setIsSaving(false);
     }
@@ -971,7 +973,7 @@ export default function CatalogInventory({
     e.preventDefault();
     if (!editingProduct) return;
     if (!editName.trim() || !editSku.trim()) {
-      alert('Por favor, preencha o Nome e o SKU do produto.');
+      showToast('Por favor, preencha o Nome e o SKU do produto.', 'warning');
       return;
     }
 
@@ -980,7 +982,7 @@ export default function CatalogInventory({
       : editCategory;
 
     if (isEditingNewCategory && !editCustomCategoryInput.trim()) {
-      alert('Por favor, informe a nova categoria personalizada.');
+      showToast('Por favor, informe a nova categoria personalizada.', 'warning');
       return;
     }
 
@@ -1073,13 +1075,14 @@ export default function CatalogInventory({
         width: Number(editWidth) || 20,
         height: Number(editHeight) || 5,
         length: Number(editLength) || 25,
-      });
+        _allowClearImages: true,
+      } as any);
 
       setIsEditModalOpen(false);
       setEditingProduct(null);
     } catch (error: any) {
       console.error('Erro ao salvar produto:', error);
-      alert('Erro ao salvar produto: ' + (error.message || error));
+      showToast('Erro ao salvar produto: ' + (error.message || error), 'error');
     } finally {
       setIsSaving(false);
     }
@@ -1103,7 +1106,7 @@ export default function CatalogInventory({
     const cleanStr = inlinePriceVal.replace('R$', '').replace(/\s/g, '').replace(',', '.');
     const numPrice = parseFloat(cleanStr);
     if (isNaN(numPrice) || numPrice < 0) {
-      alert('Por favor, informe um preço de venda válido.');
+      showToast('Por favor, informe um preço de venda válido.', 'warning');
       return;
     }
     const cleanCompare = inlineCompareAtVal.replace('R$', '').replace(/\s/g, '').replace(',', '.');
@@ -1124,7 +1127,7 @@ export default function CatalogInventory({
       setPriceSuccessNotification(`Preço de "${p.name}" alterado com sucesso para ${formatCurrency(numPrice)}!`);
       setTimeout(() => setPriceSuccessNotification(null), 3500);
     } catch (err: any) {
-      alert('Erro ao salvar novo preço: ' + (err?.message || err));
+      showToast('Erro ao salvar novo preço: ' + (err?.message || err), 'error');
     } finally {
       setIsSavingInlinePrice(false);
     }
@@ -1142,7 +1145,7 @@ export default function CatalogInventory({
   const handleSaveQuickPriceModal = async () => {
     if (!quickPriceModalProduct) return;
     if (quickPriceForm.price < 0) {
-      alert('Preço de venda não pode ser negativo.');
+      showToast('Preço de venda não pode ser negativo.', 'warning');
       return;
     }
     setIsSavingInlinePrice(true);
@@ -1159,7 +1162,7 @@ export default function CatalogInventory({
       setPriceSuccessNotification(`Preço de "${prodName}" atualizado para ${formatCurrency(newPr)}!`);
       setTimeout(() => setPriceSuccessNotification(null), 3500);
     } catch (err: any) {
-      alert('Erro ao salvar preço: ' + (err?.message || err));
+      showToast('Erro ao salvar preço: ' + (err?.message || err), 'error');
     } finally {
       setIsSavingInlinePrice(false);
     }
@@ -1180,7 +1183,7 @@ export default function CatalogInventory({
       setPriceSuccessNotification(`Preço de "${editingProduct.name}" atualizado para ${formatCurrency(editPrice)}!`);
       setTimeout(() => setPriceSuccessNotification(null), 3500);
     } catch (e: any) {
-      alert('Erro ao salvar preço: ' + (e?.message || e));
+      showToast('Erro ao salvar preço: ' + (e?.message || e), 'error');
     } finally {
       setIsSaving(false);
     }
@@ -1212,7 +1215,7 @@ export default function CatalogInventory({
       setPriceSuccessNotification(`Dimensões de frete de "${prodName}" atualizadas com sucesso! (Peso: ${quickFreightForm.weight}kg)`);
       setTimeout(() => setPriceSuccessNotification(null), 3500);
     } catch (err: any) {
-      alert('Erro ao salvar frete: ' + (err?.message || err));
+      showToast('Erro ao salvar frete: ' + (err?.message || err), 'error');
     } finally {
       setIsSaving(false);
     }
@@ -1232,7 +1235,7 @@ export default function CatalogInventory({
       setPriceSuccessNotification(`Dimensões de frete de "${editingProduct.name}" gravadas com sucesso!`);
       setTimeout(() => setPriceSuccessNotification(null), 3500);
     } catch (e: any) {
-      alert('Erro ao salvar frete: ' + (e?.message || e));
+      showToast('Erro ao salvar frete: ' + (e?.message || e), 'error');
     } finally {
       setIsSaving(false);
     }
@@ -1691,7 +1694,7 @@ export default function CatalogInventory({
                               document.execCommand('copy');
                               document.body.removeChild(input);
                             }
-                            alert(`Link direto de "${p.name}" copiado com sucesso!\n\n${shareUrl}`);
+                            showToast(`Link direto de "${p.name}" copiado com sucesso! ${shareUrl}`, 'success');
                           }}
                           title="Copiar Link para compartilhar com clientes"
                           className="px-2 py-1 text-[10px] font-bold font-sans text-pink-700 bg-pink-50/80 hover:bg-pink-100 rounded transition-all cursor-pointer flex items-center gap-1"
@@ -1721,8 +1724,8 @@ export default function CatalogInventory({
                           +10
                         </button>
                         <button 
-                          onClick={() => {
-                            if (confirm(`Deseja mesmo arquivar a peça "${p.name}"?`)) {
+                          onClick={async () => {
+                            if (await showConfirm(`Deseja mesmo arquivar a peça "${p.name}"?`, 'Arquivar Peça', 'danger')) {
                               onDeleteProduct(p.id);
                             }
                           }}
@@ -1890,7 +1893,7 @@ export default function CatalogInventory({
                       if (navigator.clipboard) {
                         navigator.clipboard.writeText(shareUrl);
                       }
-                      alert(`Link copiado com sucesso!\n\n${shareUrl}`);
+                      showToast(`Link copiado com sucesso! ${shareUrl}`, 'success');
                     }}
                     className="py-2 px-1 bg-pink-50 hover:bg-pink-100 text-pink-700 border border-pink-200 rounded-xl text-[10px] font-bold flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer shadow-2xs"
                   >
@@ -1907,8 +1910,8 @@ export default function CatalogInventory({
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      if (confirm(`Deseja mesmo arquivar a peça "${p.name}"?`)) {
+                    onClick={async () => {
+                      if (await showConfirm(`Deseja mesmo arquivar a peça "${p.name}"?`, 'Arquivar Peça', 'danger')) {
                         onDeleteProduct(p.id);
                       }
                     }}
@@ -1991,7 +1994,7 @@ export default function CatalogInventory({
 
                       <div className="flex gap-2">
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             let stockMissing = false;
                             combo.items.forEach((item: any) => {
                               const p = products.find(prod => prod.id === item.productId || prod.name === item.name);
@@ -2001,7 +2004,7 @@ export default function CatalogInventory({
                             });
 
                             if (stockMissing) {
-                              const confirmSell = window.confirm('Algumas peças deste combo estão esgotadas ou abaixo do estoque necessário. Deseja efetuar a venda assim mesmo?');
+                              const confirmSell = await showConfirm('Algumas peças deste combo estão esgotadas ou abaixo do estoque necessário. Deseja efetuar a venda assim mesmo?', 'Confirmar Venda', 'warning');
                               if (!confirmSell) return;
                             }
 
@@ -2017,15 +2020,15 @@ export default function CatalogInventory({
                             });
 
                             setCombos(prev => prev.map(c => c.id === combo.id ? { ...c, salesCount: c.salesCount + 1 } : c));
-                            alert(`Venda registrada! Os estoques das peças individuais do "${combo.name}" foram atualizados com sucesso.`);
+                            showToast(`Venda registrada! Os estoques das peças individuais do "${combo.name}" foram atualizados com sucesso.`, 'success');
                           }}
                           className="bg-slate-900 border border-slate-800 hover:bg-slate-950 text-white font-sans font-semibold px-2.5 py-1.5 rounded-lg text-[10px] transition-colors cursor-pointer"
                         >
                           Vender Combo
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm('Tem certeza que deseja remover este combo?')) {
+                          onClick={async () => {
+                            if (await showConfirm('Tem certeza que deseja remover este combo?', 'Remover Combo', 'danger')) {
                               setCombos(prev => prev.filter(c => c.id !== combo.id));
                             }
                           }}
@@ -2572,8 +2575,8 @@ export default function CatalogInventory({
                       const suggestQty = Math.max(10 - cv.stock, 7);
                       return `- ${cv.productName} (SKU: ${cv.sku}) | Cor: ${cv.color} | Tam: ${cv.size} | Estoque Atual: ${cv.stock} un | Sugestão de Compra: +${suggestQty} un`;
                     }).join('\n');
-                    navigator.clipboard.writeText(`LISTA DE REPOSIÇÃO - AP MODA FITNESS\nData: ${new Date().toLocaleDateString('pt-BR')}\n\n${text}`);
-                    alert('Lista de reposição copiada para a área de transferência! 📋✨');
+                    navigator.clipboard?.writeText(`LISTA DE REPOSIÇÃO - AP MODA FITNESS\nData: ${new Date().toLocaleDateString('pt-BR')}\n\n${text}`);
+                    showToast('Lista de reposição copiada para a área de transferência!', 'success');
                   }}
                   className="inline-flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs px-3.5 py-2 rounded-xl font-bold cursor-pointer transition-all shrink-0 self-start md:self-center shadow-xs border-none"
                 >
@@ -3945,15 +3948,24 @@ export default function CatalogInventory({
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <label className="text-slate-600 font-extrabold uppercase text-[10px] tracking-wide block">Galeria de Fotos do Produto (Múltiplas Fotos)</label>
                       {editImages.some(u => brokenGalleryUrls.has(u) || isFallbackOrPlaceholderUrl(u)) && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditImages(prev => prev.filter(u => !brokenGalleryUrls.has(u) && !isFallbackOrPlaceholderUrl(u)));
-                          }}
-                          className="text-[10px] font-bold bg-rose-100 hover:bg-rose-200 text-rose-700 px-2.5 py-1 rounded-lg transition cursor-pointer border border-rose-200"
-                        >
-                          🧹 Remover Links Quebrados
-                        </button>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setBrokenGalleryUrls(new Set())}
+                            className="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg transition cursor-pointer border border-slate-200"
+                          >
+                            🔄 Recarregar Previews
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditImages(prev => prev.filter(u => !brokenGalleryUrls.has(u) && !isFallbackOrPlaceholderUrl(u)));
+                            }}
+                            className="text-[10px] font-bold bg-rose-100 hover:bg-rose-200 text-rose-700 px-2.5 py-1 rounded-lg transition cursor-pointer border border-rose-200"
+                          >
+                            🧹 Remover Links Quebrados
+                          </button>
+                        </div>
                       )}
                     </div>
                     
@@ -4189,11 +4201,11 @@ export default function CatalogInventory({
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!comboName.trim()) {
-                  alert('Insira o nome do combo!');
+                  showToast('Insira o nome do combo!', 'warning');
                   return;
                 }
                 if (selectedComboProducts.length === 0) {
-                  alert('Selecione pelo menos uma peça de roupa para o combo!');
+                  showToast('Selecione pelo menos uma peça de roupa para o combo!', 'warning');
                   return;
                 }
 
@@ -4207,7 +4219,7 @@ export default function CatalogInventory({
                 });
 
                 const newCombo = {
-                  id: `combo-${Date.now()}`,
+                  id: createUniqueId('combo'),
                   name: comboName.trim(),
                   price: comboPrice,
                   items: comboItems,
@@ -4217,7 +4229,7 @@ export default function CatalogInventory({
 
                 setCombos(prev => [newCombo, ...prev]);
                 setIsComboModalOpen(false);
-                alert('Combo promocional cadastrado com sucesso!');
+                showToast('Combo promocional cadastrado com sucesso!', 'success');
               }}
               className="p-6 space-y-4 text-xs text-slate-700"
             >
@@ -4674,7 +4686,7 @@ function ProductGradeCard({ product, onUpdateProduct }: ProductGradeCardProps) {
     const color = newColorInput.trim();
     if (!color) return;
     if (colorsList.includes(color)) {
-      alert('Esta cor já existe na lista.');
+      showToast('Esta cor já existe na lista.', 'warning');
       return;
     }
     
@@ -4725,7 +4737,7 @@ function ProductGradeCard({ product, onUpdateProduct }: ProductGradeCardProps) {
       }, 2000);
     } catch (e) {
       console.error(e);
-      alert('Erro ao salvar estoque da grade.');
+      showToast('Erro ao salvar estoque da grade.', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -4736,7 +4748,7 @@ function ProductGradeCard({ product, onUpdateProduct }: ProductGradeCardProps) {
       <div>
         <div className="flex items-center gap-3 border-b border-slate-50 pb-3">
           <div className="w-12 h-12 rounded-lg overflow-hidden border border-slate-100 bg-slate-50 shrink-0">
-            <img src={getOptimizedImageUrl(product.image, 600)} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={handleImageFallback} />
+            <img src={getOptimizedImageUrl(getProductMainImage(product), 600)} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={handleImageFallback} />
           </div>
           <div className="min-w-0 flex-1">
             <h4 className="font-semibold text-slate-800 text-xs truncate leading-tight">{product.name}</h4>

@@ -30,6 +30,8 @@ import {
 import { Transaction, Sale, Product } from '../types';
 import { getStoredPartnerWithdrawRequests, PartnerWithdrawRequest } from '../utils/partnerUtils';
 import { deleteTransactionFromSupabase } from '../supabase';
+import { showToast, showConfirm } from '../lib/uiDialog';
+import { getLocalDateKey, getLocalDateOffset, getLocalYearMonth, safeLocalStorageSet, createUniqueId } from '../utils/dateUtils';
 
 interface FinanceCashflowProps {
   transactions: Transaction[];
@@ -85,7 +87,7 @@ export default function FinanceCashflow({
   const [txAmount, setTxAmount] = useState<number>(0);
   const [txStatus, setTxStatus] = useState<'pago' | 'pendente'>('pendente');
   const [txDueDate, setTxDueDate] = useState<string>(() => {
-    return new Date().toISOString().split('T')[0];
+    return getLocalDateKey();
   });
   
   // Installments state (Parcelamento)
@@ -135,30 +137,27 @@ export default function FinanceCashflow({
     };
   }, [transactions]);
 
-  // Helper function to filter records by selected period/month
+  // Helper function to filter records by selected period/month in BRT
   const filterByPeriod = (dateStr: string, period: string): boolean => {
     if (!dateStr) return false;
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return false;
-    
-    const now = new Date();
+    const itemKey = getLocalDateKey(dateStr);
+    const todayKey = getLocalDateKey();
     
     switch (period) {
       case 'current_month': {
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        return itemKey.slice(0, 7) === todayKey.slice(0, 7);
       }
       case 'last_month': {
-        const prev = new Date();
-        prev.setMonth(prev.getMonth() - 1);
-        return d.getMonth() === prev.getMonth() && d.getFullYear() === prev.getFullYear();
+        const { year: y, month: mIdx } = getLocalYearMonth();
+        const prevDate = new Date(y, mIdx - 1, 15, 12, 0, 0);
+        const prevYm = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+        return itemKey.slice(0, 7) === prevYm;
       }
       case 'last_30': {
-        const diffMs = now.getTime() - d.getTime();
-        return diffMs >= 0 && diffMs <= 30 * 24 * 60 * 60 * 1000;
+        return itemKey >= getLocalDateOffset(-30) && itemKey <= todayKey;
       }
       case 'last_90': {
-        const diffMs = now.getTime() - d.getTime();
-        return diffMs >= 0 && diffMs <= 90 * 24 * 60 * 60 * 1000;
+        return itemKey >= getLocalDateOffset(-90) && itemKey <= todayKey;
       }
       case 'all':
       default:
@@ -200,26 +199,26 @@ export default function FinanceCashflow({
     const margemContribuicaoMediaPerc = faturamentoTotal > 0 ? (margemContribuicaoTotal / faturamentoTotal) * 100 : 0;
 
     // 4. PONTO DE EQUILÍBRIO (Break-Even Point):
-    // Custo Fixo Total = Despesas Operacionais (excluding supplier inventory acquisitions)
-    // If 0, fallback to R$ 2.500,00 so there is always a realistic baseline scenario
-    const custoFixoTotal = despesasOperacionais > 0 ? despesasOperacionais : 2500;
+    // Custo Fixo Total = Despesas Operacionais reais lançadas no período (sem valor fictício)
+    const custoFixoTotal = despesasOperacionais;
     
     // Break-Even Point = Custo Fixo Total / (Margem de Contribuição Média em decimal)
-    const breakEvenPoint = margemContribuicaoMediaPerc > 0 
-      ? custoFixoTotal / (margemContribuicaoMediaPerc / 100)
-      : (faturamentoTotal > 0 ? custoFixoTotal / 0.5 : custoFixoTotal / 0.5); 
+    const breakEvenPoint = custoFixoTotal > 0
+      ? (margemContribuicaoMediaPerc > 0
+          ? custoFixoTotal / (margemContribuicaoMediaPerc / 100)
+          : custoFixoTotal / 0.5)
+      : 0;
 
     // 5. TAXA DE INADIMPLÊNCIA:
-    // Overdue Inflows = Inflows pending whose dueDate is past
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateKey();
     
     const receitasVencidasNaoPagas = filteredTxs
-      .filter(t => t.type === 'Inflow' && t.status === 'pendente' && (t.dueDate || t.date.split('T')[0]) < todayStr)
+      .filter(t => t.type === 'Inflow' && t.status === 'pendente' && (t.dueDate || getLocalDateKey(t.date)) < todayStr)
       .reduce((acc, t) => acc + (t.amount || 0), 0);
 
     // Unpaid/overdue sales (pending sales created before today)
     const salesVencidosNaoPagos = activePeriodSales
-      .filter(s => s.status === 'Pendente' && s.createdAt.split('T')[0] < todayStr)
+      .filter(s => s.status === 'Pendente' && getLocalDateKey(s.createdAt) < todayStr)
       .reduce((acc, s) => acc + (s.total || 0), 0);
 
     const totalInadimplente = receitasVencidasNaoPagas + salesVencidosNaoPagos;
@@ -254,8 +253,6 @@ export default function FinanceCashflow({
 
   // Master filters implementation 
   const filteredTransactions = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    
     return [...transactions]
       .filter(t => {
         const matchesSearch = 
@@ -312,17 +309,24 @@ export default function FinanceCashflow({
   };
 
   // Quick action: delete a transaction with tombstone so 7s cloud sync never resurrects it
-  const handleDeleteTx = (id: string) => {
-    if (window.confirm('Confirma a exclusão definitiva deste lançamento financeiro? Essa ação não pode ser desfeita.')) {
+  const handleDeleteTx = async (id: string) => {
+    const ok = await showConfirm({
+      title: 'Excluir Lançamento Financeiro',
+      message: 'Confirma a exclusão definitiva deste lançamento financeiro? Essa ação não pode ser desfeita.',
+      danger: true,
+      confirmText: 'Sim, Excluir'
+    });
+    if (ok) {
       try {
         const deletedList: string[] = JSON.parse(localStorage.getItem('ap_deleted_transactions') || '[]');
         if (!deletedList.includes(id)) {
           deletedList.push(id);
-          localStorage.setItem('ap_deleted_transactions', JSON.stringify(deletedList));
+          safeLocalStorageSet('ap_deleted_transactions', JSON.stringify(deletedList));
         }
       } catch (e) {}
       setTransactions(prev => prev.filter(t => t.id !== id));
       deleteTransactionFromSupabase(id).catch(() => {});
+      showToast('Lançamento excluído com sucesso.', 'success');
     }
   };
 
@@ -330,28 +334,26 @@ export default function FinanceCashflow({
   const handleSubmitTx = (e: React.FormEvent) => {
     e.preventDefault();
     if (!txDesc.trim() || txAmount <= 0) {
-      alert('Por favor, preencha a descrição do lançamento e defina um valor superior a R$ 0,00.');
+      showToast('Por favor, preencha a descrição do lançamento e defina um valor superior a R$ 0,00.', 'error');
       return;
     }
 
     if (isInstallment && installmentsCount >= 2) {
       // Installment scheduler engine (generates N recurring records month-over-month)
-      const groupId = `group-${Date.now()}`;
+      const groupId = createUniqueId('group');
       const installmentAmount = Number((txAmount / installmentsCount).toFixed(2));
       const generatedList: Transaction[] = [];
 
       for (let i = 1; i <= installmentsCount; i++) {
         // Calculate due date offset by (i - 1) months
-        const baseDate = new Date(txDueDate + 'T12:00:00'); // set mid-day to avoid TZ adjustments shifts
+        const baseDate = new Date(txDueDate + 'T12:00:00');
         baseDate.setMonth(baseDate.getMonth() + (i - 1));
-        const formattedDueDate = baseDate.toISOString().split('T')[0];
+        const formattedDueDate = getLocalDateKey(baseDate);
 
-        // First installment behavior: matches the user selected status. 
-        // Subsequent installments are set to "pendente" (future) automatically.
         const currentStatus = (i === 1) ? txStatus : 'pendente';
 
         generatedList.push({
-          id: `tx-${Date.now()}-p${i}`,
+          id: `${createUniqueId('tx')}-p${i}`,
           type: txType,
           category: txCategory,
           description: `${txDesc.trim()} (Parcela ${i}/${installmentsCount})`,
@@ -365,12 +367,10 @@ export default function FinanceCashflow({
         });
       }
 
-      // Add all generated installments to transactions state
       setTransactions(prev => [...generatedList, ...prev]);
     } else {
-      // Single transaction record
       const newTx: Transaction = {
-        id: `tx-${Date.now()}`,
+        id: createUniqueId('tx'),
         type: txType,
         category: txCategory,
         description: txDesc.trim(),
@@ -391,7 +391,7 @@ export default function FinanceCashflow({
     setIsInstallment(false);
     setInstallmentsCount(3);
     setTxStatus('pendente');
-    setTxDueDate(new Date().toISOString().split('T')[0]);
+    setTxDueDate(getLocalDateKey());
   };
 
   // Dynamic status badges and warnings
@@ -407,9 +407,9 @@ export default function FinanceCashflow({
       );
     }
 
-    // Is pending, evaluate deadline date
-    const todayStr = new Date().toISOString().split('T')[0];
-    const dueDateStr = tx.dueDate || tx.date.split('T')[0];
+    // Is pending, evaluate deadline date in BRT
+    const todayStr = getLocalDateKey();
+    const dueDateStr = tx.dueDate || getLocalDateKey(tx.date);
 
     if (dueDateStr < todayStr) {
       return (
@@ -443,7 +443,7 @@ export default function FinanceCashflow({
         <button 
           id="add-tx-modal-btn"
           onClick={() => {
-            setTxDueDate(new Date().toISOString().split('T')[0]);
+            setTxDueDate(getLocalDateKey());
             setIsAddTxOpen(true);
           }}
           className="inline-flex items-center gap-2 bg-slate-900 hover:bg-black font-sans font-extrabold text-white px-5 py-3 rounded-xl text-xs uppercase shadow-md shadow-slate-900/10 transition-all cursor-pointer"

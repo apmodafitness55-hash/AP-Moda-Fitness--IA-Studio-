@@ -18,6 +18,7 @@ import {
   MessageCircle
 } from 'lucide-react';
 import { getStoreConfig, saveStoreConfig, formatWhatsAppNumber, formatInstagramHandle } from '../utils/storeConfig';
+import { showToast } from '../lib/uiDialog';
 
 interface QuickStoreSettingsModalProps {
   isOpen: boolean;
@@ -63,7 +64,7 @@ export default function QuickStoreSettingsModal({ isOpen, onClose }: QuickStoreS
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!phone.trim()) {
-      alert('Por favor, informe o telefone de contato / WhatsApp da loja.');
+      showToast('Por favor, informe o telefone de contato / WhatsApp da loja.', 'warning');
       return;
     }
 
@@ -87,7 +88,7 @@ export default function QuickStoreSettingsModal({ isOpen, onClose }: QuickStoreS
         onClose();
       }, 1200);
     } catch (err: any) {
-      alert('Erro ao salvar configurações: ' + (err?.message || err));
+      showToast('Erro ao salvar configurações: ' + (err?.message || err), 'error');
     } finally {
       setIsSaving(false);
     }

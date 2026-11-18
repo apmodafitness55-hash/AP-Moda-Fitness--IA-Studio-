@@ -42,6 +42,7 @@ import {
   Tag
 } from 'lucide-react';
 import { ActiveTab } from '../types';
+import { safeLocalStorageSet } from '../utils/dateUtils';
 
 interface SidebarProps {
   activeTab: ActiveTab;
@@ -595,7 +596,7 @@ export default function Sidebar({
               type="button"
               onClick={() => {
                 setMenuMode('classico');
-                localStorage.setItem('ap_store_sidebar_mode', 'classico');
+                safeLocalStorageSet('ap_store_sidebar_mode', 'classico');
               }}
               className={`flex-1 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer border-0 outline-none
                 ${menuMode === 'classico'
@@ -610,7 +611,7 @@ export default function Sidebar({
               type="button"
               onClick={() => {
                 setMenuMode('agrupado');
-                localStorage.setItem('ap_store_sidebar_mode', 'agrupado');
+                safeLocalStorageSet('ap_store_sidebar_mode', 'agrupado');
               }}
               className={`flex-1 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer border-0 outline-none
                 ${menuMode === 'agrupado'

@@ -34,6 +34,7 @@ import {
 import { Sale } from '../types';
 import { pushSystemConfigToSupabase } from '../supabase';
 import { getStoreConfig } from '../utils/storeConfig';
+import { safeLocalStorageSet } from '../utils/dateUtils';
 
 interface CompanyInfo {
   name: string;
@@ -170,11 +171,11 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
 
   // Sync settings
   useEffect(() => {
-    localStorage.setItem('ap_moda_company_info', JSON.stringify(companyInfo));
+    safeLocalStorageSet('ap_moda_company_info', JSON.stringify(companyInfo));
     pushSystemConfigToSupabase('ap_moda_company_info', JSON.stringify(companyInfo));
 
     if (companyInfo.pixKey) {
-      localStorage.setItem('ap_pix_key', companyInfo.pixKey);
+      safeLocalStorageSet('ap_pix_key', companyInfo.pixKey);
       pushSystemConfigToSupabase('ap_pix_key', companyInfo.pixKey);
 
       // Keep ap_moda_payment_config updated in sync
@@ -184,7 +185,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
           const parsed = JSON.parse(paymentConfigSaved);
           if (parsed.pixKey !== companyInfo.pixKey) {
             parsed.pixKey = companyInfo.pixKey;
-            localStorage.setItem('ap_moda_payment_config', JSON.stringify(parsed));
+            safeLocalStorageSet('ap_moda_payment_config', JSON.stringify(parsed));
             pushSystemConfigToSupabase('ap_moda_payment_config', JSON.stringify(parsed));
           }
         }
@@ -193,27 +194,27 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
   }, [companyInfo]);
 
   useEffect(() => {
-    localStorage.setItem('ap_moda_selected_printer', selectedPrinter);
+    safeLocalStorageSet('ap_moda_selected_printer', selectedPrinter);
   }, [selectedPrinter]);
 
   useEffect(() => {
-    localStorage.setItem('ap_moda_receipt_font_size', fontSize);
+    safeLocalStorageSet('ap_moda_receipt_font_size', fontSize);
   }, [fontSize]);
 
   useEffect(() => {
-    localStorage.setItem('ap_moda_receipt_show_qr', String(showQrCode));
+    safeLocalStorageSet('ap_moda_receipt_show_qr', String(showQrCode));
   }, [showQrCode]);
 
   useEffect(() => {
-    localStorage.setItem('ap_moda_receipt_show_logo', String(showLogo));
+    safeLocalStorageSet('ap_moda_receipt_show_logo', String(showLogo));
   }, [showLogo]);
 
   useEffect(() => {
-    localStorage.setItem('ap_moda_receipt_show_addr', String(showAddress));
+    safeLocalStorageSet('ap_moda_receipt_show_addr', String(showAddress));
   }, [showAddress]);
 
   useEffect(() => {
-    localStorage.setItem('ap_moda_receipt_cut_lines', String(cutLinesCount));
+    safeLocalStorageSet('ap_moda_receipt_cut_lines', String(cutLinesCount));
   }, [cutLinesCount]);
 
   // Real subtotal calculated from sum of individual items

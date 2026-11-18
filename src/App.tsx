@@ -56,6 +56,8 @@ import SuppliersManagement from './components/SuppliersManagement';
 import StorefrontPaymentConfig from './components/StorefrontPaymentConfig';
 import ErrorBoundary from './components/ErrorBoundary';
 import { PWAInstallButton } from './components/PWAInstallButton';
+import { GlobalDialogHost, showToast, showConfirm, showPrompt } from './lib/uiDialog';
+import { safeLocalStorageSet } from './utils/dateUtils';
 import { 
   getSupabaseConfig, 
   getSupabaseClient,
@@ -198,8 +200,8 @@ export default function App() {
     const fakeNames = ['carla oliveira', 'mariana santos', 'lucas silva', 'juliana costa', 'camila parceira', 'ana carolina'];
 
     if (teamMembers && teamMembers.length > 0) {
-      localStorage.setItem('ap_moda_team_users', JSON.stringify(teamMembers));
-      localStorage.setItem('ap_moda_team_users_backup', JSON.stringify(teamMembers));
+      safeLocalStorageSet('ap_moda_team_users', JSON.stringify(teamMembers));
+      safeLocalStorageSet('ap_moda_team_users_backup', JSON.stringify(teamMembers));
     }
 
     // Update sellers (excluding any mock names)
@@ -207,14 +209,14 @@ export default function App() {
       .filter(m => m.role === 'Vendedor' && !fakeNames.includes(m.name?.toLowerCase()))
       .map(m => m.name);
     setSellers(extSellers);
-    localStorage.setItem('ap_moda_sellers', JSON.stringify(extSellers));
+    safeLocalStorageSet('ap_moda_sellers', JSON.stringify(extSellers));
 
     // Update motoboys (excluding any mock names)
     const extMotoboys = teamMembers
       .filter(m => m.role === 'Entregador' && !fakeNames.includes(m.name?.toLowerCase()))
       .map(m => m.name);
     setMotoboys(extMotoboys);
-    localStorage.setItem('ap_moda_motoboys', JSON.stringify(extMotoboys));
+    safeLocalStorageSet('ap_moda_motoboys', JSON.stringify(extMotoboys));
 
     // Update partners (influencers list) in localStorage safely based on actual registered partners
     try {
@@ -287,7 +289,7 @@ export default function App() {
       });
 
       if (changed || !savedPartners) {
-        localStorage.setItem('ap_moda_partners', JSON.stringify(updatedPartnersList));
+        safeLocalStorageSet('ap_moda_partners', JSON.stringify(updatedPartnersList));
         pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(updatedPartnersList));
         window.dispatchEvent(new Event('ap-storage-synced'));
       }
@@ -327,16 +329,16 @@ export default function App() {
   });
 
   useEffect(() => {
-    localStorage.setItem('ap_moda_sellers', JSON.stringify(sellers));
+    safeLocalStorageSet('ap_moda_sellers', JSON.stringify(sellers));
   }, [sellers]);
 
   useEffect(() => {
-    localStorage.setItem('ap_moda_motoboys', JSON.stringify(motoboys));
+    safeLocalStorageSet('ap_moda_motoboys', JSON.stringify(motoboys));
   }, [motoboys]);
 
   useEffect(() => {
     if (currentUser) {
-      localStorage.setItem('ap_moda_current_user', JSON.stringify(currentUser));
+      safeLocalStorageSet('ap_moda_current_user', JSON.stringify(currentUser));
       // Se for entregador, força o redirecionamento direto para o DriverAppPortal
       if (currentUser.role === 'Entregador') {
         setIsDriverPortalOpen(true);
@@ -395,10 +397,10 @@ export default function App() {
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
-      localStorage.setItem('ap_darkMode', 'true');
+      safeLocalStorageSet('ap_darkMode', 'true');
     } else {
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('ap_darkMode', 'false');
+      safeLocalStorageSet('ap_darkMode', 'false');
     }
   }, [darkMode]);
 
@@ -410,7 +412,7 @@ export default function App() {
   useEffect(() => {
     document.body.classList.remove('theme-neon', 'theme-verde', 'theme-roxo', 'theme-rosa');
     document.body.classList.add(`theme-${themeAccent}`);
-    localStorage.setItem('ap_themeAccent', themeAccent);
+    safeLocalStorageSet('ap_themeAccent', themeAccent);
   }, [themeAccent]);
 
   // Custom client-side router state to invert routing: root is public catalog, /painel or /admin is internal admin area
@@ -530,6 +532,7 @@ export default function App() {
   const [isSyncingNow, setIsSyncingNow] = useState(false);
   const isSyncingRef = useRef(false);
   const isUpdatingFromSyncRef = useRef(false);
+  const syncEpochRef = useRef(0);
 
   const [isCloudSyncingOnLogin, setIsCloudSyncingOnLogin] = useState(false);
   const [syncProgress, setSyncProgress] = useState<{
@@ -550,7 +553,7 @@ export default function App() {
   }, []);
 
   const saveDirtyIds = useCallback((key: string, ids: string[]) => {
-    localStorage.setItem(key, JSON.stringify(ids));
+    safeLocalStorageSet(key, JSON.stringify(ids));
   }, []);
 
   // States with persistent localStorage fallback
@@ -647,9 +650,7 @@ export default function App() {
   });
 
   useEffect(() => {
-    try {
-      localStorage.setItem('ap_system_notifications', JSON.stringify(notifications));
-    } catch (e) {}
+    safeLocalStorageSet('ap_system_notifications', JSON.stringify(notifications));
   }, [notifications]);
   const [newSaleToast, setNewSaleToast] = useState<{
     id: string;
@@ -753,13 +754,13 @@ export default function App() {
             icon: '/icon.png'
           });
         } else if (res === 'denied') {
-          alert('As notificações foram bloqueadas no navegador. Para permitir, clique no ícone de cadeado na barra do navegador.');
+          showToast('As notificações foram bloqueadas no navegador. Para permitir, clique no ícone de cadeado na barra do navegador.', 'warning');
         }
       } catch (e) {
         console.warn('Erro ao solicitar permissão de notificação:', e);
       }
     } else {
-      alert('Seu navegador não possui suporte nativo para notificações de área de trabalho.');
+      showToast('Seu navegador não possui suporte nativo para notificações de área de trabalho.', 'warning');
     }
   };
 
@@ -971,6 +972,71 @@ export default function App() {
     }, 15000);
   }, []);
 
+  // Image & JSON integrity helpers for sync merges
+  const isValidMediaUrl = useCallback((url: unknown): url is string => {
+    if (typeof url !== 'string') return false;
+    const trimmed = url.trim();
+    if (!trimmed) return false;
+    if (trimmed.startsWith('data:image/svg+xml')) {
+      let decoded = trimmed;
+      try {
+        decoded = decodeURIComponent(trimmed);
+      } catch {
+        decoded = trimmed;
+      }
+      if (
+        decoded.includes('AP MODA') ||
+        decoded.includes('ALTA PERFORMANCE') ||
+        decoded.includes('Sem Foto') ||
+        decoded.includes('Sem Imagem') ||
+        decoded.includes('Imagem') ||
+        decoded.includes('Foto')
+      ) {
+        return false;
+      }
+    }
+    return trimmed.startsWith('http') || trimmed.startsWith('data:image/') || trimmed.startsWith('/');
+  }, []);
+
+  const parseJsonField = useCallback(<T,>(val: any, fallback: T): T => {
+    if (val === undefined || val === null) return fallback;
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (!trimmed) return fallback;
+      try {
+        return JSON.parse(trimmed) as T;
+      } catch {
+        return fallback;
+      }
+    }
+    return val as T;
+  }, []);
+
+  const extractValidProductImages = useCallback((prod: any): string[] => {
+    if (!prod) return [];
+    const rawArr = parseJsonField<any[]>(prod.images, []);
+    const list: string[] = [];
+    if (typeof prod.image === 'string' && isValidMediaUrl(prod.image)) {
+      list.push(prod.image.trim());
+    }
+    if (Array.isArray(rawArr)) {
+      for (const item of rawArr) {
+        if (isValidMediaUrl(item) && !list.includes(item.trim())) {
+          list.push(item.trim());
+        }
+      }
+    }
+    return list;
+  }, [isValidMediaUrl, parseJsonField]);
+
+  const normalizeSaleStatus = useCallback((status: any): Sale['status'] => {
+    const s = String(status || '').trim();
+    if (s === 'Pago' || s === 'Concluído' || s === 'Concluída' || s === 'Entregue') return 'Concluída';
+    if (s === 'Cancelada' || s === 'Cancelado' || s === 'Recusado') return 'Cancelada';
+    if (s === 'Pendente') return 'Pendente';
+    return (s as Sale['status']) || 'Concluída';
+  }, []);
+
   // Previous state refs for delta comparisons
   const prevProductsRef = useRef<Product[]>(products);
   const prevClientsRef = useRef<Client[]>(clients);
@@ -982,7 +1048,7 @@ export default function App() {
 
   // Sync to localStorage & automatically track local mutations as dirty
   useEffect(() => {
-    localStorage.setItem('ap_moda_products', JSON.stringify(products));
+    safeLocalStorageSet('ap_moda_products', JSON.stringify(products));
     if (!isUpdatingFromSyncRef.current) {
       const prevList = prevProductsRef.current || [];
       const prevMap = new Map(prevList.map(p => [p.id, p]));
@@ -999,6 +1065,7 @@ export default function App() {
         }
       }
       if (changed) {
+        syncEpochRef.current += 1;
         saveDirtyIds('ap_dirty_products', dirtyIds);
         setTimeout(() => { if (performSyncRef.current) performSyncRef.current(); }, 150);
       }
@@ -1007,7 +1074,7 @@ export default function App() {
   }, [products, getDirtyIds, saveDirtyIds]);
 
   useEffect(() => {
-    localStorage.setItem('ap_moda_clients', JSON.stringify(clients));
+    safeLocalStorageSet('ap_moda_clients', JSON.stringify(clients));
     if (!isUpdatingFromSyncRef.current) {
       const prevList = prevClientsRef.current || [];
       const prevMap = new Map(prevList.map(c => [c.id, c]));
@@ -1024,6 +1091,7 @@ export default function App() {
         }
       }
       if (changed) {
+        syncEpochRef.current += 1;
         saveDirtyIds('ap_dirty_clients', dirtyIds);
         setTimeout(() => { if (performSyncRef.current) performSyncRef.current(); }, 150);
       }
@@ -1032,7 +1100,7 @@ export default function App() {
   }, [clients, getDirtyIds, saveDirtyIds]);
 
   useEffect(() => {
-    localStorage.setItem('ap_moda_sales', JSON.stringify(sales));
+    safeLocalStorageSet('ap_moda_sales', JSON.stringify(sales));
     if (!isUpdatingFromSyncRef.current) {
       const prevList = prevSalesRef.current || [];
       const prevMap = new Map(prevList.map(s => [s.id, s]));
@@ -1049,6 +1117,7 @@ export default function App() {
         }
       }
       if (changed) {
+        syncEpochRef.current += 1;
         saveDirtyIds('ap_dirty_sales', dirtyIds);
         setTimeout(() => { if (performSyncRef.current) performSyncRef.current(); }, 150);
       }
@@ -1057,7 +1126,7 @@ export default function App() {
   }, [sales, getDirtyIds, saveDirtyIds]);
 
   useEffect(() => {
-    localStorage.setItem('ap_moda_transactions', JSON.stringify(transactions));
+    safeLocalStorageSet('ap_moda_transactions', JSON.stringify(transactions));
     if (!isUpdatingFromSyncRef.current) {
       const prevList = prevTransactionsRef.current || [];
       const prevMap = new Map(prevList.map(t => [t.id, t]));
@@ -1074,6 +1143,7 @@ export default function App() {
         }
       }
       if (changed) {
+        syncEpochRef.current += 1;
         saveDirtyIds('ap_dirty_transactions', dirtyIds);
         setTimeout(() => { if (performSyncRef.current) performSyncRef.current(); }, 150);
       }
@@ -1082,8 +1152,8 @@ export default function App() {
   }, [transactions, getDirtyIds, saveDirtyIds]);
 
   useEffect(() => {
-    localStorage.setItem('ap_moda_online_orders', JSON.stringify(onlineOrders));
-    localStorage.setItem('ap_online_orders', JSON.stringify(onlineOrders));
+    safeLocalStorageSet('ap_moda_online_orders', JSON.stringify(onlineOrders));
+    safeLocalStorageSet('ap_online_orders', JSON.stringify(onlineOrders));
     if (!isUpdatingFromSyncRef.current) {
       const prevList = prevOnlineOrdersRef.current || [];
       const prevMap = new Map(prevList.map(o => [o.id, o]));
@@ -1100,6 +1170,7 @@ export default function App() {
         }
       }
       if (changed) {
+        syncEpochRef.current += 1;
         saveDirtyIds('ap_dirty_online_orders', dirtyIds);
         setTimeout(() => { if (performSyncRef.current) performSyncRef.current(); }, 150);
       }
@@ -1228,7 +1299,7 @@ export default function App() {
   }, [onlineOrders]);
 
   useEffect(() => {
-    localStorage.setItem('ap_moda_checkouts', JSON.stringify(checkouts));
+    safeLocalStorageSet('ap_moda_checkouts', JSON.stringify(checkouts));
     if (!isUpdatingFromSyncRef.current) {
       const prevList = prevCheckoutsRef.current || [];
       const prevMap = new Map(prevList.map(c => [c.id, c]));
@@ -1297,13 +1368,23 @@ export default function App() {
       // BEFORE DOWNLOADING: Sync any local changes (dirty items) that are pending to Supabase!
       // This protects local data from being overwritten on page reload/re-login.
       const config = getSupabaseConfig();
+      const uploadSucceeded: Record<string, string[]> = {
+        team: [],
+        products: [],
+        clients: [],
+        sales: [],
+        transactions: [],
+        orders: [],
+        checkouts: []
+      };
+
       if (config && !systemOffline) {
         // A. Team members
         const dirtyMembers = getDirtyIds('ap_dirty_team_members');
         if (dirtyMembers.length > 0) {
           const toUpload = lastTeamMembersRef.current.filter((m: any) => dirtyMembers.includes(m.id));
-          if (toUpload.length > 0) {
-            await syncBulkTeamMembersToSupabase(toUpload);
+          if (toUpload.length > 0 && await syncBulkTeamMembersToSupabase(toUpload)) {
+            uploadSucceeded.team = toUpload.map((m: any) => m.id);
           }
         }
 
@@ -1311,8 +1392,8 @@ export default function App() {
         const dirtyProducts = getDirtyIds('ap_dirty_products');
         if (dirtyProducts.length > 0) {
           const toUpload = lastProductsRef.current.filter((p: any) => dirtyProducts.includes(p.id));
-          if (toUpload.length > 0) {
-            await syncBulkProductsToSupabase(toUpload);
+          if (toUpload.length > 0 && await syncBulkProductsToSupabase(toUpload)) {
+            uploadSucceeded.products = toUpload.map((p: any) => p.id);
           }
         }
 
@@ -1320,8 +1401,8 @@ export default function App() {
         const dirtyClients = getDirtyIds('ap_dirty_clients');
         if (dirtyClients.length > 0) {
           const toUpload = lastClientsRef.current.filter((c: any) => dirtyClients.includes(c.id));
-          if (toUpload.length > 0) {
-            await syncBulkClientsToSupabase(toUpload);
+          if (toUpload.length > 0 && await syncBulkClientsToSupabase(toUpload)) {
+            uploadSucceeded.clients = toUpload.map((c: any) => c.id);
           }
         }
 
@@ -1329,8 +1410,8 @@ export default function App() {
         const dirtySales = getDirtyIds('ap_dirty_sales');
         if (dirtySales.length > 0) {
           const toUpload = lastSalesRef.current.filter((s: any) => dirtySales.includes(s.id));
-          if (toUpload.length > 0) {
-            await syncBulkSalesToSupabase(toUpload);
+          if (toUpload.length > 0 && await syncBulkSalesToSupabase(toUpload)) {
+            uploadSucceeded.sales = toUpload.map((s: any) => s.id);
           }
         }
 
@@ -1338,8 +1419,8 @@ export default function App() {
         const dirtyTransactions = getDirtyIds('ap_dirty_transactions');
         if (dirtyTransactions.length > 0) {
           const toUpload = lastTransactionsRef.current.filter((t: any) => dirtyTransactions.includes(t.id));
-          if (toUpload.length > 0) {
-            await syncBulkTransactionsToSupabase(toUpload);
+          if (toUpload.length > 0 && await syncBulkTransactionsToSupabase(toUpload)) {
+            uploadSucceeded.transactions = toUpload.map((t: any) => t.id);
           }
         }
 
@@ -1347,8 +1428,8 @@ export default function App() {
         const dirtyOrders = getDirtyIds('ap_dirty_online_orders');
         if (dirtyOrders.length > 0) {
           const toUpload = lastOnlineOrdersRef.current.filter((o: any) => dirtyOrders.includes(o.id));
-          if (toUpload.length > 0) {
-            await syncBulkOnlineOrdersToSupabase(toUpload);
+          if (toUpload.length > 0 && await syncBulkOnlineOrdersToSupabase(toUpload)) {
+            uploadSucceeded.orders = toUpload.map((o: any) => o.id);
           }
         }
 
@@ -1356,10 +1437,19 @@ export default function App() {
         const dirtyCheckoutsList = getDirtyIds('ap_dirty_checkouts');
         if (dirtyCheckoutsList.length > 0) {
           const toUpload = lastCheckoutsRef.current.filter((c: any) => dirtyCheckoutsList.includes(c.id));
-          if (toUpload.length > 0) {
-            await syncBulkCheckoutsToSupabase(toUpload);
+          if (toUpload.length > 0 && await syncBulkCheckoutsToSupabase(toUpload)) {
+            uploadSucceeded.checkouts = toUpload.map((c: any) => c.id);
           }
         }
+
+        // Remove from dirty queue ONLY items that genuinely uploaded cleanly
+        if (uploadSucceeded.team.length > 0) saveDirtyIds('ap_dirty_team_members', getDirtyIds('ap_dirty_team_members').filter(id => !uploadSucceeded.team.includes(id)));
+        if (uploadSucceeded.products.length > 0) saveDirtyIds('ap_dirty_products', getDirtyIds('ap_dirty_products').filter(id => !uploadSucceeded.products.includes(id)));
+        if (uploadSucceeded.clients.length > 0) saveDirtyIds('ap_dirty_clients', getDirtyIds('ap_dirty_clients').filter(id => !uploadSucceeded.clients.includes(id)));
+        if (uploadSucceeded.sales.length > 0) saveDirtyIds('ap_dirty_sales', getDirtyIds('ap_dirty_sales').filter(id => !uploadSucceeded.sales.includes(id)));
+        if (uploadSucceeded.transactions.length > 0) saveDirtyIds('ap_dirty_transactions', getDirtyIds('ap_dirty_transactions').filter(id => !uploadSucceeded.transactions.includes(id)));
+        if (uploadSucceeded.orders.length > 0) saveDirtyIds('ap_dirty_online_orders', getDirtyIds('ap_dirty_online_orders').filter(id => !uploadSucceeded.orders.includes(id)));
+        if (uploadSucceeded.checkouts.length > 0) saveDirtyIds('ap_dirty_checkouts', getDirtyIds('ap_dirty_checkouts').filter(id => !uploadSucceeded.checkouts.includes(id)));
       }
 
       setSyncProgress(prev => ({
@@ -1377,7 +1467,7 @@ export default function App() {
           const hasSeededKey = dbConfigs.some((config: any) => config.key === 'ap_system_seeded' && config.value === 'true');
           if (hasSeededKey) {
             isSeeded = true;
-            localStorage.setItem('ap_system_seeded', 'true');
+            safeLocalStorageSet('ap_system_seeded', 'true');
           }
 
           // Sync Coupons across devices via Supabase ap_system_configs
@@ -1386,7 +1476,7 @@ export default function App() {
             try {
               const parsedCoupons = typeof couponsConfig.value === 'string' ? JSON.parse(couponsConfig.value) : couponsConfig.value;
               if (Array.isArray(parsedCoupons)) {
-                localStorage.setItem('ap_coupons', JSON.stringify(parsedCoupons));
+                safeLocalStorageSet('ap_coupons', JSON.stringify(parsedCoupons));
                 window.dispatchEvent(new Event('ap-coupons-updated'));
               }
             } catch(e) {}
@@ -1398,7 +1488,7 @@ export default function App() {
             try {
               const parsedPartners = typeof partnersConfig.value === 'string' ? JSON.parse(partnersConfig.value) : partnersConfig.value;
               if (Array.isArray(parsedPartners)) {
-                localStorage.setItem('ap_moda_partners', JSON.stringify(parsedPartners));
+                safeLocalStorageSet('ap_moda_partners', JSON.stringify(parsedPartners));
                 window.dispatchEvent(new Event('ap-storage-synced'));
               }
             } catch(e) {}
@@ -1410,7 +1500,7 @@ export default function App() {
             try {
               const parsedManual = typeof manualPartnerSalesConfig.value === 'string' ? JSON.parse(manualPartnerSalesConfig.value) : manualPartnerSalesConfig.value;
               if (Array.isArray(parsedManual)) {
-                localStorage.setItem('ap_manual_partner_sales', JSON.stringify(parsedManual));
+                safeLocalStorageSet('ap_manual_partner_sales', JSON.stringify(parsedManual));
                 window.dispatchEvent(new Event('ap-storage-synced'));
               }
             } catch(e) {}
@@ -1436,7 +1526,7 @@ export default function App() {
             if (cfg && cfg.value !== undefined && cfg.value !== null) {
               const valStr = typeof cfg.value === 'string' ? cfg.value : JSON.stringify(cfg.value);
               if (valStr.trim().length > 0) {
-                localStorage.setItem(sKey, valStr);
+                safeLocalStorageSet(sKey, valStr);
                 storeChanged = true;
               }
             }
@@ -1492,8 +1582,8 @@ export default function App() {
       }
 
       setTeamMembers(mergedMembers);
-      localStorage.setItem('ap_moda_team_users', JSON.stringify(mergedMembers));
-      localStorage.setItem('ap_moda_team_users_backup', JSON.stringify(mergedMembers));
+      safeLocalStorageSet('ap_moda_team_users', JSON.stringify(mergedMembers));
+      safeLocalStorageSet('ap_moda_team_users_backup', JSON.stringify(mergedMembers));
 
       if (!dbMembers || dbMembers.length === 0) {
         console.log('[Supabase Sync] Semeando equipe/logins locais no Supabase vazio:', mergedMembers.length);
@@ -1507,22 +1597,63 @@ export default function App() {
         stepsCompleted: [...prev.stepsCompleted, 'Sincronizando Login...']
       }));
 
-      // 3. Sincroniza Catálogo de Produtos
+      // 3. Sincroniza Catálogo de Produtos (com proteção contra perda de imagens ou sobrescrita de alterações pendentes)
       const dbProducts = await fetchProductsFromSupabase();
       const deletedProductsList = getDirtyIds('ap_deleted_products');
+      const remainingDirtyProducts = getDirtyIds('ap_dirty_products');
       const mockIds = ['prod-1', 'prod-2', 'prod-3', 'prod-4', 'prod-5', 'prod-6', 'prod-7'];
+      const currentLocalProducts = lastProductsRef.current && lastProductsRef.current.length > 0 ? lastProductsRef.current : products;
+      const localProdMap = new Map(currentLocalProducts.map(p => [p.id, p]));
+
       if (dbProducts && dbProducts.length > 0) {
-        const cleanDbProducts = dbProducts.filter((p: Product) => p && !deletedProductsList.includes(p.id) && !mockIds.includes(p.id));
+        const productsToReupload: Product[] = [];
+        const cleanDbProducts = dbProducts
+          .filter((p: Product) => p && !deletedProductsList.includes(p.id) && !mockIds.includes(p.id))
+          .map((dbP: Product) => {
+            const localP = localProdMap.get(dbP.id);
+            if (!localP) return dbP;
+            if (remainingDirtyProducts.includes(dbP.id)) return localP;
+
+            const validLocalImgs = extractValidProductImages(localP);
+            const validRemoteImgs = extractValidProductImages(dbP);
+            if (validLocalImgs.length > validRemoteImgs.length) {
+              const mergedImgs = Array.from(new Set([...validRemoteImgs, ...validLocalImgs]));
+              const repaired = {
+                ...dbP,
+                image: (isValidMediaUrl(dbP.image) ? dbP.image : validLocalImgs[0]) || mergedImgs[0] || '',
+                images: mergedImgs
+              };
+              productsToReupload.push(repaired);
+              return repaired;
+            }
+            return dbP;
+          });
+
+        // Preserva produtos locais ainda não gravados no servidor (dirty ou novos)
+        for (const localP of currentLocalProducts) {
+          if (localP && !deletedProductsList.includes(localP.id) && !mockIds.includes(localP.id) && !cleanDbProducts.some((dp: Product) => dp.id === localP.id)) {
+            cleanDbProducts.push(localP);
+            productsToReupload.push(localP);
+          }
+        }
+
+        if (productsToReupload.length > 0) {
+          syncBulkProductsToSupabase(productsToReupload).catch(() => {});
+        }
+        lastProductsRef.current = cleanDbProducts;
+        prevProductsRef.current = cleanDbProducts;
         setProducts(cleanDbProducts);
-        localStorage.setItem('ap_moda_products', JSON.stringify(cleanDbProducts));
-      } else {
-        const localProducts = (lastProductsRef.current && lastProductsRef.current.length > 0 ? lastProductsRef.current : products)
+        safeLocalStorageSet('ap_moda_products', JSON.stringify(cleanDbProducts));
+      } else if (dbProducts !== null) {
+        const localProducts = currentLocalProducts
           .filter((p: Product) => p && !deletedProductsList.includes(p.id) && !mockIds.includes(p.id));
         if (localProducts && localProducts.length > 0) {
           console.log('[Supabase Sync] Enviando seus produtos locais para o Supabase:', localProducts.length);
           await syncBulkProductsToSupabase(localProducts);
+          lastProductsRef.current = localProducts;
+          prevProductsRef.current = localProducts;
           setProducts(localProducts);
-          localStorage.setItem('ap_moda_products', JSON.stringify(localProducts));
+          safeLocalStorageSet('ap_moda_products', JSON.stringify(localProducts));
         }
       }
 
@@ -1537,21 +1668,27 @@ export default function App() {
       const isSystemCleared = localStorage.getItem('ap_system_cleared') === 'true';
       const dbClients = await fetchClientsFromSupabase();
       if (dbClients && dbClients.length > 0) {
+        lastClientsRef.current = dbClients;
+        prevClientsRef.current = dbClients;
         setClients(dbClients);
-        localStorage.setItem('ap_moda_clients', JSON.stringify(dbClients));
-      } else {
+        safeLocalStorageSet('ap_moda_clients', JSON.stringify(dbClients));
+      } else if (dbClients !== null) {
         const hasSavedClients = localStorage.getItem('ap_moda_clients') !== null;
         const localClients = lastClientsRef.current && lastClientsRef.current.length > 0
           ? lastClientsRef.current
-          : (clients.length > 0 ? clients : (isSystemCleared || hasSavedClients ? [] : INITIAL_CLIENTS));
+          : (clients.length > 0 ? clients : (isSystemCleared || hasSavedClients || isSeeded ? [] : INITIAL_CLIENTS));
         if (localClients && localClients.length > 0) {
           console.log('[Supabase Sync] Enviando clientes autênticos para o Supabase:', localClients.length);
           await syncBulkClientsToSupabase(localClients);
+          lastClientsRef.current = localClients;
+          prevClientsRef.current = localClients;
           setClients(localClients);
-          localStorage.setItem('ap_moda_clients', JSON.stringify(localClients));
+          safeLocalStorageSet('ap_moda_clients', JSON.stringify(localClients));
         } else if (isSystemCleared) {
+          lastClientsRef.current = [];
+          prevClientsRef.current = [];
           setClients([]);
-          localStorage.setItem('ap_moda_clients', JSON.stringify([]));
+          safeLocalStorageSet('ap_moda_clients', JSON.stringify([]));
         }
       }
 
@@ -1562,12 +1699,14 @@ export default function App() {
         stepsCompleted: [...prev.stepsCompleted, 'Sincronizando Clientes...']
       }));
 
-      // 5. Sincroniza Vendas
+      // 5. Sincroniza Vendas (respeitando fila de exclusões e normalizando status de vendas pagas)
       const dbSales = await fetchSalesFromSupabase();
+      const deletedSalesList = getDirtyIds('ap_deleted_sales');
+      const remainingDirtySales = getDirtyIds('ap_dirty_sales');
       if (dbSales && dbSales.length > 0) {
         const localSales = lastSalesRef.current && lastSalesRef.current.length > 0 ? lastSalesRef.current : sales;
         const localSalesMap = new Map(localSales.map(s => [s.id, s]));
-        
+
         let manualSalesMap = new Map();
         try {
           const savedM = localStorage.getItem('ap_manual_partner_sales');
@@ -1584,42 +1723,53 @@ export default function App() {
           }
         } catch(e) {}
 
-        const mergedDbSales = dbSales.map(dbS => {
-          const sIdLower = (dbS.id || '').toLowerCase();
-          const localS = localSalesMap.get(dbS.id) || localSalesMap.get(sIdLower);
-          const manualM = manualSalesMap.get(sIdLower) || manualSalesMap.get(sIdLower.replace('ped-', '#ped-')) || manualSalesMap.get(sIdLower.replace('#', ''));
-          
-          const partner = dbS.partner || (dbS as any).partnerName || (localS && (localS.partner || (localS as any).partnerName)) || (manualM && manualM.partnerName) || undefined;
-          const partnerName = (dbS as any).partnerName || dbS.partner || (localS && ((localS as any).partnerName || localS.partner)) || (manualM && manualM.partnerName) || undefined;
-          const partnerId = dbS.partnerId || (localS && localS.partnerId) || (manualM && manualM.partnerId) || undefined;
-          const couponCode = dbS.couponCode || (dbS as any).partnerCoupon || (localS && (localS.couponCode || (localS as any).partnerCoupon)) || (manualM && manualM.couponCode) || undefined;
-          
-          return {
-            ...dbS,
-            partner: partner || dbS.partner,
-            partnerName: partnerName || (dbS as any).partnerName,
-            partnerId: partnerId || dbS.partnerId,
-            couponCode: couponCode || dbS.couponCode,
-            partnerCoupon: couponCode || (dbS as any).partnerCoupon,
-            coupon: couponCode || (dbS as any).coupon
-          };
-        });
+        const mergedDbSales = dbSales
+          .filter(dbS => dbS && !deletedSalesList.includes(dbS.id))
+          .map(dbS => {
+            const sIdLower = (dbS.id || '').toLowerCase();
+            const localS = localSalesMap.get(dbS.id) || localSalesMap.get(sIdLower);
+            if (localS && remainingDirtySales.includes(dbS.id)) return localS;
 
+            const manualM = manualSalesMap.get(sIdLower) || manualSalesMap.get(sIdLower.replace('ped-', '#ped-')) || manualSalesMap.get(sIdLower.replace('#', ''));
+            const partner = dbS.partner || (dbS as any).partnerName || (localS && (localS.partner || (localS as any).partnerName)) || (manualM && manualM.partnerName) || undefined;
+            const partnerName = (dbS as any).partnerName || dbS.partner || (localS && ((localS as any).partnerName || localS.partner)) || (manualM && manualM.partnerName) || undefined;
+            const partnerId = dbS.partnerId || (localS && localS.partnerId) || (manualM && manualM.partnerId) || undefined;
+            const couponCode = dbS.couponCode || (dbS as any).partnerCoupon || (localS && (localS.couponCode || (localS as any).partnerCoupon)) || (manualM && manualM.couponCode) || undefined;
+
+            return {
+              ...dbS,
+              status: normalizeSaleStatus(dbS.status),
+              partner: partner || dbS.partner,
+              partnerName: partnerName || (dbS as any).partnerName,
+              partnerId: partnerId || dbS.partnerId,
+              couponCode: couponCode || dbS.couponCode,
+              partnerCoupon: couponCode || (dbS as any).partnerCoupon,
+              coupon: couponCode || (dbS as any).coupon
+            };
+          });
+
+        lastSalesRef.current = mergedDbSales;
+        prevSalesRef.current = mergedDbSales;
         setSales(mergedDbSales);
-        localStorage.setItem('ap_moda_sales', JSON.stringify(mergedDbSales));
-      } else {
+        safeLocalStorageSet('ap_moda_sales', JSON.stringify(mergedDbSales));
+      } else if (dbSales !== null) {
         const hasSavedSales = localStorage.getItem('ap_moda_sales') !== null;
-        const localSales = lastSalesRef.current && lastSalesRef.current.length > 0
+        const localSales = (lastSalesRef.current && lastSalesRef.current.length > 0
           ? lastSalesRef.current
-          : (sales && sales.length > 0 ? sales : (isSystemCleared || hasSavedSales ? [] : INITIAL_SALES));
+          : (sales && sales.length > 0 ? sales : (isSystemCleared || hasSavedSales || isSeeded ? [] : INITIAL_SALES)))
+          .filter(s => s && !deletedSalesList.includes(s.id));
         if (localSales && localSales.length > 0) {
           console.log('[Supabase Sync] Restaurando histórico de vendas autênticas para o Supabase:', localSales.length);
           await syncBulkSalesToSupabase(localSales);
+          lastSalesRef.current = localSales;
+          prevSalesRef.current = localSales;
           setSales(localSales);
-          localStorage.setItem('ap_moda_sales', JSON.stringify(localSales));
+          safeLocalStorageSet('ap_moda_sales', JSON.stringify(localSales));
         } else if (isSystemCleared) {
+          lastSalesRef.current = [];
+          prevSalesRef.current = [];
           setSales([]);
-          localStorage.setItem('ap_moda_sales', JSON.stringify([]));
+          safeLocalStorageSet('ap_moda_sales', JSON.stringify([]));
         }
       }
 
@@ -1632,27 +1782,36 @@ export default function App() {
 
       // 6. Sincroniza Lançamentos Financeiros (Fluxo de Caixa / Prestação de Contas)
       const dbTransactions = await fetchTransactionsFromSupabase();
+      const deletedTransactionsList = getDirtyIds('ap_deleted_transactions');
       if (dbTransactions && dbTransactions.length > 0) {
-        setTransactions(dbTransactions);
-        localStorage.setItem('ap_moda_transactions', JSON.stringify(dbTransactions));
-      } else {
+        const cleanDbTxs = dbTransactions.filter((t: Transaction) => t && !deletedTransactionsList.includes(t.id));
+        lastTransactionsRef.current = cleanDbTxs;
+        prevTransactionsRef.current = cleanDbTxs;
+        setTransactions(cleanDbTxs);
+        safeLocalStorageSet('ap_moda_transactions', JSON.stringify(cleanDbTxs));
+      } else if (dbTransactions !== null) {
         const hasSavedTxs = localStorage.getItem('ap_moda_transactions') !== null;
-        const localTxs = lastTransactionsRef.current && lastTransactionsRef.current.length > 0
+        const localTxs = (lastTransactionsRef.current && lastTransactionsRef.current.length > 0
           ? lastTransactionsRef.current
-          : (transactions && transactions.length > 0 ? transactions : (isSystemCleared || hasSavedTxs ? [] : INITIAL_TRANSACTIONS));
+          : (transactions && transactions.length > 0 ? transactions : (isSystemCleared || hasSavedTxs || isSeeded ? [] : INITIAL_TRANSACTIONS)))
+          .filter(t => t && !deletedTransactionsList.includes(t.id));
         if (localTxs && localTxs.length > 0) {
           console.log('[Supabase Sync] Preservando fluxo de caixa local e enviando para o banco:', localTxs.length);
           await syncBulkTransactionsToSupabase(localTxs);
+          lastTransactionsRef.current = localTxs;
+          prevTransactionsRef.current = localTxs;
           setTransactions(localTxs);
-          localStorage.setItem('ap_moda_transactions', JSON.stringify(localTxs));
+          safeLocalStorageSet('ap_moda_transactions', JSON.stringify(localTxs));
         } else if (isSystemCleared) {
+          lastTransactionsRef.current = [];
+          prevTransactionsRef.current = [];
           setTransactions([]);
-          localStorage.setItem('ap_moda_transactions', JSON.stringify([]));
+          safeLocalStorageSet('ap_moda_transactions', JSON.stringify([]));
         }
       }
 
       if (!isSeeded) {
-        localStorage.setItem('ap_system_seeded', 'true');
+        safeLocalStorageSet('ap_system_seeded', 'true');
         await pushSystemConfigToSupabase('ap_system_seeded', 'true');
       }
 
@@ -1665,22 +1824,31 @@ export default function App() {
 
       // 7. Sincroniza Pedidos Online
       const dbOrders = await fetchOnlineOrdersFromSupabase();
+      const deletedOrdersList = getDirtyIds('ap_deleted_online_orders');
       if (dbOrders && dbOrders.length > 0) {
-        setOnlineOrders(dbOrders);
-        localStorage.setItem('ap_moda_online_orders', JSON.stringify(dbOrders));
-      } else {
+        const cleanDbOrders = dbOrders.filter((o: any) => o && !deletedOrdersList.includes(o.id));
+        lastOnlineOrdersRef.current = cleanDbOrders;
+        prevOnlineOrdersRef.current = cleanDbOrders;
+        setOnlineOrders(cleanDbOrders);
+        safeLocalStorageSet('ap_moda_online_orders', JSON.stringify(cleanDbOrders));
+      } else if (dbOrders !== null) {
         const hasSavedOrders = localStorage.getItem('ap_moda_online_orders') !== null;
-        const localOrders = lastOnlineOrdersRef.current && lastOnlineOrdersRef.current.length > 0
+        const localOrders = (lastOnlineOrdersRef.current && lastOnlineOrdersRef.current.length > 0
           ? lastOnlineOrdersRef.current
-          : (onlineOrders && onlineOrders.length > 0 ? onlineOrders : (isSystemCleared || hasSavedOrders ? [] : INITIAL_ONLINE_ORDERS));
+          : (onlineOrders && onlineOrders.length > 0 ? onlineOrders : (isSystemCleared || hasSavedOrders || isSeeded ? [] : INITIAL_ONLINE_ORDERS)))
+          .filter(o => o && !deletedOrdersList.includes(o.id));
         if (localOrders && localOrders.length > 0) {
           console.log('[Supabase Sync] Enviando sacolas online locais para o Supabase:', localOrders.length);
           await syncBulkOnlineOrdersToSupabase(localOrders);
+          lastOnlineOrdersRef.current = localOrders;
+          prevOnlineOrdersRef.current = localOrders;
           setOnlineOrders(localOrders);
-          localStorage.setItem('ap_moda_online_orders', JSON.stringify(localOrders));
+          safeLocalStorageSet('ap_moda_online_orders', JSON.stringify(localOrders));
         } else if (isSystemCleared) {
+          lastOnlineOrdersRef.current = [];
+          prevOnlineOrdersRef.current = [];
           setOnlineOrders([]);
-          localStorage.setItem('ap_moda_online_orders', JSON.stringify([]));
+          safeLocalStorageSet('ap_moda_online_orders', JSON.stringify([]));
         }
       }
 
@@ -1694,8 +1862,10 @@ export default function App() {
       // 7.5 Sincroniza Checkouts
       const dbCheckouts = await fetchCheckoutsFromSupabase();
       if (dbCheckouts) {
+        lastCheckoutsRef.current = dbCheckouts;
+        prevCheckoutsRef.current = dbCheckouts;
         setCheckouts(dbCheckouts);
-        localStorage.setItem('ap_moda_checkouts', JSON.stringify(dbCheckouts));
+        safeLocalStorageSet('ap_moda_checkouts', JSON.stringify(dbCheckouts));
       }
 
       setSyncProgress(prev => ({
@@ -1707,15 +1877,6 @@ export default function App() {
 
       // 8. Sincroniza Configurações Globais
       await syncSystemConfigsWithSupabase();
-
-      // Zera chaves de modificação local temporária (sujeira) para evitar re-uploads redundantes
-      localStorage.setItem('ap_dirty_team_members', JSON.stringify([]));
-      localStorage.setItem('ap_dirty_products', JSON.stringify([]));
-      localStorage.setItem('ap_dirty_clients', JSON.stringify([]));
-      localStorage.setItem('ap_dirty_sales', JSON.stringify([]));
-      localStorage.setItem('ap_dirty_transactions', JSON.stringify([]));
-      localStorage.setItem('ap_dirty_online_orders', JSON.stringify([]));
-      localStorage.setItem('ap_dirty_checkouts', JSON.stringify([]));
 
       setSyncProgress(prev => ({
         ...prev,
@@ -1780,7 +1941,7 @@ export default function App() {
 
   // Garantir que as credenciais do Supabase estejam sincronizadas sem apagar dados locais
   useEffect(() => {
-    localStorage.setItem('ap_moda_global_clean_v4', 'true');
+    safeLocalStorageSet('ap_moda_global_clean_v4', 'true');
   }, []);
 
   // Carregar usuários e credenciais do Supabase na inicialização, se houver
@@ -1805,7 +1966,7 @@ export default function App() {
             );
             console.log(`Sucesso! ${cleanMembers.length} logins autênticos baixados do Supabase.`);
             setTeamMembers(cleanMembers);
-            localStorage.setItem('ap_moda_team_users', JSON.stringify(cleanMembers));
+            safeLocalStorageSet('ap_moda_team_users', JSON.stringify(cleanMembers));
           } else if (dbMembers === null) {
             console.warn('Tabela "ap_team_members" no Supabase não foi encontrada ou está vazia.');
           }
@@ -1828,7 +1989,7 @@ export default function App() {
             const dbProducts = await fetchProductsFromSupabase();
             if (dbProducts && dbProducts.length > 0) {
               setProducts(dbProducts);
-              localStorage.setItem('ap_moda_products', JSON.stringify(dbProducts));
+              safeLocalStorageSet('ap_moda_products', JSON.stringify(dbProducts));
               console.log('[Public Catalog Init] Produtos carregados com sucesso do Supabase para visitantes:', dbProducts.length);
             } else {
               // Se a consulta remota vier vazia, preserva o cache local existente antes de qualquer fallback
@@ -1902,7 +2063,7 @@ export default function App() {
   const systemOffline = !isOnline || simulateOffline;
 
   useEffect(() => {
-    localStorage.setItem('ap_moda_pending_sync', JSON.stringify(offlinePendingSync));
+    safeLocalStorageSet('ap_moda_pending_sync', JSON.stringify(offlinePendingSync));
   }, [offlinePendingSync]);
 
   useEffect(() => {
@@ -1958,8 +2119,11 @@ export default function App() {
 
   // Intercepting and immediate-upload list wrappers for children components
   const handleUpdateClientsList = useCallback(async (updatedList: Client[] | ((prev: Client[]) => Client[])) => {
+    syncEpochRef.current += 1;
     setClients(prev => {
       const newList = typeof updatedList === 'function' ? updatedList(prev) : updatedList;
+      lastClientsRef.current = newList;
+      safeLocalStorageSet('ap_moda_clients', JSON.stringify(newList));
       const prevMap = new Map(prev.map(c => [c.id, c]));
       const changedClients = newList.filter(c => {
         const prevC = prevMap.get(c.id);
@@ -1967,6 +2131,8 @@ export default function App() {
       });
 
       if (changedClients.length > 0) {
+        const changedIds = changedClients.map(cc => cc.id);
+        saveDirtyIds('ap_dirty_clients', Array.from(new Set([...getDirtyIds('ap_dirty_clients'), ...changedIds])));
         const config = getSupabaseConfig();
         if (config && !systemOffline) {
           syncBulkClientsToSupabase(changedClients).then(success => {
@@ -1982,12 +2148,11 @@ export default function App() {
   }, [systemOffline, getDirtyIds, saveDirtyIds]);
 
   const handleUpdateProductsList = useCallback(async (updatedList: Product[] | ((prev: Product[]) => Product[])) => {
+    syncEpochRef.current += 1;
     setProducts(prev => {
       const newList = typeof updatedList === 'function' ? updatedList(prev) : updatedList;
       lastProductsRef.current = newList;
-      try {
-        localStorage.setItem('ap_moda_products', JSON.stringify(newList));
-      } catch (e) {}
+      safeLocalStorageSet('ap_moda_products', JSON.stringify(newList));
 
       const prevMap = new Map(prev.map(p => [p.id, p]));
       const changedProducts = newList.filter(p => {
@@ -2015,8 +2180,11 @@ export default function App() {
   }, [systemOffline, getDirtyIds, saveDirtyIds]);
 
   const handleUpdateSalesList = useCallback(async (updatedList: Sale[] | ((prev: Sale[]) => Sale[])) => {
+    syncEpochRef.current += 1;
     setSales(prev => {
       const newList = typeof updatedList === 'function' ? updatedList(prev) : updatedList;
+      lastSalesRef.current = newList;
+      safeLocalStorageSet('ap_moda_sales', JSON.stringify(newList));
       const prevMap = new Map(prev.map(s => [s.id, s]));
       const changedSales = newList.filter(s => {
         const prevS = prevMap.get(s.id);
@@ -2043,8 +2211,11 @@ export default function App() {
   }, [systemOffline, getDirtyIds, saveDirtyIds]);
 
   const handleUpdateTransactionsList = useCallback(async (updatedList: Transaction[] | ((prev: Transaction[]) => Transaction[])) => {
+    syncEpochRef.current += 1;
     setTransactions(prev => {
       const newList = typeof updatedList === 'function' ? updatedList(prev) : updatedList;
+      lastTransactionsRef.current = newList;
+      safeLocalStorageSet('ap_moda_transactions', JSON.stringify(newList));
       const prevMap = new Map(prev.map(t => [t.id, t]));
       const changedTransactions = newList.filter(t => {
         const prevT = prevMap.get(t.id);
@@ -2052,6 +2223,8 @@ export default function App() {
       });
 
       if (changedTransactions.length > 0) {
+        const changedIds = changedTransactions.map(ct => ct.id);
+        saveDirtyIds('ap_dirty_transactions', Array.from(new Set([...getDirtyIds('ap_dirty_transactions'), ...changedIds])));
         const config = getSupabaseConfig();
         if (config && !systemOffline) {
           syncBulkTransactionsToSupabase(changedTransactions).then(success => {
@@ -2067,8 +2240,12 @@ export default function App() {
   }, [systemOffline, getDirtyIds, saveDirtyIds]);
 
   const handleUpdateOnlineOrdersList = useCallback(async (updatedList: any[] | ((prev: any[]) => any[])) => {
+    syncEpochRef.current += 1;
     setOnlineOrders(prev => {
       const newList = typeof updatedList === 'function' ? updatedList(prev) : updatedList;
+      lastOnlineOrdersRef.current = newList;
+      safeLocalStorageSet('ap_moda_online_orders', JSON.stringify(newList));
+      safeLocalStorageSet('ap_online_orders', JSON.stringify(newList));
       const prevMap = new Map(prev.map(o => [o.id, o]));
       const changedOrders = newList.filter(o => {
         const prevO = prevMap.get(o.id);
@@ -2097,6 +2274,7 @@ export default function App() {
   const handleUpdateTeamMembers = useCallback(async (updatedList: any[] | ((prev: any[]) => any[])) => {
     setTeamMembers(prev => {
       const newList = typeof updatedList === 'function' ? updatedList(prev) : updatedList;
+      lastTeamMembersRef.current = newList;
       const deletedMembers = prev.filter(m => !newList.some(nl => nl.id === m.id));
       
       if (deletedMembers.length > 0) {
@@ -2138,7 +2316,7 @@ export default function App() {
     if (systemOffline) {
       console.log('[Supabase Sync] Sistema offline. Sincronização suspensa.');
       if (isManual) {
-        alert("Você está offline no momento. Ative a internet para realizar a sincronização na nuvem.");
+        showToast("Você está offline no momento. Ative a internet para realizar a sincronização na nuvem.", "warning");
       }
       return;
     }
@@ -2152,12 +2330,13 @@ export default function App() {
     const config = getSupabaseConfig();
     if (!config) return;
 
-    // Se houve alteração de banco no outro aparelho, recarrega os dados imediatamente
+    // Se houve alteração REAL de banco (não mera inicialização a partir de null), recarrega os dados imediatamente
     const newUrl = localStorage.getItem('ap_supabase_url');
     const newKey = localStorage.getItem('ap_supabase_key');
-    if (prevUrl !== newUrl || prevKey !== newKey) {
+    const urlActuallyChanged = Boolean(prevUrl && newUrl && prevUrl !== newUrl);
+    const keyActuallyChanged = Boolean(prevKey && newKey && prevKey !== newKey);
+    if (urlActuallyChanged || keyActuallyChanged) {
       console.log('[Supabase Sync] Detectado alteração nas credenciais em nuvem unificadas pelo servidor central!');
-      // Reseta as flags de fila dirty locais para que não misturem dados de instâncias diferentes
       saveDirtyIds('ap_dirty_products', []);
       saveDirtyIds('ap_dirty_clients', []);
       saveDirtyIds('ap_dirty_sales', []);
@@ -2166,15 +2345,14 @@ export default function App() {
       saveDirtyIds('ap_dirty_team_members', []);
 
       if (currentUserRef.current) {
-        // Se houver usuário ativo, força re-sincronização de tudo do novo banco
         await runFullSynchronousSetupRef.current(currentUserRef.current);
         return;
       } else if (isCustomerViewRef.current) {
-        // Se for visão de cliente externo, puxa e carrega catálogo de produtos em massa do novo banco
         const dbProducts = await fetchProductsFromSupabase();
         if (dbProducts) {
+          lastProductsRef.current = dbProducts;
           setProducts(dbProducts);
-          localStorage.setItem('ap_moda_products', JSON.stringify(dbProducts));
+          safeLocalStorageSet('ap_moda_products', JSON.stringify(dbProducts));
         }
         return;
       }
@@ -2183,6 +2361,8 @@ export default function App() {
     if (isManual) {
       setIsSyncingNow(true);
     }
+
+    const startEpoch = syncEpochRef.current;
 
     // Set syncing flag so local change listener useEffects ignore these updates
     isSyncingRef.current = true;
@@ -2290,22 +2470,26 @@ export default function App() {
             localModified = true;
           } else if (!dirtyProducts.includes(dbP.id)) {
             // SAFE INTELLIGENT MERGE:
-            // 1. Image Protection: Never wipe local images if remote returned empty/missing images
-            const localHasImages = (Array.isArray(localP.images) && localP.images.length > 0) || (Boolean(localP.image) && localP.image.trim() !== '');
-            const remoteHasImages = (Array.isArray(dbP.images) && dbP.images.length > 0) || (Boolean(dbP.image) && dbP.image.trim() !== '');
+            // 1. Image Protection: Preserve local valid gallery/cover if remote lost images or returned fewer valid images
+            const validLocalImgs = extractValidProductImages(localP);
+            const validRemoteImgs = extractValidProductImages(dbP);
 
             const safeDbP = { ...dbP };
             let queueToUpload = false;
 
-            if (localHasImages && !remoteHasImages) {
-              safeDbP.image = localP.image;
-              safeDbP.images = localP.images || (localP.image ? [localP.image] : []);
+            if (validLocalImgs.length > 0 && validRemoteImgs.length === 0) {
+              safeDbP.image = isValidMediaUrl(localP.image) ? localP.image : validLocalImgs[0];
+              safeDbP.images = validLocalImgs;
               queueToUpload = true;
-            } else if (localHasImages && remoteHasImages) {
-              if (!safeDbP.image && localP.image) safeDbP.image = localP.image;
-              if ((!safeDbP.images || safeDbP.images.length === 0) && localP.images && localP.images.length > 0) {
-                safeDbP.images = localP.images;
+            } else if (validLocalImgs.length > validRemoteImgs.length) {
+              const mergedImgs = Array.from(new Set([...validRemoteImgs, ...validLocalImgs]));
+              safeDbP.images = mergedImgs;
+              if (!isValidMediaUrl(safeDbP.image)) {
+                safeDbP.image = isValidMediaUrl(localP.image) ? localP.image : mergedImgs[0] || '';
               }
+              queueToUpload = true;
+            } else if (validRemoteImgs.length > 0 && !isValidMediaUrl(safeDbP.image)) {
+              safeDbP.image = validRemoteImgs[0];
             }
 
             // 2. Zero-Stock Protection: If user zeroed stock locally (out of stock), never revive phantom stock from db
@@ -2340,9 +2524,11 @@ export default function App() {
           }
         }
 
-        if (localModified) {
+        if (localModified && syncEpochRef.current === startEpoch) {
+          lastProductsRef.current = merged;
           prevProductsRef.current = merged;
           setProducts(merged);
+          safeLocalStorageSet('ap_moda_products', JSON.stringify(merged));
           localStateModified = true;
         }
         if (remoteModified || localModified) {
@@ -2395,9 +2581,10 @@ export default function App() {
         }
       }
 
-      // 4. Sincronização de Vendas Realizadas (PDV e Canais)
+      // 4. Sincronização de Vendas Realizadas (PDV e Canais) com fila de exclusão e proteção contra ressurreição
       const dirtySales = getDirtyIds('ap_dirty_sales');
-      const currentSales = lastSalesRef.current;
+      const deletedSalesList = getDirtyIds('ap_deleted_sales');
+      const currentSales = (lastSalesRef.current || []).filter(s => s && !deletedSalesList.includes(s.id));
 
       const toUploadSales = currentSales.filter(ls => dirtySales.includes(ls.id));
       if (toUploadSales.length > 0) {
@@ -2410,9 +2597,17 @@ export default function App() {
 
       const dbSales = await fetchSalesFromSupabase();
       if (dbSales) {
+        const dbSalesMap = new Map(dbSales.map(s => [s.id, s]));
+        for (const delSaleId of deletedSalesList) {
+          if (dbSalesMap.has(delSaleId)) {
+            await deleteSaleFromSupabase(delSaleId);
+          }
+        }
+        saveDirtyIds('ap_deleted_sales', deletedSalesList.filter(id => dbSalesMap.has(id)));
+
         const remainingDirty = getDirtyIds('ap_dirty_sales');
         const localMap = new Map(currentSales.map(s => [s.id, s]));
-        let localModified = false;
+        let localModified = currentSales.length !== (lastSalesRef.current || []).length;
         const merged = [...currentSales];
 
         let manualSalesMap = new Map();
@@ -2432,10 +2627,11 @@ export default function App() {
         } catch(e) {}
 
         for (const dbS of dbSales) {
+          if (!dbS || deletedSalesList.includes(dbS.id)) continue;
           const sIdLower = (dbS.id || '').toLowerCase();
           const localS = localMap.get(dbS.id) || localMap.get(sIdLower);
           const manualM = manualSalesMap.get(sIdLower) || manualSalesMap.get(sIdLower.replace('ped-', '#ped-')) || manualSalesMap.get(sIdLower.replace('#', ''));
-          
+
           const localHasPartner = !!(localS && (localS.partner || localS.partnerId || (localS as any).partnerName || localS.couponCode));
           const manualHasPartner = !!(manualM && (manualM.partnerName || manualM.partnerId || manualM.couponCode));
           const remoteHasPartner = !!(dbS.partner || dbS.partnerId || (dbS as any).partnerName || dbS.couponCode);
@@ -2444,10 +2640,12 @@ export default function App() {
           const partnerName = (dbS as any).partnerName || dbS.partner || (localS && ((localS as any).partnerName || localS.partner)) || (manualM && manualM.partnerName);
           const partnerId = dbS.partnerId || (localS && localS.partnerId) || (manualM && manualM.partnerId);
           const couponCode = dbS.couponCode || (dbS as any).partnerCoupon || (localS && (localS.couponCode || (localS as any).partnerCoupon)) || (manualM && manualM.couponCode);
+          const normStatus = normalizeSaleStatus(dbS.status);
 
           const effectiveDbS = (localHasPartner || manualHasPartner) && !remoteHasPartner
             ? {
                 ...dbS,
+                status: normStatus,
                 partner: partner || undefined,
                 partnerName: partnerName || undefined,
                 partnerId: partnerId || undefined,
@@ -2457,6 +2655,7 @@ export default function App() {
               }
             : {
                 ...dbS,
+                status: normStatus,
                 partner: partner || dbS.partner,
                 partnerName: partnerName || (dbS as any).partnerName,
                 partnerId: partnerId || dbS.partnerId,
@@ -2486,9 +2685,11 @@ export default function App() {
           }
         }
 
-        if (localModified) {
+        if (localModified && syncEpochRef.current === startEpoch) {
+          lastSalesRef.current = merged;
           prevSalesRef.current = merged;
           setSales(merged);
+          safeLocalStorageSet('ap_moda_sales', JSON.stringify(merged));
           localStateModified = true;
         }
       }
@@ -2536,9 +2737,11 @@ export default function App() {
           }
         }
 
-        if (localModified) {
+        if (localModified && syncEpochRef.current === startEpoch) {
+          lastTransactionsRef.current = merged;
           prevTransactionsRef.current = merged;
           setTransactions(merged);
+          safeLocalStorageSet('ap_moda_transactions', JSON.stringify(merged));
           localStateModified = true;
         }
         if (remoteModified || localModified) {
@@ -2728,12 +2931,12 @@ export default function App() {
       }
       
       if (isManual) {
-        alert("✅ Conectado & Pareado!\n\nDados totalmente sincronizados em tempo real com todos os celulares e computadores conectados na nuvem AP Moda Fitness!");
+        showToast("Conectado & pareado! Dados sincronizados em tempo real com a nuvem.", "success");
       }
     } catch (e) {
       console.warn('[Supabase Sync Exception] Erro severo na sincronização periódica:', e);
       if (isManual) {
-        alert("⚠️ Falha ao sincronizar: " + (e as any).message);
+        showToast("Falha ao sincronizar: " + ((e as any)?.message || "Erro desconhecido"), "error");
       }
     } finally {
       if (isManual) {
@@ -2985,11 +3188,28 @@ export default function App() {
       }
 
       if (tableName === 'ap_products') {
+        const dirtyProducts = getDirtyIds('ap_dirty_products');
+        const deletedProducts = getDirtyIds('ap_deleted_products');
         setProducts(prev => {
           let updated = [...prev];
-          if (eventType === 'INSERT' && newRec) {
-            const mapped = {
-              id: getTolerantValue(newRec, 'id'),
+          if ((eventType === 'INSERT' || eventType === 'UPDATE') && newRec) {
+            const recId = getTolerantValue(newRec, 'id');
+            if (!recId || deletedProducts.includes(recId) || dirtyProducts.includes(recId)) return prev;
+            const parsedImagesRaw = parseJsonField<any[]>(getTolerantValue(newRec, 'images'), []);
+            const validRemoteImgs = Array.isArray(parsedImagesRaw) ? parsedImagesRaw.filter(isValidMediaUrl) : [];
+            const rawMainImg = getTolerantValue(newRec, 'image', '');
+            const existingLocal = prev.find(p => p.id === recId);
+            const existingValidImgs = existingLocal ? extractValidProductImages(existingLocal) : [];
+
+            const finalImages = validRemoteImgs.length >= existingValidImgs.length
+              ? validRemoteImgs
+              : Array.from(new Set([...validRemoteImgs, ...existingValidImgs]));
+            const finalMainImage = isValidMediaUrl(rawMainImg)
+              ? rawMainImg
+              : (existingLocal && isValidMediaUrl(existingLocal.image) ? existingLocal.image : (finalImages[0] || ''));
+
+            const mapped: Product = {
+              id: recId,
               name: getTolerantValue(newRec, 'name'),
               sku: getTolerantValue(newRec, 'sku'),
               category: getTolerantValue(newRec, 'category'),
@@ -2997,54 +3217,37 @@ export default function App() {
               cost: Number(getTolerantValue(newRec, 'cost', 0)),
               stock: Number(getTolerantValue(newRec, 'stock', 0)),
               minStock: Number(getTolerantValue(newRec, 'minStock', 0)),
-              image: getTolerantValue(newRec, 'image'),
-              images: Array.isArray(getTolerantValue(newRec, 'images')) ? getTolerantValue(newRec, 'images') : [],
+              image: finalMainImage,
+              images: finalImages,
               salesCount: Number(getTolerantValue(newRec, 'salesCount', 0)),
               description: getTolerantValue(newRec, 'description', ''),
               videoUrl: getTolerantValue(newRec, 'videoUrl', ''),
-              colors: Array.isArray(getTolerantValue(newRec, 'colors')) ? getTolerantValue(newRec, 'colors') : [],
-              sizes: Array.isArray(getTolerantValue(newRec, 'sizes')) ? getTolerantValue(newRec, 'sizes') : [],
-              sizeColors: getTolerantValue(newRec, 'sizeColors', {}),
-              colorStocks: getTolerantValue(newRec, 'colorStocks', {}),
-              sizeColorStocks: getTolerantValue(newRec, 'sizeColorStocks', {})
+              colors: parseJsonField<string[]>(getTolerantValue(newRec, 'colors'), []),
+              sizes: parseJsonField<string[]>(getTolerantValue(newRec, 'sizes'), []),
+              sizeColors: parseJsonField<Record<string, string[]>>(getTolerantValue(newRec, 'sizeColors'), {}),
+              colorStocks: parseJsonField<Record<string, number>>(getTolerantValue(newRec, 'colorStocks'), {}),
+              sizeColorStocks: parseJsonField<Record<string, Record<string, number>>>(getTolerantValue(newRec, 'sizeColorStocks'), {})
             };
-            if (!prev.some(p => p.id === mapped.id)) {
+            if (eventType === 'INSERT' && !existingLocal) {
               updated = [mapped, ...prev];
+            } else {
+              updated = prev.map(p => p.id === mapped.id ? mapped : p);
             }
-          } else if (eventType === 'UPDATE' && newRec) {
-            const mapped = {
-              id: getTolerantValue(newRec, 'id'),
-              name: getTolerantValue(newRec, 'name'),
-              sku: getTolerantValue(newRec, 'sku'),
-              category: getTolerantValue(newRec, 'category'),
-              price: Number(getTolerantValue(newRec, 'price', 0)),
-              cost: Number(getTolerantValue(newRec, 'cost', 0)),
-              stock: Number(getTolerantValue(newRec, 'stock', 0)),
-              minStock: Number(getTolerantValue(newRec, 'minStock', 0)),
-              image: getTolerantValue(newRec, 'image'),
-              images: Array.isArray(getTolerantValue(newRec, 'images')) ? getTolerantValue(newRec, 'images') : [],
-              salesCount: Number(getTolerantValue(newRec, 'salesCount', 0)),
-              description: getTolerantValue(newRec, 'description', ''),
-              videoUrl: getTolerantValue(newRec, 'videoUrl', ''),
-              colors: Array.isArray(getTolerantValue(newRec, 'colors')) ? getTolerantValue(newRec, 'colors') : [],
-              sizes: Array.isArray(getTolerantValue(newRec, 'sizes')) ? getTolerantValue(newRec, 'sizes') : [],
-              sizeColors: getTolerantValue(newRec, 'sizeColors', {}),
-              colorStocks: getTolerantValue(newRec, 'colorStocks', {}),
-              sizeColorStocks: getTolerantValue(newRec, 'sizeColorStocks', {})
-            };
-            updated = prev.map(p => p.id === mapped.id ? mapped : p);
           } else if (eventType === 'DELETE' && oldRec) {
             updated = prev.filter(p => p.id !== oldRec.id);
           }
-          localStorage.setItem('ap_moda_products', JSON.stringify(updated));
+          lastProductsRef.current = updated;
+          safeLocalStorageSet('ap_moda_products', JSON.stringify(updated));
           return updated;
         });
       }
 
       else if (tableName === 'ap_clients') {
+        const dirtyClients = getDirtyIds('ap_dirty_clients');
         setClients(prev => {
           let updated = [...prev];
-          if (eventType === 'INSERT' && newRec) {
+          if ((eventType === 'INSERT' || eventType === 'UPDATE') && newRec) {
+            if (!newRec.id || dirtyClients.includes(newRec.id)) return prev;
             const mapped = {
               id: newRec.id,
               name: newRec.name,
@@ -3064,7 +3267,7 @@ export default function App() {
               npsScore: Number(newRec.npsScore || 0),
               totalSpent: Number(newRec.totalSpent || 0),
               ordersCount: Number(newRec.ordersCount || 0),
-              createdAt: newRec.created_at || new Date().toISOString(),
+              createdAt: newRec.created_at || newRec.createdAt || new Date().toISOString(),
               cashbackBalance: Number(newRec.cashbackBalance || 0),
               busto: newRec.busto ? Number(newRec.busto) : undefined,
               cintura: newRec.cintura ? Number(newRec.cintura) : undefined,
@@ -3073,65 +3276,47 @@ export default function App() {
               altura: newRec.altura ? Number(newRec.altura) : undefined,
               peso: newRec.peso ? Number(newRec.peso) : undefined
             };
-            if (!prev.some(c => c.id === mapped.id)) {
+            if (eventType === 'INSERT' && !prev.some(c => c.id === mapped.id)) {
               updated = [mapped, ...prev];
+            } else {
+              updated = prev.map(c => c.id === mapped.id ? mapped : c);
             }
-          } else if (eventType === 'UPDATE' && newRec) {
-            const mapped = {
-              id: newRec.id,
-              name: newRec.name,
-              email: newRec.email || '',
-              phone: newRec.phone || '',
-              cpf: newRec.cpf || '',
-              birthDate: newRec.birthDate || '',
-              whatsapp: newRec.whatsapp || '',
-              addressStreet: newRec.addressStreet || '',
-              addressNum: newRec.addressNum || '',
-              addressComp: newRec.addressComp || '',
-              addressBairro: newRec.addressBairro || '',
-              addressCidade: newRec.addressCidade || '',
-              addressEstado: newRec.addressEstado || '',
-              addressCep: newRec.addressCep || '',
-              channel: newRec.channel || 'Balcão',
-              npsScore: Number(newRec.npsScore || 0),
-              totalSpent: Number(newRec.totalSpent || 0),
-              ordersCount: Number(newRec.ordersCount || 0),
-              createdAt: newRec.created_at || new Date().toISOString(),
-              cashbackBalance: Number(newRec.cashbackBalance || 0),
-              busto: newRec.busto ? Number(newRec.busto) : undefined,
-              cintura: newRec.cintura ? Number(newRec.cintura) : undefined,
-              quadril: newRec.quadril ? Number(newRec.quadril) : undefined,
-              coxa: newRec.coxa ? Number(newRec.coxa) : undefined,
-              altura: newRec.altura ? Number(newRec.altura) : undefined,
-              peso: newRec.peso ? Number(newRec.peso) : undefined
-            };
-            updated = prev.map(c => c.id === mapped.id ? mapped : c);
           } else if (eventType === 'DELETE' && oldRec) {
             updated = prev.filter(c => c.id !== oldRec.id);
           }
-          localStorage.setItem('ap_moda_clients', JSON.stringify(updated));
+          lastClientsRef.current = updated;
+          safeLocalStorageSet('ap_moda_clients', JSON.stringify(updated));
           return updated;
         });
       }
 
       else if (tableName === 'ap_sales') {
+        const dirtySales = getDirtyIds('ap_dirty_sales');
+        const deletedSales = getDirtyIds('ap_deleted_sales');
         setSales(prev => {
           let updated = [...prev];
-          if (eventType === 'INSERT' && newRec) {
-            const mapped = {
+          if ((eventType === 'INSERT' || eventType === 'UPDATE') && newRec) {
+            if (!newRec.id || deletedSales.includes(newRec.id) || dirtySales.includes(newRec.id)) return prev;
+            const parsedItems = parseJsonField<any[]>(newRec.items, []);
+            const parsedPayments = parseJsonField<any[]>(newRec.payments, []);
+            const mapped: Sale = {
               id: newRec.id,
-              clientName: newRec.clientName,
-              clientDoc: newRec.clientDoc || '',
-              channel: newRec.channel,
-              items: Array.isArray(newRec.items) ? newRec.items : [],
-              total: Number(newRec.total),
-              costTotal: Number(newRec.costTotal || 0),
-              status: newRec.status,
-              createdAt: newRec.createdAt,
-              payments: Array.isArray(newRec.payments) ? newRec.payments : [],
-              salesperson: newRec.salesperson || ''
+              clientName: newRec.clientName || newRec.client_name || 'Cliente',
+              clientDoc: newRec.clientDoc || newRec.client_doc || '',
+              channel: newRec.channel || 'Balcão',
+              items: Array.isArray(parsedItems) ? parsedItems : [],
+              total: Number(newRec.total || 0),
+              costTotal: Number(newRec.costTotal ?? newRec.cost_total ?? 0),
+              status: normalizeSaleStatus(newRec.status),
+              createdAt: newRec.createdAt || newRec.created_at || new Date().toISOString(),
+              payments: Array.isArray(parsedPayments) ? parsedPayments : [],
+              salesperson: newRec.salesperson || '',
+              partner: newRec.partner || newRec.partnerName || undefined,
+              partnerName: newRec.partnerName || newRec.partner || undefined,
+              partnerId: newRec.partnerId || undefined,
+              couponCode: newRec.couponCode || newRec.partnerCoupon || undefined
             };
-            if (!prev.some(s => s.id === mapped.id)) {
+            if (eventType === 'INSERT' && !prev.some(s => s.id === mapped.id)) {
               updated = [mapped, ...prev];
               triggerSaleAlert({
                 id: mapped.id,
@@ -3140,59 +3325,46 @@ export default function App() {
                 source: mapped.channel || 'Loja Virtual / PDV',
                 itemsCount: mapped.items?.length
               });
+            } else {
+              updated = prev.map(s => s.id === mapped.id ? mapped : s);
             }
-          } else if (eventType === 'UPDATE' && newRec) {
-            const mapped = {
-              id: newRec.id,
-              clientName: newRec.clientName,
-              clientDoc: newRec.clientDoc || '',
-              channel: newRec.channel,
-              items: Array.isArray(newRec.items) ? newRec.items : [],
-              total: Number(newRec.total),
-              costTotal: Number(newRec.costTotal || 0),
-              status: newRec.status,
-              createdAt: newRec.createdAt,
-              payments: Array.isArray(newRec.payments) ? newRec.payments : [],
-              salesperson: newRec.salesperson || ''
-            };
-            updated = prev.map(s => s.id === mapped.id ? mapped : s);
           } else if (eventType === 'DELETE' && oldRec) {
             updated = prev.filter(s => s.id !== oldRec.id);
           }
-          localStorage.setItem('ap_moda_sales', JSON.stringify(updated));
+          lastSalesRef.current = updated;
+          safeLocalStorageSet('ap_moda_sales', JSON.stringify(updated));
           return updated;
         });
       }
 
       else if (tableName === 'ap_transactions') {
+        const dirtyTxs = getDirtyIds('ap_dirty_transactions');
+        const deletedTxs = getDirtyIds('ap_deleted_transactions');
         setTransactions(prev => {
           let updated = [...prev];
-          if (eventType === 'INSERT' && newRec) {
-            const mapped = {
+          if ((eventType === 'INSERT' || eventType === 'UPDATE') && newRec) {
+            if (!newRec.id || deletedTxs.includes(newRec.id) || dirtyTxs.includes(newRec.id)) return prev;
+            const existingTx = prev.find(t => t.id === newRec.id);
+            const mapped: Transaction = {
               id: newRec.id,
               type: newRec.type,
               category: newRec.category,
               description: newRec.description,
-              amount: Number(newRec.amount),
-              date: newRec.date
+              amount: Number(newRec.amount || 0),
+              date: newRec.date || newRec.created_at || new Date().toISOString(),
+              status: newRec.status || existingTx?.status || 'pago',
+              dueDate: newRec.dueDate || newRec.due_date || existingTx?.dueDate
             };
-            if (!prev.some(t => t.id === mapped.id)) {
+            if (eventType === 'INSERT' && !existingTx) {
               updated = [mapped, ...prev];
+            } else {
+              updated = prev.map(t => t.id === mapped.id ? mapped : t);
             }
-          } else if (eventType === 'UPDATE' && newRec) {
-            const mapped = {
-              id: newRec.id,
-              type: newRec.type,
-              category: newRec.category,
-              description: newRec.description,
-              amount: Number(newRec.amount),
-              date: newRec.date
-            };
-            updated = prev.map(t => t.id === mapped.id ? mapped : t);
           } else if (eventType === 'DELETE' && oldRec) {
             updated = prev.filter(t => t.id !== oldRec.id);
           }
-          localStorage.setItem('ap_moda_transactions', JSON.stringify(updated));
+          lastTransactionsRef.current = updated;
+          safeLocalStorageSet('ap_moda_transactions', JSON.stringify(updated));
           return updated;
         });
       }
@@ -3238,7 +3410,7 @@ export default function App() {
           } else if (eventType === 'DELETE' && oldRec) {
             updated = prev.filter(o => o.id !== oldRec.id);
           }
-          localStorage.setItem('ap_moda_online_orders', JSON.stringify(updated));
+          safeLocalStorageSet('ap_moda_online_orders', JSON.stringify(updated));
           return updated;
         });
       }
@@ -3277,7 +3449,7 @@ export default function App() {
           } else if (eventType === 'DELETE' && oldRec) {
             updated = prev.filter(c => c.id !== oldRec.id);
           }
-          localStorage.setItem('ap_moda_checkouts', JSON.stringify(updated));
+          safeLocalStorageSet('ap_moda_checkouts', JSON.stringify(updated));
           return updated;
         });
       }
@@ -3316,7 +3488,7 @@ export default function App() {
           } else if (eventType === 'DELETE' && oldRec) {
             updated = prev.filter(m => m.id !== oldRec.id);
           }
-          localStorage.setItem('ap_moda_team_users', JSON.stringify(updated));
+          safeLocalStorageSet('ap_moda_team_users', JSON.stringify(updated));
           return updated;
         });
       }
@@ -3510,7 +3682,15 @@ export default function App() {
     if (lastSalesRef.current.some(s => s.id === newSale.id)) {
       return;
     }
-    setSales(prev => (prev.some(s => s.id === newSale.id) ? prev : [newSale, ...prev]));
+    syncEpochRef.current += 1;
+    const normalizedSale: Sale = { ...newSale, status: normalizeSaleStatus(newSale.status) };
+    setSales(prev => {
+      if (prev.some(s => s.id === normalizedSale.id)) return prev;
+      const updated = [normalizedSale, ...prev];
+      lastSalesRef.current = updated;
+      safeLocalStorageSet('ap_moda_sales', JSON.stringify(updated));
+      return updated;
+    });
 
     // Update product stock counts if not skipped (aggregate ALL matching line items / variants!)
     let updatedProducts: Product[] = [];
@@ -3555,30 +3735,36 @@ export default function App() {
           }
           return prod;
         });
+        lastProductsRef.current = newList;
+        safeLocalStorageSet('ap_moda_products', JSON.stringify(newList));
         return newList;
       });
     }
 
     // Feed to cashflows / transactions
-    const paymentDetailStr = newSale.payments && newSale.payments.length > 0
-      ? ` (${newSale.payments.map(p => `${p.method}: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.amount)}`).join(' + ')})`
+    const paymentDetailStr = normalizedSale.payments && normalizedSale.payments.length > 0
+      ? ` (${normalizedSale.payments.map(p => `${p.method}: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.amount)}`).join(' + ')})`
       : '';
 
-    const deterministicTxId = `tx-${newSale.id}`;
+    const deterministicTxId = `tx-${normalizedSale.id}`;
     const newTx: Transaction = {
       id: deterministicTxId,
       type: 'Inflow',
       category: 'Venda',
-      description: `Venda ${newSale.id.toUpperCase()} para ${newSale.clientName}${paymentDetailStr}`,
-      amount: newSale.total,
-      date: newSale.createdAt,
-      status: newSale.status === 'Pendente' ? 'pendente' : 'pago'
+      description: `Venda ${normalizedSale.id.toUpperCase()} para ${normalizedSale.clientName}${paymentDetailStr}`,
+      amount: normalizedSale.total,
+      date: normalizedSale.createdAt,
+      status: normalizedSale.status === 'Pendente' ? 'pendente' : 'pago'
     };
-    setTransactions(prev => (
-      prev.some(t => t.id === deterministicTxId || (t.description && t.description.includes(newSale.id.toUpperCase())))
-        ? prev
-        : [newTx, ...prev]
-    ));
+    setTransactions(prev => {
+      if (prev.some(t => t.id === deterministicTxId || (t.description && t.description.includes(normalizedSale.id.toUpperCase())))) {
+        return prev;
+      }
+      const updated = [newTx, ...prev];
+      lastTransactionsRef.current = updated;
+      safeLocalStorageSet('ap_moda_transactions', JSON.stringify(updated));
+      return updated;
+    });
 
     // Load VIP rules configuration from localStorage
     let vipRules: any = null;
@@ -3675,7 +3861,7 @@ export default function App() {
           });
 
           if (updated) {
-            localStorage.setItem('ap_moda_partners', JSON.stringify(partnersList));
+            safeLocalStorageSet('ap_moda_partners', JSON.stringify(partnersList));
             pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(partnersList));
             window.dispatchEvent(new Event('ap-storage-synced'));
           }
@@ -3921,11 +4107,20 @@ export default function App() {
       });
 
       // Immediate Supabase sync for online order status update
+      syncEpochRef.current += 1;
+      lastOnlineOrdersRef.current = updated;
+      safeLocalStorageSet('ap_moda_online_orders', JSON.stringify(updated));
+      safeLocalStorageSet('ap_online_orders', JSON.stringify(updated));
+      saveDirtyIds('ap_dirty_online_orders', Array.from(new Set([...getDirtyIds('ap_dirty_online_orders'), orderId])));
       const config = getSupabaseConfig();
       if (config && !systemOffline) {
         const orderToSync = updated.find(o => o.id === orderId);
         if (orderToSync) {
-          syncBulkOnlineOrdersToSupabase([orderToSync]).catch(e => console.warn('Error syncing order status update:', e));
+          syncBulkOnlineOrdersToSupabase([orderToSync]).then(success => {
+            if (success) {
+              saveDirtyIds('ap_dirty_online_orders', getDirtyIds('ap_dirty_online_orders').filter(id => id !== orderId));
+            }
+          }).catch(e => console.warn('Error syncing order status update:', e));
         }
       }
 
@@ -3975,13 +4170,21 @@ export default function App() {
       vip: isVip
     };
 
-    setClients(prev => [evaluatedClient, ...prev]);
+    setClients(prev => {
+      const updated = [evaluatedClient, ...prev];
+      lastClientsRef.current = updated;
+      safeLocalStorageSet('ap_moda_clients', JSON.stringify(updated));
+      return updated;
+    });
+    saveDirtyIds('ap_dirty_clients', Array.from(new Set([...getDirtyIds('ap_dirty_clients'), evaluatedClient.id])));
     const config = getSupabaseConfig();
     if (config && !systemOffline) {
       try {
-        await syncBulkClientsToSupabase([evaluatedClient]);
-        const remaining = getDirtyIds('ap_dirty_clients').filter(id => id !== evaluatedClient.id);
-        saveDirtyIds('ap_dirty_clients', remaining);
+        const ok = await syncBulkClientsToSupabase([evaluatedClient]);
+        if (ok) {
+          const remaining = getDirtyIds('ap_dirty_clients').filter(id => id !== evaluatedClient.id);
+          saveDirtyIds('ap_dirty_clients', remaining);
+        }
       } catch (e) {
         console.warn('Immediate client upload failed:', e);
       }
@@ -3989,12 +4192,11 @@ export default function App() {
   };
 
   const handleAddProduct = async (newProd: Product) => {
+    syncEpochRef.current += 1;
     lastProductsRef.current = [newProd, ...(lastProductsRef.current || [])];
     setProducts(prev => {
       const updated = [newProd, ...prev];
-      try {
-        localStorage.setItem('ap_moda_products', JSON.stringify(updated));
-      } catch (e) {}
+      safeLocalStorageSet('ap_moda_products', JSON.stringify(updated));
       return updated;
     });
 
@@ -4006,9 +4208,11 @@ export default function App() {
     const config = getSupabaseConfig();
     if (config && !systemOffline) {
       try {
-        await syncBulkProductsToSupabase([newProd]);
-        const remaining = getDirtyIds('ap_dirty_products').filter(id => id !== newProd.id);
-        saveDirtyIds('ap_dirty_products', remaining);
+        const ok = await syncBulkProductsToSupabase([newProd]);
+        if (ok) {
+          const remaining = getDirtyIds('ap_dirty_products').filter(id => id !== newProd.id);
+          saveDirtyIds('ap_dirty_products', remaining);
+        }
       } catch (e) {
         console.warn('Immediate product upload failed, saved in local offline queue:', e);
       }
@@ -4016,26 +4220,29 @@ export default function App() {
   };
 
   const handleUpdateProduct = async (updatedProd: Product) => {
-    lastProductsRef.current = (lastProductsRef.current || []).map(p => p.id === updatedProd.id ? updatedProd : p);
+    syncEpochRef.current += 1;
+    const cleanProdForState: any = { ...updatedProd };
+    delete cleanProdForState._allowClearImages;
+    lastProductsRef.current = (lastProductsRef.current || []).map(p => p.id === cleanProdForState.id ? cleanProdForState : p);
     setProducts(prev => {
-      const updated = prev.map(p => p.id === updatedProd.id ? updatedProd : p);
-      try {
-        localStorage.setItem('ap_moda_products', JSON.stringify(updated));
-      } catch (e) {}
+      const updated = prev.map(p => p.id === cleanProdForState.id ? cleanProdForState : p);
+      safeLocalStorageSet('ap_moda_products', JSON.stringify(updated));
       return updated;
     });
 
     const currentDirty = getDirtyIds('ap_dirty_products');
-    if (!currentDirty.includes(updatedProd.id)) {
-      saveDirtyIds('ap_dirty_products', [...currentDirty, updatedProd.id]);
+    if (!currentDirty.includes(cleanProdForState.id)) {
+      saveDirtyIds('ap_dirty_products', [...currentDirty, cleanProdForState.id]);
     }
 
     const config = getSupabaseConfig();
     if (config && !systemOffline) {
       try {
-        await syncBulkProductsToSupabase([updatedProd]);
-        const remaining = getDirtyIds('ap_dirty_products').filter(id => id !== updatedProd.id);
-        saveDirtyIds('ap_dirty_products', remaining);
+        const ok = await syncBulkProductsToSupabase([updatedProd]);
+        if (ok) {
+          const remaining = getDirtyIds('ap_dirty_products').filter(id => id !== cleanProdForState.id);
+          saveDirtyIds('ap_dirty_products', remaining);
+        }
       } catch (e) {
         console.warn('Immediate product update failed, saved in local offline queue:', e);
       }
@@ -4043,16 +4250,15 @@ export default function App() {
   };
 
   const handleDeleteProduct = async (productId: string) => {
+    syncEpochRef.current += 1;
     lastProductsRef.current = (lastProductsRef.current || []).filter(p => p.id !== productId);
     // 1. Immediately update state and localStorage
     setProducts(prev => {
       const updated = prev.filter(p => p.id !== productId);
-      try {
-        localStorage.setItem('ap_moda_products', JSON.stringify(updated));
-      } catch (e) {}
+      safeLocalStorageSet('ap_moda_products', JSON.stringify(updated));
       return updated;
     });
-    
+
     // 2. Track deletion queue persistently to prevent resurrection
     const deletedIds = getDirtyIds('ap_deleted_products');
     if (!deletedIds.includes(productId)) {
@@ -4074,13 +4280,26 @@ export default function App() {
   };
 
   const handleDeleteSale = async (saleId: string) => {
-    setSales(prev => prev.filter(s => s.id !== saleId));
+    syncEpochRef.current += 1;
+    lastSalesRef.current = (lastSalesRef.current || []).filter(s => s.id !== saleId);
+    setSales(prev => {
+      const updated = prev.filter(s => s.id !== saleId);
+      safeLocalStorageSet('ap_moda_sales', JSON.stringify(updated));
+      return updated;
+    });
+    const deletedSaleIds = getDirtyIds('ap_deleted_sales');
+    if (!deletedSaleIds.includes(saleId)) {
+      deletedSaleIds.push(saleId);
+      saveDirtyIds('ap_deleted_sales', deletedSaleIds);
+    }
     const config = getSupabaseConfig();
     if (config && !systemOffline) {
       try {
-        await deleteSaleFromSupabase(saleId);
-        const remaining = getDirtyIds('ap_dirty_sales').filter(id => id !== saleId);
-        saveDirtyIds('ap_dirty_sales', remaining);
+        const ok = await deleteSaleFromSupabase(saleId);
+        if (ok) {
+          saveDirtyIds('ap_dirty_sales', getDirtyIds('ap_dirty_sales').filter(id => id !== saleId));
+          saveDirtyIds('ap_deleted_sales', getDirtyIds('ap_deleted_sales').filter(id => id !== saleId));
+        }
       } catch (e) {
         console.warn('Immediate sale delete failed:', e);
       }
@@ -4088,13 +4307,22 @@ export default function App() {
   };
 
   const handleAddTransaction = async (newTx: Transaction) => {
-    setTransactions(prev => [newTx, ...prev]);
+    syncEpochRef.current += 1;
+    lastTransactionsRef.current = [newTx, ...(lastTransactionsRef.current || [])];
+    setTransactions(prev => {
+      const updated = [newTx, ...prev];
+      safeLocalStorageSet('ap_moda_transactions', JSON.stringify(updated));
+      return updated;
+    });
+    saveDirtyIds('ap_dirty_transactions', Array.from(new Set([...getDirtyIds('ap_dirty_transactions'), newTx.id])));
     const config = getSupabaseConfig();
     if (config && !systemOffline) {
       try {
-        await syncBulkTransactionsToSupabase([newTx]);
-        const remaining = getDirtyIds('ap_dirty_transactions').filter(id => id !== newTx.id);
-        saveDirtyIds('ap_dirty_transactions', remaining);
+        const ok = await syncBulkTransactionsToSupabase([newTx]);
+        if (ok) {
+          const remaining = getDirtyIds('ap_dirty_transactions').filter(id => id !== newTx.id);
+          saveDirtyIds('ap_dirty_transactions', remaining);
+        }
       } catch (e) {
         console.warn('Immediate transaction upload failed:', e);
       }
@@ -4105,19 +4333,32 @@ export default function App() {
     const adminUser = teamMembers.find(m => m.role === 'Admin');
     const adminPassword = adminUser ? adminUser.password : 'Ap01695*';
     
-    const enteredPassword = prompt('Confirmação de Segurança: Por favor, insira a sua senha de ADMINISTRADOR para autorizar o reset e a formatação total dos dados fantasmas do Dashboard:');
+    const enteredPassword = await showPrompt({
+      title: 'Confirmação de Segurança',
+      message: 'Por favor, insira a sua senha de ADMINISTRADOR para autorizar o reset e a formatação total dos dados do Dashboard:',
+      inputType: 'password',
+      placeholder: 'Senha de administrador...',
+      confirmText: 'Verificar Senha'
+    });
     
     if (enteredPassword === null) {
       return; // cancellation
     }
     
     if (enteredPassword !== adminPassword) {
-      alert('Acesso negado! A senha de administrador informada está incorreta. O reset foi cancelado por motivos de segurança.');
+      showToast('Acesso negado! A senha de administrador informada está incorreta. Reset cancelado.', 'error');
       return;
     }
 
-    if (confirm('ATENÇÃO: Você confirmou a senha com sucesso! Deseja realmente apagar COMPLETAMENTE todos os produtos, clientes, vendas, despesas, caixa, equipe (mantendo apenas administradores) e pedidos do sistema para iniciar o trabalho do zero (Produção)?')) {
-      localStorage.setItem('ap_system_cleared', 'true');
+    const confirmed = await showConfirm({
+      title: 'Apagar Todos os Dados (Modo Produção)',
+      message: 'ATENÇÃO: Você confirmou a senha com sucesso! Deseja realmente apagar COMPLETAMENTE todos os produtos, clientes, vendas, despesas, caixa, equipe (mantendo apenas administradores) e pedidos do sistema para iniciar do zero?',
+      danger: true,
+      confirmText: 'Sim, Zerar Sistema'
+    });
+
+    if (confirmed) {
+      safeLocalStorageSet('ap_system_cleared', 'true');
       pushSystemConfigToSupabase('ap_system_cleared', 'true').catch(() => {});
 
       // Clear all cloud data from Supabase if connected
@@ -4132,23 +4373,23 @@ export default function App() {
 
       const cleanTeam = teamMembers.filter(m => m.role === 'Admin');
       setTeamMembers(cleanTeam);
-      localStorage.setItem('ap_moda_team_users', JSON.stringify(cleanTeam));
+      safeLocalStorageSet('ap_moda_team_users', JSON.stringify(cleanTeam));
 
-      localStorage.setItem('ap_moda_products', JSON.stringify([]));
-      localStorage.setItem('ap_moda_clients', JSON.stringify([]));
-      localStorage.setItem('ap_moda_sales', JSON.stringify([]));
-      localStorage.setItem('ap_moda_transactions', JSON.stringify([]));
-      localStorage.setItem('ap_moda_online_orders', JSON.stringify([]));
-      localStorage.setItem('ap_moda_checkouts', JSON.stringify([]));
-      localStorage.setItem('ap_moda_sellers', JSON.stringify([]));
-      localStorage.setItem('ap_moda_motoboys', JSON.stringify([]));
-      localStorage.setItem('ap_moda_opportunities', JSON.stringify([]));
-      localStorage.setItem('ap_moda_followups', JSON.stringify([]));
-      localStorage.setItem('ap_moda_partners', JSON.stringify([]));
-      localStorage.setItem('ap_moda_trocas', JSON.stringify([]));
-      localStorage.setItem('ap_moda_delivery_riders', JSON.stringify([]));
-      localStorage.setItem('ap_moda_suppliers', JSON.stringify([]));
-      localStorage.setItem('ap_moda_supplier_purchases', JSON.stringify([]));
+      safeLocalStorageSet('ap_moda_products', JSON.stringify([]));
+      safeLocalStorageSet('ap_moda_clients', JSON.stringify([]));
+      safeLocalStorageSet('ap_moda_sales', JSON.stringify([]));
+      safeLocalStorageSet('ap_moda_transactions', JSON.stringify([]));
+      safeLocalStorageSet('ap_moda_online_orders', JSON.stringify([]));
+      safeLocalStorageSet('ap_moda_checkouts', JSON.stringify([]));
+      safeLocalStorageSet('ap_moda_sellers', JSON.stringify([]));
+      safeLocalStorageSet('ap_moda_motoboys', JSON.stringify([]));
+      safeLocalStorageSet('ap_moda_opportunities', JSON.stringify([]));
+      safeLocalStorageSet('ap_moda_followups', JSON.stringify([]));
+      safeLocalStorageSet('ap_moda_partners', JSON.stringify([]));
+      safeLocalStorageSet('ap_moda_trocas', JSON.stringify([]));
+      safeLocalStorageSet('ap_moda_delivery_riders', JSON.stringify([]));
+      safeLocalStorageSet('ap_moda_suppliers', JSON.stringify([]));
+      safeLocalStorageSet('ap_moda_supplier_purchases', JSON.stringify([]));
       
       // Clear dirty arrays
       localStorage.removeItem('ap_dirty_products');
@@ -4167,24 +4408,29 @@ export default function App() {
       setCheckouts([]);
       setSellers([]);
       setMotoboys([]);
-      alert('Tudo limpo! O sistema está zerado e com todos os dados fantasmas excluídos tanto localmente quanto na nuvem Supabase, pronto para o seu uso oficial.');
-      window.location.reload();
+      showToast('Sistema zerado e dados excluídos localmente e na nuvem Supabase!', 'success');
+      setTimeout(() => window.location.reload(), 600);
     }
   };
 
-  const handleLoadDemoData = () => {
-    if (confirm('Isso irá substituir os dados atuais pelas mercadorias e vendas de testes para demonstração da loja de Moda Fitness. Deseja prosseguir?')) {
+  const handleLoadDemoData = async () => {
+    const confirmed = await showConfirm({
+      title: 'Carregar Dados de Demonstração',
+      message: 'Isso irá substituir os dados atuais pelas mercadorias e vendas de testes para demonstração da loja de Moda Fitness. Deseja prosseguir?',
+      confirmText: 'Carregar Demonstração'
+    });
+    if (confirmed) {
       localStorage.removeItem('ap_system_cleared');
       pushSystemConfigToSupabase('ap_system_cleared', 'false').catch(() => {});
-      localStorage.setItem('ap_moda_products', JSON.stringify(INITIAL_PRODUCTS));
-      localStorage.setItem('ap_moda_clients', JSON.stringify(INITIAL_CLIENTS));
-      localStorage.setItem('ap_moda_sales', JSON.stringify(INITIAL_SALES));
-      localStorage.setItem('ap_moda_transactions', JSON.stringify(INITIAL_TRANSACTIONS));
+      safeLocalStorageSet('ap_moda_products', JSON.stringify(INITIAL_PRODUCTS));
+      safeLocalStorageSet('ap_moda_clients', JSON.stringify(INITIAL_CLIENTS));
+      safeLocalStorageSet('ap_moda_sales', JSON.stringify(INITIAL_SALES));
+      safeLocalStorageSet('ap_moda_transactions', JSON.stringify(INITIAL_TRANSACTIONS));
       
       const defaultSellers = ['Ana Carolina', 'Beatriz Rocha', 'Juliana Costa', 'Bruna Oliveira'];
       const defaultMotoboys = ['Bruno Ramos (Moto 1)', 'Lucas Correia (Moto 2)', 'Thales Silva (Bike/Região Central)', 'Cláudio Santos (Parceiro Envio Rápido)'];
-      localStorage.setItem('ap_moda_sellers', JSON.stringify(defaultSellers));
-      localStorage.setItem('ap_moda_motoboys', JSON.stringify(defaultMotoboys));
+      safeLocalStorageSet('ap_moda_sellers', JSON.stringify(defaultSellers));
+      safeLocalStorageSet('ap_moda_motoboys', JSON.stringify(defaultMotoboys));
       setSellers(defaultSellers);
       setMotoboys(defaultMotoboys);
 
@@ -4218,7 +4464,7 @@ export default function App() {
           notes: 'Embalar para presente.'
         }
       ];
-      localStorage.setItem('ap_moda_online_orders', JSON.stringify(demoOnlineOrders));
+      safeLocalStorageSet('ap_moda_online_orders', JSON.stringify(demoOnlineOrders));
 
       const demoOpps = [
         { id: 'op-1', clientName: 'Gabriela Souza', value: 289.90, probability: 80, stage: 'Prospecção', itemInteresse: 'Conjunto Seamless Sculpt', notes: 'Quer para o aniversário dia 20.' },
@@ -4235,16 +4481,16 @@ export default function App() {
         { id: 'part-2', name: 'Julia Rezende', instagram: '@jurezendedm', couponCode: 'JU10', commissionRate: 8, salesCount: 8, totalGenerated: 1890.00 },
         { id: 'part-3', name: 'Amanda Runner', instagram: '@amandarun', couponCode: 'AMANDAPRO', commissionRate: 12, salesCount: 22, totalGenerated: 6200.00 }
       ];
-      localStorage.setItem('ap_moda_opportunities', JSON.stringify(demoOpps));
-      localStorage.setItem('ap_moda_followups', JSON.stringify(demoFups));
-      localStorage.setItem('ap_moda_partners', JSON.stringify(demoPartners));
+      safeLocalStorageSet('ap_moda_opportunities', JSON.stringify(demoOpps));
+      safeLocalStorageSet('ap_moda_followups', JSON.stringify(demoFups));
+      safeLocalStorageSet('ap_moda_partners', JSON.stringify(demoPartners));
 
       setProducts(INITIAL_PRODUCTS);
       setClients(INITIAL_CLIENTS);
       setSales(INITIAL_SALES);
       setTransactions(INITIAL_TRANSACTIONS);
       setOnlineOrders(demoOnlineOrders);
-      alert('Dados de demonstração carregados com sucesso! Sinta-se à vontade para navegar ou testar.');
+      showToast('Dados de demonstração carregados com sucesso!', 'success');
       setActiveTab(ActiveTab.DASHBOARD);
     }
   };
@@ -4259,7 +4505,7 @@ export default function App() {
     if (imported.sales) setSales(imported.sales);
     if (imported.transactions) setTransactions(imported.transactions);
 
-    alert('Backup importado e restaurado com sucesso no sistema!');
+    showToast('Backup importado e restaurado com sucesso no sistema!', 'success');
     setActiveTab(ActiveTab.DASHBOARD);
   };
 
@@ -4361,7 +4607,7 @@ export default function App() {
           });
 
           if (updated) {
-            localStorage.setItem('ap_moda_partners', JSON.stringify(partnersList));
+            safeLocalStorageSet('ap_moda_partners', JSON.stringify(partnersList));
             pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(partnersList));
             window.dispatchEvent(new Event('ap-storage-synced'));
           }
@@ -4642,25 +4888,25 @@ export default function App() {
               if (!sellers.includes(name)) {
                 const updated = [...sellers, name];
                 setSellers(updated);
-                localStorage.setItem('ap_moda_sellers', JSON.stringify(updated));
+                safeLocalStorageSet('ap_moda_sellers', JSON.stringify(updated));
               }
             }}
             onDeleteSeller={(name) => {
               const updated = sellers.filter(s => s !== name);
               setSellers(updated);
-              localStorage.setItem('ap_moda_sellers', JSON.stringify(updated));
+              safeLocalStorageSet('ap_moda_sellers', JSON.stringify(updated));
             }}
             onAddMotoboy={(name) => {
               if (!motoboys.includes(name)) {
                 const updated = [...motoboys, name];
                 setMotoboys(updated);
-                localStorage.setItem('ap_moda_motoboys', JSON.stringify(updated));
+                safeLocalStorageSet('ap_moda_motoboys', JSON.stringify(updated));
               }
             }}
             onDeleteMotoboy={(name) => {
               const updated = motoboys.filter(m => m !== name);
               setMotoboys(updated);
-              localStorage.setItem('ap_moda_motoboys', JSON.stringify(updated));
+              safeLocalStorageSet('ap_moda_motoboys', JSON.stringify(updated));
             }}
           />
         );
@@ -4694,48 +4940,60 @@ export default function App() {
   };
 
   if (isCustomerView) {
+    const publicProducts = products && products.length > 0
+      ? products
+      : (localStorage.getItem('ap_system_cleared') === 'true' ? [] : INITIAL_PRODUCTS);
     return (
-      <PublicCatalog 
-        products={products && products.length > 0 ? products : INITIAL_PRODUCTS}
-        onAddOnlineOrder={handleAddOnlineOrder}
-        onAddCheckout={handleAddCheckout}
-        clients={clients}
-        onAddClient={handleAddClient}
-        onUpdateClients={handleUpdateClientsList}
-        onExitCustomerView={() => navigateTo('/painel')}
-        onNavigate={navigateTo}
-        currentUser={currentUser}
-        sales={sales}
-        onlineOrders={onlineOrders}
-      />
+      <ErrorBoundary>
+        <PublicCatalog 
+          products={publicProducts}
+          onAddOnlineOrder={handleAddOnlineOrder}
+          onAddCheckout={handleAddCheckout}
+          clients={clients}
+          onAddClient={handleAddClient}
+          onUpdateClients={handleUpdateClientsList}
+          onExitCustomerView={() => navigateTo('/painel')}
+          onNavigate={navigateTo}
+          currentUser={currentUser}
+          sales={sales}
+          onlineOrders={onlineOrders}
+        />
+        <GlobalDialogHost />
+      </ErrorBoundary>
     );
   }
 
   if (!currentUser) {
     return (
-      <LoginScreen 
-        sellers={sellers}
-        motoboys={motoboys}
-        teamMembers={teamMembers}
-        clients={clients}
-        onLogin={async (user) => {
-          setCurrentUser(user);
-          await runFullSynchronousSetup(user);
-        }}
-      />
+      <ErrorBoundary>
+        <LoginScreen 
+          sellers={sellers}
+          motoboys={motoboys}
+          teamMembers={teamMembers}
+          clients={clients}
+          onLogin={async (user) => {
+            setCurrentUser(user);
+            await runFullSynchronousSetup(user);
+          }}
+        />
+        <GlobalDialogHost />
+      </ErrorBoundary>
     );
   }
 
   if (currentUser?.role === 'Cliente') {
     return (
-      <CustomerPortal 
-        currentUser={currentUser}
-        onLogout={() => setCurrentUser(null)}
-        sales={sales}
-        products={products}
-        clients={clients}
-        onUpdateClients={handleUpdateClientsList}
-      />
+      <ErrorBoundary>
+        <CustomerPortal 
+          currentUser={currentUser}
+          onLogout={() => setCurrentUser(null)}
+          sales={sales}
+          products={products}
+          clients={clients}
+          onUpdateClients={handleUpdateClientsList}
+        />
+        <GlobalDialogHost />
+      </ErrorBoundary>
     );
   }
 
@@ -4747,23 +5005,26 @@ export default function App() {
     window.location.search.includes('portal=partner')
   ) {
     return (
-      <PartnerPortal 
-        currentUser={currentUser || {
-          id: 'part-convidado',
-          name: 'Parceiro AP Moda',
-          login: 'parceiro',
-          role: 'Parceiro'
-        }}
-        onLogout={() => {
-          setCurrentUser(null);
-          navigateTo('/');
-        }}
-        onlineOrders={onlineOrders}
-        sales={sales}
-        products={products}
-        onUpdateSales={handleUpdateSalesList}
-        onUpdateOnlineOrders={handleUpdateOnlineOrdersList}
-      />
+      <ErrorBoundary>
+        <PartnerPortal 
+          currentUser={currentUser || {
+            id: 'part-convidado',
+            name: 'Parceiro AP Moda',
+            login: 'parceiro',
+            role: 'Parceiro'
+          }}
+          onLogout={() => {
+            setCurrentUser(null);
+            navigateTo('/');
+          }}
+          onlineOrders={onlineOrders}
+          sales={sales}
+          products={products}
+          onUpdateSales={handleUpdateSalesList}
+          onUpdateOnlineOrders={handleUpdateOnlineOrdersList}
+        />
+        <GlobalDialogHost />
+      </ErrorBoundary>
     );
   }
 
@@ -4776,22 +5037,25 @@ export default function App() {
     window.location.search.includes('portal=driver')
   ) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
-        <DriverAppPortal 
-          onlineOrders={onlineOrders}
-          onUpdateOrderStatus={handleUpdateOnlineOrderStatus}
-          onExitPortal={() => {
-            setIsDriverPortalOpen(false);
-            navigateTo('/');
-          }}
-          currentUser={currentUser}
-          onLogout={() => {
-            setCurrentUser(null);
-            navigateTo('/');
-          }}
-          motoboys={motoboys}
-        />
-      </div>
+      <ErrorBoundary>
+        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+          <DriverAppPortal 
+            onlineOrders={onlineOrders}
+            onUpdateOrderStatus={handleUpdateOnlineOrderStatus}
+            onExitPortal={() => {
+              setIsDriverPortalOpen(false);
+              navigateTo('/');
+            }}
+            currentUser={currentUser}
+            onLogout={() => {
+              setCurrentUser(null);
+              navigateTo('/');
+            }}
+            motoboys={motoboys}
+          />
+        </div>
+        <GlobalDialogHost />
+      </ErrorBoundary>
     );
   }
 
@@ -5021,7 +5285,18 @@ export default function App() {
                     onClick={() => {
                       const clean = urgentOrderAlert.phone?.replace(/\D/g, '') || '';
                       const msg = encodeURIComponent(`Olá ${urgentOrderAlert.clientName}! Confirmamos o recebimento do seu pedido #${urgentOrderAlert.id} na AP Moda Fitness! Já estamos separando e preparando o seu pacote com todo carinho para envio. 🌸✨`);
-                      window.open(`https://wa.me/55${clean}?text=${msg}`, '_blank');
+                      const waUrl = `https://wa.me/55${clean}?text=${msg}`;
+                      try {
+                        const a = document.createElement('a');
+                        a.href = waUrl;
+                        a.target = '_blank';
+                        a.rel = 'noopener noreferrer';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                      } catch {
+                        showToast(`Abra o WhatsApp manualmente: ${waUrl}`, 'info');
+                      }
                     }}
                     className="py-3 px-4 bg-green-500 hover:bg-green-600 active:scale-95 text-white font-extrabold text-xs rounded-2xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                     title="Avisar cliente pelo WhatsApp"
@@ -5122,7 +5397,7 @@ export default function App() {
                     onClick={() => {
                       if (newWithdrawToast.pixKey) {
                         navigator.clipboard.writeText(newWithdrawToast.pixKey);
-                        alert('Chave Pix copiada para a área de transferência!');
+                        showToast('Chave Pix copiada para a área de transferência!', 'success');
                       }
                     }}
                     className="flex-1 bg-white/20 hover:bg-white/30 text-white font-extrabold text-xs py-1.5 px-2 rounded-xl transition-all shadow-xs cursor-pointer text-center"
@@ -5328,7 +5603,7 @@ export default function App() {
                   type="text" 
                   placeholder="Buscar no sistema..." 
                   className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-sans text-slate-600 placeholder-slate-400 focus:outline-hidden"
-                  onClick={() => alert("Dica: Use as buscas específicas de cada menu (PDV, Estoque ou CRM) para encontrar as informações com filtros avançados e fáceis!")}
+                  onClick={() => showToast("Use as buscas específicas de cada menu (PDV, Estoque ou CRM) para filtros avançados.", "info")}
                 />
               </div>
             </div>
@@ -5425,7 +5700,7 @@ export default function App() {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     navigator.clipboard.writeText(pw.pixKey);
-                                    alert(`Chave Pix copiada (${pw.pixKeyType || 'Pix'}): ${pw.pixKey}`);
+                                    showToast(`Chave Pix copiada (${pw.pixKeyType || 'Pix'}): ${pw.pixKey}`, 'success');
                                   }}
                                   className="text-[9.5px] font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-2 py-1 rounded cursor-pointer transition shadow-2xs"
                                   title="Copiar Chave Pix"
@@ -5479,7 +5754,7 @@ export default function App() {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     navigator.clipboard.writeText(n.data.pixKey);
-                                    alert('Chave Pix copiada com sucesso!');
+                                    showToast('Chave Pix copiada com sucesso!', 'success');
                                   }}
                                   className="text-[9.5px] font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-2 py-0.5 rounded cursor-pointer transition shadow-2xs"
                                 >
@@ -5563,7 +5838,7 @@ export default function App() {
                   type="button"
                   onClick={() => {
                     navigator.clipboard.writeText(pendingPartnerWithdraws[0].pixKey);
-                    alert(`Chave Pix copiada (${pendingPartnerWithdraws[0].pixKeyType || 'Pix'}): ${pendingPartnerWithdraws[0].pixKey}`);
+                    showToast(`Chave Pix copiada (${pendingPartnerWithdraws[0].pixKeyType || 'Pix'}): ${pendingPartnerWithdraws[0].pixKey}`, 'success');
                   }}
                   className="bg-white/15 hover:bg-white/25 text-white text-[11px] px-2.5 py-1 rounded-md transition font-semibold flex items-center gap-1 cursor-pointer"
                   title="Copiar Chave Pix da parceira"
@@ -5666,6 +5941,7 @@ export default function App() {
         onClose={() => setIsQuickStoreModalOpen(false)} 
       />
       </div>
+      <GlobalDialogHost />
     </ErrorBoundary>
   );
 }

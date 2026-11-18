@@ -46,6 +46,72 @@ const firebase = {
   }
 };
 
+function getLocalBrtDateKey(input?: string | Date | number): string {
+  if (typeof input === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.trim())) {
+    return input.trim();
+  }
+  const d = input instanceof Date ? input : (input ? new Date(input) : new Date());
+  const valid = Number.isNaN(d.getTime()) ? new Date() : d;
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(valid);
+}
+
+function isBadProductImageUrl(imgUrl: any): boolean {
+  if (typeof imgUrl !== 'string') return false;
+  const trimmed = imgUrl.trim();
+  if (!trimmed) return false;
+  if (trimmed.startsWith('data:image/svg+xml')) {
+    let decoded = trimmed;
+    try {
+      decoded = decodeURIComponent(trimmed);
+    } catch {}
+    const low = decoded.toLowerCase();
+    if (
+      low.includes('imagem') ||
+      low.includes('foto') ||
+      low.includes('sem foto') ||
+      low.includes('ap moda') ||
+      low.includes('alta performance')
+    ) {
+      return true;
+    }
+  }
+  if (trimmed.startsWith('/api/images/')) {
+    const fname = trimmed.replace('/api/images/', '').split('?')[0];
+    return !fs.existsSync(path.join(process.cwd(), 'uploads', fname));
+  }
+  return false;
+}
+
+let supabaseOfflineUntil = 0;
+function markSupabaseNetworkFailure(err: any) {
+  const msg = String(err?.message || err || '').toLowerCase();
+  const code = String(err?.code || '').toUpperCase();
+  // Nunca ativar circuit breaker por erros de schema PostgREST (PGRST...) ou validação de payload
+  if (code.startsWith('PGRST') || msg.includes('schema cache') || msg.includes('could not find the')) {
+    return;
+  }
+  if (
+    msg.includes('fetch failed') ||
+    msg.includes('enotfound') ||
+    msg.includes('econnrefused') ||
+    msg.includes('etimedout') ||
+    msg.includes('econnreset') ||
+    msg.includes('socket hang up') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('bad gateway') ||
+    msg.includes('service unavailable') ||
+    msg.includes('gateway timeout')
+  ) {
+    supabaseOfflineUntil = Date.now() + 60_000;
+    isSupabaseVerifiedHealthy = false;
+  }
+}
+
 class SupabaseQueryBuilder {
   private client: any;
   private path: string;
@@ -54,6 +120,8 @@ class SupabaseQueryBuilder {
   private isMaybeSingle = false;
   private limitVal: number | null = null;
   private offsetVal: number | null = null;
+  private orderCol: string | null = null;
+  private orderAsc = true;
   private filters: any[] = [];
 
   constructor(client: any, path: string) {
@@ -101,6 +169,15 @@ class SupabaseQueryBuilder {
     return this;
   }
 
+  order(col: string, opts?: { ascending?: boolean }) {
+    this.orderCol = col;
+    this.orderAsc = opts?.ascending !== false;
+    if (typeof this.query.order === 'function') {
+      this.query = this.query.order(col, opts || { ascending: true });
+    }
+    return this;
+  }
+
   single() {
     this.isSingle = true;
     return this;
@@ -118,6 +195,7 @@ class SupabaseQueryBuilder {
     if (this.isMaybeSingle) localQB.maybeSingle();
     if (this.limitVal !== null) localQB.limit(this.limitVal);
     if (this.offsetVal !== null) localQB.offset(this.offsetVal);
+    if (this.orderCol) localQB.order(this.orderCol, { ascending: this.orderAsc });
     for (const filter of this.filters) {
       if (filter.type === 'eq') localQB.eq(filter.col, filter.val);
       else if (filter.type === 'neq') localQB.neq(filter.col, filter.val);
@@ -146,6 +224,7 @@ class SupabaseQueryBuilder {
       }
       const { data, error } = await q;
       if (error) {
+        markSupabaseNetworkFailure(error);
         console.warn(`[Supabase Query Error in table ${this.path}]:`, error.message || error);
         const fallbackResult = await this.runLocalFallbackSelect();
         if (onfulfilled) return onfulfilled(fallbackResult);
@@ -157,6 +236,7 @@ class SupabaseQueryBuilder {
       }
       return result;
     } catch (err: any) {
+      markSupabaseNetworkFailure(err);
       console.warn(`[Supabase Query Exception in table ${this.path}]:`, err.message || err);
       const fallbackResult = await this.runLocalFallbackSelect();
       if (onfulfilled) return onfulfilled(fallbackResult);
@@ -164,15 +244,53 @@ class SupabaseQueryBuilder {
     }
   }
 
+  private extractMissingColumnFromError(error: any): string | null {
+    const msg = String(error?.message || error?.details || '');
+    const m = msg.match(/Could not find the '([^']+)' column/i) || msg.match(/column "([^"]+)" of relation/i);
+    return m && m[1] ? m[1] : null;
+  }
+
+  private stripColumnFromPayload(payload: any, colToStrip: string): any {
+    if (Array.isArray(payload)) {
+      return payload.map(row => {
+        if (!row || typeof row !== 'object') return row;
+        const copy = { ...row };
+        delete copy[colToStrip];
+        return copy;
+      });
+    }
+    if (payload && typeof payload === 'object') {
+      const copy = { ...payload };
+      delete copy[colToStrip];
+      return copy;
+    }
+    return payload;
+  }
+
   async upsert(payload: any, options?: { onConflict?: string }) {
     try {
-      const { data, error } = await this.client.from(this.path).upsert(payload, options);
-      if (error) {
-        console.warn(`[Supabase Upsert Error in table ${this.path}]:`, error.message || error);
-        return new LocalQueryBuilder(this.path).upsert(payload, options);
+      let currentPayload = payload;
+      let lastError: any = null;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const { data, error } = await this.client.from(this.path).upsert(currentPayload, options);
+        if (!error) {
+          return { data, error: null };
+        }
+        lastError = error;
+        const missingCol = this.extractMissingColumnFromError(error);
+        if (missingCol) {
+          console.warn(`[Supabase Upsert Retry] Removendo coluna ausente "${missingCol}" em ${this.path}`);
+          currentPayload = this.stripColumnFromPayload(currentPayload, missingCol);
+          continue;
+        }
+        break;
       }
-      return { data, error: null };
+      markSupabaseNetworkFailure(lastError);
+      console.warn(`[Supabase Upsert Error in table ${this.path}]:`, lastError?.message || lastError);
+      new LocalQueryBuilder(this.path).upsert(payload, options).catch(() => {});
+      return { data: null, error: lastError };
     } catch (err: any) {
+      markSupabaseNetworkFailure(err);
       console.warn(`[Supabase Upsert Exception in table ${this.path}]:`, err.message || err);
       return new LocalQueryBuilder(this.path).upsert(payload, options);
     }
@@ -180,13 +298,26 @@ class SupabaseQueryBuilder {
 
   async insert(payload: any) {
     try {
-      const { data, error } = await this.client.from(this.path).insert(payload);
-      if (error) {
-        console.warn(`[Supabase Insert Error in table ${this.path}]:`, error.message || error);
-        return new LocalQueryBuilder(this.path).insert(payload);
+      let currentPayload = payload;
+      let lastError: any = null;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const { data, error } = await this.client.from(this.path).insert(currentPayload);
+        if (!error) {
+          return { data, error: null };
+        }
+        lastError = error;
+        const missingCol = this.extractMissingColumnFromError(error);
+        if (missingCol) {
+          currentPayload = this.stripColumnFromPayload(currentPayload, missingCol);
+          continue;
+        }
+        break;
       }
-      return { data, error: null };
+      markSupabaseNetworkFailure(lastError);
+      console.warn(`[Supabase Insert Error in table ${this.path}]:`, lastError?.message || lastError);
+      return new LocalQueryBuilder(this.path).insert(payload);
     } catch (err: any) {
+      markSupabaseNetworkFailure(err);
       console.warn(`[Supabase Insert Exception in table ${this.path}]:`, err.message || err);
       return new LocalQueryBuilder(this.path).insert(payload);
     }
@@ -196,13 +327,31 @@ class SupabaseQueryBuilder {
     return {
       eq: async (col: string, val: any) => {
         try {
-          const { error } = await this.client.from(this.path).update(payload).eq(col, val);
-          if (error) {
-            console.warn(`[Supabase Update Error in table ${this.path}]:`, error.message || error);
-            return new LocalQueryBuilder(this.path).update(payload).eq(col, val);
+          let currentPayload = payload;
+          let lastError: any = null;
+          for (let attempt = 0; attempt < 8; attempt++) {
+            if (currentPayload && typeof currentPayload === 'object' && Object.keys(currentPayload).length === 0) {
+              return { error: null };
+            }
+            const { error } = await this.client.from(this.path).update(currentPayload).eq(col, val);
+            if (!error) {
+              // Espelha no banco local para consistência
+              new LocalQueryBuilder(this.path).update(payload).eq(col, val).catch(() => {});
+              return { error: null };
+            }
+            lastError = error;
+            const missingCol = this.extractMissingColumnFromError(error);
+            if (missingCol) {
+              currentPayload = this.stripColumnFromPayload(currentPayload, missingCol);
+              continue;
+            }
+            break;
           }
-          return { error: null };
+          markSupabaseNetworkFailure(lastError);
+          console.warn(`[Supabase Update Error in table ${this.path}]:`, lastError?.message || lastError);
+          return new LocalQueryBuilder(this.path).update(payload).eq(col, val);
         } catch (err: any) {
+          markSupabaseNetworkFailure(err);
           console.warn(`[Supabase Update Exception in table ${this.path}]:`, err.message || err);
           return new LocalQueryBuilder(this.path).update(payload).eq(col, val);
         }
@@ -221,10 +370,12 @@ class SupabaseQueryBuilder {
         try {
           const { error } = await this.client.from(this.path).delete().eq(col, val);
           if (error) {
+            markSupabaseNetworkFailure(error);
             console.warn(`[Supabase Delete Error in table ${this.path}]:`, error.message || error);
           }
           return { error: null };
         } catch (err: any) {
+          markSupabaseNetworkFailure(err);
           console.warn(`[Supabase Delete Exception in table ${this.path}]:`, err.message || err);
           return { error: null };
         }
@@ -237,10 +388,12 @@ class SupabaseQueryBuilder {
         try {
           const { error } = await this.client.from(this.path).delete().neq(col, val);
           if (error) {
+            markSupabaseNetworkFailure(error);
             console.warn(`[Supabase Delete Error in table ${this.path}]:`, error.message || error);
           }
           return { error: null };
         } catch (err: any) {
+          markSupabaseNetworkFailure(err);
           console.warn(`[Supabase Delete Exception in table ${this.path}]:`, err.message || err);
           return { error: null };
         }
@@ -266,248 +419,84 @@ class SupabaseQueryBuilder {
 }
 
 const LOCAL_DB_PATH = path.join(process.cwd(), 'local_db.json');
+const LOCAL_DB_BACKUPS_DIR = path.join(process.cwd(), 'local_db_backups');
+let lastSnapshotCreatedAt = 0;
+
+function tryRestoreLatestLocalDbBackup(): any | null {
+  try {
+    if (!fs.existsSync(LOCAL_DB_BACKUPS_DIR)) return null;
+    const files = fs
+      .readdirSync(LOCAL_DB_BACKUPS_DIR)
+      .filter(f => f.startsWith('snapshot_') && f.endsWith('.json'))
+      .sort()
+      .reverse();
+    for (const file of files) {
+      try {
+        const fullPath = path.join(LOCAL_DB_BACKUPS_DIR, file);
+        const parsed = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          console.warn(`[LocalDB Recovery] Restaurado snapshot íntegro automático: ${file}`);
+          return parsed;
+        }
+      } catch {}
+    }
+  } catch (e) {
+    console.error('[LocalDB Recovery Error]:', e);
+  }
+  return null;
+}
+
+function saveRollingBackupIfNeeded(data: any, serialized: string, force = false) {
+  try {
+    const now = Date.now();
+    if (!force && now - lastSnapshotCreatedAt < 60000) return;
+    if (!data || typeof data !== 'object') return;
+    const hasMeaningfulData =
+      (Array.isArray(data.ap_products) && data.ap_products.length > 0) ||
+      (Array.isArray(data.ap_sales) && data.ap_sales.length > 0) ||
+      (Array.isArray(data.ap_transactions) && data.ap_transactions.length > 0);
+    if (!hasMeaningfulData) return;
+
+    if (!fs.existsSync(LOCAL_DB_BACKUPS_DIR)) {
+      fs.mkdirSync(LOCAL_DB_BACKUPS_DIR, { recursive: true });
+    }
+    const stamp = new Date(now).toISOString().replace(/[:.]/g, '-');
+    const snapshotPath = path.join(LOCAL_DB_BACKUPS_DIR, `snapshot_${stamp}.json`);
+    fs.writeFileSync(snapshotPath, serialized, 'utf-8');
+    lastSnapshotCreatedAt = now;
+
+    // Retain the newest 15 snapshots
+    const allSnapshots = fs
+      .readdirSync(LOCAL_DB_BACKUPS_DIR)
+      .filter(f => f.startsWith('snapshot_') && f.endsWith('.json'))
+      .sort();
+    while (allSnapshots.length > 15) {
+      const oldest = allSnapshots.shift();
+      if (oldest) {
+        try { fs.unlinkSync(path.join(LOCAL_DB_BACKUPS_DIR, oldest)); } catch {}
+      }
+    }
+  } catch (e) {
+    console.warn('[LocalDB Backup Warn]:', e);
+  }
+}
 
 function readLocalDb() {
   try {
     if (!fs.existsSync(LOCAL_DB_PATH)) {
+      const recovered = tryRestoreLatestLocalDbBackup();
+      if (recovered) {
+        fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(recovered, null, 2), 'utf-8');
+        return recovered;
+      }
       const initialDb = {
-        ap_products: [
-          {
-            id: 'prod-1',
-            name: 'Legging Glow Cós Anatômico',
-            sku: 'LEG-GLOW-001',
-            category: 'Calças e Leggings',
-            price: 119.90,
-            cost: 45.00,
-            stock: 45,
-            minStock: 5,
-            image: 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=600&q=80',
-            salesCount: 22,
-            colors: ['Preto', 'Bordô', 'Azul Marinho'],
-            sizes: ['P', 'M', 'G'],
-            description: 'Legging de alta compressão com cós anatômico modelador, ideal para treinos de alta intensidade.'
-          },
-          {
-            id: 'prod-2',
-            name: 'Top Cross Alta Sustentação',
-            sku: 'TOP-CROSS-002',
-            category: 'Tops',
-            price: 89.90,
-            cost: 30.00,
-            stock: 38,
-            minStock: 5,
-            image: 'https://images.unsplash.com/photo-1518310383802-640c2de311b2?w=600&q=80',
-            salesCount: 15,
-            colors: ['Preto', 'Rosa Neon', 'Branco'],
-            sizes: ['P', 'M', 'G'],
-            description: 'Top fitness com alças cruzadas que garantem excelente suporte e sustentação durante os treinos.'
-          },
-          {
-            id: 'prod-3',
-            name: 'Shorts Seamless Sculpt',
-            sku: 'SH-SEAM-003',
-            category: 'Shorts',
-            price: 99.90,
-            cost: 35.00,
-            stock: 50,
-            minStock: 5,
-            image: 'https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=600&q=80',
-            salesCount: 19,
-            colors: ['Cinza Mescla', 'Lilás', 'Verde Militar'],
-            sizes: ['P', 'M', 'G'],
-            description: 'Shorts sem costura com efeito sculpt que modela a silhueta com total conforto.'
-          },
-          {
-            id: 'prod-4',
-            name: 'Legging Ativa All-Black Cós Alto',
-            sku: 'LEG-BLK-004',
-            category: 'Calças e Leggings',
-            price: 159.90,
-            cost: 55.00,
-            stock: 30,
-            minStock: 5,
-            image: 'https://images.unsplash.com/photo-1507398941214-572c25f4b1dc?w=600&q=80',
-            salesCount: 30,
-            colors: ['Preto'],
-            sizes: ['P', 'M', 'G'],
-            description: 'Legging All-Black com costuras reforçadas e bolso lateral discreto no cós.'
-          },
-          {
-            id: 'prod-5',
-            name: 'Top Sport Confort Alta Sustentação',
-            sku: 'TOP-CONF-005',
-            category: 'Tops',
-            price: 99.90,
-            cost: 32.00,
-            stock: 25,
-            minStock: 5,
-            image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&q=80',
-            salesCount: 25,
-            colors: ['Preto', 'Azul Bebê', 'Lilás'],
-            sizes: ['P', 'M', 'G'],
-            description: 'Top com tecido respirável e toque suave, alças largas e bojo removível.'
-          },
-          {
-            id: 'prod-6',
-            name: 'Shorts Biker Anatômico Alta Compressão',
-            sku: 'SH-BIK-006',
-            category: 'Shorts',
-            price: 89.90,
-            cost: 28.00,
-            stock: 40,
-            minStock: 5,
-            image: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&q=80',
-            salesCount: 18,
-            colors: ['Cinza Chumbo', 'Uva', 'Preto'],
-            sizes: ['P', 'M', 'G'],
-            description: 'Shorts modelo ciclista biker de média-alta compressão com tecido de toque gelado.'
-          },
-          {
-            id: 'prod-7',
-            name: 'Macacão Wave Sculpt Sem Costura',
-            sku: 'MAC-WAVE-007',
-            category: 'Macacões',
-            price: 249.90,
-            cost: 80.00,
-            stock: 15,
-            minStock: 3,
-            image: 'https://images.unsplash.com/photo-1518310383802-640c2de311b2?w=600&q=80',
-            salesCount: 12,
-            colors: ['Preto', 'Azul Petróleo'],
-            sizes: ['P', 'M', 'G'],
-            description: 'Macacão fitness inteiriço premium com textura wave modeladora e costas abertas cruzadas.'
-          }
-        ],
-        ap_clients: [
-          {
-            id: 'cli-1',
-            name: 'Gabriela Souza',
-            email: 'gabriela.souza@gmail.com',
-            phone: '(21) 98765-4321',
-            channel: 'WhatsApp',
-            totalSpent: 409.80,
-            ordersCount: 2,
-            createdAt: '2026-06-10T14:30:00Z',
-            cashbackBalance: 20.49,
-            vip: true
-          },
-          {
-            id: 'cli-2',
-            name: 'Ana Costa',
-            email: 'ana.costa@outlook.com',
-            phone: '(21) 99123-4567',
-            channel: 'Instagram',
-            totalSpent: 159.90,
-            ordersCount: 1,
-            createdAt: '2026-06-11T16:20:00Z',
-            cashbackBalance: 8.00,
-            vip: false
-          },
-          {
-            id: 'cli-3',
-            name: 'Beatriz Pereira',
-            email: 'beatriz.p@gmail.com',
-            phone: '(31) 98989-1234',
-            channel: 'E-commerce',
-            totalSpent: 189.80,
-            ordersCount: 1,
-            createdAt: '2026-06-12T10:15:00Z',
-            cashbackBalance: 9.49,
-            vip: false
-          }
-        ],
-        ap_sales: [
-          {
-            id: 'ven-1',
-            clientName: 'Gabriela Souza',
-            channel: 'WhatsApp',
-            items: [
-              { productId: 'prod-1', name: 'Legging Glow Cós Anatômico', quantity: 1, price: 119.90, cost: 45.00 },
-              { productId: 'prod-2', name: 'Top Cross Alta Sustentação', quantity: 1, price: 89.90, cost: 30.00 }
-            ],
-            total: 209.80,
-            costTotal: 75.00,
-            status: 'Concluída',
-            createdAt: '2026-06-10T14:35:00Z',
-            payments: [{ method: 'PIX', amount: 209.80 }],
-            salesperson: 'Ana Carolina',
-            deliveryMethod: 'Motoboy'
-          },
-          {
-            id: 'ven-2',
-            clientName: 'Ana Costa',
-            channel: 'Instagram',
-            items: [
-              { productId: 'prod-4', name: 'Legging Ativa All-Black Cós Alto', quantity: 1, price: 159.90, cost: 55.00 }
-            ],
-            total: 159.90,
-            costTotal: 55.00,
-            status: 'Concluída',
-            createdAt: '2026-06-11T16:25:00Z',
-            payments: [{ method: 'Cartão de Crédito', amount: 159.90 }],
-            salesperson: 'Beatriz Rocha',
-            deliveryMethod: 'Correios'
-          },
-          {
-            id: 'ven-3',
-            clientName: 'Beatriz Pereira',
-            channel: 'E-commerce',
-            items: [
-              { productId: 'prod-5', name: 'Top Sport Confort Alta Sustentação', quantity: 1, price: 99.90, cost: 32.00 },
-              { productId: 'prod-6', name: 'Shorts Biker Anatômico Alta Compressão', quantity: 1, price: 89.90, cost: 28.00 }
-            ],
-            total: 189.80,
-            costTotal: 60.00,
-            status: 'Concluída',
-            createdAt: '2026-06-12T10:20:00Z',
-            payments: [{ method: 'PIX', amount: 189.80 }],
-            salesperson: 'Juliana Costa',
-            deliveryMethod: 'Retirada em Loja'
-          }
-        ],
-        ap_transactions: [
-          {
-            id: 'tr-1',
-            type: 'Inflow',
-            category: 'Venda',
-            description: 'Venda no PIX - Gabriela Souza',
-            amount: 209.80,
-            date: '2026-06-10T14:35:00Z',
-            status: 'pago'
-          },
-          {
-            id: 'tr-2',
-            type: 'Inflow',
-            category: 'Venda',
-            description: 'Venda no Crédito - Ana Costa',
-            amount: 159.90,
-            date: '2026-06-11T16:25:00Z',
-            status: 'pago'
-          },
-          {
-            id: 'tr-3',
-            type: 'Inflow',
-            category: 'Venda',
-            description: 'Venda no PIX - Beatriz Pereira',
-            amount: 189.80,
-            date: '2026-06-12T10:20:00Z',
-            status: 'pago'
-          },
-          {
-            id: 'tr-4',
-            type: 'Outflow',
-            category: 'Insumos',
-            description: 'Compra de Embalagens Personalizadas',
-            amount: 150.00,
-            date: '2026-06-13T09:00:00Z',
-            status: 'pago'
-          }
-        ],
+        ap_products: [],
+        ap_clients: [],
+        ap_sales: [],
+        ap_transactions: [],
         ap_online_orders: [],
         ap_checkouts: [],
-        ap_team_members: [
-          { id: 'team-1', name: 'Ana Carolina', email: 'ana@apmoda.com', role: 'Admin', phone: '11999990000', status: 'Ativo' }
-        ],
+        ap_team_members: [],
         card_terminals: [],
         ap_system_configs: []
       };
@@ -515,16 +504,49 @@ function readLocalDb() {
       return initialDb;
     }
     const content = fs.readFileSync(LOCAL_DB_PATH, 'utf-8');
-    return JSON.parse(content);
+    const parsed = JSON.parse(content);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed;
+    }
+    throw new Error('Formato inválido em local_db.json');
   } catch (err) {
     console.error('[LocalDB] Erro ao carregar banco local:', err);
+    const recovered = tryRestoreLatestLocalDbBackup();
+    if (recovered) {
+      try {
+        const tmpPath = `${LOCAL_DB_PATH}.recover.${process.pid}.${Date.now()}.tmp`;
+        fs.writeFileSync(tmpPath, JSON.stringify(recovered, null, 2), 'utf-8');
+        fs.renameSync(tmpPath, LOCAL_DB_PATH);
+      } catch {}
+      return recovered;
+    }
     return {};
   }
 }
 
-function writeLocalDb(db: any) {
+function writeLocalDb(db: any, options?: { allowShrink?: boolean; forceBackup?: boolean }) {
   try {
-    fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(db, null, 2), 'utf-8');
+    if (!db || typeof db !== 'object' || Array.isArray(db)) return;
+    // Prevent accidental full wipe caused by writing a partial empty object on transient read failure
+    if (!options?.allowShrink && fs.existsSync(LOCAL_DB_PATH)) {
+      try {
+        const currentRaw = fs.readFileSync(LOCAL_DB_PATH, 'utf-8');
+        const current = JSON.parse(currentRaw);
+        const curProds = Array.isArray(current?.ap_products) ? current.ap_products.length : 0;
+        const curSales = Array.isArray(current?.ap_sales) ? current.ap_sales.length : 0;
+        const nextProds = Array.isArray(db.ap_products) ? db.ap_products.length : 0;
+        const nextSales = Array.isArray(db.ap_sales) ? db.ap_sales.length : 0;
+        if ((curProds > 2 && nextProds === 0 && !('ap_products' in db)) || (curSales > 2 && nextSales === 0 && !('ap_sales' in db))) {
+          console.warn('[LocalDB Guard] Bloqueada sobrescrita parcial que apagaria coleções existentes.');
+          db = { ...current, ...db };
+        }
+      } catch {}
+    }
+    const serialized = JSON.stringify(db, null, 2);
+    const tmpPath = `${LOCAL_DB_PATH}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(tmpPath, serialized, 'utf-8');
+    fs.renameSync(tmpPath, LOCAL_DB_PATH);
+    saveRollingBackupIfNeeded(db, serialized, Boolean(options?.forceBackup));
   } catch (err) {
     console.error('[LocalDB] Erro ao salvar banco local:', err);
   }
@@ -535,6 +557,8 @@ class LocalQueryBuilder {
   private filters: Array<{ col: string; val: any; type: string }> = [];
   private limitVal: number | null = null;
   private offsetVal: number | null = null;
+  private orderCol: string | null = null;
+  private orderAsc = true;
   private isSingle = false;
   private isMaybeSingle = false;
 
@@ -563,6 +587,12 @@ class LocalQueryBuilder {
 
   or(cond: string) {
     this.filters.push({ col: 'or', val: cond, type: 'or' });
+    return this;
+  }
+
+  order(col: string, opts?: { ascending?: boolean }) {
+    this.orderCol = col;
+    this.orderAsc = opts?.ascending !== false;
     return this;
   }
 
@@ -617,6 +647,16 @@ class LocalQueryBuilder {
             });
           });
         }
+      }
+
+      if (this.orderCol) {
+        const col = this.orderCol;
+        const asc = this.orderAsc;
+        list = [...list].sort((a: any, b: any) => {
+          const va = String(a?.[col] ?? '');
+          const vb = String(b?.[col] ?? '');
+          return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+        });
       }
 
       let data: any = list;
@@ -894,13 +934,14 @@ function getFirebaseServerDb() {
 
   const isSupabaseConfigured = supabaseUrl && supabaseUrl.startsWith('http') && supabaseKey && !supabaseKey.startsWith('MY_');
 
-  if (!isSupabaseConfigured) {
+  if (!isSupabaseConfigured || (supabaseOfflineUntil > Date.now() && currentConfigUrl === supabaseUrl)) {
     return new LocalDBAdapter();
   }
 
   if (supabaseClientInstance && (currentConfigUrl !== supabaseUrl || currentConfigKey !== supabaseKey)) {
     console.log('[Supabase Server] Detectado alteração nas credenciais. Re-inicializando cliente...');
     supabaseClientInstance = null;
+    supabaseOfflineUntil = 0;
   }
 
   if (!supabaseClientInstance) {
@@ -964,9 +1005,13 @@ app.post('/api/set-db-config', async (req, res) => {
 
     // Force re-initialization of Supabase client on next request
     supabaseClientInstance = null;
+    supabaseOfflineUntil = 0;
 
     // Run connection test immediately
     isSupabaseVerifiedHealthy = await checkSupabaseHealth(url, key);
+    if (!isSupabaseVerifiedHealthy) {
+      supabaseOfflineUntil = Date.now() + 60_000;
+    }
 
     console.log(`[Supabase Server Config] Nova credencial configurada via API. Verificação de saúde: ${isSupabaseVerifiedHealthy ? 'SAUDÁVEL' : 'INVÁLIDA/LIMITADA'}`);
     res.json({ success: true, verifiedHealthy: isSupabaseVerifiedHealthy });
@@ -1179,17 +1224,17 @@ app.get('/api/proxy/cdn-image', async (req, res) => {
 });
 
 
-// Lazy-initialized Gemini Client to prevent crashes during container start
+// Lazy-initialized Gemini Client (usa exclusivamente GEMINI_API_KEY do servidor)
 const aiClientsMap = new Map<string, GoogleGenAI>();
-function getGeminiClient(customApiKey?: string): GoogleGenAI {
-  const apiKey = customApiKey || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+function getGeminiClient(): GoogleGenAI {
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) {
-    throw new Error('A chave de API GEMINI_API_KEY ou VITE_GEMINI_API_KEY não foi configurada nas variáveis de ambiente. Defina-a em no painel Ajustes > Segredos do AI Studio.');
+    throw new Error('A variável de ambiente GEMINI_API_KEY não está configurada no servidor.');
   }
   let client = aiClientsMap.get(apiKey);
   if (!client) {
     client = new GoogleGenAI({
-      apiKey: apiKey,
+      apiKey,
       httpOptions: {
         headers: {
           'User-Agent': 'aistudio-build',
@@ -1256,7 +1301,7 @@ function cleanGeminiError(error: any): string {
       if (parsed.error && parsed.error.message) {
         const msg = parsed.error.message;
         if (msg.includes('429') || msg.toLowerCase().includes('quota') || msg.toLowerCase().includes('rate limit')) {
-          return 'Cota de uso da API do Gemini excedida para esta chave de API. Por favor, verifique seus limites no Google AI Studio ou aguarde alguns instantes.';
+          return 'Cota de uso da API do Gemini excedida neste momento. Aguarde alguns instantes e tente novamente.';
         }
         if (msg.includes('404') || msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('no longer available')) {
           return 'Modelo do Gemini indisponível. O sistema utilizará automaticamente um modelo alternativo.';
@@ -1267,7 +1312,7 @@ function cleanGeminiError(error: any): string {
   } catch (ex) {}
 
   if (errStr.includes('429') || errStr.toLowerCase().includes('quota') || errStr.toLowerCase().includes('rate limit')) {
-    return 'Cota de uso da API do Gemini excedida para esta chave de API. Por favor, verifique seus limites no Google AI Studio ou aguarde alguns instantes.';
+    return 'Cota de uso da API do Gemini excedida neste momento. Aguarde alguns instantes e tente novamente.';
   }
 
   if (errStr.includes('503') || errStr.toLowerCase().includes('unavailable') || errStr.toLowerCase().includes('high demand') || errStr.toLowerCase().includes('overloaded')) {
@@ -1276,31 +1321,17 @@ function cleanGeminiError(error: any): string {
   return errStr;
 }
 
-// Wrapper to perform Gemini model generation with multi-model fallbacks and exponential backoff
-async function resolveEffectiveGeminiKey(customApiKey?: string): Promise<string | undefined> {
-  if (customApiKey && customApiKey.trim()) return customApiKey.trim();
-  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim()) return process.env.GEMINI_API_KEY.trim();
-  if (process.env.VITE_GEMINI_API_KEY && process.env.VITE_GEMINI_API_KEY.trim()) return process.env.VITE_GEMINI_API_KEY.trim();
-  try {
-    const db = getFirebaseServerDb();
-    const { data: cfg } = await db.from('ap_system_configs').select('key, value');
-    if (Array.isArray(cfg)) {
-      const row = cfg.find((c: any) => c.key === 'gemini_api_key' || c.key === 'GEMINI_API_KEY');
-      if (row?.value && String(row.value).trim()) return String(row.value).trim();
-    }
-  } catch (e) {}
-  return undefined;
+async function resolveEffectiveGeminiKey(): Promise<string | undefined> {
+  return process.env.GEMINI_API_KEY?.trim() || undefined;
 }
 
-async function generateContentWithRetry(params: { model: string; contents: any; timeoutMs?: number }, customApiKey?: string): Promise<any> {
-  const effectiveKey = await resolveEffectiveGeminiKey(customApiKey);
-  const ai = getGeminiClient(effectiveKey);
-  const requestedModel = params.model || 'gemini-3-flash-preview';
+async function generateContentWithRetry(params: { model?: string; contents: any; timeoutMs?: number }): Promise<any> {
+  const ai = getGeminiClient();
+  const requestedModel = params.model || 'gemini-4-hydrogen';
   const candidateModels = Array.from(new Set([
     requestedModel,
-    'gemini-3-flash-preview',
-    'gemini-3.1-flash-lite-preview',
-    'gemini-flash-lite-latest'
+    'gemini-4-hydrogen',
+    'gemini-3.1-flash-lite'
   ].filter(Boolean)));
   const attemptTimeoutMs = params.timeoutMs || 18000;
 
@@ -1333,7 +1364,7 @@ async function generateContentWithRetry(params: { model: string; contents: any; 
 
         if (isNotFound) {
           console.warn(`[Gemini Engine] Model ${modelCandidate} not available (404). Trying next model...`);
-          break; // Try next candidate model
+          break;
         }
 
         if (isQuotaOrDemand && attempt < maxRetries) {
@@ -1344,7 +1375,7 @@ async function generateContentWithRetry(params: { model: string; contents: any; 
         }
 
         console.warn(`[Gemini Engine] Candidate model ${modelCandidate} failed (${errStr.slice(0, 120)}). Switching to next candidate...`);
-        break; // Switch to next candidate model
+        break;
       }
     }
   }
@@ -1726,37 +1757,45 @@ const handleInfinitePayWebhook = async (req: any, res: any) => {
             updatedColorStocks[col] = Math.max(0, Number(updatedColorStocks[col]) - quantityToDeduct);
           }
 
+          const prodUpdatePayload: any = {
+            stock: newStock,
+            salesCount: Number(product.salesCount ?? product.sales_count ?? 0) + quantityToDeduct,
+            sales_count: Number(product.salesCount ?? product.sales_count ?? 0) + quantityToDeduct,
+            color_stocks: updatedColorStocks,
+            colorStocks: updatedColorStocks,
+            size_color_stocks: updatedSizeColorStocks,
+            sizeColorStocks: updatedSizeColorStocks
+          };
           await firebase
             .from('ap_products')
-            .update({
-              stock: newStock,
-              salesCount: Number(product.salesCount || 0) + quantityToDeduct,
-              color_stocks: updatedColorStocks,
-              colorStocks: updatedColorStocks,
-              size_color_stocks: updatedSizeColorStocks,
-              sizeColorStocks: updatedSizeColorStocks
-            })
+            .update(prodUpdatePayload)
             .eq('id', product.id);
 
           stockUpdates.push({ id: product.id, name: product.name, oldStock, newStock });
         }
       }
 
-      // Log financial transaction with net amount
-      const txId = `t-inf-${Date.now()}`;
-      await db.from('ap_transactions').insert([{
-        id: txId,
-        type: 'Inflow',
-        category: 'Venda',
-        description: `InfinitePay Checkout Integrado (Ped: ${order_nsu.toUpperCase()}) - Cliente: ${order.clientName} [Taxa: R$ ${taxaFinanceira.toFixed(2)}]`,
-        amount: valorLiquido,
-        date: new Date().toISOString(),
-        status: 'pago'
-      }]);
+      // Log idempotent financial transaction with net amount
+      const txId = `tx-${order_nsu}`;
+      const { data: existingTxs } = await db.from('ap_transactions').select('id, description');
+      const alreadyHasTx = Array.isArray(existingTxs) && existingTxs.some((t: any) =>
+        String(t.id) === txId || String(t.description || '').toUpperCase().includes(String(order_nsu).toUpperCase())
+      );
+      if (!alreadyHasTx) {
+        await db.from('ap_transactions').upsert([{
+          id: txId,
+          type: 'Inflow',
+          category: 'Venda',
+          description: `InfinitePay Checkout Integrado (Ped: ${order_nsu.toUpperCase()}) - Cliente: ${order.clientName} [Taxa: R$ ${taxaFinanceira.toFixed(2)}]`,
+          amount: valorLiquido,
+          date: order.createdAt || new Date().toISOString(),
+          status: 'pago'
+        }], { onConflict: 'id' });
+      }
 
       // GRAVAÇÃO IMEDIATA NA TABELA ap_sales PARA ATUALIZAR O DASHBOARD GERAL
-      const saleItems = (Array.isArray(order.items) ? order.items : []).map((it: any) => ({
-        productId: it.productId || `p-ext-${Date.now()}`,
+      const saleItems = (Array.isArray(order.items) ? order.items : []).map((it: any, idx: number) => ({
+        productId: it.productId || `p-ext-${Date.now()}-${idx}`,
         name: it.productName || it.name || '',
         quantity: Number(it.quantity || 1),
         price: Number(it.price || 0),
@@ -1818,13 +1857,14 @@ const handleInfinitePayWebhook = async (req: any, res: any) => {
     }
 
     if (sale) {
-      if (String(sale.status || '').toLowerCase() === 'pago') {
-        console.log(`[InfinitePay Webhook] Venda PDV ${order_nsu} já estava marcada como pago.`);
+      if (String(sale.status || '').toLowerCase() === 'pago' || String(sale.status || '').toLowerCase() === 'concluída') {
+        console.log(`[InfinitePay Webhook] Venda PDV ${order_nsu} já estava marcada como concluída/paga.`);
         return res.json({ success: true, message: `Venda ${order_nsu} já constava como paga.` });
       }
 
       let saleUpdatePayload: any = {
-        status: 'Pago',
+        status: 'Concluída',
+        status_pagamento: 'pago',
         valor_bruto: valorBruto,
         taxa_financeira: taxaFinanceira,
         valor_liquido: valorLiquido
@@ -1837,7 +1877,7 @@ const handleInfinitePayWebhook = async (req: any, res: any) => {
           cols.forEach(c => {
             if (saleUpdatePayload[c] !== undefined) filtered[c] = saleUpdatePayload[c];
           });
-          if (Object.keys(filtered).length === 0) filtered.status = 'Pago';
+          if (Object.keys(filtered).length === 0) filtered.status = 'Concluída';
           saleUpdatePayload = filtered;
         } catch {}
       }
@@ -1852,17 +1892,23 @@ const handleInfinitePayWebhook = async (req: any, res: any) => {
         return res.status(500).json({ error: 'Erro ao atualizar status da venda.' });
       }
 
-      // Add financial inflow transaction with net amount
-      const txId = `t-inf-${Date.now()}`;
-      await db.from('ap_transactions').insert([{
-        id: txId,
-        type: 'Inflow',
-        category: 'Venda',
-        description: `InfinitePay Checkout Integrado (PDV: ${order_nsu.toUpperCase()}) - Cliente: ${sale.clientName || 'Cliente PDV'} [Taxa: R$ ${taxaFinanceira.toFixed(2)}]`,
-        amount: valorLiquido,
-        date: new Date().toISOString(),
-        status: 'pago'
-      }]);
+      // Add idempotent financial inflow transaction with net amount
+      const txId = `tx-${order_nsu}`;
+      const { data: existingTxs } = await db.from('ap_transactions').select('id, description');
+      const alreadyHasTx = Array.isArray(existingTxs) && existingTxs.some((t: any) =>
+        String(t.id) === txId || String(t.description || '').toUpperCase().includes(String(order_nsu).toUpperCase())
+      );
+      if (!alreadyHasTx) {
+        await db.from('ap_transactions').upsert([{
+          id: txId,
+          type: 'Inflow',
+          category: 'Venda',
+          description: `InfinitePay Checkout Integrado (PDV: ${order_nsu.toUpperCase()}) - Cliente: ${sale.clientName || 'Cliente PDV'} [Taxa: R$ ${taxaFinanceira.toFixed(2)}]`,
+          amount: valorLiquido,
+          date: sale.createdAt || sale.created_at || new Date().toISOString(),
+          status: 'pago'
+        }], { onConflict: 'id' });
+      }
 
       console.log(`[InfinitePay Webhook] Venda PDV ${order_nsu} marcada como Paga via InfinitePay.`);
       return res.json({ success: true, message: 'Venda PDV paga via InfinitePay com sucesso.', valor_bruto: valorBruto, valor_liquido: valorLiquido });
@@ -1968,7 +2014,8 @@ app.post('/api/webhook/payment', async (req, res) => {
           .from('ap_products')
           .update({
             stock: newStock,
-            salesCount: Number(product.salesCount || 0) + quantityToDeduct,
+            salesCount: Number(product.salesCount ?? product.sales_count ?? 0) + quantityToDeduct,
+            sales_count: Number(product.salesCount ?? product.sales_count ?? 0) + quantityToDeduct,
             color_stocks: updatedColorStocks,
             colorStocks: updatedColorStocks,
             size_color_stocks: updatedSizeColorStocks,
@@ -1987,21 +2034,27 @@ app.post('/api/webhook/payment', async (req, res) => {
       }
     }
 
-    // 5. Registra transação de entrada financeira
-    const txId = `t-web-${Date.now()}`;
-    await db.from('ap_transactions').insert([{
-      id: txId,
-      type: 'Inflow',
-      category: 'Venda',
-      description: `Pix Automático Webhook: Pedido ${orderId.toUpperCase()} de ${order.clientName}`,
-      amount: Number(order.total || 0),
-      date: new Date().toISOString(),
-      status: 'pago'
-    }]);
+    // 5. Registra transação de entrada financeira (idempotente)
+    const txId = `tx-${orderId}`;
+    const { data: existingTxs } = await db.from('ap_transactions').select('id, description');
+    const alreadyHasTx = Array.isArray(existingTxs) && existingTxs.some((t: any) =>
+      String(t.id) === txId || String(t.description || '').toUpperCase().includes(String(orderId).toUpperCase())
+    );
+    if (!alreadyHasTx) {
+      await db.from('ap_transactions').upsert([{
+        id: txId,
+        type: 'Inflow',
+        category: 'Venda',
+        description: `Pix Automático Webhook: Pedido ${orderId.toUpperCase()} de ${order.clientName}`,
+        amount: Number(order.total || 0),
+        date: order.createdAt || new Date().toISOString(),
+        status: 'pago'
+      }], { onConflict: 'id' });
+    }
 
     // GRAVAÇÃO IMEDIATA NA TABELA ap_sales PARA ATUALIZAR O DASHBOARD GERAL
-    const saleItems = (Array.isArray(order.items) ? order.items : []).map((it: any) => ({
-      productId: it.productId || `p-ext-${Date.now()}`,
+    const saleItems = (Array.isArray(order.items) ? order.items : []).map((it: any, idx: number) => ({
+      productId: it.productId || `p-ext-${Date.now()}-${idx}`,
       name: it.productName || it.name || '',
       quantity: Number(it.quantity || 1),
       price: Number(it.price || 0),
@@ -2152,7 +2205,31 @@ app.post('/api/proxy/upload-image', async (req, res) => {
       console.warn('[ImgBB Upload Warning, usando fallback local]:', imgbbErr);
     }
 
-    // Fallback: Armazena com compressão WebP no disco local do servidor (/uploads) com cache permanente
+    // Fallback resiliente: em vez de depender apenas do disco efêmero (/uploads) que pode sumir ao reiniciar container,
+    // compacta em WebP (<90KB) como data URI permanente salva direto junto ao produto no banco!
+    let durableDataUrl = '';
+    try {
+      let compactBuf = await sharp(rawBuffer)
+        .resize(900, 900, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 72 })
+        .toBuffer();
+      if (compactBuf.length > 90000) {
+        compactBuf = await sharp(rawBuffer)
+          .resize(700, 700, { fit: 'inside', withoutEnlargement: true })
+          .webp({ quality: 62 })
+          .toBuffer();
+      }
+      durableDataUrl = `data:image/webp;base64,${compactBuf.toString('base64')}`;
+    } catch (compactErr) {
+      console.warn('[Compact DataURI Fallback Warn]:', compactErr);
+    }
+
+    if (durableDataUrl) {
+      console.log('[Upload Resilient Fallback] Imagem otimizada e retornada como WebP permanente (', Math.round(durableDataUrl.length / 1024), 'KB).');
+      return res.json({ success: true, url: durableDataUrl, storageMode: 'embedded-webp' });
+    }
+
+    // Último recurso se Sharp falhar completamente
     const uploadsDir = path.join(process.cwd(), 'uploads');
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true });
@@ -2163,43 +2240,35 @@ app.post('/api/proxy/upload-image', async (req, res) => {
     fs.writeFileSync(path.join(uploadsDir, fileName), optimizedBuffer);
     console.log('[Upload Local Fallback] Imagem salva com sucesso localmente:', fileName);
 
-    return res.json({ success: true, url: `/api/images/${fileName}` });
+    return res.json({ success: true, url: `/api/images/${fileName}`, storageMode: 'local-disk' });
   } catch (err: any) {
     console.error('[Proxy Upload Image Error]:', err);
     res.status(500).json({ error: err.message || 'Erro durante o upload da imagem.' });
   }
 });
 
-// Sanitization helpers to filter and permanently delete fictitious/mock data from Firebase
+// Sanitization helpers: restrict strictly to explicit seed/demo IDs — NEVER delete real customers or real notes
 async function sanitizeClients(clients: any[]) {
   const isMock = (c: any) => {
-    const name = String(c.name || '').toLowerCase().trim();
     const email = String(c.email || '').toLowerCase().trim();
-    const phone = String(c.phone || '').replace(/\D/g, '');
+    const id = String(c.id || '').toLowerCase().trim();
     return (
-      name === 'maria silva' ||
-      name === 'cliente de teste' ||
-      name === 'ana costa' ||
-      name === 'beatriz pereira' ||
-      name === 'gabriela souza' ||
-      email.endsWith('@exemplo.com') ||
-      email.endsWith('@teste.com') ||
-      email === 'mariasilva@exemplo.com' ||
-      phone === '11999990000' ||
-      phone === '11999998888' ||
-      String(c.id).startsWith('test-') ||
-      String(c.id).startsWith('cli-demo')
+      id === 'cli-1' ||
+      id === 'cli-2' ||
+      id === 'cli-3' ||
+      id.startsWith('test-') ||
+      id.startsWith('cli-demo') ||
+      email.endsWith('@exemplo.com')
     );
   };
 
   const mocks = clients.filter(isMock);
   if (mocks.length > 0) {
     const mockIds = mocks.map(c => c.id);
-    console.log('[Sanitize] Detectado clientes fictícios na base remota:', mockIds);
+    console.log('[Sanitize] Detectado clientes demo explícitos:', mockIds);
     const db = getFirebaseServerDb();
     db.from('ap_clients').delete().in('id', mockIds).then(({ error }) => {
-      if (error) console.error('[Sanitize Error] Falha ao remover clientes fictícios do banco:', error);
-      else console.log('[Sanitize Success] Clientes fictícios removidos com sucesso do banco:', mockIds);
+      if (error) console.error('[Sanitize Error] Falha ao remover clientes demo:', error);
     });
   }
 
@@ -2208,24 +2277,23 @@ async function sanitizeClients(clients: any[]) {
 
 async function sanitizeSales(sales: any[]) {
   const isMock = (s: any) => {
-    const clientName = String(s.clientName || '').toLowerCase().trim();
+    const id = String(s.id || '').toLowerCase().trim();
     return (
-      clientName === 'maria silva' ||
-      clientName === 'ana costa' ||
-      clientName === 'beatriz pereira' ||
-      clientName === 'gabriela souza' ||
-      String(s.id).startsWith('s-demo-') ||
-      String(s.id).startsWith('demo-')
+      id === 'ven-1' ||
+      id === 'ven-2' ||
+      id === 'ven-3' ||
+      id.startsWith('s-demo-') ||
+      id.startsWith('demo-')
     );
   };
 
   const mocks = sales.filter(isMock);
   if (mocks.length > 0) {
     const mockIds = mocks.map(s => s.id);
-    console.log('[Sanitize] Detectado vendas fictícias na base remota:', mockIds);
+    console.log('[Sanitize] Detectado vendas demo explícitas:', mockIds);
     const db = getFirebaseServerDb();
     db.from('ap_sales').delete().in('id', mockIds).then(({ error }) => {
-      if (error) console.error('[Sanitize Error] Falha ao remover vendas fictícias do banco:', error);
+      if (error) console.error('[Sanitize Error] Falha ao remover vendas demo:', error);
     });
   }
 
@@ -2242,63 +2310,97 @@ async function sanitizeSales(sales: any[]) {
     return [];
   };
 
+  const normalizeSaleStatus = (status: any) => {
+    const s = String(status || '').trim();
+    const lower = s.toLowerCase();
+    if (lower === 'pago' || lower === 'concluído' || lower === 'concluido') return 'Concluída';
+    return s || 'Concluída';
+  };
+
+  const localDbCache = readLocalDb();
+  const localSalesById = new Map<string, any>(
+    (Array.isArray(localDbCache.ap_sales) ? localDbCache.ap_sales : [])
+      .filter((x: any) => x && x.id)
+      .map((x: any) => [String(x.id), x])
+  );
+
   return sales
     .filter(s => !isMock(s))
-    .map(s => ({
-      ...s,
-      clientName: s.clientName || s.client_name || 'Cliente',
-      clientDoc: s.clientDoc || s.client_doc || '',
-      costTotal: Number(s.costTotal ?? s.cost_total ?? 0),
-      total: Number(s.total ?? 0),
-      createdAt: s.createdAt || s.created_at || new Date().toISOString(),
-      items: parseJsonArray(s.items),
-      payments: parseJsonArray(s.payments)
-    }));
+    .map(s => {
+      const existingLocal = localSalesById.get(String(s.id));
+      const preservedDate =
+        s.createdAt ||
+        s.created_at ||
+        s.date ||
+        existingLocal?.createdAt ||
+        existingLocal?.created_at ||
+        existingLocal?.date ||
+        '2026-01-01T12:00:00.000Z';
+      return {
+        ...s,
+        status: normalizeSaleStatus(s.status),
+        clientName: s.clientName || s.client_name || existingLocal?.clientName || 'Cliente',
+        clientDoc: s.clientDoc || s.client_doc || existingLocal?.clientDoc || '',
+        costTotal: Number(s.costTotal ?? s.cost_total ?? existingLocal?.costTotal ?? 0),
+        total: Number(s.total ?? existingLocal?.total ?? 0),
+        createdAt: preservedDate,
+        items: parseJsonArray(s.items).length > 0 ? parseJsonArray(s.items) : (existingLocal?.items || []),
+        payments: parseJsonArray(s.payments).length > 0 ? parseJsonArray(s.payments) : (existingLocal?.payments || [])
+      };
+    });
 }
 
 async function sanitizeTransactions(transactions: any[]) {
   const isMock = (t: any) => {
-    const desc = String(t.description || '').toLowerCase();
-    const id = String(t.id || '').toLowerCase();
+    const id = String(t.id || '').toLowerCase().trim();
     return (
-      desc.includes('pix automático webhook: pedido') ||
-      desc.includes('maria silva') ||
-      desc.includes('teste') ||
-      desc.includes('demo') ||
-      id.startsWith('t-web-') ||
-      id.startsWith('t-demo-')
+      id === 'tr-1' ||
+      id === 'tr-2' ||
+      id === 'tr-3' ||
+      id === 'tr-4' ||
+      id.startsWith('t-demo-') ||
+      id.startsWith('demo-')
     );
   };
 
   const mocks = transactions.filter(isMock);
   if (mocks.length > 0) {
     const mockIds = mocks.map(t => t.id);
-    console.log('[Sanitize] Detectado transações fictícias na base remota:', mockIds);
+    console.log('[Sanitize] Detectado transações demo explícitas:', mockIds);
     const db = getFirebaseServerDb();
     db.from('ap_transactions').delete().in('id', mockIds).then(({ error }) => {
-      if (error) console.error('[Sanitize Error] Falha ao remover transações fictícias do banco:', error);
+      if (error) console.error('[Sanitize Error] Falha ao remover transações demo:', error);
     });
   }
 
+  const localDbCache = readLocalDb();
+  const localTxById = new Map<string, any>(
+    (Array.isArray(localDbCache.ap_transactions) ? localDbCache.ap_transactions : [])
+      .filter((x: any) => x && x.id)
+      .map((x: any) => [String(x.id), x])
+  );
+
   return transactions
     .filter(t => !isMock(t))
-    .map(t => ({
-      ...t,
-      amount: Number(t.amount ?? 0),
-      dueDate: t.dueDate || t.due_date,
-      date: t.date || t.created_at || new Date().toISOString()
-    }));
+    .map(t => {
+      const existingLocal = localTxById.get(String(t.id));
+      return {
+        ...t,
+        amount: Number(t.amount ?? existingLocal?.amount ?? 0),
+        status: t.status || existingLocal?.status || 'pago',
+        dueDate: t.dueDate || t.due_date || existingLocal?.dueDate,
+        date: t.date || t.createdAt || t.created_at || existingLocal?.date || existingLocal?.createdAt || '2026-01-01T12:00:00.000Z'
+      };
+    });
 }
 
 async function sanitizeOnlineOrders(orders: any[]) {
   const isMock = (o: any) => {
-    const clientName = String(o.clientName || o.clientname || '').toLowerCase().trim();
-    const id = String(o.id || '').toLowerCase();
+    const id = String(o.id || '').toLowerCase().trim();
     return (
-      clientName === 'ana costa' ||
-      clientName === 'beatriz pereira' ||
       id === 'ped-web-01' ||
-      id === 'ped-web-02'
+      id === 'ped-web-02' ||
+      id.startsWith('ped-demo-')
     );
   };
 
@@ -2318,43 +2420,49 @@ async function sanitizeOnlineOrders(orders: any[]) {
   const mocks = orders.filter(isMock);
   if (mocks.length > 0) {
     const mockIds = mocks.map(o => o.id);
-    console.log('[Sanitize] Detectado pedidos online fictícios na base remota:', mockIds);
+    console.log('[Sanitize] Detectado pedidos online demo explícitos:', mockIds);
     const db = getFirebaseServerDb();
     db.from('ap_online_orders').delete().in('id', mockIds).then(({ error }) => {
-      if (error) console.error('[Sanitize Error] Falha ao remover pedidos online fictícios do banco:', error);
+      if (error) console.error('[Sanitize Error] Falha ao remover pedidos demo:', error);
     });
   }
 
+  const localDbCache = readLocalDb();
+  const localOrdersById = new Map<string, any>(
+    (Array.isArray(localDbCache.ap_online_orders) ? localDbCache.ap_online_orders : [])
+      .filter((x: any) => x && x.id)
+      .map((x: any) => [String(x.id), x])
+  );
+
   return orders
     .filter(o => !isMock(o))
-    .map(o => ({
-      ...o,
-      clientName: o.clientName || o.clientname || o.client_name || 'Cliente Online',
-      total: Number(o.total ?? 0),
-      deliveryFee: o.deliveryFee !== undefined ? Number(o.deliveryFee) : (o.delivery_fee !== undefined ? Number(o.delivery_fee) : undefined),
-      createdAt: o.createdAt || o.createdat || o.created_at || new Date().toISOString(),
-      paymentMethod: o.paymentMethod || o.paymentmethod || o.payment_method || 'pix',
-      items: parseJsonArray(o.items)
-    }));
+    .map(o => {
+      const existingLocal = localOrdersById.get(String(o.id));
+      return {
+        ...o,
+        clientName: o.clientName || o.clientname || o.client_name || existingLocal?.clientName || 'Cliente Online',
+        total: Number(o.total ?? existingLocal?.total ?? 0),
+        deliveryFee: o.deliveryFee !== undefined ? Number(o.deliveryFee) : (o.delivery_fee !== undefined ? Number(o.delivery_fee) : existingLocal?.deliveryFee),
+        createdAt: o.createdAt || o.createdat || o.created_at || o.date || existingLocal?.createdAt || '2026-01-01T12:00:00.000Z',
+        paymentMethod: o.paymentMethod || o.paymentmethod || o.payment_method || existingLocal?.paymentMethod || 'pix',
+        items: parseJsonArray(o.items).length > 0 ? parseJsonArray(o.items) : (existingLocal?.items || [])
+      };
+    });
 }
 
 async function sanitizeCheckouts(checkouts: any[]) {
   const isMock = (c: any) => {
-    const clientName = String(c.clientName || '').toLowerCase().trim();
-    return (
-      clientName === 'gabriela souza' ||
-      clientName === 'ana costa' ||
-      clientName === 'beatriz pereira'
-    );
+    const id = String(c.id || '').toLowerCase().trim();
+    return id.startsWith('chk-demo-') || id.startsWith('demo-');
   };
 
   const mocks = checkouts.filter(isMock);
   if (mocks.length > 0) {
     const mockIds = mocks.map(c => c.id);
-    console.log('[Sanitize] Detectado checkouts fictícios na base remota:', mockIds);
+    console.log('[Sanitize] Detectado checkouts demo explícitos:', mockIds);
     const db = getFirebaseServerDb();
     db.from('ap_checkouts').delete().in('id', mockIds).then(({ error }) => {
-      if (error) console.error('[Sanitize Error] Falha ao remover checkouts fictícios do banco:', error);
+      if (error) console.error('[Sanitize Error] Falha ao remover checkouts demo:', error);
     });
   }
 
@@ -2579,7 +2687,7 @@ app.get('/api/proxy/clients', async (req, res) => {
     const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
     
-    let query = db.from('ap_clients').select('*');
+    let query = db.from('ap_clients').select('*').order('id', { ascending: true });
     if (rawLimit !== null) {
       query = query.limit(rawLimit);
     }
@@ -2690,7 +2798,7 @@ app.get('/api/proxy/sales', async (req, res) => {
     const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
     
-    let query = db.from('ap_sales').select('*');
+    let query = db.from('ap_sales').select('*').order('id', { ascending: true });
     if (rawLimit !== null) {
       query = query.limit(rawLimit);
     }
@@ -2723,7 +2831,24 @@ app.get('/api/proxy/sales', async (req, res) => {
 app.post('/api/proxy/sales', async (req, res) => {
   try {
     const db = getFirebaseServerDb();
-    const raw = Array.isArray(req.body) ? req.body : [req.body];
+    const rawIncoming = (Array.isArray(req.body) ? req.body : [req.body]).filter((s: any) => s && s.id);
+
+    // Mescla com registro existente no local_db para que updates parciais nunca apaguem data, itens ou total
+    const localBefore = readLocalDb();
+    const existingSaleMap = new Map<string, any>(
+      (Array.isArray(localBefore.ap_sales) ? localBefore.ap_sales : [])
+        .filter((x: any) => x && x.id)
+        .map((x: any) => [String(x.id), x])
+    );
+
+    const raw = rawIncoming.map((incoming: any) => {
+      const existing = existingSaleMap.get(String(incoming.id)) || {};
+      return {
+        ...existing,
+        ...incoming,
+        createdAt: incoming.createdAt || incoming.created_at || incoming.date || existing.createdAt || existing.created_at || existing.date || new Date().toISOString()
+      };
+    });
 
     const buildFullSale = (s: any) => ({
       id: s.id,
@@ -2734,11 +2859,11 @@ app.post('/api/proxy/sales', async (req, res) => {
       channel: s.channel || 'Loja Online',
       items: typeof s.items === 'string' ? s.items : JSON.stringify(s.items || []),
       total: Number(s.total || 0),
-      costTotal: Number(s.costTotal || s.cost_total || 0),
-      cost_total: Number(s.costTotal || s.cost_total || 0),
+      costTotal: Number(s.costTotal ?? s.cost_total ?? 0),
+      cost_total: Number(s.costTotal ?? s.cost_total ?? 0),
       status: s.status || 'Concluída',
-      createdAt: s.createdAt || s.created_at || new Date().toISOString(),
-      created_at: s.createdAt || s.created_at || new Date().toISOString(),
+      createdAt: s.createdAt,
+      created_at: s.createdAt,
       payments: typeof s.payments === 'string' ? s.payments : JSON.stringify(s.payments || []),
       salesperson: s.salesperson || 'AP Moda Fitness',
       trackingCode: s.trackingCode || '',
@@ -2774,27 +2899,13 @@ app.post('/api/proxy/sales', async (req, res) => {
             sanitized.id = full.id;
             return sanitized;
           });
-        } else {
-          payloads = raw.map((s: any) => ({
-            id: s.id,
-            clientName: s.clientName || s.client_name || 'Cliente',
-            clientDoc: s.clientDoc || s.client_doc || '',
-            channel: s.channel || 'Loja Online',
-            items: typeof s.items === 'string' ? s.items : JSON.stringify(s.items || []),
-            total: Number(s.total || 0),
-            costTotal: Number(s.costTotal || s.cost_total || 0),
-            status: s.status || 'Concluída',
-            createdAt: s.createdAt || s.created_at || new Date().toISOString(),
-            payments: typeof s.payments === 'string' ? s.payments : JSON.stringify(s.payments || []),
-            salesperson: s.salesperson || 'AP Moda Fitness'
-          }));
         }
       } catch (schemaErr) {
         console.warn('[Proxy Sales Schema Auto-discovery]:', schemaErr);
       }
     }
 
-    // Update local db with full objects
+    // Update local db with merged objects
     try {
       const local = readLocalDb();
       if (!local.ap_sales) local.ap_sales = [];
@@ -2807,8 +2918,10 @@ app.post('/api/proxy/sales', async (req, res) => {
       writeLocalDb(local);
     } catch (e) {}
 
-    const { error } = await db.from('ap_sales').upsert(payloads, { onConflict: 'id' });
-    if (error) console.warn('[Proxy Sales POST Supabase]', error.message);
+    if (payloads.length > 0) {
+      const { error } = await db.from('ap_sales').upsert(payloads, { onConflict: 'id' });
+      if (error) console.warn('[Proxy Sales POST Supabase]', error.message);
+    }
 
     for (const item of raw) {
       if (item && item.id) {
@@ -2851,7 +2964,7 @@ app.get('/api/proxy/transactions', async (req, res) => {
     const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
     
-    let query = db.from('ap_transactions').select('*');
+    let query = db.from('ap_transactions').select('*').order('id', { ascending: true });
     if (rawLimit !== null) {
       query = query.limit(rawLimit);
     }
@@ -2872,7 +2985,72 @@ app.get('/api/proxy/transactions', async (req, res) => {
 app.post('/api/proxy/transactions', async (req, res) => {
   try {
     const db = getFirebaseServerDb();
-    const raw = Array.isArray(req.body) ? req.body : [req.body];
+    const rawIncoming = (Array.isArray(req.body) ? req.body : [req.body]).filter((t: any) => t && t.id);
+
+    const localBefore = readLocalDb();
+    const existingTxMap = new Map<string, any>(
+      (Array.isArray(localBefore.ap_transactions) ? localBefore.ap_transactions : [])
+        .filter((x: any) => x && x.id)
+        .map((x: any) => [String(x.id), x])
+    );
+
+    const raw = rawIncoming.map((incoming: any) => {
+      const existing = existingTxMap.get(String(incoming.id)) || {};
+      return {
+        ...existing,
+        ...incoming,
+        date: incoming.date || incoming.createdAt || incoming.created_at || existing.date || existing.createdAt || existing.created_at || new Date().toISOString()
+      };
+    });
+
+    const buildFullTransaction = (t: any) => ({
+      id: String(t.id),
+      type: t.type || 'Inflow',
+      category: t.category || 'Venda',
+      description: String(t.description || ''),
+      amount: Number(t.amount || 0),
+      date: t.date,
+      created_at: t.created_at || t.date,
+      status: t.status || 'pago',
+      dueDate: t.dueDate || t.due_date || null,
+      due_date: t.due_date || t.dueDate || null,
+      paymentMethod: t.paymentMethod || t.payment_method || null,
+      payment_method: t.payment_method || t.paymentMethod || null
+    });
+
+    let payloads: any[] = raw.map(buildFullTransaction);
+
+    if (db.constructor.name !== 'LocalDBAdapter') {
+      try {
+        const { data: oneRow } = await db.from('ap_transactions').select('*').limit(1);
+        const existingCols = oneRow && oneRow.length > 0 ? Object.keys(oneRow[0]) : null;
+        if (existingCols && existingCols.length > 0) {
+          payloads = payloads.map(full => {
+            const sanitized: any = { id: full.id };
+            existingCols.forEach(col => {
+              if ((full as any)[col] !== undefined && (full as any)[col] !== null) {
+                sanitized[col] = (full as any)[col];
+              }
+            });
+            return sanitized;
+          });
+        } else {
+          // Safe baseline columns defined in SUPABASE_SETUP_INFO
+          payloads = payloads.map(full => ({
+            id: full.id,
+            description: full.description,
+            amount: full.amount,
+            type: full.type,
+            category: full.category,
+            date: full.date
+          }));
+        }
+      } catch (schemaErr) {
+        console.warn('[Proxy Transactions Schema Auto-discovery]:', schemaErr);
+      }
+    }
+
+    // Always persist full record (including status & dueDate) atomically to local_db.json
     try {
       const local = readLocalDb();
       if (!local.ap_transactions) local.ap_transactions = [];
@@ -2885,8 +3063,10 @@ app.post('/api/proxy/transactions', async (req, res) => {
       writeLocalDb(local);
     } catch (e) {}
 
-    const { error } = await db.from('ap_transactions').upsert(req.body, { onConflict: 'id' });
-    if (error) console.warn('[Proxy Transactions POST Supabase]', error.message);
+    if (payloads.length > 0) {
+      const { error } = await db.from('ap_transactions').upsert(payloads, { onConflict: 'id' });
+      if (error) console.warn('[Proxy Transactions POST Supabase]', error.message);
+    }
     res.json({ success: true });
   } catch (err: any) {
     console.error('[Proxy Transactions POST] Erro:', err);
@@ -2971,7 +3151,7 @@ app.get(['/api/proxy/online-orders', '/api/proxy/online_orders'], async (req, re
     const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
     
-    let query = db.from('ap_online_orders').select('*');
+    let query = db.from('ap_online_orders').select('*').order('id', { ascending: true });
     if (rawLimit !== null) {
       query = query.limit(rawLimit);
     }
@@ -2992,7 +3172,23 @@ app.get(['/api/proxy/online-orders', '/api/proxy/online_orders'], async (req, re
 app.post(['/api/proxy/online-orders', '/api/proxy/online_orders'], async (req, res) => {
   try {
     const db = getFirebaseServerDb();
-    const raw = Array.isArray(req.body) ? req.body : [req.body];
+    const rawIncoming = (Array.isArray(req.body) ? req.body : [req.body]).filter((o: any) => o && o.id);
+
+    const localBefore = readLocalDb();
+    const existingOrderMap = new Map<string, any>(
+      (Array.isArray(localBefore.ap_online_orders) ? localBefore.ap_online_orders : [])
+        .filter((x: any) => x && x.id)
+        .map((x: any) => [String(x.id), x])
+    );
+
+    const raw = rawIncoming.map((incoming: any) => {
+      const existing = existingOrderMap.get(String(incoming.id)) || {};
+      return {
+        ...existing,
+        ...incoming,
+        createdAt: incoming.createdAt || incoming.createdat || incoming.created_at || incoming.date || existing.createdAt || existing.createdat || existing.created_at || new Date().toISOString()
+      };
+    });
 
     const buildFullOrder = (o: any) => ({
       id: o.id,
@@ -3009,8 +3205,8 @@ app.post(['/api/proxy/online-orders', '/api/proxy/online_orders'], async (req, r
       status_pagamento: o.status_pagamento || 'pendente',
       status_logistico: o.status_logistico || '',
       motoboy: o.motoboy || '',
-      createdAt: o.createdAt || o.createdat || new Date().toISOString(),
-      createdat: o.createdAt || o.createdat || new Date().toISOString(),
+      createdAt: o.createdAt,
+      createdat: o.createdAt,
       address: o.address || '',
       paymentMethod: o.paymentMethod || o.paymentmethod || 'pix',
       paymentmethod: o.paymentMethod || o.paymentmethod || 'pix',
@@ -3346,7 +3542,7 @@ app.get('/api/proxy/products', async (req, res) => {
     const rawLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : null;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
     
-    let query = db.from('ap_products').select('*');
+    let query = db.from('ap_products').select('*').order('id', { ascending: true });
     if (rawLimit !== null) {
       query = query.limit(rawLimit);
     }
@@ -3389,6 +3585,10 @@ app.get('/api/proxy/products', async (req, res) => {
 
     const sanitizedData = (data || []).map((r: any) => {
       if (!r || typeof r !== 'object') return r;
+      const rawImgs = safeParseArray(r.images).filter((u: any) => typeof u === 'string' && u.trim() !== '' && !isBadProductImageUrl(u));
+      const rawMain = typeof r.image === 'string' && !isBadProductImageUrl(r.image) ? r.image.trim() : '';
+      const effectiveMain = rawMain || rawImgs[0] || '';
+      const effectiveImgs = rawImgs.length > 0 ? rawImgs : (effectiveMain ? [effectiveMain] : []);
       return {
         id: String(r.id),
         name: r.name || '',
@@ -3398,8 +3598,8 @@ app.get('/api/proxy/products', async (req, res) => {
         cost: Number(r.cost || 0),
         stock: Number(r.stock ?? 0),
         minStock: Number(r.min_stock ?? r.minStock ?? 0),
-        image: r.image || '',
-        images: safeParseArray(r.images),
+        image: effectiveMain,
+        images: effectiveImgs,
         salesCount: Number(r.sales_count ?? r.salesCount ?? 0),
         description: r.description || '',
         videoUrl: r.video_url || r.videoUrl || '',
@@ -3547,8 +3747,9 @@ async function resolveDirectImageUrl(url: string): Promise<string> {
 }
 
 async function sanitizeAndCompressImage(val: string): Promise<string> {
-  if (!val || typeof val !== 'string') return val;
+  if (!val || typeof val !== 'string') return '';
   const trimmed = val.trim();
+  if (!trimmed || isBadProductImageUrl(trimmed)) return '';
   if (trimmed.startsWith('data:image/')) {
     // If it's a huge base64 string (>40KB), auto-compress using sharp to WebP
     if (trimmed.length > 40000) {
@@ -3580,19 +3781,20 @@ async function resolveProductPayloadImages(p: any) {
   
   if (p.images) {
     if (Array.isArray(p.images)) {
-      p.images = await Promise.all(p.images.map(async (img: any) => {
+      const resolved = await Promise.all(p.images.map(async (img: any) => {
         if (typeof img === 'string') return await sanitizeAndCompressImage(img);
-        return img;
+        return '';
       }));
+      p.images = resolved.filter((u: string) => Boolean(u && u.trim()));
     } else if (typeof p.images === 'string') {
       try {
         if (p.images.startsWith('[') && p.images.endsWith(']')) {
           const parsed = JSON.parse(p.images);
           if (Array.isArray(parsed)) {
-            const resolved = await Promise.all(parsed.map(async (img: any) => {
+            const resolved = (await Promise.all(parsed.map(async (img: any) => {
               if (typeof img === 'string') return await sanitizeAndCompressImage(img);
-              return img;
-            }));
+              return '';
+            }))).filter((u: string) => Boolean(u && u.trim()));
             p.images = JSON.stringify(resolved);
           }
         } else {
@@ -3618,7 +3820,47 @@ app.post('/api/proxy/products', async (req, res) => {
       payloads = await resolveProductPayloadImages(payloads);
     }
 
-    const items = Array.isArray(payloads) ? payloads : [payloads];
+    const rawItems = (Array.isArray(payloads) ? payloads : [payloads]).filter((p: any) => p && p.id);
+
+    // Protect existing product fields and images against partial-update wipes
+    const localBefore = readLocalDb();
+    const localProdMap = new Map<string, any>(
+      (Array.isArray(localBefore.ap_products) ? localBefore.ap_products : []).map((lp: any) => [String(lp.id), lp])
+    );
+
+    const normalizeImgArr = (imgs: any): string[] => {
+      if (Array.isArray(imgs)) return imgs.filter((u: any) => typeof u === 'string' && u.trim() !== '' && !isBadProductImageUrl(u));
+      if (typeof imgs === 'string' && imgs.trim().startsWith('[')) {
+        try {
+          const parsed = JSON.parse(imgs);
+          return Array.isArray(parsed) ? parsed.filter((u: any) => typeof u === 'string' && u.trim() !== '' && !isBadProductImageUrl(u)) : [];
+        } catch { return []; }
+      }
+      return [];
+    };
+
+    const items = rawItems.map((incoming: any) => {
+      const existing = localProdMap.get(String(incoming.id));
+      const p: any = existing ? { ...existing, ...incoming } : { ...incoming };
+      const allowClearImages = Boolean(incoming._allowClearImages);
+      delete p._allowClearImages;
+
+      if (existing && !allowClearImages) {
+        const existingImgs = normalizeImgArr(existing.images);
+        const existingMain = typeof existing.image === 'string' && !isBadProductImageUrl(existing.image) ? existing.image.trim() : '';
+        const incomingImgs = normalizeImgArr(incoming.images);
+        const incomingMain = typeof incoming.image === 'string' && !isBadProductImageUrl(incoming.image) ? incoming.image.trim() : '';
+
+        if (!incomingMain && incomingImgs.length === 0 && (existingMain || existingImgs.length > 0)) {
+          p.image = existingMain || existingImgs[0] || '';
+          p.images = existingImgs.length > 0 ? existingImgs : (p.image ? [p.image] : []);
+        } else if (existingImgs.length > incomingImgs.length && incomingImgs.length === 0 && existingImgs.length > 0) {
+          p.images = existingImgs;
+          if (!p.image || isBadProductImageUrl(p.image)) p.image = existingMain || existingImgs[0] || '';
+        }
+      }
+      return p;
+    });
 
     // Dynamic schema discovery to strip invalid columns and avoid PostgREST column-not-found errors
     let finalPayloads = items;
@@ -3668,7 +3910,6 @@ app.post('/api/proxy/products', async (req, res) => {
           };
 
           if (existingCols && existingCols.length > 0) {
-            // Include ONLY keys that actually exist in the table columns!
             const sanitized: any = {};
             existingCols.forEach(col => {
               if (fullMapped[col] !== undefined) {
@@ -3678,7 +3919,6 @@ app.post('/api/proxy/products', async (req, res) => {
             sanitized.id = String(p.id);
             return sanitized;
           } else {
-            // Fallback for empty table: use standard snake_case keys which match SUPABASE_SETUP_INFO
             return {
               id: String(p.id),
               name: String(p.name || ''),
@@ -3714,24 +3954,25 @@ app.post('/api/proxy/products', async (req, res) => {
       }
     }
 
-    const { error } = await db.from('ap_products').upsert(finalPayloads, { onConflict: 'id' });
-    if (error) throw error;
+    if (finalPayloads.length > 0) {
+      const { error } = await db.from('ap_products').upsert(finalPayloads, { onConflict: 'id' });
+      if (error) throw error;
+    }
 
-    // Keep local_db.json cache in sync so local fallback is never stale or empty
+    // Keep local_db.json cache in sync atomically so local fallback is never stale or empty
     try {
       const local = readLocalDb();
-      if (local && Array.isArray(local.ap_products)) {
-        for (const p of items) {
-          if (!p || !p.id) continue;
-          const idx = local.ap_products.findIndex((lp: any) => lp && String(lp.id) === String(p.id));
-          if (idx >= 0) {
-            local.ap_products[idx] = { ...local.ap_products[idx], ...p };
-          } else {
-            local.ap_products.push(p);
-          }
+      if (!Array.isArray(local.ap_products)) local.ap_products = [];
+      for (const p of items) {
+        if (!p || !p.id) continue;
+        const idx = local.ap_products.findIndex((lp: any) => lp && String(lp.id) === String(p.id));
+        if (idx >= 0) {
+          local.ap_products[idx] = { ...local.ap_products[idx], ...p };
+        } else {
+          local.ap_products.push(p);
         }
-        writeLocalDb(local);
       }
+      writeLocalDb(local);
     } catch (localDbErr) {
       console.warn('[Proxy Products POST] Warning writing local cache:', localDbErr);
     }
@@ -3810,71 +4051,322 @@ app.get('/api/google/status', (req, res) => {
   }
 });
 
+function extractGoogleBearerToken(req: express.Request): string | null {
+  const auth = req.headers.authorization || '';
+  if (auth.startsWith('Bearer ')) {
+    const token = auth.slice(7).trim();
+    return token || null;
+  }
+  return null;
+}
+
 app.post('/api/google/sheets/export', async (req, res) => {
   try {
+    const token = extractGoogleBearerToken(req);
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        requiresAuth: true,
+        error: 'Conta Google não conectada. Acesse a aba Google Workspace e autorize sua conta para exportar planilhas.'
+      });
+    }
+
     const { title, data } = req.body;
-    const count = Array.isArray(data) ? data.length : 0;
+    const sheetTitle = title || `AP Moda Fitness - Relatório ${getLocalBrtDateKey()}`;
+    const createRes = await fetchWithTimeout('https://sheets.googleapis.com/v4/spreadsheets', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        properties: { title: sheetTitle }
+      })
+    }, 10000);
+
+    const createData: any = await createRes.json().catch(() => ({}));
+    if (!createRes.ok || !createData.spreadsheetId) {
+      return res.status(createRes.status || 500).json({
+        success: false,
+        error: createData?.error?.message || 'Falha ao criar planilha no Google Sheets.'
+      });
+    }
+
+    const rows: any[][] = [];
+    const list = Array.isArray(data) ? data : [];
+    if (list.length > 0) {
+      const headers = ['ID', 'Nome / Cliente', 'Categoria / Canal', 'Valor / Preço (R$)', 'Estoque / Status'];
+      rows.push(headers);
+      list.forEach((item: any) => {
+        rows.push([
+          String(item.id || ''),
+          String(item.name || item.clientName || ''),
+          String(item.category || item.channel || ''),
+          Number(item.price ?? item.total ?? item.amount ?? 0),
+          String(item.stock ?? item.status ?? '')
+        ]);
+      });
+
+      await fetchWithTimeout(
+        `https://sheets.googleapis.com/v4/spreadsheets/${createData.spreadsheetId}/values/A1:append?valueInputOption=USER_ENTERED`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ values: rows })
+        },
+        10000
+      );
+    }
+
     res.json({
       success: true,
-      spreadsheetId: `sheet_${Date.now()}`,
-      spreadsheetUrl: `https://docs.google.com/spreadsheets/d/1_AP_Moda_Fitness_${Date.now()}/edit`,
-      title: title || 'AP Moda Fitness - Relatório Sincronizado',
-      rowsExported: count,
+      spreadsheetId: createData.spreadsheetId,
+      spreadsheetUrl: createData.spreadsheetUrl,
+      title: sheetTitle,
+      rowsExported: list.length,
       timestamp: new Date().toISOString(),
-      message: `Planilha do Google Sheets '${title || 'Relatório'}' sincronizada com sucesso (${count} registros)!`
+      message: `Planilha '${sheetTitle}' criada e sincronizada no Google Sheets (${list.length} registros)!`
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Erro ao exportar para Google Sheets.' });
+    res.status(500).json({ success: false, error: err.message || 'Erro ao exportar para Google Sheets.' });
+  }
+});
+
+app.post('/api/google-workspace/sync-cash-closure', async (req, res) => {
+  try {
+    const token = extractGoogleBearerToken(req);
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        requiresAuth: true,
+        error: 'Conecte sua conta Google na aba Google Workspace para exportar o fechamento de caixa diretamente para o Google Sheets.'
+      });
+    }
+
+    const closure = req.body || {};
+    const title = `Fechamento de Caixa AP Moda Fitness - ${closure.date || getLocalBrtDateKey()}`;
+    const createRes = await fetchWithTimeout('https://sheets.googleapis.com/v4/spreadsheets', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ properties: { title } })
+    }, 10000);
+
+    const createData: any = await createRes.json().catch(() => ({}));
+    if (!createRes.ok || !createData.spreadsheetId) {
+      return res.status(createRes.status || 500).json({
+        success: false,
+        error: createData?.error?.message || 'Erro ao criar planilha de fechamento no Google Sheets.'
+      });
+    }
+
+    const values = [
+      ['Campo', 'Valor'],
+      ['Data', String(closure.date || getLocalBrtDateKey())],
+      ['Operador(a)', String(closure.operator || 'Operador PDV')],
+      ['Fundo de Troco Inicial', Number(closure.openingBalance || 0)],
+      ['Dinheiro no Caixa', Number(closure.totals?.Dinheiro || 0)],
+      ['Pix', Number(closure.totals?.Pix || 0)],
+      ['Cartão de Crédito', Number(closure.totals?.['Cartão de Crédito'] || 0)],
+      ['Cartão de Débito', Number(closure.totals?.['Cartão de Débito'] || 0)],
+      ['Qtd. Vendas no Dia', Number(closure.salesCount || 0)],
+      ['Saldo Final Esperado', Number(closure.totalFinal || 0)],
+      ['Observações', String(closure.notes || '')]
+    ];
+
+    await fetchWithTimeout(
+      `https://sheets.googleapis.com/v4/spreadsheets/${createData.spreadsheetId}/values/A1:append?valueInputOption=USER_ENTERED`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ values })
+      },
+      10000
+    );
+
+    res.json({
+      success: true,
+      spreadsheetId: createData.spreadsheetId,
+      spreadsheetUrl: createData.spreadsheetUrl,
+      message: 'Fechamento de caixa exportado com sucesso para sua conta Google Sheets!'
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'Erro ao exportar fechamento de caixa.' });
   }
 });
 
 app.post('/api/google/drive/backup', async (req, res) => {
   try {
-    const { fileName } = req.body;
+    const token = extractGoogleBearerToken(req);
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        requiresAuth: true,
+        error: 'Conta Google não conectada. Acesse a aba Google Workspace e autorize sua conta para salvar no Google Drive.'
+      });
+    }
+
+    const { fileName, payload } = req.body;
+    const finalName = fileName || `Backup_AP_Moda_Fitness_${getLocalBrtDateKey()}.json`;
+    const boundary = `ap_moda_boundary_${Date.now()}`;
+    const metadata = JSON.stringify({ name: finalName, mimeType: 'application/json' });
+    const fileBody = JSON.stringify(payload || readLocalDb(), null, 2);
+
+    const multipartBody =
+      `--${boundary}\r\n` +
+      `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+      `${metadata}\r\n` +
+      `--${boundary}\r\n` +
+      `Content-Type: application/json\r\n\r\n` +
+      `${fileBody}\r\n` +
+      `--${boundary}--`;
+
+    const driveRes = await fetchWithTimeout('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`
+      },
+      body: multipartBody
+    }, 15000);
+
+    const driveData: any = await driveRes.json().catch(() => ({}));
+    if (!driveRes.ok || !driveData.id) {
+      return res.status(driveRes.status || 500).json({
+        success: false,
+        error: driveData?.error?.message || 'Falha ao gravar arquivo no Google Drive.'
+      });
+    }
+
     res.json({
       success: true,
-      fileId: `drive_file_${Date.now()}`,
-      fileUrl: `https://drive.google.com/file/d/drive_ap_moda_${Date.now()}/view`,
-      fileName: fileName || `Backup_AP_Moda_Fitness_${new Date().toISOString().slice(0, 10)}.json`,
-      folder: 'Google Drive / AP Moda Fitness Backups',
+      fileId: driveData.id,
+      fileUrl: driveData.webViewLink || `https://drive.google.com/file/d/${driveData.id}/view`,
+      fileName: driveData.name || finalName,
       timestamp: new Date().toISOString(),
       message: 'Cópia de segurança salva com sucesso no seu Google Drive!'
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Erro ao gerar backup no Google Drive.' });
+    res.status(500).json({ success: false, error: err.message || 'Erro ao gerar backup no Google Drive.' });
   }
 });
 
 app.post('/api/google/calendar/event', async (req, res) => {
   try {
-    const { summary, startDateTime } = req.body;
+    const token = extractGoogleBearerToken(req);
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        requiresAuth: true,
+        error: 'Conta Google não conectada. Autorize sua conta na aba Google Workspace para criar eventos no Google Calendar.'
+      });
+    }
+
+    const { summary, startDateTime, description } = req.body;
+    const startIso = startDateTime || new Date().toISOString();
+    const endIso = new Date(new Date(startIso).getTime() + 60 * 60 * 1000).toISOString();
+
+    const calRes = await fetchWithTimeout('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        summary: summary || 'Atendimento / Provador Presencial AP Moda Fitness',
+        description: description || 'Agendamento criado pelo sistema AP2 Moda Fitness.',
+        start: { dateTime: startIso, timeZone: 'America/Sao_Paulo' },
+        end: { dateTime: endIso, timeZone: 'America/Sao_Paulo' }
+      })
+    }, 10000);
+
+    const calData: any = await calRes.json().catch(() => ({}));
+    if (!calRes.ok || !calData.id) {
+      return res.status(calRes.status || 500).json({
+        success: false,
+        error: calData?.error?.message || 'Falha ao criar evento no Google Calendar.'
+      });
+    }
+
     res.json({
       success: true,
-      eventId: `cal_event_${Date.now()}`,
-      eventUrl: `https://calendar.google.com/calendar/event?eid=${Date.now()}`,
-      summary: summary || 'Atendimento / Provador Presencial AP Moda Fitness',
-      startDateTime: startDateTime || new Date().toISOString(),
+      eventId: calData.id,
+      eventUrl: calData.htmlLink,
+      summary: calData.summary,
+      startDateTime: startIso,
       timestamp: new Date().toISOString(),
-      message: `Agendamento '${summary || 'Evento'}' adicionado com sucesso ao seu Google Calendar!`
+      message: `Agendamento '${calData.summary}' adicionado ao seu Google Calendar!`
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Erro ao agendar no Google Calendar.' });
+    res.status(500).json({ success: false, error: err.message || 'Erro ao agendar no Google Calendar.' });
   }
 });
 
 app.post('/api/google/gmail/send', async (req, res) => {
   try {
-    const { recipient, subject } = req.body;
+    const token = extractGoogleBearerToken(req);
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        requiresAuth: true,
+        error: 'Conta Google não conectada. Autorize sua conta na aba Google Workspace para enviar e-mails pelo Gmail.'
+      });
+    }
+
+    const { recipient, subject, body } = req.body;
+    const toEmail = recipient || 'apmodafitness55@gmail.com';
+    const mailSubject = subject || 'Comprovante de Compra - AP Moda Fitness';
+    const mailBody = body || 'Olá! Este e-mail confirma a integração ativa do Gmail com o sistema AP2 Moda Fitness.';
+
+    const rawMessage = [
+      `To: ${toEmail}`,
+      `Subject: =?UTF-8?B?${Buffer.from(mailSubject).toString('base64')}?=`,
+      'Content-Type: text/plain; charset="UTF-8"',
+      '',
+      mailBody
+    ].join('\r\n');
+
+    const encodedMessage = Buffer.from(rawMessage)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+
+    const gmailRes = await fetchWithTimeout('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ raw: encodedMessage })
+    }, 10000);
+
+    const gmailData: any = await gmailRes.json().catch(() => ({}));
+    if (!gmailRes.ok || !gmailData.id) {
+      return res.status(gmailRes.status || 500).json({
+        success: false,
+        error: gmailData?.error?.message || 'Falha ao enviar e-mail pela API do Gmail.'
+      });
+    }
+
     res.json({
       success: true,
-      messageId: `msg_${Date.now()}`,
-      recipient: recipient || 'apmodafitness55@gmail.com',
-      subject: subject || 'Comprovante de Compra - AP Moda Fitness',
+      messageId: gmailData.id,
+      recipient: toEmail,
+      subject: mailSubject,
       sentAt: new Date().toISOString(),
-      message: `E-mail enviado com sucesso via Gmail para ${recipient || 'cliente'}!`
+      message: `E-mail enviado via Gmail para ${toEmail}!`
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Erro ao enviar via Gmail.' });
+    res.status(500).json({ success: false, error: err.message || 'Erro ao enviar via Gmail.' });
   }
 });
 
@@ -4106,28 +4598,35 @@ app.get('/api/system/health-check', async (req, res) => {
           for (const p of prods) {
             if (p.id && seenIds.has(String(p.id))) report.integrity.duplicateIds++;
             if (p.id) seenIds.add(String(p.id));
-            const imgStr = String(p.image || '');
-            if (imgStr.startsWith('data:image/svg+xml') || imgStr.includes('Imagem') || imgStr.includes('Foto 2')) {
+            if (isBadProductImageUrl(p.image)) {
               report.integrity.brokenProductImages++;
+            } else if (Array.isArray(p.images) && p.images.some((u: any) => isBadProductImageUrl(u))) {
+              report.integrity.brokenProductImages++;
+            } else if (typeof p.images === 'string' && p.images.startsWith('[')) {
+              try {
+                const parsedImgs = JSON.parse(p.images);
+                if (Array.isArray(parsedImgs) && parsedImgs.some((u: any) => isBadProductImageUrl(u))) {
+                  report.integrity.brokenProductImages++;
+                }
+              } catch {}
             }
           }
         }
       } catch {}
     }
 
-    // 2. Hub de IA (Gemini) Check
-    const headerGeminiKey = req.headers['x-gemini-api-key'] as string | undefined;
-    const effectiveGeminiKey = await resolveEffectiveGeminiKey(headerGeminiKey);
+    // 2. Hub de IA (Gemini) Check (chave gerenciada exclusivamente via GEMINI_API_KEY no servidor)
+    const effectiveGeminiKey = await resolveEffectiveGeminiKey();
     report.hub.configured = Boolean(effectiveGeminiKey);
     const shouldProbeGemini = req.query.probeGemini === '1';
     if (!effectiveGeminiKey) {
       report.hub.ok = false;
-      report.hub.message = 'Nenhuma chave GEMINI_API_KEY configurada no servidor ou painel.';
+      report.hub.message = 'Variável GEMINI_API_KEY não definida no servidor.';
     } else if (shouldProbeGemini) {
       const tGem = Date.now();
       try {
         const gemRes = await Promise.race([
-          generateContentWithRetry({ model: 'gemini-3-flash-preview', contents: 'Responda apenas: OK', timeoutMs: 10000 }, effectiveGeminiKey),
+          generateContentWithRetry({ model: 'gemini-4-hydrogen', contents: 'Responda apenas: OK', timeoutMs: 10000 }),
           new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout de 22s ao consultar Gemini')), 22000))
         ]);
         report.hub.liveTested = true;
@@ -4142,7 +4641,7 @@ app.get('/api/system/health-check', async (req, res) => {
       }
     } else {
       report.hub.ok = true;
-      report.hub.message = 'Chave Gemini ativa no ambiente. Envie ?probeGemini=1 para ping ao vivo.';
+      report.hub.message = 'Chave GEMINI_API_KEY ativa no servidor. Envie ?probeGemini=1 para teste ao vivo.';
     }
 
     // 3. InfinitePay Check
@@ -4291,44 +4790,131 @@ app.post('/api/system/self-heal', async (req, res) => {
       warnings.push(`Limpeza de configs: ${e.message}`);
     }
 
-    // 2. Sanitize broken SVG placeholder images & duplicate image URLs in ap_products (local + Supabase)
+    // 2. Sanitize broken SVG placeholder images, dead local files & recover lost cloud photos from local cache
     try {
-      const isBadPlaceholder = (imgUrl: any) => {
-        if (typeof imgUrl !== 'string') return false;
-        const t = imgUrl.trim();
-        return t.startsWith('data:image/svg+xml') && (t.includes('Imagem') || t.includes('Foto') || t.includes('Sem Foto'));
+      const parseImgArr = (raw: any): string[] => {
+        if (Array.isArray(raw)) return raw.filter((u: any) => typeof u === 'string' && u.trim() !== '');
+        if (typeof raw === 'string' && raw.trim().startsWith('[')) {
+          try {
+            const p = JSON.parse(raw);
+            return Array.isArray(p) ? p.filter((u: any) => typeof u === 'string' && u.trim() !== '') : [];
+          } catch { return []; }
+        }
+        return [];
       };
+
+      const localBeforeImg = readLocalDb();
+      const localImgMap = new Map<string, any>(
+        (Array.isArray(localBeforeImg.ap_products) ? localBeforeImg.ap_products : []).map((lp: any) => [String(lp.id), lp])
+      );
+
       const { data: prods } = await db.from('ap_products').select('*');
       if (Array.isArray(prods)) {
-        const sanitizedProds: any[] = [];
+        const sanitizedUpdates: { id: string; image: string; images: any }[] = [];
         for (const p of prods) {
-          let changed = false;
-          const imgs: string[] = Array.isArray(p.images)
-            ? p.images
-            : (typeof p.images === 'string' && p.images.startsWith('[') ? JSON.parse(p.images) : []);
-          const cleanImgs = Array.from(new Set(imgs.filter((u: any) => typeof u === 'string' && u.trim() !== '' && !isBadPlaceholder(u))));
-          let mainImg = typeof p.image === 'string' ? p.image.trim() : '';
-          if (isBadPlaceholder(mainImg)) {
-            mainImg = cleanImgs[0] || '';
-            changed = true;
+          const imgs = parseImgArr(p.images);
+          let cleanImgs = Array.from(new Set(imgs.filter((u: string) => !isBadProductImageUrl(u))));
+          let mainImg = typeof p.image === 'string' && !isBadProductImageUrl(p.image) ? p.image.trim() : '';
+
+          // Se a nuvem perdeu imagens mas local_db ainda preserva fotos autênticas, restaura
+          const localMatch = localImgMap.get(String(p.id));
+          if (localMatch && cleanImgs.length === 0 && !mainImg) {
+            const localValidImgs = parseImgArr(localMatch.images).filter(u => !isBadProductImageUrl(u));
+            const localValidMain = typeof localMatch.image === 'string' && !isBadProductImageUrl(localMatch.image) ? localMatch.image.trim() : '';
+            if (localValidMain || localValidImgs.length > 0) {
+              cleanImgs = localValidImgs.length > 0 ? localValidImgs : [localValidMain];
+              mainImg = localValidMain || cleanImgs[0] || '';
+            }
           }
-          if (cleanImgs.length !== imgs.length) changed = true;
+
+          if (!mainImg && cleanImgs.length > 0) {
+            mainImg = cleanImgs[0];
+          }
+          if (mainImg && cleanImgs.length === 0) {
+            cleanImgs = [mainImg];
+          }
+
+          const origMain = typeof p.image === 'string' ? p.image.trim() : '';
+          const changed =
+            mainImg !== origMain ||
+            cleanImgs.length !== imgs.length ||
+            cleanImgs.some((v, idx) => imgs[idx] !== v);
+
           if (changed) {
             fixedCount++;
-            sanitizedProds.push({ ...p, image: mainImg, images: cleanImgs });
+            const formattedImages = typeof p.images === 'string' ? JSON.stringify(cleanImgs) : cleanImgs;
+            sanitizedUpdates.push({ id: String(p.id), image: mainImg, images: formattedImages });
+            await db.from('ap_products').update({ image: mainImg, images: formattedImages }).eq('id', p.id);
+
+            const lpIdx = (localBeforeImg.ap_products || []).findIndex((x: any) => String(x?.id) === String(p.id));
+            if (lpIdx >= 0) {
+              localBeforeImg.ap_products[lpIdx] = {
+                ...localBeforeImg.ap_products[lpIdx],
+                image: mainImg,
+                images: cleanImgs
+              };
+            }
           }
         }
-        if (sanitizedProds.length > 0) {
-          await db.from('ap_products').upsert(sanitizedProds, { onConflict: 'id' });
-          actions.push(`Corrigidas imagens placeholder/duplicadas em ${sanitizedProds.length} produto(s) no banco.`);
+        if (sanitizedUpdates.length > 0) {
+          writeLocalDb(localBeforeImg);
+          actions.push(`Saneadas e preservadas imagens/capas em ${sanitizedUpdates.length} produto(s) (Supabase + cache local).`);
         }
       }
     } catch (e: any) {
       warnings.push(`Saneamento de imagens: ${e.message}`);
     }
 
-    // 3. Deduplicate IDs in local_db.json across collections
+    // 3. Normaliza status de vendas ('Pago' -> 'Concluída') na nuvem e no local_db e remove transações duplicadas
     try {
+      if (cloudHealthy && url && key) {
+        const supa = createClient(url, key);
+        const { data: cloudSales } = await supa.from('ap_sales').select('id, status');
+        if (Array.isArray(cloudSales)) {
+          let cloudStatusFixes = 0;
+          for (const cs of cloudSales) {
+            const lower = String(cs.status || '').toLowerCase().trim();
+            if (lower === 'pago' || lower === 'concluído' || lower === 'concluido') {
+              await supa.from('ap_sales').update({ status: 'Concluída' }).eq('id', cs.id);
+              cloudStatusFixes++;
+            }
+          }
+          if (cloudStatusFixes > 0) {
+            fixedCount += cloudStatusFixes;
+            actions.push(`Padronizado o status de ${cloudStatusFixes} venda(s) no Supabase Cloud para "Concluída".`);
+          }
+        }
+
+        // Remove transações duplicadas de mesma venda na nuvem (t-inf-... / t-web-... duplicando tx-...)
+        const { data: cloudTxs } = await supa.from('ap_transactions').select('*');
+        if (Array.isArray(cloudTxs)) {
+          const seenSaleRefs = new Set<string>();
+          const dupTxIds: string[] = [];
+          const sortedTxs = [...cloudTxs].sort((a, b) => (String(a.id).startsWith('tx-') ? -1 : 1));
+          for (const tx of sortedTxs) {
+            if (tx.type !== 'Inflow') continue;
+            const desc = String(tx.description || '');
+            const idStr = String(tx.id || '');
+            const refMatch = idStr.startsWith('tx-')
+              ? idStr.slice(3).toUpperCase()
+              : (desc.match(/#([A-Z0-9-]+)/i)?.[1] || desc.match(/Ped:\s*([A-Z0-9-]+)/i)?.[1] || desc.match(/PDV:\s*([A-Z0-9-]+)/i)?.[1] || '').toUpperCase();
+            if (refMatch) {
+              const keyRef = `${refMatch}_${Number(tx.amount || 0).toFixed(2)}`;
+              if (seenSaleRefs.has(keyRef)) {
+                dupTxIds.push(idStr);
+              } else {
+                seenSaleRefs.add(keyRef);
+              }
+            }
+          }
+          if (dupTxIds.length > 0) {
+            await supa.from('ap_transactions').delete().in('id', dupTxIds);
+            fixedCount += dupTxIds.length;
+            actions.push(`Removida(s) ${dupTxIds.length} transação(ões) duplicada(s) de faturamento no Supabase Cloud.`);
+          }
+        }
+      }
+
       const local = readLocalDb();
       let localChanged = false;
       const collections = ['ap_products', 'ap_clients', 'ap_sales', 'ap_transactions', 'ap_online_orders', 'ap_team_members', 'card_terminals'];
@@ -4341,6 +4927,11 @@ app.post('/api/system/self-heal', async (req, res) => {
             if (!id) { deduped.push(item); continue; }
             if (!seen.has(id)) {
               seen.add(id);
+              if (col === 'ap_sales' && ['pago', 'concluído', 'concluido'].includes(String(item.status || '').toLowerCase().trim())) {
+                item.status = 'Concluída';
+                fixedCount++;
+                localChanged = true;
+              }
               deduped.push(item);
             } else {
               fixedCount++;
@@ -4351,11 +4942,13 @@ app.post('/api/system/self-heal', async (req, res) => {
         }
       }
       if (localChanged) {
-        writeLocalDb(local);
-        actions.push('IDs duplicados removidos de local_db.json.');
+        writeLocalDb(local, { forceBackup: true });
+        actions.push('IDs duplicados removidos, status de vendas normalizados e snapshot de backup salvo em local_db_backups.');
+      } else {
+        writeLocalDb(local, { forceBackup: true });
       }
     } catch (e: any) {
-      warnings.push(`Deduplicação local_db: ${e.message}`);
+      warnings.push(`Deduplicação e consistência financeira: ${e.message}`);
     }
 
     // 4. Sync Pix Key & InfinitePay handle consistency in ap_system_configs
@@ -4469,7 +5062,7 @@ app.get('/api/partner-withdraw-requests', async (req, res) => {
               pixKeyType: 'Chave Pix',
               pixKey: 'Consultar no comprovante/transação',
               status: pt.status === 'pago' ? 'Pago' : 'Pendente',
-              date: pt.date ? String(pt.date).split('T')[0] : new Date().toISOString().split('T')[0],
+              date: pt.date ? getLocalBrtDateKey(pt.date) : getLocalBrtDateKey(),
               createdAt: pt.date || new Date().toISOString()
             });
           }
@@ -4610,11 +5203,10 @@ Por favor, gere e retorne APENAS a descrição estruturada com formatação Mark
 
     parts.push({ text: textPrompt });
 
-    const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-4-hydrogen',
       contents: { parts }
-    }, clientKey);
+    });
 
     res.json({ success: true, text: response.text, result: response.text });
   } catch (error: any) {
@@ -4645,11 +5237,10 @@ Para cada Combo/Look, responda em formato Markdown contendo:
 
 Retorne os dois looks divididos de forma elegante com divisórias Markdown.`;
 
-    const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-4-hydrogen',
       contents: prompt
-    }, clientKey);
+    });
 
     res.json({ success: true, text: response.text });
   } catch (error: any) {
@@ -4679,11 +5270,10 @@ Retorne duas versões do script:
 - **Versão 1 (Curta e Prática)**: Perfeita para contatos rápidos e diretos.
 - **Versão 2 (Boutique Personalizada)**: Um atendimento mais detalhado, sugerindo novidades complementares ou cuidado VIP.`;
 
-    const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-4-hydrogen',
       contents: prompt
-    }, clientKey);
+    });
 
     res.json({ success: true, text: response.text });
   } catch (error: any) {
@@ -4721,11 +5311,10 @@ DIRETRIZES DE ESTILO DO TEXTO (MUITO IMPORTANTE):
 
 Retorne APENAS o texto da mensagem persuasiva pronta para ser enviada no WhatsApp. Não inclua nenhuma observação técnica ou introduções comerciais adicionais.`;
 
-    const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-4-hydrogen',
       contents: prompt
-    }, clientKey);
+    });
 
     res.json({ success: true, text: response.text });
   } catch (error: any) {
@@ -4761,11 +5350,10 @@ Elabore um Relatório Executivo Analítico rápido em Markdown. Sua análise dev
 
 Por favor, seja direto, profissional, analítico e use tabelas Markdown para facilitar a leitura.`;
 
-    const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-4-hydrogen',
       contents: prompt
-    }, clientKey);
+    });
 
     res.json({ success: true, text: response.text });
   } catch (error: any) {
@@ -4806,11 +5394,10 @@ REQUISITOS DO PLANEJAMENTO (sob a chave "text"):
 
 Por favor, retorne apenas o objeto JSON limpo e estruturado.`;
 
-    const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-4-hydrogen',
       contents: prompt
-    }, clientKey);
+    });
 
     let responseText = response.text || '';
     let parsedJson: any = null;
@@ -4892,11 +5479,10 @@ RETORNE (Em formato Markdown com formatação impecável):
 4. **Paleta de Cores Recomendada (Visão Pantone Express)**: Descreva de forma textual com blocos de emojis pretos/coloridos simulando a escala de cores ideal para a AP Moda.
 5. **Aconselhamento de Modelagem**: Dicas para valorizar a silhueta de quem veste essa textura específica.`;
 
-    const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-4-hydrogen',
       contents: prompt
-    }, clientKey);
+    });
 
     res.json({ success: true, text: response.text });
   } catch (error: any) {
@@ -4922,11 +5508,10 @@ INSTRUÇÕES DE TRADUÇÃO:
 - Garanta que a descrição permaneça fluida, vendedora e atraente para clientes de e-commerce internacional de alto padrão.
 - Retorne a tradução estruturada e com espaçamentos limpos em Markdown. Do lado do título traduzido de cada seção, coloque uma pequena flag emoji representativa do idioma.`;
 
-    const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-4-hydrogen',
       contents: prompt
-    }, clientKey);
+    });
 
     res.json({ success: true, text: response.text });
   } catch (error: any) {
@@ -4979,11 +5564,10 @@ Sua resposta DEVE ser um relatório financeiro de consultoria profissional e mod
 
 Use formatação Markdown linda, profissional, tabelas limpas e com formatação de moeda em Real (R$). Seja preciso e direto.`;
 
-    const clientKey = req.headers['x-gemini-api-key'] as string;
     const response = await generateContentWithRetry({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-4-hydrogen',
       contents: prompt
-    }, clientKey);
+    });
 
     res.json({ success: true, text: response.text });
   } catch (error: any) {
@@ -5083,7 +5667,7 @@ app.post('/api/whatsapp/notify', async (req, res) => {
           pixKeyType: data?.pixKeyType || 'Pix',
           pixKey: data?.pixKey || '',
           status: 'Pendente',
-          date: data?.date || new Date().toISOString().split('T')[0],
+          date: data?.date || getLocalBrtDateKey(),
           createdAt: new Date().toISOString()
         };
         const { data: configs } = await db.from('ap_system_configs').select('key, value');
@@ -6513,14 +7097,25 @@ async function preWarmImageCache() {
 }
 
 async function startServer() {
-  const isProd = process.env.NODE_ENV === 'production' || fs.existsSync(path.join(process.cwd(), 'dist/index.html'));
+  const isProd = process.env.NODE_ENV === 'production' || Boolean(process.argv[1]?.endsWith('server.cjs'));
+
   if (!isProd) {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
+    const vitePromise = createViteServer({
+      server: { middlewareMode: true, hmr: false, watch: null },
       appType: 'spa',
+    }).then((vite) => {
+      console.log('Vite middleware mounted for development.');
+      return vite;
     });
-    app.use(vite.middlewares);
-    console.log('Vite middleware mounted for development.');
+
+    app.use(async (req, res, next) => {
+      try {
+        const vite = await vitePromise;
+        return vite.middlewares(req, res, next);
+      } catch (err) {
+        return next(err);
+      }
+    });
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath, {

@@ -6,6 +6,8 @@
 // This file provides a clean, secure client-side interface to the Supabase database
 // via server-side proxy endpoints to prevent exposing credentials on the client.
 
+import { safeLocalStorageSet } from './utils/dateUtils';
+
 export interface CardTerminal {
   id: string;
   name: string;
@@ -73,6 +75,10 @@ ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS composition te
 ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS routes text;
 ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS measurement_specs text;
 ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS compare_at_price numeric;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS weight numeric;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS length numeric;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS width numeric;
+ALTER TABLE IF EXISTS public.ap_products ADD COLUMN IF NOT EXISTS height numeric;
 
 -- 3. Tabela de Clientes (CRM / Cadastros)
 CREATE TABLE IF NOT EXISTS ap_clients (
@@ -91,15 +97,31 @@ CREATE TABLE IF NOT EXISTS ap_sales (
   id text PRIMARY KEY,
   client_id text,
   client_name text,
+  client_doc text,
   channel text,
   items text,
   total numeric,
+  cost_total numeric,
   discount numeric,
   payment_method text,
   status text,
+  status_pagamento text,
+  valor_bruto numeric,
+  taxa_financeira numeric,
+  valor_liquido numeric,
+  salesperson text,
   date text,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+ALTER TABLE IF EXISTS public.ap_sales ADD COLUMN IF NOT EXISTS client_name text;
+ALTER TABLE IF EXISTS public.ap_sales ADD COLUMN IF NOT EXISTS client_doc text;
+ALTER TABLE IF EXISTS public.ap_sales ADD COLUMN IF NOT EXISTS cost_total numeric;
+ALTER TABLE IF EXISTS public.ap_sales ADD COLUMN IF NOT EXISTS salesperson text;
+ALTER TABLE IF EXISTS public.ap_sales ADD COLUMN IF NOT EXISTS valor_bruto numeric;
+ALTER TABLE IF EXISTS public.ap_sales ADD COLUMN IF NOT EXISTS taxa_financeira numeric;
+ALTER TABLE IF EXISTS public.ap_sales ADD COLUMN IF NOT EXISTS valor_liquido numeric;
+ALTER TABLE IF EXISTS public.ap_sales ADD COLUMN IF NOT EXISTS status_pagamento text;
 
 -- 5. Tabela de Transações Financeiras (Fluxo de Caixa)
 CREATE TABLE IF NOT EXISTS ap_transactions (
@@ -109,9 +131,15 @@ CREATE TABLE IF NOT EXISTS ap_transactions (
   type text,
   category text,
   payment_method text,
+  status text DEFAULT 'pago',
+  due_date text,
   date text,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+ALTER TABLE IF EXISTS public.ap_transactions ADD COLUMN IF NOT EXISTS status text DEFAULT 'pago';
+ALTER TABLE IF EXISTS public.ap_transactions ADD COLUMN IF NOT EXISTS due_date text;
+ALTER TABLE IF EXISTS public.ap_transactions ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT timezone('utc'::text, now());
 
 -- 6. Tabela de Pedidos Online (Vitrine Virtual)
 CREATE TABLE IF NOT EXISTS ap_online_orders (
@@ -291,8 +319,8 @@ export async function initializeSupabaseConfig() {
 
       // If the server has a valid config, use it to sync localStorage
       if (data.url && data.url.startsWith('http') && data.key) {
-        localStorage.setItem('ap_supabase_url', data.url);
-        localStorage.setItem('ap_supabase_key', data.key);
+        safeLocalStorageSet('ap_supabase_url', data.url);
+        safeLocalStorageSet('ap_supabase_key', data.key);
       } else if (localUrl && localUrl.startsWith('http') && localKey) {
         // If the server does not have a config, but client has one, push it to server!
         await saveSupabaseConfigToServer(localUrl, localKey);
@@ -325,8 +353,8 @@ export async function saveSupabaseConfigToServer(url: string, key: string) {
       body: JSON.stringify({ url, key })
     });
     if (res.ok) {
-      localStorage.setItem('ap_supabase_url', url);
-      localStorage.setItem('ap_supabase_key', key);
+      safeLocalStorageSet('ap_supabase_url', url);
+      safeLocalStorageSet('ap_supabase_key', key);
       console.log('[DB Config] Configuração do banco salva no servidor com sucesso!');
     }
   } catch (e) {
@@ -389,7 +417,7 @@ class FrontendQueryBuilder {
       let allData: any[] = [];
 
       if (this.limitVal !== null || this.offsetVal !== null) {
-        const limit = Math.min(this.limitVal !== null ? this.limitVal : 20, 20);
+        const limit = this.limitVal !== null ? this.limitVal : 200;
         const offset = this.offsetVal !== null ? this.offsetVal : 0;
         const separator = endpoint.includes('?') ? '&' : '?';
         const url = `${endpoint}${separator}limit=${limit}&offset=${offset}`;
@@ -398,15 +426,15 @@ class FrontendQueryBuilder {
         const data = await res.json();
         allData = Array.isArray(data) ? data : (data ? [data] : []);
       } else {
-        // Transparent pagination to fetch all items safely in blocks of 20
+        // Transparent pagination to fetch all items safely in blocks of 200
         let offset = 0;
-        const limit = 20;
+        const limit = 200;
         let hasMore = true;
         while (hasMore) {
           const separator = endpoint.includes('?') ? '&' : '?';
           const url = `${endpoint}${separator}limit=${limit}&offset=${offset}`;
           const res = await fetch(url);
-          if (!res.ok) break;
+          if (!res.ok) throw new Error(`HTTP error ${res.status}`);
           const data = await res.json();
           const items = Array.isArray(data) ? data : (data ? [data] : []);
           if (items.length === 0) {
@@ -486,11 +514,20 @@ class FrontendQueryBuilder {
       eq: async (col: string, val: any) => {
         try {
           const endpoint = mapTableToEndpoint(this.table);
-          // Standard upsert by ID or update the entity in REST backend
+          let mergedPayload: any = { ...(col === 'id' ? { id: val } : { id: val, [col]: val }), ...payload };
+          try {
+            const list = await restFetch(endpoint, { limit: 200, offset: 0 });
+            if (Array.isArray(list)) {
+              const existing = list.find((item: any) => item && String(item[col]) === String(val));
+              if (existing) {
+                mergedPayload = { ...existing, ...payload };
+              }
+            }
+          } catch {}
           const res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: val, ...payload })
+            body: JSON.stringify(mergedPayload)
           });
           if (!res.ok) throw new Error(`HTTP error ${res.status}`);
           return { error: null };
@@ -563,26 +600,26 @@ async function restFetch(endpoint: string, options?: { limit?: number; offset?: 
   try {
     if (options && (options.limit !== undefined || options.offset !== undefined)) {
       let url = endpoint;
-      const limit = Math.min(options.limit ?? 20, 20);
+      const limit = options.limit ?? 200;
       const offset = options.offset ?? 0;
       const separator = url.includes('?') ? '&' : '?';
       url += `${separator}limit=${limit}&offset=${offset}`;
       const res = await fetch(url);
-      if (!res.ok) return [];
+      if (!res.ok) return null;
       const data = await res.json();
       return Array.isArray(data) ? data : (data ? [data] : []);
     } else {
-      // Loop to fetch all pages of 20 items transparently for the caller!
+      // Loop to fetch all pages of 200 items transparently; return null on failure so callers never wipe local state
       let allData: any[] = [];
       let offset = 0;
-      const limit = 20;
+      const limit = 200;
       let hasMore = true;
       while (hasMore) {
         let url = endpoint;
         const separator = url.includes('?') ? '&' : '?';
         url += `${separator}limit=${limit}&offset=${offset}`;
         const res = await fetch(url);
-        if (!res.ok) break;
+        if (!res.ok) return null;
         const data = await res.json();
         const items = Array.isArray(data) ? data : (data ? [data] : []);
         if (items.length === 0) {
@@ -600,7 +637,7 @@ async function restFetch(endpoint: string, options?: { limit?: number; offset?: 
     }
   } catch (e) {
     console.warn(`[REST Adapter] Failed to fetch ${endpoint}:`, e);
-    return [];
+    return null;
   }
 }
 
@@ -744,7 +781,7 @@ export async function syncSystemConfigsWithSupabase(...args: any[]) {
         const remoteVal = typeof partnersCfg.value === 'string' ? partnersCfg.value : JSON.stringify(partnersCfg.value);
         const localVal = localStorage.getItem('ap_moda_partners');
         if (remoteVal !== localVal) {
-          localStorage.setItem('ap_moda_partners', remoteVal);
+          safeLocalStorageSet('ap_moda_partners', remoteVal);
           localModified = true;
         }
       }
@@ -755,7 +792,7 @@ export async function syncSystemConfigsWithSupabase(...args: any[]) {
         const remoteVal = typeof manualCfg.value === 'string' ? manualCfg.value : JSON.stringify(manualCfg.value);
         const localVal = localStorage.getItem('ap_manual_partner_sales');
         if (remoteVal !== localVal) {
-          localStorage.setItem('ap_manual_partner_sales', remoteVal);
+          safeLocalStorageSet('ap_manual_partner_sales', remoteVal);
           localModified = true;
         }
       }
@@ -766,7 +803,7 @@ export async function syncSystemConfigsWithSupabase(...args: any[]) {
         const remoteVal = typeof couponsCfg.value === 'string' ? couponsCfg.value : JSON.stringify(couponsCfg.value);
         const localVal = localStorage.getItem('ap_coupons');
         if (remoteVal !== localVal) {
-          localStorage.setItem('ap_coupons', remoteVal);
+          safeLocalStorageSet('ap_coupons', remoteVal);
           window.dispatchEvent(new Event('ap-coupons-updated'));
           localModified = true;
         }
@@ -802,7 +839,7 @@ export async function syncSystemConfigsWithSupabase(...args: any[]) {
               pushSystemConfigToSupabase(key, localVal).catch(() => {});
             }
           } else if (remoteVal !== localVal && remoteVal.trim().length > 0) {
-            localStorage.setItem(key, remoteVal);
+            safeLocalStorageSet(key, remoteVal);
             localModified = true;
             storeConfigChanged = true;
           }
@@ -826,7 +863,7 @@ export async function syncSystemConfigsWithSupabase(...args: any[]) {
               ? parsedRemote.filter((r: any) => !localIds.has(r.id) && r.status === 'Pendente')
               : [];
 
-            localStorage.setItem('ap_partner_withdraw_requests', remoteVal);
+            safeLocalStorageSet('ap_partner_withdraw_requests', remoteVal);
             
             // Sincroniza também nos caches individuais de cada parceira
             if (Array.isArray(parsedRemote)) {
@@ -836,9 +873,7 @@ export async function syncSystemConfigsWithSupabase(...args: any[]) {
                 byPartner.get(r.partnerId).push(r);
               }
               byPartner.forEach((list, pId) => {
-                try {
-                  localStorage.setItem('ap_withdraw_requests_' + pId, JSON.stringify(list));
-                } catch (e) {}
+                safeLocalStorageSet('ap_withdraw_requests_' + pId, JSON.stringify(list));
               });
             }
 
@@ -851,7 +886,7 @@ export async function syncSystemConfigsWithSupabase(...args: any[]) {
               detail: parsedRemote 
             }));
           } catch (e) {
-            localStorage.setItem('ap_partner_withdraw_requests', remoteVal);
+            safeLocalStorageSet('ap_partner_withdraw_requests', remoteVal);
           }
           localModified = true;
         }

@@ -31,8 +31,20 @@ export function isFallbackOrPlaceholderUrl(url?: string | null): boolean {
   if (!trimmed) return true;
   if (trimmed === AP_FALLBACK_IMAGE) return true;
   if (trimmed.startsWith('data:image/svg+xml')) {
-    const decoded = decodeURIComponent(trimmed);
-    if (decoded.includes('AP MODA FITNESS') || decoded.includes('ALTA PERFORMANCE')) {
+    let decoded = trimmed;
+    try {
+      decoded = decodeURIComponent(trimmed);
+    } catch {
+      decoded = trimmed;
+    }
+    if (
+      decoded.includes('AP MODA FITNESS') ||
+      decoded.includes('ALTA PERFORMANCE') ||
+      decoded.includes('Imagem') ||
+      decoded.includes('Foto') ||
+      decoded.includes('Sem Foto') ||
+      decoded.includes('Sem Imagem')
+    ) {
       return true;
     }
   }

@@ -31,6 +31,8 @@ import {
   Upload
 } from 'lucide-react';
 import { Product, Sale, Client } from '../types';
+import { getLocalDateKey, safeLocalStorageSet } from '../utils/dateUtils';
+import { showToast, showConfirm } from '../lib/uiDialog';
 
 interface GoogleWorkspaceProps {
   products: Product[];
@@ -123,10 +125,14 @@ export default function GoogleWorkspace({
   useEffect(() => {
     fetchConfigs();
     
-    // Set default dates to today
-    const today = new Date().toISOString().split('T')[0];
+    // Set default dates to today (BRT)
+    const today = getLocalDateKey();
     setEventDate(today);
     setNewTaskDueDate(today);
+    const savedToken = localStorage.getItem('ap_google_access_token');
+    if (savedToken) {
+      setAccessToken(savedToken);
+    }
   }, []);
 
   // Listen to OAuth success postMessages from popup window
@@ -142,6 +148,7 @@ export default function GoogleWorkspace({
         const payload = event.data.payload;
         if (payload?.accessToken) {
           setAccessToken(payload.accessToken);
+          safeLocalStorageSet('ap_google_access_token', payload.accessToken);
           setUserProfile(payload.userProfile);
           setAuthError(null);
           setSuccessMsg(`Google Workspace conectado com sucesso como ${payload.userProfile?.email || 'usuário'}!`);
@@ -254,9 +261,10 @@ export default function GoogleWorkspace({
     }
   };
 
-  // Disconnect active Google account (In-memory token clearance)
+  // Disconnect active Google account (In-memory and local token clearance)
   const handleDisconnect = () => {
     setAccessToken(null);
+    try { localStorage.removeItem('ap_google_access_token'); } catch {}
     setUserProfile(null);
     setCalendarEvents([]);
     setTaskList([]);
@@ -363,7 +371,11 @@ export default function GoogleWorkspace({
     const endStr = `${eventDate}T${eventEndTime}:00`;
 
     // Explicit confirmation constraint checked
-    const confirmed = window.confirm(`Deseja adicionar o evento "${eventTitle}" na sua agenda para o dia ${eventDate} às ${eventStartTime}?`);
+    const confirmed = await showConfirm({
+      title: 'Agendar Evento Google',
+      message: `Deseja adicionar o evento "${eventTitle}" na sua agenda para o dia ${eventDate} às ${eventStartTime}?`,
+      confirmText: 'Agendar'
+    });
     if (!confirmed) return;
 
     setActionLoading(true);
@@ -406,7 +418,12 @@ export default function GoogleWorkspace({
     if (!accessToken) return;
 
     // MANDATORY confirmation before deleting
-    const confirmed = window.confirm(`AVISO: Tem certeza que deseja DELETAR o evento "${title}" da sua agenda Google? Esta ação é irreversível.`);
+    const confirmed = await showConfirm({
+      title: 'Deletar Evento Google',
+      message: `AVISO: Tem certeza que deseja DELETAR o evento "${title}" da sua agenda Google? Esta ação é irreversível.`,
+      confirmText: 'Deletar',
+      tone: 'danger'
+    });
     if (!confirmed) return;
 
     setActionLoading(true);
@@ -435,7 +452,11 @@ export default function GoogleWorkspace({
     if (!accessToken) return;
 
     // Confirmation
-    const confirmed = window.confirm(`Deseja adicionar a tarefa "${newTaskTitle}" no seu Google Tarefas?`);
+    const confirmed = await showConfirm({
+      title: 'Adicionar Tarefa Google',
+      message: `Deseja adicionar a tarefa "${newTaskTitle}" no seu Google Tarefas?`,
+      confirmText: 'Adicionar'
+    });
     if (!confirmed) return;
 
     setActionLoading(true);
@@ -489,7 +510,11 @@ export default function GoogleWorkspace({
     const newStatus = isCompleted ? 'needsAction' : 'completed';
     const actType = isCompleted ? 'desmarcar' : 'concluir';
 
-    const confirmed = window.confirm(`Deseja ${actType} a tarefa "${task.title}"?`);
+    const confirmed = await showConfirm({
+      title: 'Atualizar Tarefa Google',
+      message: `Deseja ${actType} a tarefa "${task.title}"?`,
+      confirmText: 'Confirmar'
+    });
     if (!confirmed) return;
 
     setActionLoading(true);
@@ -533,7 +558,12 @@ export default function GoogleWorkspace({
   const handleDeleteTask = async (taskId: string, title: string) => {
     if (!accessToken) return;
 
-    const confirmed = window.confirm(`Tem certeza que deseja excluir永久mente a tarefa "${title}"?`);
+    const confirmed = await showConfirm({
+      title: 'Excluir Tarefa Google',
+      message: `Tem certeza que deseja excluir permanentemente a tarefa "${title}"?`,
+      confirmText: 'Excluir',
+      tone: 'danger'
+    });
     if (!confirmed) return;
 
     setActionLoading(true);
@@ -567,7 +597,11 @@ export default function GoogleWorkspace({
     e.preventDefault();
     if (!accessToken) return;
 
-    const confirmed = window.confirm(`Deseja criar um documento Google Doc nomeado "${newDocTitle}"?`);
+    const confirmed = await showConfirm({
+      title: 'Criar Google Doc',
+      message: `Deseja criar um documento Google Doc nomeado "${newDocTitle}"?`,
+      confirmText: 'Criar Documento'
+    });
     if (!confirmed) return;
 
     setActionLoading(true);
@@ -629,11 +663,15 @@ export default function GoogleWorkspace({
     if (!accessToken) return;
 
     if (!uploadFileName) {
-      alert('Por favor informe o nome do arquivo.');
+      showToast('Por favor informe o nome do arquivo.', 'warning');
       return;
     }
 
-    const confirmed = window.confirm(`Deseja carregar o arquivo "${uploadFileName}" para a sua conta do Google Drive?`);
+    const confirmed = await showConfirm({
+      title: 'Enviar para Google Drive',
+      message: `Deseja carregar o arquivo "${uploadFileName}" para a sua conta do Google Drive?`,
+      confirmText: 'Enviar Arquivo'
+    });
     if (!confirmed) return;
 
     setIsUploading(true);
@@ -687,7 +725,12 @@ export default function GoogleWorkspace({
   const handleDeleteFile = async (fileId: string, name: string) => {
     if (!accessToken) return;
 
-    const confirmed = window.confirm(`ATENÇÃO DESTRUTIVA: Tem certeza absoluta que deseja EXCLUIR permanentemente o arquivo "${name}" do seu Google Drive?`);
+    const confirmed = await showConfirm({
+      title: 'Excluir Arquivo do Drive',
+      message: `ATENÇÃO DESTRUTIVA: Tem certeza absoluta que deseja EXCLUIR permanentemente o arquivo "${name}" do seu Google Drive?`,
+      confirmText: 'Excluir Permanentemente',
+      tone: 'danger'
+    });
     if (!confirmed) return;
 
     setActionLoading(true);
@@ -716,11 +759,15 @@ export default function GoogleWorkspace({
     if (!accessToken) return;
 
     if (!emailTo || !emailSubject || !emailBody) {
-      alert('Por favor, preencha o destinatário, o assunto e o corpo do e-mail.');
+      showToast('Por favor, preencha o destinatário, o assunto e o corpo do e-mail.', 'warning');
       return;
     }
 
-    const confirmed = window.confirm(`Deseja disparar este e-mail para "${emailTo}" pelo Gmail em seu nome?`);
+    const confirmed = await showConfirm({
+      title: 'Disparar E-mail Gmail',
+      message: `Deseja disparar este e-mail para "${emailTo}" pelo Gmail em seu nome?`,
+      confirmText: 'Enviar E-mail'
+    });
     if (!confirmed) return;
 
     setActionLoading(true);
@@ -827,7 +874,11 @@ export default function GoogleWorkspace({
   const handleExportToSheets = async () => {
     if (!accessToken) return;
 
-    const confirmed = window.confirm(`Deseja criar uma nova Planilha Google e exportar o relatório de ${sheetExportType === 'products' ? 'Estoque de Produtos' : 'Histórico de Vendas'}?`);
+    const confirmed = await showConfirm({
+      title: 'Exportar para Google Sheets',
+      message: `Deseja criar uma nova Planilha Google e exportar o relatório de ${sheetExportType === 'products' ? 'Estoque de Produtos' : 'Histórico de Vendas'}?`,
+      confirmText: 'Exportar Planilha'
+    });
     if (!confirmed) return;
 
     setActionLoading(true);
@@ -1851,7 +1902,7 @@ Olá, equipe da AP Moda Fitness! Este é o rascunho oficial de descrições e ro
                           type="button"
                           onClick={() => {
                             navigator.clipboard.writeText(redirectUri);
-                            alert('URI de Redirecionamento copiado para o clipboard!');
+                            showToast('URI de Redirecionamento copiado para o clipboard!', 'success');
                           }}
                           className="text-[9.5px] text-pink-600 hover:text-pink-700 font-bold uppercase underline cursor-pointer bg-transparent border-0"
                         >

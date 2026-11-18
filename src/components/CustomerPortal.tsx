@@ -34,6 +34,8 @@ import {
 } from 'lucide-react';
 import { Client, Sale, Product } from '../types';
 import { getStoreConfig } from '../utils/storeConfig';
+import { showToast } from '../lib/uiDialog';
+import { safeLocalStorageSet } from '../utils/dateUtils';
 
 interface CustomerPortalProps {
   currentUser: {
@@ -104,7 +106,7 @@ export default function CustomerPortal({
     const nextVal = current + 1;
     const nextProgress = { ...challengeProgress, [id]: nextVal };
     setChallengeProgress(nextProgress);
-    localStorage.setItem(`ap_moda_chal_prog_${clientData.id}`, JSON.stringify(nextProgress));
+    safeLocalStorageSet(`ap_moda_chal_prog_${clientData.id}`, JSON.stringify(nextProgress));
   };
 
   // Handle challenge reward claim (Increases actual live cashback Balance in CRM database)
@@ -123,7 +125,7 @@ export default function CustomerPortal({
     // Save claim state
     const nextClaimed = { ...challengeClaimed, [id]: true };
     setChallengeClaimed(nextClaimed);
-    localStorage.setItem(`ap_moda_chal_claim_${clientData.id}`, JSON.stringify(nextClaimed));
+    safeLocalStorageSet(`ap_moda_chal_claim_${clientData.id}`, JSON.stringify(nextClaimed));
   };
 
   // Handle Scratch logic
@@ -136,14 +138,14 @@ export default function CustomerPortal({
       if (cfgSaved) {
         const cfg = JSON.parse(cfgSaved);
         if (cfg.enabled === false) {
-          alert('A Raspadinha da Sorte está temporariamente indisponível no momento.');
+          showToast('A Raspadinha da Sorte está temporariamente indisponível no momento.', 'info');
           return;
         }
       }
     } catch (e) {}
 
     setScratchState('scratching');
-    localStorage.setItem(`ap_moda_scratch_state_${clientData.id}`, 'scratching');
+    safeLocalStorageSet(`ap_moda_scratch_state_${clientData.id}`, 'scratching');
 
     // Simulate scratching reveal
     setTimeout(() => {
@@ -188,9 +190,9 @@ export default function CustomerPortal({
       }
 
       setScratchReward(selectedTitle);
-      localStorage.setItem(`ap_moda_scratch_reward_${clientData.id}`, selectedTitle);
+      safeLocalStorageSet(`ap_moda_scratch_reward_${clientData.id}`, selectedTitle);
       setScratchState('scratched');
-      localStorage.setItem(`ap_moda_scratch_state_${clientData.id}`, 'scratched');
+      safeLocalStorageSet(`ap_moda_scratch_state_${clientData.id}`, 'scratched');
 
       // If reward has instant cashback value, wire it in CRM
       if (cashbackVal > 0) {

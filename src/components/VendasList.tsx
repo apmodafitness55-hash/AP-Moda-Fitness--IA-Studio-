@@ -30,6 +30,8 @@ import { Sale, Product, Transaction } from '../types';
 import ThermalReceipt from './ThermalReceipt';
 import { getStoreConfig } from '../utils/storeConfig';
 import { pushSystemConfigToSupabase, syncBulkSalesToSupabase, syncBulkOnlineOrdersToSupabase } from '../supabase';
+import { showToast, showConfirm } from '../lib/uiDialog';
+import { getLocalDateKey, safeLocalStorageSet, createUniqueId } from '../utils/dateUtils';
 
 interface VendasListProps {
   sales: Sale[];
@@ -212,9 +214,9 @@ export default function VendasList({
       const dirtySales = JSON.parse(localStorage.getItem('ap_dirty_sales') || '[]');
       if (!dirtySales.includes(saleId)) {
         dirtySales.push(saleId);
-        localStorage.setItem('ap_dirty_sales', JSON.stringify(dirtySales));
+        safeLocalStorageSet('ap_dirty_sales', JSON.stringify(dirtySales));
       }
-      localStorage.setItem('ap_moda_sales', JSON.stringify(updatedSales));
+      safeLocalStorageSet('ap_moda_sales', JSON.stringify(updatedSales));
       if (targetSaleObj) {
         syncBulkSalesToSupabase([targetSaleObj]);
       }
@@ -246,10 +248,10 @@ export default function VendasList({
       const dirtyOrders = JSON.parse(localStorage.getItem('ap_dirty_online_orders') || '[]');
       if (!dirtyOrders.includes(saleId)) {
         dirtyOrders.push(saleId);
-        localStorage.setItem('ap_dirty_online_orders', JSON.stringify(dirtyOrders));
+        safeLocalStorageSet('ap_dirty_online_orders', JSON.stringify(dirtyOrders));
       }
-      localStorage.setItem('ap_moda_online_orders', JSON.stringify(updatedOrders));
-      localStorage.setItem('ap_online_orders', JSON.stringify(updatedOrders));
+      safeLocalStorageSet('ap_moda_online_orders', JSON.stringify(updatedOrders));
+      safeLocalStorageSet('ap_online_orders', JSON.stringify(updatedOrders));
       if (targetOrderObj) {
         syncBulkOnlineOrdersToSupabase([targetOrderObj]);
       }
@@ -267,8 +269,8 @@ export default function VendasList({
 
       if (chosenPartner) {
         const saleDateStr = selectedSaleForPartnerLinking.createdAt 
-          ? new Date(selectedSaleForPartnerLinking.createdAt).toISOString().split('T')[0]
-          : new Date().toISOString().split('T')[0];
+          ? getLocalDateKey(selectedSaleForPartnerLinking.createdAt)
+          : getLocalDateKey();
 
         const newItem = {
           id: saleId,
@@ -290,10 +292,10 @@ export default function VendasList({
       // Sync specific partner keys and global manual sales key
       currentPList.forEach((p: any) => {
         const partnerSpecific = updatedGlobal.filter((g: any) => g.partnerId === p.id);
-        localStorage.setItem(`ap_manual_partner_sales_${p.id}`, JSON.stringify(partnerSpecific));
+        safeLocalStorageSet(`ap_manual_partner_sales_${p.id}`, JSON.stringify(partnerSpecific));
       });
 
-      localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
+      safeLocalStorageSet('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
       pushSystemConfigToSupabase('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
     } catch(e) {}
 
@@ -328,7 +330,7 @@ export default function VendasList({
           };
         });
 
-        localStorage.setItem('ap_moda_partners', JSON.stringify(partnersList));
+        safeLocalStorageSet('ap_moda_partners', JSON.stringify(partnersList));
         pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(partnersList));
         setRegisteredPartners(partnersList);
       }
@@ -466,16 +468,22 @@ export default function VendasList({
   }, [sales]);
 
   // Handle Cancel Sale
-  const handleCancelSale = (saleId: string) => {
+  const handleCancelSale = async (saleId: string) => {
     const targetSale = sales.find(s => s.id === saleId);
     if (!targetSale) return;
 
     if (targetSale.status === 'Cancelada') {
-      alert('Esta venda já está cancelada.');
+      showToast('Esta venda já está cancelada.', 'info');
       return;
     }
 
-    if (confirm(`Tem certeza que deseja cancelar a venda #${saleId.toUpperCase()} de ${targetSale.clientName}? Isso retornará os produtos para o estoque e atualizará o caixa.`)) {
+    const ok = await showConfirm({
+      title: 'Cancelar Venda',
+      message: `Tem certeza que deseja cancelar a venda #${saleId.toUpperCase()} de ${targetSale.clientName}? Isso retornará os produtos para o estoque e atualizará o caixa.`,
+      danger: true,
+      confirmText: 'Sim, Cancelar Venda'
+    });
+    if (ok) {
       // 1. Revert sale status
       setSales(prev => prev.map(s => {
         if (s.id === saleId) {
@@ -521,7 +529,7 @@ export default function VendasList({
 
       // 3. Revert transactions (registering an outflow)
       const refundTx: Transaction = {
-        id: `t-refund-${Date.now()}`,
+        id: createUniqueId('t-refund'),
         type: 'Outflow',
         category: 'Venda Cancelada',
         description: `Estorno de venda #${saleId.toUpperCase()} - Cliente ${targetSale.clientName}`,
@@ -536,8 +544,7 @@ export default function VendasList({
         if (cachedTxsStr) {
           try {
             const txs = JSON.parse(cachedTxsStr);
-            localStorage.setItem('ap_moda_transactions', JSON.stringify([refundTx, ...txs]));
-            // Dispatch custom event to sync parent state if needed
+            safeLocalStorageSet('ap_moda_transactions', JSON.stringify([refundTx, ...txs]));
             window.dispatchEvent(new Event('storage'));
           } catch (e) {
             console.error(e);
@@ -545,22 +552,31 @@ export default function VendasList({
         }
       }
 
-      alert('Venda cancelada e armazenada como "Cancelada". O estoque físico correspondente foi retornado para o inventário!');
+      showToast('Venda cancelada e estoque físico devolvido ao inventário!', 'success');
     }
   };
 
   // Handle Permanent Delete Sale
-  const handleDeleteSaleClick = (saleId: string) => {
+  const handleDeleteSaleClick = async (saleId: string) => {
     const targetSale = sales.find(s => s.id === saleId);
     if (!targetSale) return;
 
-    if (!confirm(`ATENÇÃO: Tem certeza absoluta que deseja APAGAR permanentemente a venda #${saleId.toUpperCase()} de ${targetSale.clientName} do histórico?\n\nEsta ação não poderá ser desfeita e removerá o registro completamente!`)) {
-      return;
-    }
+    const okDelete = await showConfirm({
+      title: 'Apagar Venda do Histórico',
+      message: `ATENÇÃO: Tem certeza absoluta que deseja APAGAR permanentemente a venda #${saleId.toUpperCase()} de ${targetSale.clientName} do histórico?\n\nEsta ação não poderá ser desfeita!`,
+      danger: true,
+      confirmText: 'Prosseguir com Exclusão'
+    });
+    if (!okDelete) return;
 
     // Se a venda for concluída, perguntar sobre o estoque
     if (targetSale.status === 'Concluída') {
-      const returnStock = confirm(`Deseja também retornar os produtos desta venda (${targetSale.items.length} itens) ao estoque físico antes de apagá-la do histórico?\n\n[OK] Sim, devolver itens ao estoque e apagar venda.\n[Cancelar] Não, apenas apagar a venda sem alterar o estoque.`);
+      const returnStock = await showConfirm({
+        title: 'Devolver Itens ao Estoque?',
+        message: `Deseja também retornar os produtos desta venda (${targetSale.items.length} itens) ao estoque físico antes de apagá-la do histórico?`,
+        confirmText: 'Sim, Devolver ao Estoque',
+        cancelText: 'Não, Apenas Apagar'
+      });
       if (returnStock) {
         setProducts(prevProducts => {
           return prevProducts.map(prod => {
@@ -605,13 +621,25 @@ export default function VendasList({
       setSales(prev => prev.filter(s => s.id !== saleId));
     }
 
-    alert('Venda apagada com sucesso do histórico!');
+    showToast('Venda apagada com sucesso do histórico!', 'success');
   };
 
   // KPI Calculations
   const metrics = useMemo(() => {
     const activeSales = sales.filter(s => s.status === 'Concluída');
     const totalBilled = activeSales.reduce((sum, s) => sum + s.total, 0);
+    const totalNet = activeSales.reduce((sum, s) => {
+      if (s.valor_liquido !== undefined && s.valor_liquido !== null && s.valor_liquido > 0) return sum + s.valor_liquido;
+      let fee = 0;
+      if (s.payments && Array.isArray(s.payments) && s.payments.length > 0) {
+        s.payments.forEach(p => {
+          const m = String(p.method || '').toLowerCase();
+          const r = m.includes('pix') ? 0 : (m.includes('debit') || m.includes('débito')) ? 0.0138 : (m.includes('credit') || m.includes('crédito') || m.includes('link')) ? 0.0316 : 0;
+          fee += (p.amount || 0) * r;
+        });
+      }
+      return sum + (s.total - fee);
+    }, 0);
     const totalCost = activeSales.reduce((sum, s) => sum + (s.costTotal || 0), 0);
     const averageTicket = activeSales.length > 0 ? totalBilled / activeSales.length : 0;
     
@@ -629,7 +657,8 @@ export default function VendasList({
 
     return {
       totalBilled,
-      netProfit: totalBilled - totalCost,
+      totalNet,
+      netProfit: totalNet - totalCost,
       averageTicket,
       totalSalesCount: activeSales.length,
       canceledCount: sales.filter(s => s.status === 'Cancelada').length,
@@ -692,12 +721,12 @@ export default function VendasList({
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `relatorio_vendas_apmoda_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute("download", `relatorio_vendas_apmoda_${getLocalDateKey()}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     } catch {
-      alert('Não foi possível exportar os dados neste navegador.');
+      showToast('Não foi possível exportar os dados neste navegador.', 'error');
     }
   };
 
@@ -736,13 +765,13 @@ export default function VendasList({
             <DollarSign size={22} />
           </div>
           <div className="min-w-0">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wide">Faturamento Líquido</span>
+            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wide">Faturamento Bruto / Líquido</span>
             <p className="text-lg font-black text-slate-800 mt-0.5 truncate">
               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(metrics.totalBilled)}
             </p>
             <div className="flex items-center gap-1 text-[10px] text-emerald-600 font-semibold mt-1">
               <TrendingUp size={11} />
-              <span>Valores reais excluindo cancelados</span>
+              <span>Líq. receber: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(metrics.totalNet)}</span>
             </div>
           </div>
         </div>

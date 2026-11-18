@@ -1,4 +1,5 @@
 import { pushSystemConfigToSupabase } from '../supabase';
+import { getLocalDateKey, safeLocalStorageSet } from './dateUtils';
 
 export interface Coupon {
   code: string;
@@ -37,7 +38,7 @@ export function getStoredCoupons(): Coupon[] {
     console.error('Error reading coupons from localStorage:', e);
   }
   try {
-    localStorage.setItem('ap_coupons', JSON.stringify(DEFAULT_COUPONS));
+    safeLocalStorageSet('ap_coupons', JSON.stringify(DEFAULT_COUPONS));
     pushSystemConfigToSupabase('ap_coupons', JSON.stringify(DEFAULT_COUPONS));
   } catch (e) {}
   return DEFAULT_COUPONS;
@@ -45,7 +46,7 @@ export function getStoredCoupons(): Coupon[] {
 
 export function saveStoredCoupons(coupons: Coupon[]): void {
   try {
-    localStorage.setItem('ap_coupons', JSON.stringify(coupons));
+    safeLocalStorageSet('ap_coupons', JSON.stringify(coupons));
     pushSystemConfigToSupabase('ap_coupons', JSON.stringify(coupons));
     window.dispatchEvent(new Event('ap-coupons-updated'));
   } catch (e) {
@@ -224,8 +225,8 @@ export function validateCouponForCpf(
     return { valid: false, message: `Este cupom promocional (${cleanCode}) é inválido ou expirou.` };
   }
 
-  // Validate expiration date if provided in YYYY-MM-DD format
-  const todayIso = new Date().toISOString().split('T')[0];
+  // Validate expiration date if provided in YYYY-MM-DD format (BRT local date)
+  const todayIso = getLocalDateKey();
   if (matchedCoupon.validUntil && /^\d{4}-\d{2}-\d{2}$/.test(matchedCoupon.validUntil) && matchedCoupon.validUntil < todayIso) {
     return { valid: false, message: `Este cupom (${cleanCode}) expirou em ${matchedCoupon.validUntil}.` };
   }

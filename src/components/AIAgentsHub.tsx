@@ -33,6 +33,8 @@ import { Product, Client } from '../types';
 import { pushSystemConfigToSupabase } from '../supabase';
 import ImageUploader from './ImageUploader';
 import { getWhatsAppUrl } from '../utils/storeConfig';
+import { safeLocalStorageSet } from '../utils/dateUtils';
+import { showToast } from '../lib/uiDialog';
 
 interface AIAgentsHubProps {
   products: Product[];
@@ -56,14 +58,9 @@ export default function AIAgentsHub({
   // Maximized full-screen workspace state
   const [isMaximized, setIsMaximized] = useState<boolean>(false);
 
-  const getGeminiHeaders = () => {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const key = localStorage.getItem('gemini_api_key') || localStorage.getItem('GEMINI_API_KEY') || (import.meta as any).env.VITE_GEMINI_API_KEY;
-    if (key) {
-      headers['x-gemini-api-key'] = key;
-    }
-    return headers;
-  };
+  const getGeminiHeaders = (): Record<string, string> => ({
+    'Content-Type': 'application/json',
+  });
 
   // Loading States and Result States
   const [loading, setLoading] = useState(false);
@@ -361,7 +358,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
       setSelectedProdIds(prev => prev.filter(id => id !== prodId));
     } else {
       if (selectedProdIds.length >= 4) {
-        alert("O estilista cria combinações ideais com até 4 peças do catálogo!");
+        showToast("O estilista cria combinações ideais com até 4 peças do catálogo!", "warning");
         return;
       }
       setSelectedProdIds(prev => [...prev, prodId]);
@@ -627,8 +624,8 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
       
       const { themeColor, activeAnimation } = recommendedConfig;
       
-      localStorage.setItem('ap_vitrine_theme_color', themeColor);
-      localStorage.setItem('ap_vitrine_active_animation', activeAnimation);
+      safeLocalStorageSet('ap_vitrine_theme_color', themeColor);
+      safeLocalStorageSet('ap_vitrine_active_animation', activeAnimation);
       
       await pushSystemConfigToSupabase('ap_vitrine_theme_color', themeColor);
       await pushSystemConfigToSupabase('ap_vitrine_active_animation', activeAnimation);
@@ -636,10 +633,10 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
       // Dispatch custom sync event so that the PublicCatalog updates its local state instantly
       window.dispatchEvent(new Event('ap-storage-synced'));
       
-      alert(`Sucesso! Visual Temático Ativado no Supabase:\n- Cor do Tema: ${themeColor}\n- Efeito Sazonal: ${activeAnimation}`);
+      showToast(`Visual Temático Ativado no Supabase (Cor: ${themeColor}, Efeito: ${activeAnimation})`, 'success');
     } catch (e) {
       console.error(e);
-      alert('Erro ao tentar aplicar o tema sugerido no Supabase.');
+      showToast('Erro ao tentar aplicar o tema sugerido no Supabase.', 'error');
     } finally {
       setLoading(false);
     }
@@ -763,7 +760,13 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
       .replace(/^-\s/gm, '• '); // Replace list bullet
 
     const url = getWhatsAppUrl(waPhone, formatted);
-    window.open(url, '_blank');
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -842,7 +845,7 @@ Modelagem financeira precisa executada pelo motor de precificação de contingê
             <div className="flex items-center gap-2">
               <span className="bg-pink-500/20 text-pink-400 font-bold text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full border border-pink-500/30 flex items-center gap-1">
                 <Sparkles size={11} className="animate-pulse" />
-                Gemini 3.5 Engine Ativo
+                Motor Gemini IA Ativo
               </span>
             </div>
             <h1 className="text-xl md:text-2xl font-black tracking-tight" id="agent-hub-title">

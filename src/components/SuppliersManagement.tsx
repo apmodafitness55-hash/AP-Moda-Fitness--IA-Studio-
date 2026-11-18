@@ -28,6 +28,8 @@ import {
 } from 'lucide-react';
 import { Product, Transaction } from '../types';
 import { getWhatsAppUrl } from '../utils/storeConfig';
+import { getLocalDateKey, safeLocalStorageSet, createUniqueId } from '../utils/dateUtils';
+import { showToast, showConfirm } from '../lib/uiDialog';
 
 export interface Supplier {
   id: string;
@@ -94,11 +96,11 @@ export default function SuppliersManagement({
 
   // Keep state synced in localStorage
   useEffect(() => {
-    localStorage.setItem('ap_moda_suppliers', JSON.stringify(suppliers));
+    safeLocalStorageSet('ap_moda_suppliers', JSON.stringify(suppliers));
   }, [suppliers]);
 
   useEffect(() => {
-    localStorage.setItem('ap_moda_supplier_purchases', JSON.stringify(purchases));
+    safeLocalStorageSet('ap_moda_supplier_purchases', JSON.stringify(purchases));
   }, [purchases]);
 
   const [editingPurchase, setEditingPurchase] = useState<SupplierPurchase | null>(null);
@@ -110,8 +112,13 @@ export default function SuppliersManagement({
   const [editPurStatus, setEditPurStatus] = useState<'Recebido' | 'A Caminho' | 'Pendente'>('Recebido');
   const [editPurNotes, setEditPurNotes] = useState('');
 
-  const handleDeletePurchase = (id: string) => {
-    if (confirm('Deseja realmente excluir esta compra de suprimentos?')) {
+  const handleDeletePurchase = async (id: string) => {
+    if (await showConfirm({
+      title: 'Excluir Compra',
+      message: 'Deseja realmente excluir esta compra de suprimentos?',
+      confirmText: 'Excluir',
+      tone: 'danger'
+    })) {
       setPurchases(prev => prev.filter(p => p.id !== id));
     }
   };
@@ -149,7 +156,7 @@ export default function SuppliersManagement({
     } : p));
 
     setEditingPurchase(null);
-    alert('Compra de suprimentos editada com sucesso!');
+    showToast('Compra de suprimentos editada com sucesso!', 'success');
   };
 
   // Form states - Fornecedor
@@ -168,7 +175,7 @@ export default function SuppliersManagement({
   const [purProductId, setPurProductId] = useState('');
   const [purQty, setPurQty] = useState<number>(10);
   const [purUnitCost, setPurUnitCost] = useState<number>(0);
-  const [purDate, setPurDate] = useState(new Date().toISOString().split('T')[0]);
+  const [purDate, setPurDate] = useState(getLocalDateKey());
   const [purStatus, setPurStatus] = useState<'Recebido' | 'A Caminho' | 'Pendente'>('Recebido');
   const [purNotes, setPurNotes] = useState('');
   const [linkToFinance, setLinkToFinance] = useState(true);
@@ -217,8 +224,13 @@ export default function SuppliersManagement({
   };
 
   // Handle deleting a supplier
-  const handleDeleteSupplier = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este fornecedor? As compras vinculadas continuarão registradas.')) {
+  const handleDeleteSupplier = async (id: string) => {
+    if (await showConfirm({
+      title: 'Excluir Fornecedor',
+      message: 'Tem certeza que deseja excluir este fornecedor? As compras vinculadas continuarão registradas.',
+      confirmText: 'Excluir',
+      tone: 'danger'
+    })) {
       setSuppliers(prev => prev.filter(s => s.id !== id));
     }
   };
@@ -227,7 +239,7 @@ export default function SuppliersManagement({
   const handleAddPurchaseSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!purSupplierId || !purProductId) {
-      alert('Por favor, selecione o fornecedor e o produto correspondente.');
+      showToast('Por favor, selecione o fornecedor e o produto correspondente.', 'warning');
       return;
     }
 
@@ -239,7 +251,7 @@ export default function SuppliersManagement({
     const totalCost = Number((purQty * purUnitCost).toFixed(2));
 
     const newPurchase: SupplierPurchase = {
-      id: `pur-${Date.now()}`,
+      id: createUniqueId('pur'),
       supplierId: purSupplierId,
       productId: purProductId,
       productName: selectedProduct.name,
@@ -254,20 +266,18 @@ export default function SuppliersManagement({
 
     setPurchases(prev => [newPurchase, ...prev]);
 
-    // OPTIONAL SCIENTIFIC LOGIC: If purchase is RECEIVED ("Recebido"), update product stock!
     if (purStatus === 'Recebido') {
       const updatedProduct = {
         ...selectedProduct,
         stock: selectedProduct.stock + purQty,
-        cost: purUnitCost // Update product standard cost price with this new purchase cost price automatically!
+        cost: purUnitCost
       };
       onUpdateProduct(updatedProduct);
     }
 
-    // Is Linked to Finance? Add outflow transaction
     if (linkToFinance) {
       const tx: Transaction = {
-        id: `tx-sup-${Date.now()}`,
+        id: createUniqueId('tx-sup'),
         type: 'Outflow',
         category: 'Fornecedores',
         description: `Compra Ref: ${selectedProduct.name} (${purQty} Unid) - ${selectedSupplier.name}`,
@@ -278,7 +288,7 @@ export default function SuppliersManagement({
     }
 
     setIsAddPurchaseModalOpen(false);
-    alert(`Compra registrada com sucesso! ${purStatus === 'Recebido' ? 'Estoque do produto incrementado no sistema.' : 'Estoque pendente de recebimento físico.'}`);
+    showToast(`Compra registrada! ${purStatus === 'Recebido' ? 'Estoque incrementado no sistema.' : 'Estoque pendente de recebimento físico.'}`, 'success');
 
     // Reset fields
     setPurProductId('');
@@ -356,7 +366,7 @@ export default function SuppliersManagement({
             type="button"
             onClick={() => {
               if (suppliers.length === 0) {
-                alert('Por favor, cadastre ao menos um fornecedor primeiro antes de realizar lançamentos de estoque!');
+                showToast('Cadastre ao menos um fornecedor antes de realizar lançamentos de estoque.', 'warning');
                 return;
               }
               setIsAddPurchaseModalOpen(true);

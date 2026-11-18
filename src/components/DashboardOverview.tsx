@@ -38,6 +38,7 @@ import { getStoredPartnerWithdrawRequests } from '../utils/partnerUtils';
 import { getOptimizedImageUrl, handleImageFallback, getProductMainImage } from '../utils/imageUtils';
 import ThermalReceipt from './ThermalReceipt';
 import SalesGoalSimulator from './SalesGoalSimulator';
+import { getLocalDateKey, getLocalDateOffset } from '../utils/dateUtils';
 
 interface DashboardOverviewProps {
   products: Product[];
@@ -232,19 +233,14 @@ export default function DashboardOverview({
     const result = [];
     
     for (let i = daysToCover - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
-      const label = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      const dateStr = getLocalDateOffset(-i);
+      const [yStr, mStr, dStr] = dateStr.split('-');
+      const label = `${dStr}/${mStr}`;
       
       const salesOnDay = sales.filter(s => {
         if (s.status !== 'Concluída') return false;
-        try {
-          const saleDate = new Date(s.createdAt).toISOString().split('T')[0];
-          return saleDate === dateStr;
-        } catch {
-          return false;
-        }
+        const saleDate = getLocalDateKey(s.createdAt);
+        return saleDate === dateStr;
       });
       
       const revenue = salesOnDay.reduce((sum, s) => sum + s.total, 0);

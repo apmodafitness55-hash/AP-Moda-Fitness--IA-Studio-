@@ -28,6 +28,21 @@ import {
   Brush
 } from 'lucide-react';
 import { getWhatsAppUrl } from '../utils/storeConfig';
+import { showToast } from '../lib/uiDialog';
+
+const openExternalSafely = (url: string) => {
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch {
+    showToast(`Abra o link manualmente: ${url}`, 'info', 6000);
+  }
+};
 // Locally extend OnlineOrder to cover standard fields
 interface DriverAppPortalProps {
   onlineOrders: any[];
@@ -199,12 +214,12 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
     if (!address) return;
     const cleanAddr = address.replace(/^Retirada no Local|^A combinar/i, '').trim();
     if (!cleanAddr) {
-      alert('Endereço não especificado para rota.');
+      showToast('Endereço não especificado para rota.', 'warning');
       return;
     }
     const encoded = encodeURIComponent(cleanAddr);
     const url = `https://www.google.com/maps/dir/?api=1&destination=${encoded}&travelmode=driving`;
-    window.open(url, '_blank', 'noopener,noreferrer');
+    openExternalSafely(url);
   };
 
   // Launch real turn-by-turn GPS navigation in Waze
@@ -212,23 +227,23 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
     if (!address) return;
     const cleanAddr = address.replace(/^Retirada no Local|^A combinar/i, '').trim();
     if (!cleanAddr) {
-      alert('Endereço não especificado para rota.');
+      showToast('Endereço não especificado para rota.', 'warning');
       return;
     }
     const encoded = encodeURIComponent(cleanAddr);
     const url = `https://waze.com/ul?q=${encoded}&navigate=yes`;
-    window.open(url, '_blank', 'noopener,noreferrer');
+    openExternalSafely(url);
   };
 
   // Direct contact with customer via WhatsApp
   const handleOpenWhatsAppClient = (phone: string, clientName: string, address: string) => {
     const cleanPhone = (phone || '').replace(/\D/g, '');
     if (!cleanPhone) {
-      alert('Telefone do cliente não informado.');
+      showToast('Telefone do cliente não informado.', 'warning');
       return;
     }
     const msg = encodeURIComponent(`Olá ${clientName || 'Cliente'}! Sou o entregador da AP Moda Fitness e estou a caminho do seu endereço com o seu pedido! 🏍️📦\n\n📍 Destino: ${address || 'Local informado'}`);
-    window.open(`https://wa.me/55${cleanPhone}?text=${msg}`, '_blank', 'noopener,noreferrer');
+    openExternalSafely(`https://wa.me/55${cleanPhone}?text=${msg}`);
   };
 
   // Simulate routing GPS animation
@@ -280,14 +295,14 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
   const handleFinalizeDeliverySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!receiverName) {
-      alert('Por favor, informe quem recebeu a encomenda.');
+      showToast('Por favor, informe quem recebeu a encomenda.', 'warning');
       return;
     }
 
     onUpdateOrderStatus(activeOrder.id, 'Entregue');
     
     // Save locally or dispatch online
-    alert(`Sucesso! Encomenda entregue para ${receiverName}. Assinatura salva no histórico.`);
+    showToast(`Sucesso! Encomenda entregue para ${receiverName}. Assinatura salva no histórico.`, 'success');
     setActiveStep('feed');
     setActiveOrder(null);
     setRouteStep(0);

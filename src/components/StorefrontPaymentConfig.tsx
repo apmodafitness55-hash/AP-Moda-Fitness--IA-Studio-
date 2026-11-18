@@ -5,6 +5,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { pushSystemConfigToSupabase } from '../supabase';
+import { showToast, showConfirm } from '../lib/uiDialog';
+import { safeLocalStorageSet, createUniqueId } from '../utils/dateUtils';
 import { 
   CreditCard, 
   QrCode, 
@@ -136,20 +138,20 @@ export default function StorefrontPaymentConfig() {
 
   // Keep state synced
   useEffect(() => {
-    localStorage.setItem('ap_moda_payment_config', JSON.stringify(config));
+    safeLocalStorageSet('ap_moda_payment_config', JSON.stringify(config));
   }, [config]);
 
   useEffect(() => {
-    localStorage.setItem('ap_moda_card_terminals', JSON.stringify(terminals));
+    safeLocalStorageSet('ap_moda_card_terminals', JSON.stringify(terminals));
   }, [terminals]);
 
   useEffect(() => {
-    localStorage.setItem('ap_infinitepay_config', JSON.stringify(infinitePayConfig));
+    safeLocalStorageSet('ap_infinitepay_config', JSON.stringify(infinitePayConfig));
     if (infinitePayConfig.handle) {
-      localStorage.setItem('infinitepay_handle', infinitePayConfig.handle.trim());
+      safeLocalStorageSet('infinitepay_handle', infinitePayConfig.handle.trim());
     }
     if (infinitePayConfig.apiKey) {
-      localStorage.setItem('infinitepay_api_key', infinitePayConfig.apiKey.trim());
+      safeLocalStorageSet('infinitepay_api_key', infinitePayConfig.apiKey.trim());
     }
   }, [infinitePayConfig]);
 
@@ -233,14 +235,14 @@ export default function StorefrontPaymentConfig() {
   const [isSavedSuccess, setIsSavedSuccess] = useState(false);
   const handleSaveConfig = async () => {
     const jsonStr = JSON.stringify(config);
-    localStorage.setItem('ap_moda_payment_config', jsonStr);
+    safeLocalStorageSet('ap_moda_payment_config', jsonStr);
     
     // Save InfinitePay
     const ipStr = JSON.stringify(infinitePayConfig);
-    localStorage.setItem('ap_infinitepay_config', ipStr);
-    localStorage.setItem('infinitepay_handle', infinitePayConfig.handle.trim());
+    safeLocalStorageSet('ap_infinitepay_config', ipStr);
+    safeLocalStorageSet('infinitepay_handle', infinitePayConfig.handle.trim());
     if (infinitePayConfig.apiKey) {
-      localStorage.setItem('infinitepay_api_key', infinitePayConfig.apiKey.trim());
+      safeLocalStorageSet('infinitepay_api_key', infinitePayConfig.apiKey.trim());
     }
 
     // Also push to Supabase
@@ -250,14 +252,14 @@ export default function StorefrontPaymentConfig() {
 
     // Also retroactively mirror / keep in sync company_info pixKey and ap_pix_key for backwards compatibility
     try {
-      localStorage.setItem('ap_pix_key', config.pixKey);
+      safeLocalStorageSet('ap_pix_key', config.pixKey);
       await pushSystemConfigToSupabase('ap_pix_key', config.pixKey);
 
       const companyInfoSaved = localStorage.getItem('ap_moda_company_info');
       const parsed = companyInfoSaved ? JSON.parse(companyInfoSaved) : {};
       parsed.pixKey = config.pixKey;
       const updatedCompanyStr = JSON.stringify(parsed);
-      localStorage.setItem('ap_moda_company_info', updatedCompanyStr);
+      safeLocalStorageSet('ap_moda_company_info', updatedCompanyStr);
       await pushSystemConfigToSupabase('ap_moda_company_info', updatedCompanyStr);
     } catch (e) {
       console.error('Failed to sync legacy company info:', e);
@@ -265,7 +267,7 @@ export default function StorefrontPaymentConfig() {
 
     setIsSavedSuccess(true);
     setTimeout(() => setIsSavedSuccess(false), 3000);
-    alert('Configurações de formas de pagamentos e da InfinitePay salvas e sincronizadas com sucesso!');
+    showToast('Configurações de formas de pagamentos e da InfinitePay salvas e sincronizadas com sucesso!', 'success');
   };
 
   // Handle adding card reader terminal
@@ -274,7 +276,7 @@ export default function StorefrontPaymentConfig() {
     if (!termName.trim()) return;
 
     const newTerm: CardTerminal = {
-      id: `term-${Date.now()}`,
+      id: createUniqueId('term'),
       name: termName.trim(),
       brand: termBrand,
       serialNumber: termSerial.trim() || undefined,
@@ -284,7 +286,7 @@ export default function StorefrontPaymentConfig() {
 
     const updated = [...terminals, newTerm];
     setTerminals(updated);
-    localStorage.setItem('ap_moda_card_terminals', JSON.stringify(updated));
+    safeLocalStorageSet('ap_moda_card_terminals', JSON.stringify(updated));
     await pushSystemConfigToSupabase('ap_moda_card_terminals', JSON.stringify(updated));
 
     setIsAddTerminalOpen(false);
@@ -295,10 +297,10 @@ export default function StorefrontPaymentConfig() {
 
   // Handle deleting card reader terminal
   const handleDeleteTerminal = async (id: string) => {
-    if (confirm('Deseja excluir este terminal de maquininha do cadastro?')) {
+    if (await showConfirm('Deseja excluir este terminal de maquininha do cadastro?', 'Excluir Maquininha', 'danger')) {
       const updated = terminals.filter(t => t.id !== id);
       setTerminals(updated);
-      localStorage.setItem('ap_moda_card_terminals', JSON.stringify(updated));
+      safeLocalStorageSet('ap_moda_card_terminals', JSON.stringify(updated));
       await pushSystemConfigToSupabase('ap_moda_card_terminals', JSON.stringify(updated));
     }
   };
@@ -306,7 +308,7 @@ export default function StorefrontPaymentConfig() {
   const toggleTerminalStatus = async (id: string) => {
     const updated = terminals.map(t => t.id === id ? { ...t, status: (t.status === 'Ativo' ? 'Inativo' : 'Ativo') as 'Ativo' | 'Inativo' } : t);
     setTerminals(updated);
-    localStorage.setItem('ap_moda_card_terminals', JSON.stringify(updated));
+    safeLocalStorageSet('ap_moda_card_terminals', JSON.stringify(updated));
     await pushSystemConfigToSupabase('ap_moda_card_terminals', JSON.stringify(updated));
   };
 

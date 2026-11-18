@@ -46,6 +46,22 @@ import { Coupon, getStoredCoupons, saveStoredCoupons, validateCouponForCpf } fro
 import { getStoreConfig, getWhatsAppUrl } from '../utils/storeConfig';
 import CategoryBubblesManager, { resolveCategoryBubbleImage } from './CategoryBubblesManager';
 import { getOptimizedImageUrl, handleImageFallback, getProductMainImage } from '../utils/imageUtils';
+import { showToast, showConfirm, showPrompt } from '../lib/uiDialog';
+import { safeLocalStorageSet, createUniqueId } from '../utils/dateUtils';
+
+const openExternalSafely = (url: string) => {
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch {
+    showToast(`Abra o link manualmente: ${url}`, 'info', 6000);
+  }
+};
 
 interface LojaOnlineProps {
   products: Product[];
@@ -96,8 +112,10 @@ export default function LojaOnline({
   const [copiedWhatsapp, setCopiedWhatsapp] = useState(false);
 
   const handleSaveBios = () => {
-    localStorage.setItem('ap_insta_bio', instaBio);
-    localStorage.setItem('ap_whatsapp_bio', whatsappBio);
+    safeLocalStorageSet('ap_insta_bio', instaBio);
+    safeLocalStorageSet('ap_whatsapp_bio', whatsappBio);
+    pushSystemConfigToSupabase('ap_insta_bio', instaBio).catch(() => {});
+    pushSystemConfigToSupabase('ap_whatsapp_bio', whatsappBio).catch(() => {});
     setIsSavedBios(true);
     setTimeout(() => setIsSavedBios(false), 2000);
   };
@@ -177,14 +195,14 @@ export default function LojaOnline({
 
   const handleQuickSaveLogo = async (newUrl: string) => {
     setStoreLogoUrl(newUrl);
-    localStorage.setItem('ap_store_logo', newUrl);
+    safeLocalStorageSet('ap_store_logo', newUrl);
     try {
       await pushSystemConfigToSupabase('ap_store_logo', newUrl);
     } catch (e) {}
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new CustomEvent('store_config_updated'));
     window.dispatchEvent(new Event('ap-storage-synced'));
-    alert('Logotipo da loja atualizado com sucesso no catálogo e sistema!');
+    showToast('Logotipo da loja atualizado com sucesso no catálogo e sistema!', 'success');
   };
 
   const [benefitCards, setBenefitCards] = useState(() => {
@@ -226,7 +244,7 @@ export default function LojaOnline({
             }
             return updated;
           });
-          localStorage.setItem('ap_vitrine_slides', JSON.stringify(sanitized));
+          safeLocalStorageSet('ap_vitrine_slides', JSON.stringify(sanitized));
           return sanitized;
         }
       }
@@ -357,12 +375,12 @@ export default function LojaOnline({
     e.preventDefault();
     const cleanCode = newCouponCode.trim().toUpperCase();
     if (!cleanCode) {
-      alert('Por favor, digite o código do cupom!');
+      showToast('Por favor, digite o código do cupom!', 'warning');
       return;
     }
     const val = parseFloat(newCouponValue);
     if (isNaN(val) || val <= 0) {
-      alert('Por favor, digite um valor válido para o desconto!');
+      showToast('Por favor, digite um valor válido para o desconto!', 'warning');
       return;
     }
 
@@ -413,7 +431,7 @@ export default function LojaOnline({
           } else {
             pList[partnerIdx].fixedDiscount = val;
           }
-          localStorage.setItem('ap_moda_partners', JSON.stringify(pList));
+          safeLocalStorageSet('ap_moda_partners', JSON.stringify(pList));
           pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(pList));
           window.dispatchEvent(new Event('ap-storage-synced'));
         }
@@ -428,14 +446,14 @@ export default function LojaOnline({
 
     const partnerText = cleanPartnerName ? ` 🤝 Vinculado ao Parceiro "${cleanPartnerName}"` : '';
 
-    alert(`✓ Cupom "${cleanCode}" (${newCouponType === 'percent' ? `${val}% OFF` : `R$ ${val} OFF`}) ${catText}${partnerText} cadastrado com sucesso!`);
+    showToast(`✓ Cupom "${cleanCode}" (${newCouponType === 'percent' ? `${val}% OFF` : `R$ ${val} OFF`}) ${catText}${partnerText} cadastrado com sucesso!`, 'success');
 
     setNewCouponCode('');
     setNewCouponPartnerName('');
   };
 
-  const handleDeleteCouponFromTab = (codeToDelete: string) => {
-    if (confirm(`Tem certeza que deseja remover o cupom ${codeToDelete}?`)) {
+  const handleDeleteCouponFromTab = async (codeToDelete: string) => {
+    if (await showConfirm(`Tem certeza que deseja remover o cupom ${codeToDelete}?`, 'Remover Cupom', 'danger')) {
       const updated = coupons.filter(c => c.code.toUpperCase() !== codeToDelete.toUpperCase());
       setCoupons(updated);
       saveStoredCoupons(updated);
@@ -467,15 +485,15 @@ export default function LojaOnline({
   const handleSaveStorefrontTexts = async () => {
     setIsSavingConfigs(true);
     try {
-      localStorage.setItem('ap_vitrine_store_name', storeName);
-      localStorage.setItem('ap_store_name', storeName);
-      localStorage.setItem('ap_vitrine_store_sub', storeSub);
-      localStorage.setItem('ap_vitrine_theme_color', themeColor);
-      localStorage.setItem('ap_vitrine_active_animation', activeAnimation);
-      localStorage.setItem('ap_store_logo', storeLogoUrl);
+      safeLocalStorageSet('ap_vitrine_store_name', storeName);
+      safeLocalStorageSet('ap_store_name', storeName);
+      safeLocalStorageSet('ap_vitrine_store_sub', storeSub);
+      safeLocalStorageSet('ap_vitrine_theme_color', themeColor);
+      safeLocalStorageSet('ap_vitrine_active_animation', activeAnimation);
+      safeLocalStorageSet('ap_store_logo', storeLogoUrl);
       
       const normalizedInsta = storeInstagram.trim() ? (storeInstagram.startsWith('@') || storeInstagram.startsWith('http') ? storeInstagram.trim() : `@${storeInstagram.trim()}`) : '@ap2_moda_fitness';
-      localStorage.setItem('ap_store_instagram', normalizedInsta);
+      safeLocalStorageSet('ap_store_instagram', normalizedInsta);
       
       await pushSystemConfigToSupabase('ap_vitrine_store_name', storeName);
       await pushSystemConfigToSupabase('ap_store_name', storeName);
@@ -490,10 +508,10 @@ export default function LojaOnline({
       window.dispatchEvent(new CustomEvent('store_config_updated'));
       window.dispatchEvent(new Event('ap-storage-synced'));
       
-      alert('Configurações de Identidade, Logotipo, Instagram e Vitrine salvas com sucesso!');
+      showToast('Configurações de Identidade, Logotipo, Instagram e Vitrine salvas com sucesso!', 'success');
     } catch (e) {
       console.error(e);
-      alert('Erro ao sincronizar com o Supabase, mas os dados foram salvos localmente.');
+      showToast('Erro ao sincronizar com o Supabase, mas os dados foram salvos localmente.', 'warning');
     } finally {
       setIsSavingConfigs(false);
     }
@@ -503,12 +521,12 @@ export default function LojaOnline({
     e.preventDefault();
     setIsSavingConfigs(true);
     try {
-      localStorage.setItem('ap_vitrine_announcement', JSON.stringify(tickerConfig));
+      safeLocalStorageSet('ap_vitrine_announcement', JSON.stringify(tickerConfig));
       await pushSystemConfigToSupabase('ap_vitrine_announcement', JSON.stringify(tickerConfig));
-      alert('Anúncio Rotativo (Ticker) salvo e sincronizado com o Supabase com sucesso!');
+      showToast('Anúncio Rotativo (Ticker) salvo e sincronizado com o Supabase com sucesso!', 'success');
     } catch (e) {
       console.error(e);
-      alert('Salvo localmente.');
+      showToast('Salvo localmente.', 'warning');
     } finally {
       setIsSavingConfigs(false);
     }
@@ -518,15 +536,15 @@ export default function LojaOnline({
     e.preventDefault();
     setIsSavingConfigs(true);
     try {
-      localStorage.setItem('ap_vitrine_benefit_cards', JSON.stringify(benefitCards));
+      safeLocalStorageSet('ap_vitrine_benefit_cards', JSON.stringify(benefitCards));
       await pushSystemConfigToSupabase('ap_vitrine_benefit_cards', JSON.stringify(benefitCards));
-      alert('Cards de Benefícios salvos e sincronizados com o Supabase com sucesso!');
+      showToast('Cards de Benefícios salvos e sincronizados com o Supabase com sucesso!', 'success');
       
       // Dispatch storage synced event to update immediately
       window.dispatchEvent(new Event('ap-storage-synced'));
     } catch (e) {
       console.error(e);
-      alert('Erro ao sincronizar com o Supabase, mas os dados foram salvos localmente.');
+      showToast('Erro ao sincronizar com o Supabase, mas os dados foram salvos localmente.', 'warning');
     } finally {
       setIsSavingConfigs(false);
     }
@@ -536,9 +554,9 @@ export default function LojaOnline({
     e.preventDefault();
     setIsSavingConfigs(true);
     try {
-      localStorage.setItem('ap_vitrine_floating_banner', JSON.stringify(floatingBanner));
+      safeLocalStorageSet('ap_vitrine_floating_banner', JSON.stringify(floatingBanner));
       await pushSystemConfigToSupabase('ap_vitrine_floating_banner', JSON.stringify(floatingBanner));
-      alert('Banner Flutuante Promocional salvo e sincronizado com o Supabase com sucesso!');
+      showToast('Banner Flutuante Promocional salvo e sincronizado com o Supabase com sucesso!', 'success');
     } catch (e) {
       console.error(e);
     } finally {
@@ -550,9 +568,9 @@ export default function LojaOnline({
     setIsSavingConfigs(true);
     try {
       setLookbookSlides(updatedSlides);
-      localStorage.setItem('ap_vitrine_slides', JSON.stringify(updatedSlides));
+      safeLocalStorageSet('ap_vitrine_slides', JSON.stringify(updatedSlides));
       await pushSystemConfigToSupabase('ap_vitrine_slides', JSON.stringify(updatedSlides));
-      alert('Banners de Slide do Lookbook salvos e sincronizados com o Supabase com sucesso!');
+      showToast('Banners de Slide do Lookbook salvos e sincronizados com o Supabase com sucesso!', 'success');
     } catch (e) {
       console.error(e);
     } finally {
@@ -564,9 +582,9 @@ export default function LojaOnline({
     e.preventDefault();
     setIsSavingConfigs(true);
     try {
-      localStorage.setItem('ap_vitrine_category_banners', JSON.stringify(categoryBanners));
+      safeLocalStorageSet('ap_vitrine_category_banners', JSON.stringify(categoryBanners));
       await pushSystemConfigToSupabase('ap_vitrine_category_banners', JSON.stringify(categoryBanners));
-      alert('Imagens de Destaque das Categorias salvas e sincronizadas com o Supabase com sucesso!');
+      showToast('Imagens de Destaque das Categorias salvas e sincronizadas com o Supabase com sucesso!', 'success');
     } catch (e) {
       console.error(e);
     } finally {
@@ -577,7 +595,7 @@ export default function LojaOnline({
   const handleQuickAddProductSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProdName || !newProdPrice) {
-      alert('Por favor, insira o nome e o preço da nova peça!');
+      showToast('Por favor, insira o nome e o preço da nova peça!', 'warning');
       return;
     }
 
@@ -585,7 +603,7 @@ export default function LojaOnline({
     const costNum = newProdCost ? parseFloat(newProdCost) : parseFloat((priceNum * 0.45).toFixed(2));
 
     const newProductObj: Product = {
-      id: 'prod-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      id: createUniqueId('prod'),
       name: newProdName,
       sku: newProdSku || 'PECA-' + Math.floor(1000 + Math.random() * 9000),
       category: newProdCategory,
@@ -602,7 +620,7 @@ export default function LojaOnline({
 
     if (onAddProduct) {
       onAddProduct(newProductObj);
-      alert(`Peça "${newProdName}" cadastrada com sucesso e sincronizada em tempo real com o banco de dados Supabase!`);
+      showToast(`Peça "${newProdName}" cadastrada com sucesso e sincronizada em tempo real com o banco de dados Supabase!`, 'success');
       // Clear form fields
       setNewProdName('');
       setNewProdSku('');
@@ -612,7 +630,7 @@ export default function LojaOnline({
       setNewProdMinStock('3');
       setNewProdDescription('');
     } else {
-      alert('Não foi possível salvar a peça porque o manipulador de produtos não está conectado neste contexto.');
+      showToast('Não foi possível salvar a peça porque o manipulador de produtos não está conectado neste contexto.', 'error');
     }
   };
 
@@ -648,11 +666,11 @@ export default function LojaOnline({
   const handleApplyCouponInVitrine = () => {
     const res = validateCouponForCpf(couponInput, undefined, [], [], vitrineCart);
     if (!res.valid || !res.couponObj) {
-      alert(res.message || 'Cupom de desconto inválido ou inexistente!');
+      showToast(res.message || 'Cupom de desconto inválido ou inexistente!', 'warning');
       return;
     }
     setAppliedCoupon(res.couponObj);
-    alert(`Cupom ${res.couponObj.code} aplicado com sucesso na Vitrine Online!`);
+    showToast(`Cupom ${res.couponObj.code} aplicado com sucesso na Vitrine Online!`, 'success');
   };
 
   // Cart financial computations
@@ -679,7 +697,7 @@ export default function LojaOnline({
   // Generate WhatsApp payload for vitrine order checkout
   const sendVitrineOrderWhatsApp = () => {
     if (vitrineCart.length === 0) {
-      alert('Seu carrinho está vazio para checkout!');
+      showToast('Seu carrinho está vazio para checkout!', 'warning');
       return;
     }
 
@@ -693,16 +711,15 @@ export default function LojaOnline({
     try {
       const storePhone = localStorage.getItem('ap_store_phone') || '21999999999';
       const cleanPhone = storePhone.replace(/\D/g, '') || '21999999999';
-      window.open(`https://wa.me/55${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank');
+      openExternalSafely(`https://wa.me/55${cleanPhone}?text=${encodeURIComponent(message)}`);
     } catch {
       navigator.clipboard?.writeText(message).catch(() => {});
-      alert(`Não foi possível abrir o WhatsApp automaticamente. A mensagem do pedido foi copiada para a área de transferência:\n\n${message}`);
+      showToast('Não foi possível abrir o WhatsApp automaticamente. A mensagem do pedido foi copiada para a área de transferência.', 'info');
     }
   };
 
   const openLojaHtmlNewTab = () => {
-    // Generate a beautiful popup simulating opening loja.html to test e-commerce
-    alert('Boutique Online Integrada!\n\nSeu catálogo de pedidos rápido "loja.html" foi carregado com conexão direta ao banco Supabase e cache offline localStorage. Você pode testá-lo usando a Vitrine Virtual no painel ao lado para ver exatamente como sua cliente visualiza a vitrine de qualquer celular ou tablet!');
+    showToast('Boutique Online Integrada: catálogo conectado ao banco Supabase e cache local.', 'info', 6000);
   };
 
   return (
@@ -728,7 +745,7 @@ export default function LojaOnline({
 
           <button
             type="button"
-            onClick={() => window.open(getCatalogLink(), '_blank')}
+            onClick={() => openExternalSafely(getCatalogLink())}
             className="inline-flex items-center gap-2 bg-pink-100 hover:bg-pink-200 text-pink-700 font-sans font-bold px-4 py-2.5 rounded-xl text-xs transition-colors cursor-pointer active:scale-97 text-center"
           >
             <ExternalLink size={14} />
@@ -891,7 +908,7 @@ export default function LojaOnline({
                   <div className="flex flex-wrap gap-2.5 justify-center md:justify-start">
                     <button
                       type="button"
-                      onClick={() => window.open(getCatalogLink(), '_blank')}
+                      onClick={() => openExternalSafely(getCatalogLink())}
                       className="inline-flex items-center gap-1.5 text-slate-700 bg-slate-100 hover:bg-slate-200 font-bold text-xs px-3.5 py-2 rounded-xl transition"
                     >
                       <ExternalLink size={13} />
@@ -900,7 +917,7 @@ export default function LojaOnline({
                     <button
                       type="button"
                       className="inline-flex items-center gap-1.5 text-white bg-pink-600 hover:bg-pink-700 font-bold text-xs px-3.5 py-2 rounded-xl transition cursor-pointer"
-                      onClick={() => alert(`Para exportar o QR Code para panfletos ou tags de roupas:\n\n1. Imprima ou tire um print desta página\n2. Use em canais do Instagram e WhatsApp!`)}
+                      onClick={() => showToast('Para exportar o QR Code: use a impressão da página (Ctrl+P) ou salve a captura desta tela.', 'info', 6000)}
                     >
                       <span>Imprimir Etiquetas QR</span>
                     </button>
@@ -1714,7 +1731,7 @@ export default function LojaOnline({
                       <button
                         type="button"
                         onClick={() => {
-                          alert(`📐 Guia de Medidas AP Moda Fitness:\n\n• PP: 34 (Busto: 76-81cm | Cintura: 58-63cm | Quadril: 86-91cm)\n• P: 36-38 (Busto: 82-87cm | Cintura: 64-69cm | Quadril: 92-97cm)\n• M: 40-42 (Busto: 88-93cm | Cintura: 70-75cm | Quadril: 98-103cm)\n• G: 44 (Busto: 94-99cm | Cintura: 76-81cm | Quadril: 104-109cm)\n• GG: 46 (Busto: 100-105cm | Cintura: 82-87cm | Quadril: 110-115cm)`);
+                          showToast('Guia de Medidas — PP: 34 (Busto 76-81 | Cintura 58-63) • P: 36-38 (82-87 | 64-69) • M: 40-42 (88-93 | 70-75) • G: 44 (94-99 | 76-81) • GG: 46 (100-105 | 82-87cm)', 'info', 8000);
                         }}
                         className="text-[8px] text-pink-400 font-bold hover:underline bg-transparent border-none cursor-pointer"
                       >
@@ -1938,7 +1955,7 @@ export default function LojaOnline({
                       type="button"
                       onClick={() => {
                         if (!cepInput.trim()) {
-                          alert('Por favor, informe um CEP válido.');
+                          showToast('Por favor, informe um CEP válido.', 'warning');
                           return;
                         }
                         setIsCalculatingFreight(true);
@@ -3324,11 +3341,11 @@ export default function LojaOnline({
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      const newVal = prompt(`Definir novo estoque para "${prod.name}":`, prod.stock.toString());
+                                    onClick={async () => {
+                                      const newVal = await showPrompt(`Definir novo estoque para "${prod.name}":`, 'Ajustar Estoque', prod.stock.toString());
                                       if (newVal !== null && !isNaN(parseInt(newVal))) {
                                         if (onUpdateProduct) {
-                                          onUpdateProduct({ ...prod, stock: parseInt(newVal) });
+                                          onUpdateProduct({ ...prod, stock: Math.max(0, parseInt(newVal)) });
                                         }
                                       }
                                     }}

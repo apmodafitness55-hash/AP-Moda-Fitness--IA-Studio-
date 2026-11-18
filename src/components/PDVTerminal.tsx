@@ -43,6 +43,8 @@ import ThermalReceipt from './ThermalReceipt';
 import CorreiosLabel from './CorreiosLabel';
 import { playSaleSuccessSound, playBarcodeBeepSound } from '../lib/audioFeedback';
 import { Html5Qrcode } from 'html5-qrcode';
+import { getLocalDateKey, safeLocalStorageSet, createUniqueId } from '../utils/dateUtils';
+import { showToast } from '../lib/uiDialog';
 
 export function validateCPF(cpf: string): boolean {
   const cleanCPF = cpf.replace(/\D/g, '');
@@ -179,10 +181,10 @@ export default function PDVTerminal({
   const handleExportCashClosureToSheets = async () => {
     setIsExportingSheets(true);
     try {
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getLocalDateKey();
       const savedSales = localStorage.getItem('ap_moda_sales');
       const allSales: Sale[] = savedSales ? JSON.parse(savedSales) : [];
-      const todaySales = allSales.filter(s => s.createdAt.startsWith(todayStr));
+      const todaySales = allSales.filter(s => (s.createdAt || '').startsWith(todayStr));
 
       let totalGross = 0;
       let totalPix = 0;
@@ -229,31 +231,43 @@ export default function PDVTerminal({
       link.click();
       document.body.removeChild(link);
 
+      let googleSynced = false;
       try {
-        await fetch('/api/google-workspace/sync-cash-closure', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            date: todayStr,
-            salesperson: selectedSalesperson,
-            salesCount: todaySales.length,
-            itemsSold: totalItemsSold,
-            pix: totalPix,
-            cardCredit: totalCardCredit,
-            cardDebit: totalCardDebit,
-            cash: totalCash,
-            totalGross: totalGross
-          })
-        });
+        const googleToken = localStorage.getItem('ap_google_access_token');
+        if (googleToken) {
+          const res = await fetch('/api/google-workspace/sync-cash-closure', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${googleToken}`
+            },
+            body: JSON.stringify({
+              date: todayStr,
+              salesperson: selectedSalesperson,
+              salesCount: todaySales.length,
+              itemsSold: totalItemsSold,
+              pix: totalPix,
+              cardCredit: totalCardCredit,
+              cardDebit: totalCardDebit,
+              cash: totalCash,
+              totalGross: totalGross
+            })
+          });
+          googleSynced = res.ok;
+        }
       } catch (apiErr) {
         // soft catch
       }
 
       playSaleSuccessSound();
-      alert('📊 Relatório de Fechamento de Caixa exportado com sucesso para planilha do Google Sheets!');
+      if (googleSynced) {
+        showToast('Fechamento de Caixa exportado (CSV + Google Sheets)!', 'success');
+      } else {
+        showToast('Relatório CSV de Fechamento baixado! Conecte o Google Workspace para sincronizar planilhas na nuvem.', 'info');
+      }
       setIsCashClosureModalOpen(false);
     } catch (err: any) {
-      alert(`Erro ao gerar fechamento de caixa: ${err.message || err}`);
+      showToast(`Erro ao gerar fechamento de caixa: ${err.message || err}`, 'error');
     } finally {
       setIsExportingSheets(false);
     }
@@ -319,11 +333,11 @@ export default function PDVTerminal({
     const maxStock = getPDVItemMaxStock(selectedProductForModal, modalSelectedSize, modalSelectedColor);
     
     if (maxStock <= 0) {
-      alert(`A combinação Tamanho ${modalSelectedSize} e Cor ${modalSelectedColor} está fora de estoque.`);
+      showToast(`A combinação Tamanho ${modalSelectedSize} e Cor ${modalSelectedColor} está fora de estoque.`, 'warning');
       return;
     }
     if (modalQuantity > maxStock) {
-      alert(`Você selecionou ${modalQuantity} peças, mas só existem ${maxStock} disponíveis.`);
+      showToast(`Você selecionou ${modalQuantity} peças, mas só existem ${maxStock} disponíveis.`, 'warning');
       return;
     }
     
@@ -338,7 +352,7 @@ export default function PDVTerminal({
         const currentQty = prev[idx].quantity;
         const targetQty = currentQty + modalQuantity;
         if (targetQty > maxStock) {
-          alert(`Limite de estoque excedido: Você já possui ${currentQty} no carrinho e selecionou mais ${modalQuantity}, mas o estoque máximo é de ${maxStock} peças.`);
+          showToast(`Limite de estoque excedido: Você já possui ${currentQty} no carrinho e o máximo é ${maxStock}.`, 'warning');
           return prev;
         }
         const updated = [...prev];
@@ -366,8 +380,8 @@ export default function PDVTerminal({
   React.useEffect(() => {
     if (selectedClientObject) {
       try {
-        localStorage.setItem('ap_pdv_selected_client', JSON.stringify(selectedClientObject));
-        localStorage.setItem('ap_last_client_data', JSON.stringify(selectedClientObject));
+        safeLocalStorageSet('ap_pdv_selected_client', JSON.stringify(selectedClientObject));
+        safeLocalStorageSet('ap_last_client_data', JSON.stringify(selectedClientObject));
         window.dispatchEvent(new Event('ap-pdv-client-updated'));
       } catch (e) {
         console.warn('Error saving PDV selected client to localStorage:', e);
@@ -469,7 +483,7 @@ export default function PDVTerminal({
 
   const handlePixDiscountPercentChange = (newVal: number) => {
     setPixDiscountPercent(newVal);
-    localStorage.setItem('ap_pdv_pix_discount', newVal.toString());
+    safeLocalStorageSet('ap_pdv_pix_discount', newVal.toString());
   };
 
   const cardTerminalsList = useMemo(() => {
@@ -564,12 +578,12 @@ export default function PDVTerminal({
 
   const generateInfinitePayLinkForPos = async (idx: number, amount: number) => {
     if (amount <= 0) {
-      alert('Por favor, informe um valor maior que R$ 0,00 para gerar o link de pagamento.');
+      showToast('Por favor, informe um valor maior que R$ 0,00 para gerar o link de pagamento.', 'warning');
       return;
     }
     setIsGeneratingLinkMap(prev => ({ ...prev, [idx]: true }));
     try {
-      const orderId = `v-pdv-${Date.now().toString().slice(-4)}`;
+      const orderId = createUniqueId('v-pdv');
       
       let itensPayload: any[] = [];
       try {
@@ -758,7 +772,7 @@ export default function PDVTerminal({
       }
     } catch (err: any) {
       console.error('[InfinitePay POS Error]:', err);
-      alert(`Erro ao gerar link de pagamento: ${err.message || err}`);
+      showToast(`Erro ao gerar link de pagamento: ${err.message || err}`, 'error');
     } finally {
       setIsGeneratingLinkMap(prev => ({ ...prev, [idx]: false }));
     }
@@ -789,7 +803,7 @@ export default function PDVTerminal({
     const codeUpper = couponCode.trim().toUpperCase();
 
     if (appliedCoupon && appliedCoupon.code.toUpperCase() === codeUpper) {
-      alert(`O cupom ${codeUpper} já está aplicado nesta venda.`);
+      showToast(`O cupom ${codeUpper} já está aplicado nesta venda.`, 'info');
       return;
     }
 
@@ -803,13 +817,13 @@ export default function PDVTerminal({
     );
 
     if (!validation.valid || !validation.couponObj) {
-      alert(validation.message || 'Cupom não encontrado, expirado ou inválido.');
+      showToast(validation.message || 'Cupom não encontrado, expirado ou inválido.', 'warning');
       return;
     }
 
     const coupon = validation.couponObj;
     if (coupon.minPurchase && cartTotal < coupon.minPurchase) {
-      alert(`O cupom ${coupon.code} exige compra mínima de ${formatCurrency(coupon.minPurchase)}.`);
+      showToast(`O cupom ${coupon.code} exige compra mínima de ${formatCurrency(coupon.minPurchase)}.`, 'warning');
       return;
     }
 
@@ -826,11 +840,11 @@ export default function PDVTerminal({
     });
 
     const replaceNotice = previousCoupon && previousCoupon !== coupon.code.toUpperCase()
-      ? `\n\n(O cupom ${previousCoupon} foi substituído pelo cupom ${coupon.code}. Os cupons não são cumulativos — apenas 1 por venda)`
+      ? ` (substituiu ${previousCoupon})`
       : '';
     const discLabel = percent > 0 ? `${percent}%` : formatCurrency(fixedValue);
     const partnerNotice = coupon.partnerName ? ` de ${coupon.partnerName}` : '';
-    alert(`✓ Cupom ${coupon.code}${partnerNotice} aplicado com sucesso! Desconto de ${discLabel} concedido.${replaceNotice}`);
+    showToast(`Cupom ${coupon.code}${partnerNotice} aplicado! Desconto de ${discLabel}.${replaceNotice}`, 'success');
   };
 
   const hasPixDiscount = useMemo(() => {
@@ -1074,12 +1088,12 @@ export default function PDVTerminal({
 
   const handleQuickAddClient = () => {
     if (!selectedClientName.trim()) {
-      alert("Por favor, digite o nome completo da cliente antes de salvar.");
+      showToast("Por favor, digite o nome completo da cliente antes de salvar.", "warning");
       return;
     }
 
     if (quickCpf.trim() && !validateCPF(quickCpf)) {
-      alert("O CPF informado é inválido. Por favor, digite um CPF válido ou deixe o campo em branco.");
+      showToast("O CPF informado é inválido. Digite um CPF válido ou deixe o campo em branco.", "warning");
       return;
     }
 
@@ -1088,12 +1102,12 @@ export default function PDVTerminal({
       (quickCpf.trim() && c.cpf && c.cpf.replace(/\D/g, '') === quickCpf.trim().replace(/\D/g, ''))
     );
     if (exists) {
-      alert(`A cliente "${selectedClientName}" ou o CPF informado já consta no sistema.`);
+      showToast(`A cliente "${selectedClientName}" ou o CPF informado já consta no sistema.`, 'info');
       setIsQuickAddOpen(false);
       return;
     }
     const newClient: Client = {
-      id: `cli-${Date.now()}`,
+      id: createUniqueId('cli'),
       name: selectedClientName.trim(),
       email: quickEmail.trim() || `${selectedClientName.toLowerCase().replace(/\s+/g, '')}@exemplo.com`,
       phone: quickPhone.trim() || '(11) 99999-0000',
@@ -1106,24 +1120,22 @@ export default function PDVTerminal({
     };
     onAddClient(newClient);
     try {
-      localStorage.setItem('ap_pdv_selected_client', JSON.stringify(newClient));
-      localStorage.setItem('ap_last_client_data', JSON.stringify(newClient));
+      safeLocalStorageSet('ap_pdv_selected_client', JSON.stringify(newClient));
+      safeLocalStorageSet('ap_last_client_data', JSON.stringify(newClient));
       window.dispatchEvent(new Event('ap-pdv-client-updated'));
     } catch (e) {}
     setIsQuickAddOpen(false);
     setQuickPhone('');
     setQuickEmail('');
     setQuickCpf('');
-    alert(`⚡ Cliente "${selectedClientName.trim()}" cadastrada no sistema!`);
+    showToast(`Cliente "${selectedClientName.trim()}" cadastrada no sistema!`, 'success');
   };
 
-  // Extract categories dynamically
   const categories = useMemo(() => {
     const list = new Set(products.map(p => p.category).filter(Boolean));
     return ['Todos', ...Array.from(list)];
   }, [products]);
 
-  // Filter products by search query and category
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       const matchesSearch = 
@@ -1147,7 +1159,7 @@ export default function PDVTerminal({
 
   const addToCart = (product: Product) => {
     if (product.stock <= 0) {
-      alert(`O produto "${product.name}" está temporariamente esgotado! Recarregue o estoque no menu "Catálogo & Estoque".`);
+      showToast(`O produto "${product.name}" está esgotado! Recarregue o estoque em "Produtos & Estoque".`, 'warning');
       return;
     }
 
@@ -1159,7 +1171,7 @@ export default function PDVTerminal({
 
     const maxStock = getPDVItemMaxStock(product, defaultSize, defaultColor);
     if (maxStock <= 0) {
-      alert(`A combinação Tamanho ${defaultSize} e Cor ${defaultColor} deste produto está fora de estoque.`);
+      showToast(`A combinação Tamanho ${defaultSize} e Cor ${defaultColor} deste produto está fora de estoque.`, 'warning');
       return;
     }
 
@@ -1173,7 +1185,7 @@ export default function PDVTerminal({
       if (idx > -1) {
         const currentQty = prev[idx].quantity;
         if (currentQty >= maxStock) {
-          alert(`Você atingiu o limite de estoque disponível (${maxStock} peças) para a combinação Tamanho ${defaultSize} e Cor ${defaultColor}.`);
+          showToast(`Limite de estoque disponível (${maxStock} peças) atingido para ${defaultSize}/${defaultColor}.`, 'warning');
           return prev;
         }
         const updated = [...prev];
@@ -1198,7 +1210,7 @@ export default function PDVTerminal({
 
       const maxStock = getPDVItemMaxStock(item.product, item.selectedSize || 'M', item.selectedColor || 'Única');
       if (targetQty > maxStock) {
-        alert(`Não é possível vender mais peças. Carga limite de estoque para ${item.selectedSize}/${item.selectedColor}: ${maxStock}`);
+        showToast(`Limite de estoque atingido para ${item.selectedSize}/${item.selectedColor}: ${maxStock}`, 'warning');
         return prev;
       }
 
@@ -1229,7 +1241,7 @@ export default function PDVTerminal({
       
       const maxStock = getPDVItemMaxStock(item.product, sz, targetColor);
       if (item.quantity > maxStock) {
-        alert(`Aviso: O estoque disponível para Tamanho ${sz} e Cor ${targetColor} é de apenas ${maxStock} unidades. Ajustando quantidade...`);
+        showToast(`Estoque disponível para ${sz}/${targetColor}: ${maxStock} un. Ajustando quantidade...`, 'warning');
         updated[index] = {
           ...item,
           selectedSize: sz,
@@ -1250,12 +1262,12 @@ export default function PDVTerminal({
   const handleCheckout = (e: React.FormEvent) => {
     e.preventDefault();
     if (cart.length === 0) {
-      alert('Seu carrinho de compras está vazio! Adicione peças fitness femininas antes de processar.');
+      showToast('Seu carrinho de compras está vazio! Adicione peças antes de finalizar.', 'warning');
       return;
     }
 
     if (!isPaymentValid) {
-      alert(`Erro: A soma das formas de pagamento (${formatCurrency(paymentsTotalSum)}) deve ser exatamente igual ao total da venda (${formatCurrency(finalCartTotal)}).`);
+      showToast(`A soma das formas de pagamento (${formatCurrency(paymentsTotalSum)}) deve ser igual ao total da venda (${formatCurrency(finalCartTotal)}).`, 'warning');
       return;
     }
 
@@ -1350,7 +1362,7 @@ export default function PDVTerminal({
     const partnerIdForSale = appliedCoupon?.partnerId || partnerForSale?.id || undefined;
 
     const newSale: Sale = {
-      id: `v-00${Date.now().toString().slice(-3)}`,
+      id: createUniqueId('v-pdv'),
       clientName: finalClientName,
       channel: selectedChannel,
       items: saleItems,
@@ -2098,7 +2110,7 @@ export default function PDVTerminal({
                                 type="button"
                                 onClick={() => {
                                   navigator.clipboard.writeText(generatedLinks[idx]);
-                                  alert('Link de pagamento copiado para a área de transferência!');
+                                  showToast('Link de pagamento copiado para a área de transferência!', 'success');
                                 }}
                                 className="flex-1 py-1 bg-pink-100 hover:bg-pink-200 text-pink-700 rounded font-extrabold text-[9.5px] transition flex items-center justify-center gap-1 cursor-pointer border-none"
                               >
@@ -2108,7 +2120,14 @@ export default function PDVTerminal({
                                 type="button"
                                 onClick={() => {
                                   const text = `Olá! Segue o link seguro para o pagamento do seu pedido de R$ ${(p.amount || 0).toFixed(2)}: ${generatedLinks[idx]}`;
-                                  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+                                  const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+                                  const a = document.createElement('a');
+                                  a.href = waUrl;
+                                  a.target = '_blank';
+                                  a.rel = 'noopener noreferrer';
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  document.body.removeChild(a);
                                 }}
                                 className="flex-1 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded font-extrabold text-[9.5px] transition flex items-center justify-center gap-1 cursor-pointer border-none"
                               >
@@ -2147,7 +2166,7 @@ export default function PDVTerminal({
                             type="button"
                             onClick={() => {
                               navigator.clipboard.writeText(generateStaticPix(p.amount));
-                              alert('Copia e Cola do PIX copiado para a área de transferência!');
+                              showToast('Copia e Cola do PIX copiado para a área de transferência!', 'success');
                             }}
                             className="w-full py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-[9.5px] transition flex items-center justify-center gap-1 cursor-pointer border-none"
                           >

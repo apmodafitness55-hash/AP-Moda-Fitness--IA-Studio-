@@ -21,6 +21,8 @@ import { Product } from '../types';
 import ImageUploader from './ImageUploader';
 import { pushSystemConfigToSupabase } from '../supabase';
 import { getOptimizedImageUrl, handleImageFallback } from '../utils/imageUtils';
+import { showToast } from '../lib/uiDialog';
+import { safeLocalStorageSet } from '../utils/dateUtils';
 
 interface CategoryBubblesManagerProps {
   products: Product[];
@@ -205,7 +207,7 @@ export default function CategoryBubblesManager({
   const handleSaveAll = async () => {
     setIsSaving(true);
     try {
-      localStorage.setItem('ap_vitrine_category_thumbnails', JSON.stringify(thumbnails));
+      safeLocalStorageSet('ap_vitrine_category_thumbnails', JSON.stringify(thumbnails));
       await pushSystemConfigToSupabase('ap_vitrine_category_thumbnails', JSON.stringify(thumbnails));
       
       // Dispatch custom event so PublicCatalog & Vitrine immediately reflect without reload
@@ -219,7 +221,7 @@ export default function CategoryBubblesManager({
       }, 4000);
     } catch (err) {
       console.error('Erro ao salvar imagens das categorias:', err);
-      alert('Erro ao salvar alterações no banco de dados. Tente novamente.');
+      showToast('Erro ao salvar alterações no banco de dados. Tente novamente.', 'error');
     } finally {
       setIsSaving(false);
     }

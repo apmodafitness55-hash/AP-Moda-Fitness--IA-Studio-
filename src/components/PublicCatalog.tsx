@@ -62,6 +62,22 @@ import { CheckoutWizard } from './CheckoutWizard';
 import { getStoreConfig, getWhatsAppUrl, formatWhatsAppNumber } from '../utils/storeConfig';
 import { resolveCategoryBubbleImage, getFallbackCategoryPhoto } from './CategoryBubblesManager';
 import { getOptimizedImageUrl, handleImageFallback, getProductMainImage } from '../utils/imageUtils';
+import { showToast } from '../lib/uiDialog';
+import { safeLocalStorageSet, createUniqueId } from '../utils/dateUtils';
+
+const openExternalSafely = (url: string) => {
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch {
+    showToast(`Abra o link manualmente: ${url}`, 'info');
+  }
+};
 
 export function validateCPF(cpf: string): boolean {
   const cleanCPF = cpf.replace(/\D/g, '');
@@ -294,7 +310,7 @@ export default function PublicCatalog({
             }
             return updated;
           });
-          localStorage.setItem('ap_vitrine_slides', JSON.stringify(sanitized));
+          safeLocalStorageSet('ap_vitrine_slides', JSON.stringify(sanitized));
           return sanitized;
         }
       }
@@ -412,29 +428,29 @@ export default function PublicCatalog({
 
   // Sync edits to localStorage
   useEffect(() => {
-    localStorage.setItem('ap_vitrine_store_name', storeName);
-    localStorage.setItem('ap_vitrine_store_sub', storeSub);
-    localStorage.setItem('ap_vitrine_theme_color', themeColor);
+    safeLocalStorageSet('ap_vitrine_store_name', storeName);
+    safeLocalStorageSet('ap_vitrine_store_sub', storeSub);
+    safeLocalStorageSet('ap_vitrine_theme_color', themeColor);
   }, [storeName, storeSub, themeColor]);
 
   useEffect(() => {
-    localStorage.setItem('ap_vitrine_benefit_cards', JSON.stringify(benefitCards));
+    safeLocalStorageSet('ap_vitrine_benefit_cards', JSON.stringify(benefitCards));
   }, [benefitCards]);
 
   useEffect(() => {
-    localStorage.setItem('ap_vitrine_slides', JSON.stringify(lookbookSlides));
+    safeLocalStorageSet('ap_vitrine_slides', JSON.stringify(lookbookSlides));
   }, [lookbookSlides]);
 
   useEffect(() => {
-    localStorage.setItem('ap_vitrine_announcement', JSON.stringify(tickerConfig));
+    safeLocalStorageSet('ap_vitrine_announcement', JSON.stringify(tickerConfig));
   }, [tickerConfig]);
 
   useEffect(() => {
-    localStorage.setItem('ap_vitrine_category_banners', JSON.stringify(categoryBanners));
+    safeLocalStorageSet('ap_vitrine_category_banners', JSON.stringify(categoryBanners));
   }, [categoryBanners]);
 
   useEffect(() => {
-    localStorage.setItem('ap_vitrine_floating_banner', JSON.stringify(floatingBanner));
+    safeLocalStorageSet('ap_vitrine_floating_banner', JSON.stringify(floatingBanner));
   }, [floatingBanner]);
 
   // Configure SEO tags for public vitrine indexation
@@ -669,7 +685,7 @@ export default function PublicCatalog({
     const shareUrl = getProductShareUrl(product.id);
     const message = `Confira *${product.name}* na AP2 Moda Fitness! 🛍️✨\n*Preço:* R$ ${product.price.toFixed(2).replace('.', ',')}\n\nVeja as fotos e garanta o seu aqui:\n${shareUrl}`;
     const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
-    window.open(waUrl, '_blank');
+    openExternalSafely(waUrl);
   };
 
   const handleNativeShare = async (product: Product, e?: React.MouseEvent) => {
@@ -752,7 +768,7 @@ export default function PublicCatalog({
         setCouponCode(couponPayload.code);
         setAppliedCoupon(couponPayload);
         try {
-          localStorage.setItem('ap_applied_coupon', JSON.stringify(couponPayload));
+          safeLocalStorageSet('ap_applied_coupon', JSON.stringify(couponPayload));
         } catch (e) {}
       }
     }
@@ -833,9 +849,9 @@ export default function PublicCatalog({
   // Automatically save cart state to localStorage whenever modified
   useEffect(() => {
     try {
-      localStorage.setItem('ap_vitrine_cart', JSON.stringify(cart));
+      safeLocalStorageSet('ap_vitrine_cart', JSON.stringify(cart));
       if (cart.length > 0) {
-        localStorage.setItem('ap_vitrine_cart_backup', JSON.stringify(cart));
+        safeLocalStorageSet('ap_vitrine_cart_backup', JSON.stringify(cart));
       }
     } catch (e) {
       console.error('[Cart Save Error]:', e);
@@ -939,7 +955,7 @@ export default function PublicCatalog({
     }
 
     if (topStock <= 0 || bottomStock <= 0) {
-      alert('Desculpe, uma das peças deste look está temporariamente sem estoque neste tamanho/cor.');
+      showToast('Desculpe, uma das peças deste look está temporariamente sem estoque neste tamanho/cor.', 'warning');
       return;
     }
 
@@ -985,7 +1001,7 @@ export default function PublicCatalog({
       return updated;
     });
 
-    alert(`Look Completo adicionado à sacola com 5% de desconto!\n- ${top.name} (${topSize} / ${topColor})\n- ${bottom.name} (${bottomSize} / ${bottomColor})`);
+    showToast(`Look Completo adicionado à sacola com 5% de desconto! ${top.name} (${topSize}/${topColor}) + ${bottom.name} (${bottomSize}/${bottomColor})`, 'success');
     handleOpenCart(1);
   };
 
@@ -1198,8 +1214,8 @@ export default function PublicCatalog({
   useEffect(() => {
     try {
       if (appliedCoupon) {
-        localStorage.setItem('ap_applied_coupon', JSON.stringify(appliedCoupon));
-        localStorage.setItem('ap_coupon_code', appliedCoupon.code);
+        safeLocalStorageSet('ap_applied_coupon', JSON.stringify(appliedCoupon));
+        safeLocalStorageSet('ap_coupon_code', appliedCoupon.code);
       } else {
         localStorage.removeItem('ap_applied_coupon');
         localStorage.removeItem('ap_coupon_code');
@@ -1261,7 +1277,7 @@ export default function PublicCatalog({
                 setClientEmail(data.email);
               }
 
-              localStorage.setItem('ap_current_checkout_id', data.id);
+              safeLocalStorageSet('ap_current_checkout_id', data.id);
               handleOpenCart(1);
               setCheckoutStep(1);
             }
@@ -1691,7 +1707,7 @@ export default function PublicCatalog({
     try {
       const clickMap = JSON.parse(localStorage.getItem('ap_product_clicks_map') || '{}');
       clickMap[product.id] = (clickMap[product.id] || 0) + 1;
-      localStorage.setItem('ap_product_clicks_map', JSON.stringify(clickMap));
+      safeLocalStorageSet('ap_product_clicks_map', JSON.stringify(clickMap));
     } catch (e) {
       console.warn(e);
     }
@@ -1892,7 +1908,7 @@ export default function PublicCatalog({
         setLeadCpf('');
         setLeadPassword('');
         setPendingFavoriteProductId(null);
-        alert('Conta criada e produto favoritado com sucesso! Boas compras! 💖');
+        showToast('Conta criada e produto favoritado com sucesso! Boas compras! 💖', 'success');
 
       } else {
         // LOGIN MODE
@@ -1956,7 +1972,7 @@ export default function PublicCatalog({
         setLeadLoginUser('');
         setLeadLoginPassword('');
         setPendingFavoriteProductId(null);
-        alert(`Bem-vinda de volta, ${loggedInClient.name}! Produto favoritado com sucesso. 💖`);
+        showToast(`Bem-vinda de volta, ${loggedInClient.name}! Produto favoritado com sucesso. 💖`, 'success');
       }
     } catch (err: any) {
       console.error('[Unified Auth Error]', err);
@@ -1971,7 +1987,7 @@ export default function PublicCatalog({
     e.preventDefault();
     if (!selectedProduct) return;
     if (!newReviewAuthor.trim() || !newReviewText.trim()) {
-      alert("Por favor, preencha o seu nome e sua avaliação.");
+      showToast("Por favor, preencha o seu nome e sua avaliação.", 'warning');
       return;
     }
 
@@ -1995,7 +2011,7 @@ export default function PublicCatalog({
     setNewReviewText('');
     setNewReviewStars(5);
     setIsReviewFormOpen(false);
-    alert("Obrigada! Sua avaliação foi enviada com sucesso e cadastrada na vitrine. 🌸");
+    showToast("Obrigada! Sua avaliação foi enviada com sucesso e cadastrada na vitrine. 🌸", 'success');
   };
 
   // CEP Freight simulate calculation
@@ -2290,7 +2306,7 @@ export default function PublicCatalog({
     }
 
     if (mainMaxStock <= 0) {
-      alert(`Desculpe, o tamanho ${selectedSize} na cor ${selectedColor} do produto principal está esgotado.`);
+      showToast(`Desculpe, o tamanho ${selectedSize} na cor ${selectedColor} do produto principal está esgotado.`, 'warning');
       return;
     }
 
@@ -2315,7 +2331,7 @@ export default function PublicCatalog({
     }
 
     if (compMaxStock <= 0) {
-      alert(`Desculpe, o tamanho ${compSize} na cor ${compColor} do produto complementar está esgotado.`);
+      showToast(`Desculpe, o tamanho ${compSize} na cor ${compColor} do produto complementar está esgotado.`, 'warning');
       return;
     }
 
@@ -2376,7 +2392,7 @@ export default function PublicCatalog({
 
       setIsAddingCombo(null);
       setIsCartOpen(true);
-      alert(`🎉 Look Completo Adicionado! Aplicamos 5% de desconto de cross-selling em ambas as peças! 🌸`);
+      showToast(`🎉 Look Completo Adicionado! Aplicamos 5% de desconto de cross-selling em ambas as peças! 🌸`, 'success');
     }, 450);
   };
 
@@ -2393,7 +2409,7 @@ export default function PublicCatalog({
     }
 
     if (maxStockAvailable <= 0) {
-      alert(`Desculpe, o tamanho ${selectedSize} na cor ${selectedColor} está fora de estoque.`);
+      showToast(`Desculpe, o tamanho ${selectedSize} na cor ${selectedColor} está fora de estoque.`, 'warning');
       return;
     }
 
@@ -2411,7 +2427,7 @@ export default function PublicCatalog({
           const updated = [...prev];
           const newQty = updated[existingIdx].quantity + productQty;
           if (newQty > maxStockAvailable) {
-            alert(`Desculpe, só há ${maxStockAvailable} unidades disponíveis desta combinação.`);
+            showToast(`Desculpe, só há ${maxStockAvailable} unidades disponíveis desta combinação.`, 'warning');
             updated[existingIdx].quantity = maxStockAvailable;
           } else {
             updated[existingIdx].quantity = newQty;
@@ -2448,7 +2464,7 @@ export default function PublicCatalog({
     }
 
     if (maxStockAvailable <= 0) {
-      alert(`Desculpe, o tamanho ${selectedSize} na cor ${selectedColor} está fora de estoque.`);
+      showToast(`Desculpe, o tamanho ${selectedSize} na cor ${selectedColor} está fora de estoque.`, 'warning');
       return;
     }
 
@@ -2544,7 +2560,7 @@ export default function PublicCatalog({
     
     const maxStockAvailable = getStockValue(defaultSz, defaultCol);
     if (maxStockAvailable <= 0) {
-      alert(`Desculpe, todas as combinações deste produto estão temporariamente fora de estoque.`);
+      showToast(`Desculpe, todas as combinações deste produto estão temporariamente fora de estoque.`, 'warning');
       return;
     }
 
@@ -2554,7 +2570,7 @@ export default function PublicCatalog({
         const updated = [...prev];
         const newQty = updated[idx].quantity + 1;
         if (newQty > maxStockAvailable) {
-          alert(`Limite de estoque de ${maxStockAvailable} un. atingido para esta combinação.`);
+          showToast(`Limite de estoque de ${maxStockAvailable} un. atingido para esta combinação.`, 'warning');
           updated[idx].quantity = maxStockAvailable;
         } else {
           updated[idx].quantity = newQty;
@@ -2607,7 +2623,7 @@ export default function PublicCatalog({
       if (newQty <= 0) {
         updated.splice(idx, 1);
       } else if (newQty > maxStockAvailable) {
-        alert(`Desculpe, só há ${maxStockAvailable} unidades disponíveis desta combinação.`);
+        showToast(`Desculpe, só há ${maxStockAvailable} unidades disponíveis desta combinação.`, 'warning');
         updated[idx].quantity = maxStockAvailable;
       } else {
         updated[idx].quantity = newQty;
@@ -3107,7 +3123,10 @@ export default function PublicCatalog({
   }, [storePixKey, cartTotal, storeInfo]);
 
   const handleCopyPix = () => {
-    navigator.clipboard.writeText(dynamicPixCode || pixPayload);
+    const code = dynamicPixCode || pixPayload;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).catch(() => {});
+    }
     setIsCopiedPix(true);
     setTimeout(() => setIsCopiedPix(false), 2000);
   };
@@ -3125,8 +3144,8 @@ export default function PublicCatalog({
       const timer = setTimeout(() => {
         let checkoutId = localStorage.getItem('ap_current_checkout_id');
         if (!checkoutId) {
-          checkoutId = `chk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-          localStorage.setItem('ap_current_checkout_id', checkoutId);
+          checkoutId = createUniqueId('chk');
+          safeLocalStorageSet('ap_current_checkout_id', checkoutId);
         }
 
         const checkoutData = {
@@ -3632,7 +3651,7 @@ export default function PublicCatalog({
             orderMsg: orderMsg
           });
 
-          localStorage.setItem('ap_vitrine_cart_backup', JSON.stringify(cart));
+          safeLocalStorageSet('ap_vitrine_cart_backup', JSON.stringify(cart));
           setCart([]);
           setIsGeneratingPaymentLink(false);
 
@@ -3672,7 +3691,7 @@ export default function PublicCatalog({
             orderMsg: orderMsg
           });
 
-          localStorage.setItem('ap_vitrine_cart_backup', JSON.stringify(cart));
+          safeLocalStorageSet('ap_vitrine_cart_backup', JSON.stringify(cart));
           setCart([]);
           setIsGeneratingPaymentLink(false);
           window.location.href = linkData.url;
@@ -4982,7 +5001,7 @@ export default function PublicCatalog({
                           setIsFittingRoomOpen(true);
                           try {
                             const count = parseInt(localStorage.getItem('ap_provador_uses') || '0', 10);
-                            localStorage.setItem('ap_provador_uses', (count + 1).toString());
+                            safeLocalStorageSet('ap_provador_uses', (count + 1).toString());
                           } catch (e) {
                             console.warn(e);
                           }
@@ -5697,7 +5716,7 @@ export default function PublicCatalog({
                     onChange={(e) => {
                       const val = e.target.value;
                       setFitAge(val);
-                      localStorage.setItem('ap_fit_age', val);
+                      safeLocalStorageSet('ap_fit_age', val);
                       const currentHeight = Number(fitHeight) || 165;
                       const currentWeight = Number(fitWeight) || 60;
                       const currentAge = Number(val) || 30;
@@ -5722,7 +5741,7 @@ export default function PublicCatalog({
                     onChange={(e) => {
                       const val = e.target.value;
                       setFitWeight(val);
-                      localStorage.setItem('ap_fit_weight', val);
+                      safeLocalStorageSet('ap_fit_weight', val);
                       const currentHeight = Number(fitHeight) || 165;
                       const currentWeight = Number(val) || 60;
                       const currentAge = Number(fitAge) || 30;
@@ -5747,7 +5766,7 @@ export default function PublicCatalog({
                     onChange={(e) => {
                       const val = e.target.value;
                       setFitHeight(val);
-                      localStorage.setItem('ap_fit_height', val);
+                      safeLocalStorageSet('ap_fit_height', val);
                       const currentHeight = Number(val) || 165;
                       const currentWeight = Number(fitWeight) || 60;
                       const currentAge = Number(fitAge) || 30;
@@ -5772,7 +5791,7 @@ export default function PublicCatalog({
                         type="button"
                         onClick={() => {
                           setFitPreference(pref);
-                          localStorage.setItem('ap_fit_preference', pref);
+                          safeLocalStorageSet('ap_fit_preference', pref);
                           const currentHeight = Number(fitHeight) || 165;
                           const currentWeight = Number(fitWeight) || 60;
                           const currentAge = Number(fitAge) || 30;
@@ -6013,8 +6032,8 @@ export default function PublicCatalog({
                 handleOpenCart(1);
 
                 try {
-                  localStorage.setItem('ap_applied_coupon', JSON.stringify(couponObj));
-                  localStorage.setItem('ap_coupon_code', couponObj.code);
+                  safeLocalStorageSet('ap_applied_coupon', JSON.stringify(couponObj));
+                  safeLocalStorageSet('ap_coupon_code', couponObj.code);
                 } catch (e) {}
               }}
               className="block w-full text-center py-2 px-4 rounded-xl text-[10px] font-bold text-white transition hover:opacity-90 tracking-wide border-none cursor-pointer"
@@ -6256,8 +6275,10 @@ export default function PublicCatalog({
                                           <button
                                             type="button"
                                             onClick={() => {
-                                              navigator.clipboard.writeText(order.trackingCode);
-                                              alert('Código de rastreio copiado para a área de transferência! 📋');
+                                              if (navigator.clipboard && navigator.clipboard.writeText) {
+                                                navigator.clipboard.writeText(order.trackingCode).catch(() => {});
+                                              }
+                                              showToast('Código de rastreio copiado para a área de transferência! 📋', 'success');
                                             }}
                                             className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 rounded font-bold transition text-slate-700 text-[8.5px] cursor-pointer border-none"
                                           >
@@ -6431,8 +6452,8 @@ export default function PublicCatalog({
                             addressEstado: cEstado,
                             addressCep: cCep
                           };
-                          localStorage.setItem('ap_checkout_client_data', JSON.stringify(clientData));
-                          localStorage.setItem('ap_site_current_user', JSON.stringify(clientData));
+                          safeLocalStorageSet('ap_checkout_client_data', JSON.stringify(clientData));
+                          safeLocalStorageSet('ap_site_current_user', JSON.stringify(clientData));
                         } catch (e) {}
 
                         setLoginError('');

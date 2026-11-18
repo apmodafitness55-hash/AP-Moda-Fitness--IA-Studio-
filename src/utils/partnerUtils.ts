@@ -1,4 +1,5 @@
 import { pushSystemConfigToSupabase } from '../supabase';
+import { getLocalDateKey, safeLocalStorageSet, createUniqueId } from './dateUtils';
 
 export interface Partner {
   id: string;
@@ -44,7 +45,7 @@ export function getStoredPartners(): Partner[] {
 
 export function saveStoredPartners(partners: Partner[]): void {
   try {
-    localStorage.setItem('ap_moda_partners', JSON.stringify(partners));
+    safeLocalStorageSet('ap_moda_partners', JSON.stringify(partners));
     pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(partners));
     window.dispatchEvent(new Event('ap-storage-synced'));
   } catch (e) {
@@ -117,7 +118,7 @@ export function getStoredPartnerWithdrawRequests(): PartnerWithdrawRequest[] {
             const match = desc.match(/solicitado por\s+([^(]+)(?:\(([^)]+)\))?/i);
             const partnerName = match ? match[1].trim() : 'Parceira';
             const partnerCoupon = match && match[2] ? match[2].trim() : '';
-            const tDate = t.date ? String(t.date).split('T')[0] : new Date().toISOString().split('T')[0];
+            const tDate = getLocalDateKey(t.date);
 
             // Verifica se já existe solicitação com mesmo ID ou com mesmo valor/data
             const alreadyExists = Array.from(map.values()).some(r => 
@@ -157,7 +158,7 @@ export function getStoredPartnerWithdrawRequests(): PartnerWithdrawRequest[] {
  */
 export async function saveStoredPartnerWithdrawRequests(reqs: PartnerWithdrawRequest[]): Promise<void> {
   try {
-    localStorage.setItem('ap_partner_withdraw_requests', JSON.stringify(reqs));
+    safeLocalStorageSet('ap_partner_withdraw_requests', JSON.stringify(reqs));
     
     // Atualiza também os caches individuais de cada parceira para exibição no portal
     const requestsByPartner = new Map<string, PartnerWithdrawRequest[]>();
@@ -169,9 +170,7 @@ export async function saveStoredPartnerWithdrawRequests(reqs: PartnerWithdrawReq
     }
     
     requestsByPartner.forEach((list, pId) => {
-      try {
-        localStorage.setItem(`ap_withdraw_requests_${pId}`, JSON.stringify(list));
-      } catch (err) {}
+      safeLocalStorageSet(`ap_withdraw_requests_${pId}`, JSON.stringify(list));
     });
 
     // 1. Sincroniza diretamente com o Supabase na tabela ap_system_configs
@@ -224,7 +223,7 @@ export async function syncPartnerWithdrawRequestsWithServer(): Promise<PartnerWi
           }).catch(() => {});
         }
 
-        localStorage.setItem('ap_partner_withdraw_requests', JSON.stringify(merged));
+        safeLocalStorageSet('ap_partner_withdraw_requests', JSON.stringify(merged));
         window.dispatchEvent(new CustomEvent('ap-partner-withdraws-updated', { detail: merged }));
         window.dispatchEvent(new Event('ap-storage-synced'));
         return merged;
@@ -245,7 +244,7 @@ export async function simulatePartnerWithdrawRequestForTesting(
   amount = 85.0
 ): Promise<PartnerWithdrawRequest> {
   const req: PartnerWithdrawRequest = {
-    id: `REQ-${Date.now().toString().slice(-6)}`,
+    id: createUniqueId('REQ').toUpperCase(),
     partnerId: `part-${coupon.toLowerCase()}`,
     partnerName,
     partnerCoupon: coupon,
@@ -253,7 +252,7 @@ export async function simulatePartnerWithdrawRequestForTesting(
     pixKeyType: 'Chave Pix (Telefone)',
     pixKey: '+55 84 99988-7766',
     status: 'Pendente',
-    date: new Date().toISOString().split('T')[0],
+    date: getLocalDateKey(),
     createdAt: new Date().toISOString()
   };
   await addPartnerWithdrawRequest(req);

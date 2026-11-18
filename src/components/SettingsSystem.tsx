@@ -83,6 +83,8 @@ import {
 import { Product, Sale, Client, Transaction } from '../types';
 import { getCardMachinesConfig, saveCardMachinesConfig, CardMachineConfig, DEFAULT_CARD_MACHINES } from '../lib/cardMachines';
 import { runDeepSystemDiagnostics, runSystemSelfHeal, DiagnosticResult, DiagnosticLog, SelfHealReport } from '../lib/diagnostics';
+import { getLocalDateKey, safeLocalStorageSet, createUniqueId } from '../utils/dateUtils';
+import { showToast, showConfirm } from '../lib/uiDialog';
 
 interface SettingsSystemProps {
   onResetData?: () => void;
@@ -186,7 +188,7 @@ export default function SettingsSystem({
             }
             return updated;
           });
-          localStorage.setItem('ap_vitrine_slides', JSON.stringify(sanitized));
+          safeLocalStorageSet('ap_vitrine_slides', JSON.stringify(sanitized));
           return sanitized;
         }
       }
@@ -322,7 +324,7 @@ export default function SettingsSystem({
   const handleSaveRegion = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRegionName.trim()) {
-      alert('O nome do bairro/região é obrigatório.');
+      showToast('O nome do bairro/região é obrigatório.', 'warning');
       return;
     }
 
@@ -331,7 +333,7 @@ export default function SettingsSystem({
       updatedList = motoboyRegions.map(r => r.id === editingRegionId ? { ...r, city: newRegionCity.trim(), name: newRegionName.trim(), price: Number(newRegionPrice) } : r);
     } else {
       const newReg = {
-        id: 'reg_' + Math.random().toString(36).substr(2, 9),
+        id: createUniqueId('reg'),
         city: newRegionCity.trim(),
         name: newRegionName.trim(),
         price: Number(newRegionPrice)
@@ -340,7 +342,7 @@ export default function SettingsSystem({
     }
 
     setMotoboyRegions(updatedList);
-    localStorage.setItem('ap_motoboy_regions', JSON.stringify(updatedList));
+    safeLocalStorageSet('ap_motoboy_regions', JSON.stringify(updatedList));
     pushSystemConfigToSupabase('ap_motoboy_regions', JSON.stringify(updatedList));
 
     // Reset Form
@@ -357,17 +359,26 @@ export default function SettingsSystem({
     setNewRegionPrice(reg.price);
   };
 
-  const handleDeleteRegion = (id: string) => {
-    if (confirm('Tem certeza de que deseja remover esta região de entrega por motoboy?')) {
+  const handleDeleteRegion = async (id: string) => {
+    if (await showConfirm({
+      title: 'Remover Região de Entrega',
+      message: 'Tem certeza de que deseja remover esta região de entrega por motoboy?',
+      confirmText: 'Remover',
+      tone: 'danger'
+    })) {
       const updatedList = motoboyRegions.filter(r => r.id !== id);
       setMotoboyRegions(updatedList);
-      localStorage.setItem('ap_motoboy_regions', JSON.stringify(updatedList));
+      safeLocalStorageSet('ap_motoboy_regions', JSON.stringify(updatedList));
       pushSystemConfigToSupabase('ap_motoboy_regions', JSON.stringify(updatedList));
     }
   };
 
-  const handleRestoreDefaultRegions = () => {
-    if (confirm('Deseja restaurar as regiões de entrega padrão para a Região Metropolitana de Natal?')) {
+  const handleRestoreDefaultRegions = async () => {
+    if (await showConfirm({
+      title: 'Restaurar Regiões Padrão',
+      message: 'Deseja restaurar as regiões de entrega padrão para a Região Metropolitana de Natal?',
+      confirmText: 'Restaurar'
+    })) {
       const defaultList = [
         { id: '1', city: 'Natal', name: 'Zona Sul (Capim Macio, Ponta Negra, Candelária, Neópolis)', price: 10 },
         { id: '2', city: 'Natal', name: 'Zona Leste (Tirol, Petrópolis, Areia Preta, Alecrim)', price: 12 },
@@ -380,7 +391,7 @@ export default function SettingsSystem({
         { id: '9', city: 'Outra Região', name: 'A Combinar com o Lojista no WhatsApp', price: 0 }
       ];
       setMotoboyRegions(defaultList);
-      localStorage.setItem('ap_motoboy_regions', JSON.stringify(defaultList));
+      safeLocalStorageSet('ap_motoboy_regions', JSON.stringify(defaultList));
       pushSystemConfigToSupabase('ap_motoboy_regions', JSON.stringify(defaultList));
     }
   };
@@ -577,48 +588,24 @@ export default function SettingsSystem({
   });
   const [usbLog, setUsbLog] = useState<string[]>(['Iniciando subsistema de hardware USB...']);
 
-  // Gemini IA Integration States
-  const [geminiApiKey, setGeminiApiKey] = useState<string>(() => {
-    return localStorage.getItem('gemini_api_key') || localStorage.getItem('GEMINI_API_KEY') || '';
-  });
-  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  // Gemini IA Integration States (server-side protected)
   const [geminiTestStatus, setGeminiTestStatus] = useState<string | null>(null);
   const [isTestingGemini, setIsTestingGemini] = useState(false);
 
-  const handleSaveGeminiKey = (e: React.FormEvent) => {
-    e.preventDefault();
-    localStorage.setItem('gemini_api_key', geminiApiKey.trim());
-    localStorage.setItem('GEMINI_API_KEY', geminiApiKey.trim());
-    setGeminiTestStatus('✅ Chave do Gemini salva com sucesso no seu navegador!');
-  };
-
-  const handleTestGeminiKey = async () => {
+  const handleTestGeminiServer = async () => {
     setIsTestingGemini(true);
     setGeminiTestStatus(null);
     try {
-      const key = geminiApiKey.trim() || localStorage.getItem('gemini_api_key') || localStorage.getItem('GEMINI_API_KEY') || '';
-      const res = await fetch('/api/gemini/generate-description', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(key ? { 'x-gemini-api-key': key } : {})
-        },
-        body: JSON.stringify({
-          name: 'Legging Teste Conexão IA',
-          style: 'Fitness',
-          materials: ['Poliamida'],
-          extraInstructions: 'Teste rápido de conexão com Google Gemini'
-        })
-      });
-
+      const res = await fetch('/api/system/health-check?probeGemini=1');
       const data = await res.json();
-      if (res.ok && data.success && data.text) {
-        setGeminiTestStatus('✨ Conexão com Google Gemini realizada com SUCESSO! A IA respondeu normalmente.');
+      const hub = data?.checks?.gemini;
+      if (res.ok && hub?.ok) {
+        setGeminiTestStatus('✨ Conexão segura do servidor com o Google Gemini validada com SUCESSO! O Hub IA está operacional.');
       } else {
-        setGeminiTestStatus(`⚠️ Resposta do Gemini: ${data.error || 'Verifique a chave informada'}`);
+        setGeminiTestStatus(`⚠️ Hub IA do Servidor: ${hub?.message || data?.error || 'Chave de servidor ausente ou indisponível no momento.'}`);
       }
     } catch (err: any) {
-      setGeminiTestStatus(`❌ Falha ao conectar com Gemini: ${err.message || 'Erro de conexão'}`);
+      setGeminiTestStatus(`❌ Falha ao testar Hub Gemini no servidor: ${err.message || 'Erro de conexão'}`);
     } finally {
       setIsTestingGemini(false);
     }
@@ -627,6 +614,14 @@ export default function SettingsSystem({
   // Google Workspace Integration States and Handlers
   const [isTestingGoogle, setIsTestingGoogle] = useState(false);
   const [googleActionLog, setGoogleActionLog] = useState<any>(null);
+
+  const getGoogleAuthHeaders = () => {
+    const token = localStorage.getItem('ap_google_access_token');
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
+  };
 
   const handleTestGoogleConnection = async () => {
     setIsTestingGoogle(true);
@@ -666,7 +661,7 @@ export default function SettingsSystem({
     try {
       const res = await fetch('/api/google/sheets/export', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getGoogleAuthHeaders(),
         body: JSON.stringify({
           title: 'AP Moda Fitness - Sincronia de Vendas e Estoque',
           data: products || []
@@ -674,8 +669,11 @@ export default function SettingsSystem({
       });
       const data = await res.json();
       setGoogleActionLog(data);
+      if (res.status === 401) {
+        showToast(data.error || 'Conecte sua conta Google na aba Google Workspace primeiro.', 'warning');
+      }
     } catch (e: any) {
-      alert('Erro ao sincronizar com Google Sheets: ' + e.message);
+      showToast('Erro ao sincronizar com Google Sheets: ' + e.message, 'error');
     }
   };
 
@@ -683,16 +681,19 @@ export default function SettingsSystem({
     try {
       const res = await fetch('/api/google/drive/backup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getGoogleAuthHeaders(),
         body: JSON.stringify({
-          fileName: `Backup_AP_Moda_Fitness_${new Date().toISOString().slice(0, 10)}.json`,
+          fileName: `Backup_AP_Moda_Fitness_${getLocalDateKey()}.json`,
           payload: { productsCount: products?.length || 0, salesCount: sales?.length || 0 }
         })
       });
       const data = await res.json();
       setGoogleActionLog(data);
+      if (res.status === 401) {
+        showToast(data.error || 'Conecte sua conta Google na aba Google Workspace primeiro.', 'warning');
+      }
     } catch (e: any) {
-      alert('Erro ao criar backup no Google Drive: ' + e.message);
+      showToast('Erro ao criar backup no Google Drive: ' + e.message, 'error');
     }
   };
 
@@ -700,7 +701,7 @@ export default function SettingsSystem({
     try {
       const res = await fetch('/api/google/calendar/event', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getGoogleAuthHeaders(),
         body: JSON.stringify({
           summary: 'Provador VIP & Atendimento Presencial - AP Moda Fitness',
           startDateTime: new Date().toISOString()
@@ -708,8 +709,11 @@ export default function SettingsSystem({
       });
       const data = await res.json();
       setGoogleActionLog(data);
+      if (res.status === 401) {
+        showToast(data.error || 'Conecte sua conta Google na aba Google Workspace primeiro.', 'warning');
+      }
     } catch (e: any) {
-      alert('Erro ao agendar no Google Calendar: ' + e.message);
+      showToast('Erro ao agendar no Google Calendar: ' + e.message, 'error');
     }
   };
 
@@ -717,7 +721,7 @@ export default function SettingsSystem({
     try {
       const res = await fetch('/api/google/gmail/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getGoogleAuthHeaders(),
         body: JSON.stringify({
           recipient: 'apmodafitness55@gmail.com',
           subject: 'Comprovante Digital & Status do Pedido - AP Moda Fitness'
@@ -725,8 +729,11 @@ export default function SettingsSystem({
       });
       const data = await res.json();
       setGoogleActionLog(data);
+      if (res.status === 401) {
+        showToast(data.error || 'Conecte sua conta Google na aba Google Workspace primeiro.', 'warning');
+      }
     } catch (e: any) {
-      alert('Erro ao enviar e-mail via Gmail: ' + e.message);
+      showToast('Erro ao enviar e-mail via Gmail: ' + e.message, 'error');
     }
   };
 
@@ -751,12 +758,12 @@ export default function SettingsSystem({
   const handleSaveTerminal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!terminalFormName.trim() || !terminalFormBrand.trim()) {
-      alert('Nome da Maquininha e Operadora/Bandeira são de preenchimento obrigatório!');
+      showToast('Nome da Maquininha e Operadora/Bandeira são de preenchimento obrigatório!', 'warning');
       return;
     }
 
     const newTerminal: CardTerminal = {
-      id: editingTerminalId || 'term_' + Math.random().toString(36).substr(2, 9),
+      id: editingTerminalId || createUniqueId('term'),
       name: terminalFormName.trim(),
       brand: terminalFormBrand,
       fee_percentage: Number(terminalFormFee),
@@ -771,7 +778,7 @@ export default function SettingsSystem({
     }
 
     setTerminalsList(updatedList);
-    localStorage.setItem('ap_moda_card_terminals', JSON.stringify(updatedList));
+    safeLocalStorageSet('ap_moda_card_terminals', JSON.stringify(updatedList));
 
     // Clear form
     setTerminalFormName('');
@@ -785,13 +792,13 @@ export default function SettingsSystem({
     try {
       const ok = await syncBulkCardTerminalsToSupabase(updatedList);
       if (ok) {
-        alert('Maquininha gravada e sincronizada na nuvem com sucesso!');
+        showToast('Maquininha gravada e sincronizada na nuvem com sucesso!', 'success');
       } else {
-        alert('Maquininha gravada localmente. Ocorreu uma lentidão na sincronização de nuvem, que será tentada novamente mais tarde.');
+        showToast('Maquininha gravada localmente. Sincronização pendente com o Supabase.', 'warning');
       }
     } catch (err) {
       console.warn(err);
-      alert('Maquininha gravada localmente. Ocorreu um erro de rede ao enviar para o Supabase.');
+      showToast('Maquininha gravada localmente. Ocorreu um erro ao enviar para o Supabase.', 'warning');
     } finally {
       setIsLoadingTerminals(false);
     }
@@ -806,23 +813,27 @@ export default function SettingsSystem({
   };
 
   const handleDeleteTerminal = async (id: string) => {
-    if (!window.confirm('Tem certeza de que deseja excluir esta maquininha de cartão?')) {
+    if (!(await showConfirm({
+      title: 'Excluir Maquininha',
+      message: 'Tem certeza de que deseja excluir esta maquininha de cartão?',
+      confirmText: 'Excluir',
+      tone: 'danger'
+    }))) {
       return;
     }
 
     const updatedList = terminalsList.filter(t => t.id !== id);
     setTerminalsList(updatedList);
-    localStorage.setItem('ap_moda_card_terminals', JSON.stringify(updatedList));
+    safeLocalStorageSet('ap_moda_card_terminals', JSON.stringify(updatedList));
 
     setIsLoadingTerminals(true);
     try {
       await deleteCardTerminalFromSupabase(id);
-      // Fallback sync to keep bulk up to date
       await syncBulkCardTerminalsToSupabase(updatedList);
-      alert('Maquininha excluída da nuvem e do cache local!');
+      showToast('Maquininha excluída da nuvem e do cache local!', 'success');
     } catch (err) {
       console.warn(err);
-      alert('Excluída localmente. Falha ao sincronizar deleção com o Supabase.');
+      showToast('Excluída localmente. Falha ao sincronizar deleção com o Supabase.', 'warning');
     } finally {
       setIsLoadingTerminals(false);
     }
@@ -837,7 +848,7 @@ export default function SettingsSystem({
     });
 
     setTerminalsList(updatedList);
-    localStorage.setItem('ap_moda_card_terminals', JSON.stringify(updatedList));
+    safeLocalStorageSet('ap_moda_card_terminals', JSON.stringify(updatedList));
 
     setIsLoadingTerminals(true);
     try {
@@ -857,19 +868,17 @@ export default function SettingsSystem({
       const msg = `[${new Date().toLocaleTimeString()}] ⚠️ WebUSB não suportado neste navegador/ambiente. Os navegadores baseados em Chromium (Chrome, Edge, Opera) oferecem suporte nativo em conexões seguras HTTPS.`;
       setUsbLog(prev => [...prev, msg]);
       
-      // Simular detecção segura para fins de demonstração
       setTimeout(() => {
         setUsbLog(prev => [
           ...prev, 
           `[${new Date().toLocaleTimeString()}] ❌ WebUSB não é suportado neste navegador/dispositivo. Use o Chrome ou Edge em conexão HTTPS para parear leitores/terminais USB.`
         ]);
-        alert("⚠️ WebUSB não suportado neste navegador.\n\nUtilize Google Chrome ou Microsoft Edge em uma janela segura HTTPS para parear terminais USB.");
+        showToast("WebUSB não suportado neste navegador. Utilize Chrome ou Edge em conexão segura HTTPS.", "warning");
       }, 300);
       return;
     }
 
     try {
-      // Solicita permissão ao usuário para selecionar o dispositivo USB conectado
       const device = await navUsb.requestDevice({ filters: [] });
       
       if (device) {
@@ -886,14 +895,14 @@ export default function SettingsSystem({
         if (!exists) {
           updatedDevices = [...usbDevices, newDevice];
           setUsbDevices(updatedDevices);
-          localStorage.setItem('ap_moda_usb_devices', JSON.stringify(updatedDevices));
+          safeLocalStorageSet('ap_moda_usb_devices', JSON.stringify(updatedDevices));
         }
 
         setUsbLog(prev => [
           ...prev,
           `[${new Date().toLocaleTimeString()}] ✅ Dispositivo conectado: ${newDevice.name} (Vendor: ${newDevice.vendorId}, Product: ${newDevice.productId})`
         ]);
-        alert(`✅ Sucesso WebUSB!\n\nTerminal "${newDevice.name}" pareado e mapeado com sucesso!`);
+        showToast(`Terminal "${newDevice.name}" pareado e mapeado com sucesso!`, 'success');
       }
     } catch (err: any) {
       console.warn('WebUSB error:', err);
@@ -902,7 +911,7 @@ export default function SettingsSystem({
         setUsbLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ❌ Operação cancelada pelo usuário (Nenhum dispositivo selecionado).`]);
       } else {
         setUsbLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ❌ Conexão WebUSB não autorizada ou bloqueada: ${err.message || err}`]);
-        alert(`❌ Não foi possível conectar ao dispositivo USB (${err.message || 'acesso bloqueado'}).\n\nVerifique se a página está aberta fora de iframe restrito e em HTTPS.`);
+        showToast(`Não foi possível conectar ao dispositivo USB (${err.message || 'acesso bloqueado'}).`, 'error');
       }
     }
   };
@@ -936,22 +945,20 @@ export default function SettingsSystem({
   const handleSaveTeamMember = (e: React.FormEvent) => {
     e.preventDefault();
     if (!memberFormName.trim() || !memberFormLogin.trim() || !memberFormPassword.trim()) {
-      alert('Nome, Login de usuário e Senha são de preenchimento obrigatório!');
+      showToast('Nome, Login de usuário e Senha são de preenchimento obrigatório!', 'warning');
       return;
     }
 
     const loginClean = memberFormLogin.trim().toLowerCase().replace(/\s+/g, '');
     
-    // Check if login is already taken by someone else
     const loginExists = teamMembers.some(m => m.login.toLowerCase() === loginClean && m.id !== editingMemberId);
     if (loginExists) {
-      alert(`Erro: O nome de usuário (login) "${loginClean}" já está em uso por outro funcionário ou colaborador cadastrado.`);
+      showToast(`Erro: O nome de usuário (login) "${loginClean}" já está em uso por outro colaborador.`, 'error');
       return;
     }
 
     let updatedList = [];
     if (editingMemberId) {
-      // Edit
       updatedList = teamMembers.map(m => {
         if (m.id === editingMemberId) {
           return {
@@ -969,9 +976,8 @@ export default function SettingsSystem({
       });
       registerAuditLog('Colaborador Atualizado', `Funcionário editado: ${memberFormName} (${memberFormRole})`);
     } else {
-      // Create new
       const newMember = {
-        id: `usr-${Date.now()}`,
+        id: createUniqueId('usr'),
         name: memberFormName.trim(),
         login: loginClean,
         password: memberFormPassword.trim(),
@@ -987,7 +993,6 @@ export default function SettingsSystem({
 
     onUpdateTeamMembers?.(updatedList);
     
-    // Reset form
     setMemberFormName('');
     setMemberFormLogin('');
     setMemberFormPassword('');
@@ -996,7 +1001,7 @@ export default function SettingsSystem({
     setMemberFormBirthDate('');
     setMemberFormAvatar('');
     setEditingMemberId(null);
-    alert('Informações salvas e sincronizadas com sucesso no portal de logins!');
+    showToast('Informações salvas e sincronizadas com sucesso no portal de logins!', 'success');
   };
 
   const handleEditMemberClick = (m: any) => {
@@ -1010,19 +1015,23 @@ export default function SettingsSystem({
     setMemberFormAvatar(m.avatar || '');
   };
 
-  const handleDeleteMemberClick = (m: any) => {
-    if (confirm(`Atenção Administrador: Tem certeza que deseja excluir o cadastro de "${m.name}" (${m.role})?\nEsta perda desativará o login e senha e o removerá do sistema.`)) {
+  const handleDeleteMemberClick = async (m: any) => {
+    if (await showConfirm({
+      title: 'Excluir Colaborador',
+      message: `Tem certeza que deseja excluir o cadastro de "${m.name}" (${m.role})? Esta ação desativará o login e senha.`,
+      confirmText: 'Excluir Cadastro',
+      tone: 'danger'
+    })) {
       const updatedList = teamMembers.filter(item => item.id !== m.id);
       onUpdateTeamMembers?.(updatedList);
       deleteTeamMemberFromSupabase(m.id).catch(err => {
         console.warn('Falha ao remover integrante no Supabase:', err);
       });
-      localStorage.setItem('ap_moda_team_users', JSON.stringify(updatedList));
-      localStorage.setItem('ap_moda_team_users_backup', JSON.stringify(updatedList));
+      safeLocalStorageSet('ap_moda_team_users', JSON.stringify(updatedList));
+      safeLocalStorageSet('ap_moda_team_users_backup', JSON.stringify(updatedList));
       registerAuditLog('Colaborador Deletado', `Removido funcionário: ${m.name} (${m.role})`);
       
       if (editingMemberId === m.id) {
-         // Reset form too
          setMemberFormName('');
          setMemberFormLogin('');
          setMemberFormPassword('');
@@ -1066,8 +1075,8 @@ export default function SettingsSystem({
     };
 
     for (const [k, v] of Object.entries(configEntries)) {
-      localStorage.setItem(k, v);
-      localStorage.setItem(`ap_config_saved_at_${k}`, now);
+      safeLocalStorageSet(k, v);
+      safeLocalStorageSet(`ap_config_saved_at_${k}`, now);
     }
 
     // Keep ap_moda_payment_config and ap_moda_company_info updated as well
@@ -1076,7 +1085,7 @@ export default function SettingsSystem({
       if (paymentConfigSaved) {
         const parsed = JSON.parse(paymentConfigSaved);
         parsed.pixKey = storePixKey;
-        localStorage.setItem('ap_moda_payment_config', JSON.stringify(parsed));
+        safeLocalStorageSet('ap_moda_payment_config', JSON.stringify(parsed));
         await pushSystemConfigToSupabase('ap_moda_payment_config', JSON.stringify(parsed));
       }
 
@@ -1090,14 +1099,12 @@ export default function SettingsSystem({
       parsedCompany.pixKey = storePixKey;
       parsedCompany.addressLine1 = storeAddress;
       parsedCompany.addressLine2 = `${storeCity} - ${storeState}`;
-      localStorage.setItem('ap_moda_company_info', JSON.stringify(parsedCompany));
+      safeLocalStorageSet('ap_moda_company_info', JSON.stringify(parsedCompany));
       await pushSystemConfigToSupabase('ap_moda_company_info', JSON.stringify(parsedCompany));
     } catch (err) {}
 
-    // Register log
     registerAuditLog('Configuração Alterada', 'Dados da empresa editados e salvos');
     
-    // Immediate push to cloud
     await pushSystemConfigToSupabase('ap_store_name', storeName);
     await pushSystemConfigToSupabase('ap_commission_rate', sellerCommissionRate);
     await pushSystemConfigToSupabase('ap_store_slogan', storeSlogan);
@@ -1111,41 +1118,39 @@ export default function SettingsSystem({
     await pushSystemConfigToSupabase('ap_store_footer', storeFooter);
     await pushSystemConfigToSupabase('ap_store_logo', storeLogoUrl);
 
-    // Broadcast change to other components & windows immediately
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new CustomEvent('store_config_updated'));
     window.dispatchEvent(new Event('ap-storage-synced'));
 
-    alert('Dados da empresa atualizados com sucesso no sistema e sincronizados em nuvem!');
+    showToast('Dados da empresa atualizados com sucesso no sistema e sincronizados em nuvem!', 'success');
   };
 
   const handleQuickSaveLogo = async (newUrl: string) => {
     setStoreLogoUrl(newUrl);
-    localStorage.setItem('ap_store_logo', newUrl);
+    safeLocalStorageSet('ap_store_logo', newUrl);
     try {
       await pushSystemConfigToSupabase('ap_store_logo', newUrl);
     } catch (e) {}
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new CustomEvent('store_config_updated'));
     window.dispatchEvent(new Event('ap-storage-synced'));
-    alert('Logotipo oficial atualizado com sucesso! Ele já está visível em todo o sistema e no catálogo.');
+    showToast('Logotipo oficial atualizado com sucesso! Ele já está visível no sistema e no catálogo.', 'success');
   };
 
   const handleSaveWhatsappSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem('ap_whatsapp_token', whatsappToken);
-    localStorage.setItem('ap_whatsapp_phone_id', whatsappPhoneId);
-    localStorage.setItem('ap_whatsapp_recipient', whatsappRecipient);
-    localStorage.setItem('ap_whatsapp_enabled', String(whatsappEnabled));
+    safeLocalStorageSet('ap_whatsapp_token', whatsappToken);
+    safeLocalStorageSet('ap_whatsapp_phone_id', whatsappPhoneId);
+    safeLocalStorageSet('ap_whatsapp_recipient', whatsappRecipient);
+    safeLocalStorageSet('ap_whatsapp_enabled', String(whatsappEnabled));
     registerAuditLog('Configuração WhatsApp', 'Credenciais do WhatsApp Cloud API atualizadas');
 
-    // Immediate push to cloud
     await pushSystemConfigToSupabase('ap_whatsapp_token', whatsappToken);
     await pushSystemConfigToSupabase('ap_whatsapp_phone_id', whatsappPhoneId);
     await pushSystemConfigToSupabase('ap_whatsapp_recipient', whatsappRecipient);
     await pushSystemConfigToSupabase('ap_whatsapp_enabled', String(whatsappEnabled));
 
-    alert('Configurações do WhatsApp salvas com sucesso e sincronizadas em nuvem!');
+    showToast('Configurações do WhatsApp salvas com sucesso e sincronizadas em nuvem!', 'success');
   };
 
   const handleTestWhatsapp = async () => {
@@ -1181,7 +1186,7 @@ export default function SettingsSystem({
       registerAuditLog('Teste WhatsApp', `Notificação de teste do tipo ${testType} enviada`);
     } catch (err: any) {
       console.error('Error testing WhatsApp:', err);
-      alert(`Falha de rede para testar: ${err.message}`);
+      showToast(`Falha de rede para testar: ${err.message}`, 'error');
     } finally {
       setIsTestingWhatsapp(false);
     }
@@ -1189,8 +1194,8 @@ export default function SettingsSystem({
 
   const registerAuditLog = (action: string, target: string) => {
     const newLog: AuditLog = {
-      id: `log-${Date.now()}`,
-      user: `${userRole === 'Admin' ? 'Ana Paula (Admin)' : userRole === 'Gerente' ? 'Juliana Card (Gerente)' : 'Camila Souza (Vendedor)'}`,
+      id: createUniqueId('log'),
+      user: `${userRole === 'Admin' ? 'Ana Paula (Admin)' : userRole === 'Gerente' ? 'Gerente' : 'Vendedor'}`,
       level: userRole,
       action,
       target,
@@ -1199,9 +1204,7 @@ export default function SettingsSystem({
     };
     setAuditLogs(prev => {
       const updated = [newLog, ...prev].slice(0, 100);
-      try {
-        localStorage.setItem('ap_audit_logs', JSON.stringify(updated));
-      } catch {}
+      safeLocalStorageSet('ap_audit_logs', JSON.stringify(updated));
       return updated;
     });
   };
@@ -1221,7 +1224,7 @@ export default function SettingsSystem({
       const blob = new Blob([jsonStr], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       
-      const dateStr = new Date().toISOString().split('T')[0];
+      const dateStr = getLocalDateKey();
       const link = document.createElement('a');
       link.href = url;
       link.download = `ap_moda_backup_${dateStr}.json`;
@@ -1231,9 +1234,9 @@ export default function SettingsSystem({
       URL.revokeObjectURL(url);
 
       registerAuditLog('Backup de Dados', 'Exportação de dados JSON concluída');
-      alert('Backup JSON gerado e baixado localmente com sucesso!');
+      showToast('Backup JSON gerado e baixado localmente com sucesso!', 'success');
     } catch (err: any) {
-      alert(`Falha ao exportar dados: ${err.message}`);
+      showToast(`Falha ao exportar dados: ${err.message}`, 'error');
     }
   };
 
@@ -1247,25 +1250,30 @@ export default function SettingsSystem({
       };
       
       const dateStr = new Date().toLocaleString('pt-BR');
-      localStorage.setItem('ap_moda_backup_snapshot', JSON.stringify(dataToBackup));
-      localStorage.setItem('ap_moda_backup_snapshot_date', dateStr);
+      safeLocalStorageSet('ap_moda_backup_snapshot', JSON.stringify(dataToBackup));
+      safeLocalStorageSet('ap_moda_backup_snapshot_date', dateStr);
       setSnapshotDate(dateStr);
       
       registerAuditLog('Backup de Dados', 'Snapshot de segurança salvo no localStorage');
-      alert(`Backup Snapshot salvo com sucesso no navegador em: ${dateStr}`);
+      showToast(`Backup Snapshot salvo com sucesso no navegador em: ${dateStr}`, 'success');
     } catch (err: any) {
-      alert(`Erro ao salvar Snapshot local: ${err.message}`);
+      showToast(`Erro ao salvar Snapshot local: ${err.message}`, 'error');
     }
   };
 
-  const handleRestoreSnapshot = () => {
+  const handleRestoreSnapshot = async () => {
     const saved = localStorage.getItem('ap_moda_backup_snapshot');
     if (!saved) {
-      alert('Nenhum backup local encontrado no navegador.');
+      showToast('Nenhum backup local encontrado no navegador.', 'warning');
       return;
     }
     
-    if (confirm(`Tem certeza que deseja restaurar o backup salvo em ${snapshotDate}? Todos os dados atuais do sistema serão substituídos.`)) {
+    if (await showConfirm({
+      title: 'Restaurar Snapshot Local',
+      message: `Tem certeza que deseja restaurar o backup salvo em ${snapshotDate}? Todos os dados atuais do sistema serão substituídos.`,
+      confirmText: 'Restaurar',
+      tone: 'danger'
+    })) {
       try {
         const parsed = JSON.parse(saved);
         if (onImportData) {
@@ -1276,11 +1284,12 @@ export default function SettingsSystem({
             transactions: parsed.transactions
           });
           registerAuditLog('Backup de Dados', 'Restauração de Snapshot local realizada');
+          showToast('Snapshot restaurado com sucesso!', 'success');
         } else {
-          alert('Função de restauração indisponível.');
+          showToast('Função de restauração indisponível.', 'error');
         }
       } catch (err: any) {
-        alert(`Erro ao restaurar Snapshot: ${err.message}`);
+        showToast(`Erro ao restaurar Snapshot: ${err.message}`, 'error');
       }
     }
   };
@@ -1290,7 +1299,7 @@ export default function SettingsSystem({
     if (!file) return;
     
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const text = event.target?.result as string;
         const parsed = JSON.parse(text);
@@ -1299,7 +1308,12 @@ export default function SettingsSystem({
           throw new Error('O arquivo carregado não parece ser um backup válido do AP Moda (chaves necessárias ausentes).');
         }
         
-        if (confirm('Deseja realmente importar este backup JSON? Isso substituirá todos os produtos, vendas e clientes atuais.')) {
+        if (await showConfirm({
+          title: 'Importar Backup JSON',
+          message: 'Deseja realmente importar este backup JSON? Isso substituirá todos os produtos, vendas e clientes atuais.',
+          confirmText: 'Importar Backup',
+          tone: 'danger'
+        })) {
           if (onImportData) {
             onImportData({
               products: parsed.products,
@@ -1308,12 +1322,13 @@ export default function SettingsSystem({
               transactions: parsed.transactions || []
             });
             registerAuditLog('Backup de Dados', 'Importação de arquivo JSON concluída');
+            showToast('Backup JSON importado com sucesso!', 'success');
           } else {
-            alert('Erro: função de importação indisponível.');
+            showToast('Erro: função de importação indisponível.', 'error');
           }
         }
       } catch (err: any) {
-        alert(`Erro ao processar arquivo de backup: ${err.message}`);
+        showToast(`Erro ao processar arquivo de backup: ${err.message}`, 'error');
       }
     };
     reader.readAsText(file);
@@ -1322,7 +1337,7 @@ export default function SettingsSystem({
 
   const handleTestUpload = async () => {
     if (!imgbbKey || !imgbbKey.trim()) {
-      alert('Favor preencher o campo Token da API do ImgBB.');
+      showToast('Favor preencher o campo Token da API do ImgBB.', 'warning');
       return;
     }
     try {
@@ -1334,17 +1349,16 @@ export default function SettingsSystem({
       const data = await res.json();
       if (res.ok && data.success) {
         registerAuditLog('Upload de Mídia', 'Teste real de upload efetuado via API ImgBB');
-        alert(`✅ ${data.message}`);
+        showToast(data.message, 'success');
       } else {
-        alert(`❌ Falha na validação ImgBB: ${data.error || 'Chave recusada pela API ImgBB.'}`);
+        showToast(`Falha na validação ImgBB: ${data.error || 'Chave recusada pela API ImgBB.'}`, 'error');
       }
     } catch (err: any) {
-      alert(`❌ Erro ao testar conexão com ImgBB: ${err.message || err}`);
+      showToast(`Erro ao testar conexão com ImgBB: ${err.message || err}`, 'error');
     }
   };
 
   const handleTestWebhook = () => {
-    // Webhook POST sender!
     const jsonPayload = {
       content: `🔔 **AP Moda Fitness - Notificação de Alerta**\nSistema de gerenciamento testou webhook para canais de aviso com sucesso! Modo online ativo.\n🕒 *Data:* ${new Date().toLocaleString()}\n👤 *Usuário:* ${userRole}`,
       username: 'AP Moda Fitness BOT',
@@ -1357,26 +1371,25 @@ export default function SettingsSystem({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(jsonPayload)
       }).then(() => {
-        alert('Disparo Efetuado! Notificação enviada com sucesso para o canal do Discord/Telegram.');
+        showToast('Disparo efetuado! Notificação enviada com sucesso para o canal do Discord/Telegram.', 'success');
       }).catch(() => {
-        alert('Notificação enviada com sucesso! (Seu webhook respondeu mas bloqueou CORS, o que é esperado no ambiente de testes).');
+        showToast('Notificação disparada para o webhook configurado.', 'info');
       });
     } else {
-      alert(`Webhook Simulador de Alertas:\n\nPayload enviado:\n${JSON.stringify(jsonPayload, null, 2)}`);
+      showToast('Configure a URL do webhook acima antes de enviar notificações.', 'warning');
     }
 
     try {
-      // Audio Alert Beep effect
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.connect(gain);
       gain.connect(audioCtx.destination);
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, audioCtx.currentTime); // high note pitch alert
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime);
       gain.gain.setValueAtTime(0.06, audioCtx.currentTime);
       osc.start();
-      osc.stop(audioCtx.currentTime + 0.15); // play for 150ms
+      osc.stop(audioCtx.currentTime + 0.15);
     } catch {}
 
     registerAuditLog('Envio de Webhook', 'Teste de webhook de aviso do Discord/Telegram executado');
@@ -1385,34 +1398,31 @@ export default function SettingsSystem({
   const handleToggleOffline = () => {
     if (supabaseStatus === 'connected') {
       setSupabaseStatus('offline_sync');
-      setOfflineQueueCount(prev => prev + 1); // Mock 1 item of pending synchronization in queue
+      setOfflineQueueCount(prev => prev + 1);
       registerAuditLog('Sincronização Supabase', 'Modo Offline Forçado');
-      alert('MODO OFFLINE ATIVADO!\n\nO sistema continuará operando normalmente em cache local (localStorage). Qualquer venda ou alteração de cadastro ficará salva na Fila de Sincronização offline e transmitida automaticamente para a nuvem Supabase assim que a rede restabelecer!');
+      showToast('Modo offline ativado! Alterações ficarão na fila local até a reconexão.', 'warning');
     } else {
       setSupabaseStatus('connected');
       setOfflineQueueCount(0);
       registerAuditLog('Sincronização Supabase', 'Restaurado modo online & Fila descarregada');
-      alert('CONEXÃO RESTAURADA COM SUPABASE!\n\nDados sincronizados em tempo real com sucesso! Polling de 5 segundos re-estabelecido.');
+      showToast('Conexão com Supabase restaurada! Dados sincronizados.', 'success');
     }
   };
 
   const handleSaveSupabaseSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem('ap_supabase_url', supabaseUrl);
-    localStorage.setItem('ap_supabase_key', supabaseKey);
-    localStorage.setItem('ap_supabase_url', supabaseUrl);
-    localStorage.setItem('ap_supabase_key', supabaseKey);
+    safeLocalStorageSet('ap_supabase_url', supabaseUrl);
+    safeLocalStorageSet('ap_supabase_key', supabaseKey);
     
-    // Save to the central server so all other devices automatically sync to the same DB!
     await saveSupabaseConfigToServer(supabaseUrl, supabaseKey);
     
     registerAuditLog('Configuração Supabase', 'Credenciais salvas no sistema e compartilhadas');
-    alert('Credenciais do Supabase registradas com sucesso localmente e ativadas globalmente para TODOS os aparelhos!');
+    showToast('Credenciais do Supabase registradas localmente e ativadas para todos os aparelhos!', 'success');
   };
 
   const handleTestSupabaseConnection = async () => {
     if (!supabaseUrl.trim() || !supabaseKey.trim()) {
-      alert('Por favor, preencha a URL e a Chave de API do Supabase.');
+      showToast('Por favor, preencha a URL e a Chave de API do Supabase.', 'warning');
       return;
     }
     
@@ -1425,27 +1435,21 @@ export default function SettingsSystem({
         throw error;
       }
       
-      localStorage.setItem('ap_supabase_url', supabaseUrl);
-      localStorage.setItem('ap_supabase_key', supabaseKey);
-      localStorage.setItem('ap_supabase_url', supabaseUrl);
-      localStorage.setItem('ap_supabase_key', supabaseKey);
+      safeLocalStorageSet('ap_supabase_url', supabaseUrl);
+      safeLocalStorageSet('ap_supabase_key', supabaseKey);
       
-      // Save globally
       await saveSupabaseConfigToServer(supabaseUrl, supabaseKey);
       
       setSupabaseStatus('connected');
       
       registerAuditLog('Conexão Supabase', 'Chave API registrada, testada e sincronizada globalmente');
-      alert(`✅ SUCESSO DE CONEXÃO MULTI-DISPOSITIVO!\n\nSeu sistema AP Moda Fitness conectou-se ao Supabase com sucesso.\n\nEstas credenciais foram salvas e ativadas AUTOMATICAMENTE para todos os aparelhos conectados (celulares, tablets e notebooks).\n\nInstância: ${supabaseUrl}`);
+      showToast(`Conexão multi-dispositivo ativa com Supabase (${supabaseUrl})!`, 'success');
     } catch (err: any) {
       console.error('Erro de conexão Supabase:', err);
-      // Still write it locally and try to sync to server just in case
-      localStorage.setItem('ap_supabase_url', supabaseUrl);
-      localStorage.setItem('ap_supabase_key', supabaseKey);
-      localStorage.setItem('ap_supabase_url', supabaseUrl);
-      localStorage.setItem('ap_supabase_key', supabaseKey);
+      safeLocalStorageSet('ap_supabase_url', supabaseUrl);
+      safeLocalStorageSet('ap_supabase_key', supabaseKey);
       await saveSupabaseConfigToServer(supabaseUrl, supabaseKey);
-      alert(`⚠️ Erro de Validação de Credenciais: ${err.message || 'Sem resposta.'}\n\nNo entanto, suas chaves foram gravadas tanto localmente quanto salvas no servidor central.`);
+      showToast(`Erro de validação Supabase: ${err.message || 'Sem resposta.'}`, 'error');
     } finally {
       setIsTestingSupabase(false);
     }
@@ -1453,7 +1457,7 @@ export default function SettingsSystem({
 
   const handleManualSyncTeam = async () => {
     if (!supabaseUrl.trim() || !supabaseKey.trim()) {
-      alert('⚠️ Por favor, valide e salve a configuração do Supabase antes de sincronizar.');
+      showToast('Por favor, valide e salve a configuração do Supabase antes de sincronizar.', 'warning');
       return;
     }
     setIsSyncingTeam(true);
@@ -1479,10 +1483,10 @@ export default function SettingsSystem({
       }
 
       registerAuditLog('Sincronização Supabase', 'Logins sincronizados com sucesso');
-      alert('✅ SINCRONIZAÇÃO BEM-SUCEDIDA!\n\nTodas as credenciais e logins foram persistidos com sucesso na tabela "ap_team_members" em sua nuvem Supabase!');
+      showToast('Credenciais e logins persistidos com sucesso na tabela ap_team_members!', 'success');
     } catch (err: any) {
       console.error('Erro de Sync Supabase:', err);
-      alert(`⚠️ Erro de Sincronização:\n${err.message || 'Erro desconhecido.'}\n\n👉 Certifique-se de que a tabela "ap_team_members" foi criada em seu Supabase SQL Editor usando o botão de cópia de script abaixo.`);
+      showToast(`Erro de Sincronização: ${err.message || 'Erro desconhecido.'}`, 'error');
     } finally {
       setIsSyncingTeam(false);
     }
@@ -1490,53 +1494,42 @@ export default function SettingsSystem({
 
   const handleForceSyncAllData = async () => {
     if (!supabaseUrl.trim() || !supabaseKey.trim()) {
-      alert('⚠️ Por favor, valide e salve a configuração do Supabase antes de forçar o envio.');
+      showToast('Por favor, valide e salve a configuração do Supabase antes de forçar o envio.', 'warning');
       return;
     }
     
-    const confirmPush = confirm(
-      "🔥 ATENÇÃO: Carregar Todo o Banco de Dados para o Supabase!\n\n" +
-      "Isso irá carregar TODOS os seus dados salvos neste aparelho (produtos, clientes, histórico de vendas, fluxo de caixa e logins) para a sua nuvem Supabase.\n\n" +
-      "Isso é essencial se você acabou de configurar um novo Supabase vazio, pois assim os dados locais deste aparelho serão enviados para a nuvem e todos os outros celulares, tablets ou notebooks conectados passarão a enxergar esses mesmos produtos e vendas imediatamente.\n\n" +
-      "Deseja prosseguir com o envio em massa para a nuvem?"
-    );
+    const confirmPush = await showConfirm({
+      title: 'Carregar Todo o Banco para o Supabase',
+      message: 'Isso enviará todos os produtos, clientes, histórico de vendas, fluxo de caixa e logins salvos neste aparelho para o Supabase. Deseja prosseguir?',
+      confirmText: 'Enviar Tudo para Nuvem',
+      tone: 'warning'
+    });
     if (!confirmPush) return;
 
     setIsForceSyncingAll(true);
     try {
-      // 1. Sincronizar Equipe/Logins
       if (teamMembers && teamMembers.length > 0) {
         await syncBulkTeamMembersToSupabase(teamMembers);
       }
-      
-      // 2. Sincronizar Produtos
       if (products && products.length > 0) {
         await syncBulkProductsToSupabase(products);
       }
-      
-      // 3. Sincronizar Clientes
       if (clients && clients.length > 0) {
         await syncBulkClientsToSupabase(clients);
       }
-      
-      // 4. Sincronizar Vendas
       if (sales && sales.length > 0) {
         await syncBulkSalesToSupabase(sales);
       }
-      
-      // 5. Sincronizar Transações Financeiras (Caixa)
       if (transactions && transactions.length > 0) {
         await syncBulkTransactionsToSupabase(transactions);
       }
 
-      // 6. Sincronizar Pedidos Online
       const rawOrders = localStorage.getItem('ap_moda_online_orders');
       const onlineOrdersList = rawOrders ? JSON.parse(rawOrders) : [];
       if (onlineOrdersList && onlineOrdersList.length > 0) {
         await syncBulkOnlineOrdersToSupabase(onlineOrdersList);
       }
 
-      // 7. Enviar as configurações gerais
       const configs = [
         { key: 'ap_store_name', value: storeName },
         { key: 'ap_store_cnpj', value: storeCnpj },
@@ -1552,19 +1545,10 @@ export default function SettingsSystem({
       }
 
       registerAuditLog('Carga Total Supabase', 'Todos os dados locais foram exportados para a nuvem.');
-      alert(
-        "✨ SUCESSO NO ACESSO E CARGA EM NUVEM!\n\n" +
-        "Todas as suas informações locais foram enviadas com sucesso para as tabelas do seu Supabase:\n" +
-        `• ${products.length} Produtos do Catálogo\n` +
-        `• ${clients.length} Clientes (CRM)\n` +
-        `• ${sales.length} Vendas Registradas\n` +
-        `• ${transactions.length} Lançamentos do Fluxo de Caixa\n` +
-        `• ${teamMembers.length} Funcionários e Logins de Segurança\n\n` +
-        "Excelente! Agora todos os outros dispositivos conectados com o mesmo link sincronizarão exatamente estas mesmas informações!"
-      );
+      showToast(`Carga concluída! ${products.length} produtos, ${clients.length} clientes, ${sales.length} vendas e ${transactions.length} lançamentos enviados ao Supabase.`, 'success');
     } catch (err: any) {
       console.error('Erro ao forçar sincronia total:', err);
-      alert(`⚠️ Falha ao forçar sincronização total: ${err.message || 'Erro de rede ou permissão.'}\n\n👉 Certifique-se de que a URL do Supabase e as chaves foram salvas corretamente e que sua conexão está ativa.`);
+      showToast(`Falha ao forçar sincronização total: ${err.message || 'Erro de rede ou permissão.'}`, 'error');
     } finally {
       setIsForceSyncingAll(false);
     }
@@ -1574,29 +1558,29 @@ export default function SettingsSystem({
     try {
       navigator.clipboard.writeText(SUPABASE_SETUP_INFO);
       registerAuditLog('Cópia Script SQL', 'Script de configuração Supabase copiado');
-      alert('📋 Script SQL copiado com sucesso!\n\nCole no "SQL Editor" do seu painel do Supabase e clique em "Run" para automatizar a criação de todas as tabelas necessárias.');
+      showToast('Script SQL copiado! Cole no SQL Editor do Supabase e clique em Run.', 'success');
     } catch(err) {
-      alert('Seu navegador bloqueou a cópia direta. Selecione o SQL abaixo ou use outro navegador.');
+      showToast('Navegador bloqueou a cópia direta. Selecione o SQL manualmente.', 'warning');
     }
   };
 
   const handleUpdatePassword = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPassword.trim()) {
-      alert('Preencha a nova senha.');
+      showToast('Preencha a nova senha.', 'warning');
       return;
     }
     setCurrentPassword('•••••••••');
     setNewPassword('');
     registerAuditLog('Alteração Cadastral', 'Senha do usuário modificada');
-    alert('Senha alterada com sucesso! As credenciais foram atualizadas nas 3 camadas de segurança criptografadas.');
+    showToast('Senha alterada com sucesso!', 'success');
   };
 
   const handleRoleChange = (newR: 'Admin' | 'Gerente' | 'Vendedor') => {
     setUserRole(newR);
-    localStorage.setItem('ap_user_role', newR);
+    safeLocalStorageSet('ap_user_role', newR);
     registerAuditLog('Alteração Nível de Acesso', `Nível de acesso alterado para ${newR}`);
-    alert(`Nível logado alterado para: ${newR}. O cabeçalho foi ajustado com as permissões da categoria.`);
+    showToast(`Nível logado alterado para: ${newR}.`, 'info');
   };
 
   return (
@@ -2498,7 +2482,7 @@ export default function SettingsSystem({
                     value={melhorEnvioToken}
                     onChange={(e) => {
                       setMelhorEnvioToken(e.target.value);
-                      localStorage.setItem('ap_melhor_envio_token', e.target.value.trim());
+                      safeLocalStorageSet('ap_melhor_envio_token', e.target.value.trim());
                       pushSystemConfigToSupabase('ap_melhor_envio_token', e.target.value.trim());
                     }}
                     placeholder="Cole seu token do Melhor Envio..."
@@ -2513,7 +2497,7 @@ export default function SettingsSystem({
                     onClick={() => {
                       const next = !melhorEnvioSandbox;
                       setMelhorEnvioSandbox(next);
-                      localStorage.setItem('ap_melhor_envio_sandbox', String(next));
+                      safeLocalStorageSet('ap_melhor_envio_sandbox', String(next));
                       pushSystemConfigToSupabase('ap_melhor_envio_sandbox', String(next));
                     }}
                     className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${melhorEnvioSandbox ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-slate-200 text-slate-700 border-slate-300'}`}
@@ -2793,71 +2777,42 @@ export default function SettingsSystem({
             </div>
           </div>
 
-          {/* Google Gemini AI Integration Card */}
+          {/* Google Gemini AI Integration Card (Server-Side Key Protected) */}
           <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-4 space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-slate-50">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 animate-fade-in">
                 <Sparkles size={15} className="text-purple-600" />
-                <span>Google Gemini (Inteligência Artificial)</span>
+                <span>Google Gemini (Hub IA no Servidor)</span>
               </h3>
-              <span className={`w-2.5 h-2.5 rounded-full ${geminiApiKey ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              <span className={`w-2.5 h-2.5 rounded-full ${geminiTestStatus?.includes('SUCESSO') ? 'bg-emerald-500 animate-pulse' : 'bg-purple-500'}`} />
             </div>
 
-            <form onSubmit={handleSaveGeminiKey} className="space-y-3 font-sans">
+            <div className="space-y-3 font-sans">
               <p className="text-[10.5px] text-slate-500 leading-relaxed">
-                Insira sua chave de API do <strong>Google Gemini (API Key)</strong> para ativar a geração de descrições, análises de estoque, copiloto de WhatsApp, estamparia e precificação com IA.
+                O Hub de Inteligência Artificial utiliza exclusivamente a credencial segura configurada no servidor para descrições, análise de estoque, atendimento WhatsApp, estamparia e precificação.
               </p>
 
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="block text-slate-700 font-semibold text-[10px]">Chave de API do Gemini (API Key)</label>
-                  <button
-                    type="button"
-                    onClick={() => setShowGeminiKey(!showGeminiKey)}
-                    className="text-[10px] text-purple-600 font-bold hover:underline cursor-pointer"
-                  >
-                    {showGeminiKey ? 'Esconder' : 'Mostrar'}
-                  </button>
-                </div>
-                <input
-                  type={showGeminiKey ? 'text' : 'password'}
-                  value={geminiApiKey}
-                  onChange={(e) => setGeminiApiKey(e.target.value)}
-                  placeholder="Cole sua chave aqui (ex: AIzaSy...)"
-                  className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 font-mono text-[10px] text-slate-700 focus:outline-hidden"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
-                  type="submit"
-                  className="py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg text-[10px] transition flex items-center justify-center gap-1 cursor-pointer"
-                >
-                  <Save size={11} />
-                  <span>Salvar Chave Gemini</span>
-                </button>
-                <button
-                  type="button"
-                  disabled={isTestingGemini}
-                  onClick={handleTestGeminiKey}
-                  className="py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-[10px] transition flex items-center justify-center gap-1 cursor-pointer disabled:opacity-55"
-                >
-                  <RefreshCw size={11} className={isTestingGemini ? 'animate-spin' : ''} />
-                  <span>{isTestingGemini ? 'Testando IA...' : 'Testar IA Gemini'}</span>
-                </button>
-              </div>
-            </form>
+              <button
+                type="button"
+                disabled={isTestingGemini}
+                onClick={handleTestGeminiServer}
+                className="w-full py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-[10.5px] transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-55"
+              >
+                <RefreshCw size={12} className={isTestingGemini ? 'animate-spin' : ''} />
+                <span>{isTestingGemini ? 'Testando Hub IA no Servidor...' : 'Validar Conexão do Hub IA no Servidor'}</span>
+              </button>
+            </div>
 
             {geminiTestStatus && (
-              <div className={`p-2.5 rounded-xl text-[10px] font-sans border ${geminiTestStatus.includes('SUCESSO') || geminiTestStatus.includes('salva') ? 'bg-emerald-50 border-emerald-200 text-emerald-800 font-medium' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+              <div className={`p-2.5 rounded-xl text-[10px] font-sans border ${geminiTestStatus.includes('SUCESSO') ? 'bg-emerald-50 border-emerald-200 text-emerald-800 font-medium' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
                 {geminiTestStatus}
               </div>
             )}
 
-            <div className="p-3 bg-purple-50/50 border border-purple-100 rounded-xl space-y-1.5 text-[10px]">
-              <span className="font-bold text-purple-900 block">💡 Onde obter sua Chave do Gemini?</span>
+            <div className="p-3 bg-purple-50/50 border border-purple-100 rounded-xl space-y-1 text-[10px]">
+              <span className="font-bold text-purple-900 block">🔐 Proteção Server-Side Ativa</span>
               <p className="text-slate-600 text-[9.5px]">
-                Acesse o site <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-purple-700 underline font-bold">Google AI Studio (aistudio.google.com)</a>, clique em <strong>"Create API key"</strong>, crie sua chave e cole no campo acima.
+                As chaves do Gemini permanecem protegidas no backend e nunca são expostas no navegador.
               </p>
             </div>
           </div>
@@ -3024,7 +2979,7 @@ export default function SettingsSystem({
                       setImgbbKey(e.target.value);
                     }}
                     onBlur={async () => {
-                      localStorage.setItem('ap_imgbb_key', imgbbKey);
+                      safeLocalStorageSet('ap_imgbb_key', imgbbKey);
                       await pushSystemConfigToSupabase('ap_imgbb_key', imgbbKey);
                     }}
                     className="flex-grow bg-slate-50 border border-slate-100 rounded-lg p-2 font-mono font-bold text-slate-700 focus:outline-hidden text-xs"
@@ -3032,9 +2987,9 @@ export default function SettingsSystem({
                   <button
                     type="button"
                     onClick={async () => {
-                      localStorage.setItem('ap_imgbb_key', imgbbKey);
+                      safeLocalStorageSet('ap_imgbb_key', imgbbKey);
                       const success = await pushSystemConfigToSupabase('ap_imgbb_key', imgbbKey);
-                      if (success) alert('Chave ImgBB salva e sincronizada na nuvem com sucesso!');
+                      if (success) showToast('Chave ImgBB salva e sincronizada na nuvem com sucesso!', 'success');
                     }}
                     className="px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-[10px] transition cursor-pointer border-none"
                   >
@@ -3078,7 +3033,7 @@ export default function SettingsSystem({
                       setDiscordWebhook(e.target.value);
                     }}
                     onBlur={async () => {
-                      localStorage.setItem('ap_discord_webhook', discordWebhook);
+                      safeLocalStorageSet('ap_discord_webhook', discordWebhook);
                       await pushSystemConfigToSupabase('ap_discord_webhook', discordWebhook);
                     }}
                     className="flex-grow bg-slate-50 border border-slate-100 rounded-lg p-2 font-mono text-[10px] text-slate-700 focus:outline-hidden"
@@ -3086,9 +3041,9 @@ export default function SettingsSystem({
                   <button
                     type="button"
                     onClick={async () => {
-                      localStorage.setItem('ap_discord_webhook', discordWebhook);
+                      safeLocalStorageSet('ap_discord_webhook', discordWebhook);
                       const success = await pushSystemConfigToSupabase('ap_discord_webhook', discordWebhook);
-                      if (success) alert('Webhook Discord salvo e sincronizado na nuvem com sucesso!');
+                      if (success) showToast('Webhook Discord salvo e sincronizado na nuvem com sucesso!', 'success');
                     }}
                     className="px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg text-[10px] transition cursor-pointer border-none"
                   >
@@ -3130,7 +3085,7 @@ export default function SettingsSystem({
                   checked={whatsappEnabled}
                   onChange={(e) => {
                     setWhatsappEnabled(e.target.checked);
-                    localStorage.setItem('ap_whatsapp_enabled', e.target.checked ? 'true' : 'false');
+                    safeLocalStorageSet('ap_whatsapp_enabled', e.target.checked ? 'true' : 'false');
                   }}
                   className="accent-pink-600 h-3.5 w-3.5 rounded"
                 />
@@ -3292,12 +3247,12 @@ export default function SettingsSystem({
                 <button
                   type="button"
                   onClick={async () => {
-                    localStorage.setItem('ap_melhor_envio_token', melhorEnvioToken);
+                    safeLocalStorageSet('ap_melhor_envio_token', melhorEnvioToken);
                     const success = await pushSystemConfigToSupabase('ap_melhor_envio_token', melhorEnvioToken);
                     if (success) {
-                      alert('✅ Token do Melhor Envio salvo e sincronizado na nuvem com sucesso!');
+                      showToast('Token do Melhor Envio salvo e sincronizado na nuvem com sucesso!', 'success');
                     } else {
-                      alert('⚠️ Token salvo localmente, mas houve uma falha ao enviar para o Supabase.');
+                      showToast('Token salvo localmente, mas houve uma falha ao enviar para o Supabase.', 'warning');
                     }
                   }}
                   className="sm:self-end px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg transition-colors cursor-pointer border-none text-[11px]"
@@ -3314,10 +3269,10 @@ export default function SettingsSystem({
                     onChange={async (e) => {
                       const isSandbox = e.target.value === 'true';
                       setMelhorEnvioSandbox(isSandbox);
-                      localStorage.setItem('ap_melhor_envio_sandbox', String(isSandbox));
+                      safeLocalStorageSet('ap_melhor_envio_sandbox', String(isSandbox));
                       const success = await pushSystemConfigToSupabase('ap_melhor_envio_sandbox', String(isSandbox));
                       if (success) {
-                        alert(`✅ Ambiente alterado para ${isSandbox ? 'Sandbox / Simulador' : 'Produção'} com sucesso!`);
+                        showToast(`Ambiente alterado para ${isSandbox ? 'Sandbox / Simulador' : 'Produção'} com sucesso!`, 'success');
                       }
                     }}
                     className="w-full bg-slate-50 border border-slate-100 rounded-lg p-2 text-slate-700 text-[10.5px] focus:outline-hidden cursor-pointer"
@@ -3352,12 +3307,17 @@ export default function SettingsSystem({
               
               <button
                 type="button"
-                onClick={() => {
-                  if (window.confirm("Deseja restaurar as taxas padrão de fábrica de todas as maquininhas (InfinitePay, Saipay, PagSeguro, Mercado Pago, Ton, Stone)? Isso irá sobrepor suas edições atuais.")) {
+                onClick={async () => {
+                  if (await showConfirm({
+                    title: 'Restaurar Taxas Padrão',
+                    message: 'Deseja restaurar as taxas padrão de fábrica de todas as maquininhas? Isso irá sobrepor suas edições atuais.',
+                    confirmText: 'Restaurar',
+                    tone: 'warning'
+                  })) {
                     setCardMachines(DEFAULT_CARD_MACHINES);
                     saveCardMachinesConfig(DEFAULT_CARD_MACHINES);
                     pushSystemConfigToSupabase('ap_card_machines_rates', JSON.stringify(DEFAULT_CARD_MACHINES));
-                    alert("✅ Todas as taxas padrão foram limpas e restauradas com sucesso!");
+                    showToast('Todas as taxas padrão foram restauradas com sucesso!', 'success');
                   }
                 }}
                 className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-[10px] transition cursor-pointer self-start sm:self-center font-sans border-none"
@@ -3642,7 +3602,7 @@ export default function SettingsSystem({
                           onClick={() => {
                             saveCardMachinesConfig(cardMachines);
                             pushSystemConfigToSupabase('ap_card_machines_rates', JSON.stringify(cardMachines));
-                            alert(`✅ Configuração salva!\n\nAs taxas para a maquininha "${activeMachine.name}" foram salvas com sucesso localmente e enviadas ao Supabase para atualizar todos os aparelhos conectados (tablets, celulares)!`);
+                            showToast(`Taxas da maquininha "${activeMachine.name}" salvas e enviadas ao Supabase!`, 'success');
                           }}
                           className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-lg transition-colors cursor-pointer text-[10.5px] border-none font-sans"
                         >
@@ -4301,7 +4261,7 @@ export default function SettingsSystem({
                       type="button"
                       onClick={() => {
                         if (!slideFormImage) {
-                          alert('Por favor, informe ou faça upload de uma imagem para o slide.');
+                          showToast('Por favor, informe ou faça upload de uma imagem para o slide.', 'warning');
                           return;
                         }
                         const newSlide = {
@@ -4360,8 +4320,13 @@ export default function SettingsSystem({
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          if (confirm('Deseja realmente apagar este slide do carrossel?')) {
+                        onClick={async () => {
+                          if (await showConfirm({
+                            title: 'Apagar Slide',
+                            message: 'Deseja realmente apagar este slide do carrossel?',
+                            confirmText: 'Apagar',
+                            tone: 'danger'
+                          })) {
                             const updated = lookbookSlides.filter((_, i) => i !== idx);
                             setLookbookSlides(updated);
                             if (editingSlideIndex === idx) setEditingSlideIndex(null);
@@ -4635,20 +4600,19 @@ export default function SettingsSystem({
                 type="button"
                 onClick={async () => {
                   try {
-                    localStorage.setItem('ap_vitrine_slides', JSON.stringify(lookbookSlides));
-                    localStorage.setItem('ap_vitrine_announcement', JSON.stringify(announcement));
-                    localStorage.setItem('ap_vitrine_category_banners', JSON.stringify(categoryBanners));
-                    localStorage.setItem('ap_vitrine_floating_banner', JSON.stringify(floatingBanner));
+                    safeLocalStorageSet('ap_vitrine_slides', JSON.stringify(lookbookSlides));
+                    safeLocalStorageSet('ap_vitrine_announcement', JSON.stringify(announcement));
+                    safeLocalStorageSet('ap_vitrine_category_banners', JSON.stringify(categoryBanners));
+                    safeLocalStorageSet('ap_vitrine_floating_banner', JSON.stringify(floatingBanner));
                     
-                    // Push all vitrine keys instantly to Supabase
                     await pushSystemConfigToSupabase('ap_vitrine_slides', JSON.stringify(lookbookSlides));
                     await pushSystemConfigToSupabase('ap_vitrine_announcement', JSON.stringify(announcement));
                     await pushSystemConfigToSupabase('ap_vitrine_category_banners', JSON.stringify(categoryBanners));
                     await pushSystemConfigToSupabase('ap_vitrine_floating_banner', JSON.stringify(floatingBanner));
 
-                    alert('✨ Vitrine Pública atualizada com sucesso! Suas campanhas, banners do carrossel, faixa de avisos e o banner flutuante já se encontram ativos na visualização de varejo e sincronizados entre todos aparelhos!');
+                    showToast('Vitrine Pública atualizada e sincronizada em todos os aparelhos!', 'success');
                   } catch (e) {
-                    alert('Erro ao persistir configurações da vitrine. Por favor, tente novamente!');
+                    showToast('Erro ao persistir configurações da vitrine. Tente novamente.', 'error');
                   }
                 }}
                 className="w-full py-3 bg-white hover:bg-slate-50 text-pink-700 font-extrabold text-xs rounded-xl transition duration-300 shadow-md flex items-center justify-center gap-2 cursor-pointer border-none font-sans active:scale-97"
@@ -4743,7 +4707,7 @@ export default function SettingsSystem({
                       setDiagnosticResult(report.diagnosticsAfter);
                       registerAuditLog('Autocorreção (Self-Heal)', `${report.fixedCount} correção(ões) aplicada(s) automaticamente.`);
                     } catch (e: any) {
-                      alert('Erro ao rodar self-healing: ' + (e.message || e));
+                      showToast('Erro ao rodar self-healing: ' + (e.message || e), 'error');
                     } finally {
                       setIsSelfHealing(false);
                     }

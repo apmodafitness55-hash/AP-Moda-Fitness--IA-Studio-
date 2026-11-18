@@ -22,6 +22,7 @@ import {
   Award
 } from 'lucide-react';
 import { Product, Sale, Client, Transaction } from '../types';
+import { getLocalYearMonth } from '../utils/dateUtils';
 
 interface DashboardExecutiveProps {
   products: Product[];
@@ -48,24 +49,19 @@ export default function DashboardExecutive({
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
-  // 1. Receita Total matches historical + current
+  // 1. Receita Total (alinhada ao DashboardOverview, sem duplicação de transações)
   const statsRecveita = useMemo(() => {
-    const currentSales = sales.filter(s => s.status === 'Concluída').reduce((sum, s) => sum + s.total, 0);
-    const histSales = transactions
-      .filter(t => t.type === 'Inflow' && t.category === 'Venda' && t.id.includes('hist'))
-      .reduce((sum, t) => sum + t.amount, 0);
-    return currentSales + histSales;
-  }, [sales, transactions]);
+    return sales.filter(s => s.status === 'Concluída').reduce((sum, s) => sum + (s.total || 0), 0);
+  }, [sales]);
 
   const statsReceitaLiquida = useMemo(() => {
-    const currentSalesLiquidas = sales
+    return sales
       .filter(s => s.status === 'Concluída')
       .reduce((sum, s) => {
         if (s.valor_liquido !== undefined && s.valor_liquido !== null && s.valor_liquido > 0) {
           return sum + s.valor_liquido;
         }
-        // Fallback
-        const totalAmount = s.total;
+        const totalAmount = s.total || 0;
         let totalFee = 0;
         if (s.payments && Array.isArray(s.payments) && s.payments.length > 0) {
           s.payments.forEach(p => {
@@ -85,12 +81,7 @@ export default function DashboardExecutive({
         }
         return sum + (totalAmount - totalFee);
       }, 0);
-
-    const histSales = transactions
-      .filter(t => t.type === 'Inflow' && t.category === 'Venda' && t.id.includes('hist'))
-      .reduce((sum, t) => sum + t.amount, 0);
-    return currentSalesLiquidas + histSales;
-  }, [sales, transactions]);
+  }, [sales]);
 
   // 2. Ticket Médio
   const ticketMedio = useMemo(() => {
@@ -110,31 +101,35 @@ export default function DashboardExecutive({
     return Math.round(((revenue - cost) / revenue) * 100);
   }, [sales]);
 
-  // Receita vs Custos vs Lucro Chart Data (6 months dynamic search)
+  const configuredMonthlyGoal = useMemo(() => {
+    try {
+      const saved = Number(localStorage.getItem('ap_monthly_sales_goal'));
+      if (Number.isFinite(saved) && saved > 0) return saved;
+    } catch {}
+    return 20000;
+  }, [sales]);
+
+  // Receita vs Custos vs Lucro Chart Data (6 months dynamic search in BRT)
   const barChartData = useMemo(() => {
     const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const now = new Date();
+    const { year: curYear, month: curMonthIdx } = getLocalYearMonth();
     const last6Months = [];
     
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const mName = months[d.getMonth()];
+      const d = new Date(curYear, curMonthIdx - i, 15, 12, 0, 0);
       const mIndex = d.getMonth();
       const yStr = d.getFullYear();
+      const ymKey = `${yStr}-${String(mIndex + 1).padStart(2, '0')}`;
+      const mName = months[mIndex];
       
-      const monthSales = sales.filter(s => {
-        if (s.status !== 'Concluída') return false;
-        const sd = new Date(s.createdAt);
-        return sd.getMonth() === mIndex && sd.getFullYear() === yStr;
-      });
+      const monthSales = sales.filter(s => s.status === 'Concluída' && getLocalYearMonth(s.createdAt).key.slice(0, 7) === ymKey);
       
       const MonthRevenue = monthSales.reduce((sum, s) => sum + s.total, 0);
       const MonthCost = monthSales.reduce((sum, s) => sum + s.costTotal, 0);
       
       const monthTxOutflows = transactions.filter(t => {
         if (t.type !== 'Outflow') return false;
-        const td = new Date(t.date);
-        return td.getMonth() === mIndex && td.getFullYear() === yStr;
+        return getLocalYearMonth(t.date).key.slice(0, 7) === ymKey;
       }).reduce((sum, t) => sum + t.amount, 0);
       
       const totalCosts = MonthCost + monthTxOutflows;
@@ -151,39 +146,31 @@ export default function DashboardExecutive({
     return last6Months;
   }, [sales, transactions]);
 
-  // Crescimento Mensal Line Chart Data (6 months dynamic search)
+  // Crescimento Mensal Line Chart Data (6 months dynamic search in BRT)
   const lineChartData = useMemo(() => {
     const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const now = new Date();
+    const { year: curYear, month: curMonthIdx } = getLocalYearMonth();
     const last6Months = [];
     
-    // Check if there are any active sales first
-    const hasAnySales = sales.length > 0;
-    
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const mName = months[d.getMonth()];
+      const d = new Date(curYear, curMonthIdx - i, 15, 12, 0, 0);
       const mIndex = d.getMonth();
       const yStr = d.getFullYear();
+      const ymKey = `${yStr}-${String(mIndex + 1).padStart(2, '0')}`;
+      const mName = months[mIndex];
       
-      const monthSales = sales.filter(s => {
-        if (s.status !== 'Concluída') return false;
-        const sd = new Date(s.createdAt);
-        return sd.getMonth() === mIndex && sd.getFullYear() === yStr;
-      });
-      
+      const monthSales = sales.filter(s => s.status === 'Concluída' && getLocalYearMonth(s.createdAt).key.slice(0, 7) === ymKey);
       const MonthRevenue = monthSales.reduce((sum, s) => sum + s.total, 0);
-      const targetGoal = hasAnySales ? 5000 + (mIndex * 1500) : 0;
       
       last6Months.push({
         name: mName,
-        Meta: targetGoal,
+        Meta: configuredMonthlyGoal,
         Faturado: Number(MonthRevenue.toFixed(2))
       });
     }
     
     return last6Months;
-  }, [sales]);
+  }, [sales, configuredMonthlyGoal]);
 
   // Compute Top Channels Percentages Dynamically
   const topChannels = useMemo(() => {
@@ -261,14 +248,18 @@ export default function DashboardExecutive({
   }, [sales, sellers]);
 
   const monthlyRevenuePct = useMemo(() => {
-    const target = 30000;
-    const current = sales.filter(s => s.status === 'Concluída').reduce((sum, s) => sum + s.total, 0);
+    const target = configuredMonthlyGoal > 0 ? configuredMonthlyGoal : 20000;
+    const currentYm = getLocalYearMonth();
+    const current = sales
+      .filter(s => s.status === 'Concluída' && getLocalYearMonth(s.createdAt) === currentYm)
+      .reduce((sum, s) => sum + s.total, 0);
     return Math.min(Math.round((current / target) * 100), 100);
-  }, [sales]);
+  }, [sales, configuredMonthlyGoal]);
 
   const monthlyNewClientsPct = useMemo(() => {
     const target = 20;
-    const current = clients.length;
+    const currentYm = getLocalYearMonth();
+    const current = clients.filter(c => c.createdAt && getLocalYearMonth(c.createdAt) === currentYm).length;
     return Math.min(Math.round((current / target) * 100), 100);
   }, [clients]);
 
@@ -292,7 +283,7 @@ export default function DashboardExecutive({
     const marketingExpenses = transactions
       .filter(t => t.type === 'Outflow' && (t.category?.toLowerCase() || '').includes('marketing'))
       .reduce((sum, t) => sum + t.amount, 0);
-    return marketingExpenses > 0 ? marketingExpenses / clients.length : 28.50;
+    return marketingExpenses > 0 ? marketingExpenses / clients.length : 0;
   }, [clients, transactions]);
 
   const ltvValue = useMemo(() => {

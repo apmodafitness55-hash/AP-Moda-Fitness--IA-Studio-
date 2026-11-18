@@ -48,6 +48,22 @@ import { Client, Sale, SalesChannel } from '../types';
 import { getStoredPartnerWithdrawRequests, updatePartnerWithdrawRequestStatus, syncPartnerWithdrawRequestsWithServer, simulatePartnerWithdrawRequestForTesting, PartnerWithdrawRequest } from '../utils/partnerUtils';
 import { pushSystemConfigToSupabase, syncBulkSalesToSupabase, syncBulkOnlineOrdersToSupabase } from '../supabase';
 import { getWhatsAppUrl } from '../utils/storeConfig';
+import { showToast, showConfirm, showPrompt } from '../lib/uiDialog';
+import { getLocalDateKey, safeLocalStorageSet, createUniqueId } from '../utils/dateUtils';
+
+const openExternalSafely = (url: string) => {
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch {
+    showToast(`Abra o link manualmente: ${url}`, 'info', 6000);
+  }
+};
 
 export function validateCPF(cpf: string): boolean {
   const cleanCPF = cpf.replace(/\D/g, '');
@@ -226,16 +242,15 @@ export default function CustomersCRM({
 
   const handleSaveCashbackRateConfig = (rate: number) => {
     setCashbackRateConfig(rate);
-    try {
-      localStorage.setItem('ap_moda_cashback_rate', rate.toString());
-    } catch (e) {}
+    safeLocalStorageSet('ap_moda_cashback_rate', rate.toString());
+    pushSystemConfigToSupabase('ap_moda_cashback_rate', rate.toString()).catch(() => {});
   };
 
   const handleSaveCashbackAdjustment = () => {
     if (!adjustingClient) return;
     const value = parseFloat(adjustValue);
     if (isNaN(value) || value < 0) {
-      alert('Por favor, informe um valor numérico válido maior ou igual a zero.');
+      showToast('Por favor, informe um valor numérico válido maior ou igual a zero.', 'warning');
       return;
     }
     const updated = clients.map(c => {
@@ -277,9 +292,9 @@ export default function CustomersCRM({
 
   const handleSaveVipRules = (updatedRules: VipRulesConfig) => {
     setVipRules(updatedRules);
-    try {
-      localStorage.setItem('ap_vip_rules_config', JSON.stringify(updatedRules));
-    } catch (e) {}
+    const serialized = JSON.stringify(updatedRules);
+    safeLocalStorageSet('ap_vip_rules_config', serialized);
+    pushSystemConfigToSupabase('ap_vip_rules_config', serialized).catch(() => {});
   };
 
   const handleApplyVipRulesToAllClients = () => {
@@ -297,9 +312,9 @@ export default function CustomersCRM({
 
     if (onUpdateClients) {
       onUpdateClients(updated);
-      alert('Regras de elegibilidade VIP aplicadas com sucesso a toda a base de clientes!');
+      showToast('Regras de elegibilidade VIP aplicadas com sucesso a toda a base de clientes!', 'success');
     } else {
-      alert('Não foi possível atualizar a base de clientes (função de atualização indisponível).');
+      showToast('Não foi possível atualizar a base de clientes (função de atualização indisponível).', 'error');
     }
   };
 
@@ -347,18 +362,18 @@ export default function CustomersCRM({
 
   const saveScratchPrizes = (prizes: ScratchPrize[]) => {
     setScratchPrizes(prizes);
-    try {
-      localStorage.setItem('ap_moda_scratch_prizes', JSON.stringify(prizes));
-      window.dispatchEvent(new Event('ap-storage-synced'));
-    } catch (e) {}
+    const serialized = JSON.stringify(prizes);
+    safeLocalStorageSet('ap_moda_scratch_prizes', serialized);
+    pushSystemConfigToSupabase('ap_moda_scratch_prizes', serialized).catch(() => {});
+    window.dispatchEvent(new Event('ap-storage-synced'));
   };
 
   const saveScratchConfig = (cfg: { enabled: boolean; vipDiscountPercent: number }) => {
     setScratchConfig(cfg);
-    try {
-      localStorage.setItem('ap_moda_scratch_config', JSON.stringify(cfg));
-      window.dispatchEvent(new Event('ap-storage-synced'));
-    } catch (e) {}
+    const serialized = JSON.stringify(cfg);
+    safeLocalStorageSet('ap_moda_scratch_config', serialized);
+    pushSystemConfigToSupabase('ap_moda_scratch_config', serialized).catch(() => {});
+    window.dispatchEvent(new Event('ap-storage-synced'));
   };
 
   const handleToggleVipStatus = (clientId: string) => {
@@ -374,11 +389,11 @@ export default function CustomersCRM({
     localStorage.removeItem(`ap_moda_scratch_assigned_${clientId}`);
     setScratchSyncCounter(prev => prev + 1);
     window.dispatchEvent(new Event('ap-storage-synced'));
-    alert('Raspadinha do cliente liberada novamente com sucesso!');
+    showToast('Raspadinha do cliente liberada novamente com sucesso!', 'success');
   };
 
-  const handleResetAllVipScratchs = () => {
-    if (!confirm('Deseja realmente liberar a raspadinha para TODOS os membros da Ala VIP?')) return;
+  const handleResetAllVipScratchs = async () => {
+    if (!(await showConfirm('Deseja realmente liberar a raspadinha para TODOS os membros da Ala VIP?', 'Liberar Raspadinhas', 'warning'))) return;
     clients.filter(c => c.vip).forEach(c => {
       localStorage.removeItem(`ap_moda_scratch_state_${c.id}`);
       localStorage.removeItem(`ap_moda_scratch_reward_${c.id}`);
@@ -386,14 +401,14 @@ export default function CustomersCRM({
     });
     setScratchSyncCounter(prev => prev + 1);
     window.dispatchEvent(new Event('ap-storage-synced'));
-    alert('Raspadinhas de todos os membros VIP liberadas com sucesso!');
+    showToast('Raspadinhas de todos os membros VIP liberadas com sucesso!', 'success');
   };
 
   const handleAssignPrizeToClient = (clientId: string, prizeId: string) => {
     if (!prizeId) {
       localStorage.removeItem(`ap_moda_scratch_assigned_${clientId}`);
     } else {
-      localStorage.setItem(`ap_moda_scratch_assigned_${clientId}`, prizeId);
+      safeLocalStorageSet(`ap_moda_scratch_assigned_${clientId}`, prizeId);
     }
     setScratchSyncCounter(prev => prev + 1);
     window.dispatchEvent(new Event('ap-storage-synced'));
@@ -402,11 +417,11 @@ export default function CustomersCRM({
   const handleAddPrize = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPrizeTitle.trim()) {
-      alert('Preencha o título do prêmio!');
+      showToast('Preencha o título do prêmio!', 'warning');
       return;
     }
     const newPrize: ScratchPrize = {
-      id: `prize_${Date.now()}`,
+      id: createUniqueId('prize'),
       title: newPrizeTitle.trim(),
       type: newPrizeType,
       cashbackValue: newPrizeType === 'cashback' ? parseFloat(newPrizeVal) || 0 : undefined,
@@ -419,8 +434,8 @@ export default function CustomersCRM({
     setNewPrizeVal('15');
   };
 
-  const handleDeletePrize = (id: string) => {
-    if (!confirm('Deseja excluir este prêmio da raspadinha?')) return;
+  const handleDeletePrize = async (id: string) => {
+    if (!(await showConfirm('Deseja excluir este prêmio da raspadinha?', 'Excluir Prêmio', 'danger'))) return;
     saveScratchPrizes(scratchPrizes.filter(p => p.id !== id));
   };
 
@@ -485,21 +500,27 @@ export default function CustomersCRM({
 
   const saveFidelidadeSubSection = (sub: 'cashback' | 'raspadinhas' | 'aniversarios') => {
     setFidelidadeSubSection(sub);
-    try {
-      localStorage.setItem('ap_fidelidade_subsection', sub);
-    } catch (e) {}
+    safeLocalStorageSet('ap_fidelidade_subsection', sub);
   };
 
   const handleSaveBirthdayConfig = () => {
-    try {
-      localStorage.setItem('ap_birth_coupon_discount', birthdayCouponDiscount.toString());
-      localStorage.setItem('ap_birth_coupon_validity_days', birthdayCouponValidityDays.toString());
-      localStorage.setItem('ap_birth_auto_send', birthdayAutoSend ? 'true' : 'false');
-      localStorage.setItem('ap_birth_client_template', birthdayClientTemplate);
-      localStorage.setItem('ap_birth_staff_template', birthdayStaffTemplate);
-      alert('Configurações de automação de aniversário salvas com sucesso!');
-    } catch (e) {
-      alert('Erro ao salvar as configurações.');
+    const ok =
+      safeLocalStorageSet('ap_birth_coupon_discount', birthdayCouponDiscount.toString()) &&
+      safeLocalStorageSet('ap_birth_coupon_validity_days', birthdayCouponValidityDays.toString()) &&
+      safeLocalStorageSet('ap_birth_auto_send', birthdayAutoSend ? 'true' : 'false') &&
+      safeLocalStorageSet('ap_birth_client_template', birthdayClientTemplate) &&
+      safeLocalStorageSet('ap_birth_staff_template', birthdayStaffTemplate);
+
+    pushSystemConfigToSupabase('ap_birth_coupon_discount', birthdayCouponDiscount.toString()).catch(() => {});
+    pushSystemConfigToSupabase('ap_birth_coupon_validity_days', birthdayCouponValidityDays.toString()).catch(() => {});
+    pushSystemConfigToSupabase('ap_birth_auto_send', birthdayAutoSend ? 'true' : 'false').catch(() => {});
+    pushSystemConfigToSupabase('ap_birth_client_template', birthdayClientTemplate).catch(() => {});
+    pushSystemConfigToSupabase('ap_birth_staff_template', birthdayStaffTemplate).catch(() => {});
+
+    if (ok) {
+      showToast('Configurações de automação de aniversário salvas com sucesso!', 'success');
+    } else {
+      showToast('Configurações enviadas para a nuvem (armazenamento local cheio).', 'warning');
     }
   };
 
@@ -509,9 +530,7 @@ export default function CustomersCRM({
       [id]: { type, sentAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), couponCode }
     };
     setCongratulationsLog(updated);
-    try {
-      localStorage.setItem('ap_birthday_congrats_log_sent', JSON.stringify(updated));
-    } catch (e) {}
+    safeLocalStorageSet('ap_birthday_congrats_log_sent', JSON.stringify(updated));
   };
 
   const parseBirthDayAndMonth = (dateStr?: string): { day: number; month: number } | null => {
@@ -604,9 +623,9 @@ export default function CustomersCRM({
     // Mark as sent in local state log
     markCongratsAsSent(id, type, couponCode);
     
-    // Trigger window open for manual dispatch
+    // Trigger safe external navigation for manual dispatch
     const url = getWhatsAppUrl(phoneClean, textMsg);
-    window.open(url, '_blank');
+    openExternalSafely(url);
     
     // Custom notification trigger event to App.tsx or general notification popup
     const customEvent = new CustomEvent('ap-show-notification', {
@@ -635,20 +654,18 @@ export default function CustomersCRM({
   });
 
   useEffect(() => {
-    localStorage.setItem('ap_moda_partners', JSON.stringify(partners));
+    safeLocalStorageSet('ap_moda_partners', JSON.stringify(partners));
   }, [partners]);
 
-  const handleDeletePartner = (partId: string, partName: string) => {
-    if (!confirm(`Deseja realmente excluir a parceira "${partName}"? Esta ação removerá a influenciadora definitivamente do sistema.`)) {
+  const handleDeletePartner = async (partId: string, partName: string) => {
+    if (!(await showConfirm(`Deseja realmente excluir a parceira "${partName}"? Esta ação removerá a influenciadora definitivamente do sistema.`, 'Excluir Parceira', 'danger'))) {
       return;
     }
     const updated = partners.filter(p => p.id !== partId);
     setPartners(updated);
-    try {
-      localStorage.setItem('ap_moda_partners', JSON.stringify(updated));
-      pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(updated));
-      window.dispatchEvent(new Event('ap-storage-synced'));
-    } catch (e) {}
+    safeLocalStorageSet('ap_moda_partners', JSON.stringify(updated));
+    pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(updated)).catch(() => {});
+    window.dispatchEvent(new Event('ap-storage-synced'));
 
     // Also remove from teamMembers if exists
     if (onUpdateTeamMembers && teamMembers.length > 0) {
@@ -667,7 +684,7 @@ export default function CustomersCRM({
   // Manual entry states
   const [crmClientName, setCrmClientName] = useState('');
   const [crmTotalVal, setCrmTotalVal] = useState('');
-  const [crmSaleDate, setCrmSaleDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [crmSaleDate, setCrmSaleDate] = useState(() => getLocalDateKey());
   const [crmOrderNum, setCrmOrderNum] = useState('');
   const [crmNotes, setCrmNotes] = useState('');
   const [crmSuccessMsg, setCrmSuccessMsg] = useState('');
@@ -687,7 +704,7 @@ export default function CustomersCRM({
       partnerName: partner.name,
       clientName,
       total: totalVal,
-      date: item.date ? item.date.split('T')[0] : (item.createdAt ? item.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]),
+      date: getLocalDateKey(item.date || item.createdAt),
       status: 'Concluída',
       commissionRate: commRate,
       commission: commVal,
@@ -699,8 +716,8 @@ export default function CustomersCRM({
       const savedGlobal = localStorage.getItem('ap_manual_partner_sales');
       const parsedGlobal = savedGlobal ? JSON.parse(savedGlobal) : [];
       const updatedGlobal = [newItem, ...parsedGlobal.filter((g: any) => g.id !== saleId)];
-      localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
-      localStorage.setItem(
+      safeLocalStorageSet('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
+      safeLocalStorageSet(
         `ap_manual_partner_sales_${partner.id}`,
         JSON.stringify(updatedGlobal.filter((g: any) => g.partnerId === partner.id))
       );
@@ -719,7 +736,7 @@ export default function CustomersCRM({
           }
           return s;
         });
-        localStorage.setItem('ap_moda_sales', JSON.stringify(updated));
+        safeLocalStorageSet('ap_moda_sales', JSON.stringify(updated));
         if (targetSaleObj) {
           syncBulkSalesToSupabase([targetSaleObj]);
         }
@@ -738,8 +755,8 @@ export default function CustomersCRM({
           }
           return o;
         });
-        localStorage.setItem('ap_moda_online_orders', JSON.stringify(updated));
-        localStorage.setItem('ap_online_orders', JSON.stringify(updated));
+        safeLocalStorageSet('ap_moda_online_orders', JSON.stringify(updated));
+        safeLocalStorageSet('ap_online_orders', JSON.stringify(updated));
         if (targetOrderObj) {
           syncBulkOnlineOrdersToSupabase([targetOrderObj]);
         }
@@ -756,17 +773,17 @@ export default function CustomersCRM({
     e.preventDefault();
     if (!selectedPartnerForLinkingCRM) return;
     if (!crmClientName.trim()) {
-      alert('Por favor, informe o nome do cliente.');
+      showToast('Por favor, informe o nome do cliente.', 'warning');
       return;
     }
     const totalVal = parseFloat(crmTotalVal);
     if (isNaN(totalVal) || totalVal <= 0) {
-      alert('Por favor, informe um valor total válido.');
+      showToast('Por favor, informe um valor total válido.', 'warning');
       return;
     }
 
     const partner = selectedPartnerForLinkingCRM;
-    const saleId = crmOrderNum.trim() ? crmOrderNum.trim().toUpperCase() : `RET-${Math.floor(10000 + Math.random() * 90000)}`;
+    const saleId = crmOrderNum.trim() ? crmOrderNum.trim().toUpperCase() : createUniqueId('RET').toUpperCase();
     const commRate = partner.commissionRate || 10;
     const commVal = (totalVal * commRate) / 100;
 
@@ -776,7 +793,7 @@ export default function CustomersCRM({
       partnerName: partner.name,
       clientName: crmClientName.trim(),
       total: totalVal,
-      date: crmSaleDate || new Date().toISOString().split('T')[0],
+      date: crmSaleDate || getLocalDateKey(),
       status: 'Concluída',
       commissionRate: commRate,
       commission: commVal,
@@ -788,8 +805,8 @@ export default function CustomersCRM({
       const savedGlobal = localStorage.getItem('ap_manual_partner_sales');
       const parsedGlobal = savedGlobal ? JSON.parse(savedGlobal) : [];
       const updatedGlobal = [newItem, ...parsedGlobal.filter((g: any) => g.id !== saleId)];
-      localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
-      localStorage.setItem(
+      safeLocalStorageSet('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
+      safeLocalStorageSet(
         `ap_manual_partner_sales_${partner.id}`,
         JSON.stringify(updatedGlobal.filter((g: any) => g.partnerId === partner.id))
       );
@@ -824,21 +841,17 @@ export default function CustomersCRM({
 
   // Auto-sync local state back to localStorage
   useEffect(() => {
-    try {
-      localStorage.setItem('ap_moda_opportunities', JSON.stringify(opportunities));
-    } catch (e) {}
+    safeLocalStorageSet('ap_moda_opportunities', JSON.stringify(opportunities));
   }, [opportunities]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('ap_moda_followups', JSON.stringify(followups));
-    } catch (e) {}
+    safeLocalStorageSet('ap_moda_followups', JSON.stringify(followups));
   }, [followups]);
 
   // Form states for new Follow-up
   const [fClient, setFClient] = useState('');
   const [fChannel, setFChannel] = useState<'WhatsApp' | 'Instagram' | 'Call' | 'E-mail'>('WhatsApp');
-  const [fDate, setFDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [fDate, setFDate] = useState(() => getLocalDateKey());
   const [fNotes, setFNotes] = useState('');
 
   // Form states for new Partner
@@ -873,7 +886,7 @@ export default function CustomersCRM({
 
   const handleMarkWithdrawPaid = async (req: PartnerWithdrawRequest) => {
     const formatted = formatCurrency(req.amount);
-    if (!window.confirm(`Confirmar que o Pix de ${formatted} foi transferido para ${req.partnerName} (${req.pixKey})?`)) {
+    if (!(await showConfirm(`Confirmar que o Pix de ${formatted} foi transferido para ${req.partnerName} (${req.pixKey})?`, 'Confirmar Pagamento Pix', 'info'))) {
       return;
     }
     const updated = await updatePartnerWithdrawRequestStatus(req.id, 'Pago');
@@ -884,7 +897,11 @@ export default function CustomersCRM({
 
   const handleRejectWithdraw = async (req: PartnerWithdrawRequest) => {
     const formatted = formatCurrency(req.amount);
-    const reason = window.prompt(`Motivo da recusa para ${req.partnerName} (o valor de ${formatted} será devolvido ao saldo dela):`, 'Dados da chave Pix incorretos');
+    const reason = await showPrompt(
+      `Motivo da recusa para ${req.partnerName} (o valor de ${formatted} será devolvido ao saldo dela):`,
+      'Recusar Solicitação de Saque',
+      'Dados da chave Pix incorretos'
+    );
     if (reason === null) return;
     const updated = await updatePartnerWithdrawRequestStatus(req.id, 'Rejeitado', reason);
     setWithdrawRequests(updated);
@@ -988,12 +1005,12 @@ export default function CustomersCRM({
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || !newPhone.trim()) {
-      alert('Nome e Telefone da cliente são obrigatórios!');
+      showToast('Nome e Telefone da cliente são obrigatórios!', 'warning');
       return;
     }
 
     if (newCpf.trim() && !validateCPF(newCpf)) {
-      alert('O CPF informado é inválido. Por favor, digite um CPF válido ou deixe o campo em branco.');
+      showToast('O CPF informado é inválido. Por favor, digite um CPF válido ou deixe o campo em branco.', 'warning');
       return;
     }
 
@@ -1024,11 +1041,11 @@ export default function CustomersCRM({
         setSelectedClientDetail(updatedClient);
       }
 
-      alert('Dados da cliente atualizados com sucesso no CRM!');
+      showToast('Dados da cliente atualizados com sucesso no CRM!', 'success');
       setEditingClient(null);
     } else {
       const newClient: Client = {
-        id: `cli-${Date.now()}`,
+        id: createUniqueId('cli'),
         name: newName.trim(),
         email: newEmail.trim() || 'cliente@exemplo.com',
         phone: newPhone.trim(),
@@ -1050,7 +1067,7 @@ export default function CustomersCRM({
         peso: newPeso ? parseFloat(newPeso) : undefined
       };
       onAddClient(newClient);
-      alert('Nova cliente adicionada com sucesso no diretório!');
+      showToast('Nova cliente adicionada com sucesso no diretório!', 'success');
     }
 
     setIsAddModalOpen(false);
@@ -1079,8 +1096,8 @@ export default function CustomersCRM({
     setIsAddModalOpen(true);
   };
 
-  const handleDeleteClient = (clientId: string, clientName: string) => {
-    if (confirm(`Tem certeza de que deseja excluir definitivamente o cadastro da cliente "${clientName}"? Esta ação removerá os dados do diretório.`)) {
+  const handleDeleteClient = async (clientId: string, clientName: string) => {
+    if (await showConfirm(`Tem certeza de que deseja excluir definitivamente o cadastro da cliente "${clientName}"? Esta ação removerá os dados do diretório.`, 'Excluir Cliente', 'danger')) {
       const updatedList = clients.filter(c => c.id !== clientId);
       if (onUpdateClients) {
         onUpdateClients(updatedList);
@@ -1092,7 +1109,7 @@ export default function CustomersCRM({
         setIsAddModalOpen(false);
         resetForm();
       }
-      alert(`Cadastro da cliente "${clientName}" excluído com sucesso!`);
+      showToast(`Cadastro da cliente "${clientName}" excluído com sucesso!`, 'success');
     }
   };
 
@@ -1142,11 +1159,11 @@ export default function CustomersCRM({
 
   const handleSaveOpportunityEdit = () => {
     if (!editOpClient.trim()) {
-      alert('Por favor, informe o nome da interessada.');
+      showToast('Por favor, informe o nome da interessada.', 'warning');
       return;
     }
     if (!editOpItem.trim()) {
-      alert('Por favor, informe a peça de interesse.');
+      showToast('Por favor, informe a peça de interesse.', 'warning');
       return;
     }
 
@@ -1166,13 +1183,13 @@ export default function CustomersCRM({
     }));
 
     setEditingOpportunityId(null);
-    alert('Oportunidade atualizada com sucesso!');
+    showToast('Oportunidade atualizada com sucesso!', 'success');
   };
 
-  const handleDeleteOpportunity = (id: string, name: string) => {
-    if (confirm(`Tem certeza de que deseja excluir a oportunidade de ${name} do funil de vendas?`)) {
+  const handleDeleteOpportunity = async (id: string, name: string) => {
+    if (await showConfirm(`Tem certeza de que deseja excluir a oportunidade de ${name} do funil de vendas?`, 'Excluir Oportunidade', 'danger')) {
       setOpportunities(prev => prev.filter(o => o.id !== id));
-      alert('Oportunidade excluída com sucesso!');
+      showToast('Oportunidade excluída com sucesso!', 'success');
     }
   };
 
@@ -1181,7 +1198,7 @@ export default function CustomersCRM({
     if (!opClient || !opItem) return;
 
     const newOp: Opportunity = {
-      id: `op-${Date.now().toString().slice(-4)}`,
+      id: createUniqueId('op'),
       clientName: opClient,
       value: Number(opVal),
       probability: Number(opProb),
@@ -1194,7 +1211,7 @@ export default function CustomersCRM({
     setOpClient('');
     setOpItem('');
     setOpNotes('');
-    alert('Nova Oportunidade inserida com sucesso no Funil Comercial!');
+    showToast('Nova Oportunidade inserida com sucesso no Funil Comercial!', 'success');
   };
 
   // Follow up ops
@@ -1203,7 +1220,7 @@ export default function CustomersCRM({
     if (!fClient || !fNotes) return;
 
     const newF: FollowUp = {
-      id: `fup-${Date.now()}`,
+      id: createUniqueId('fup'),
       clientName: fClient,
       channel: fChannel,
       date: fDate,
@@ -1214,7 +1231,7 @@ export default function CustomersCRM({
     setFollowups(prev => [newF, ...prev]);
     setFClient('');
     setFNotes('');
-    alert('Follow-up agendado com sucesso para a vendedora!');
+    showToast('Follow-up agendado com sucesso para a vendedora!', 'success');
   };
 
   // Partner ops
@@ -1223,7 +1240,7 @@ export default function CustomersCRM({
     if (!partName || !partCoupon) return;
 
     const newP: Partner = {
-      id: `part-${Date.now()}`,
+      id: createUniqueId('part'),
       name: partName,
       instagram: partInsta || '@insta_parceira',
       couponCode: partCoupon.trim().toUpperCase(),
@@ -1232,11 +1249,15 @@ export default function CustomersCRM({
       totalGenerated: 0
     };
 
-    setPartners(prev => [newP, ...prev]);
+    setPartners(prev => {
+      const updated = [newP, ...prev];
+      pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
     setPartName('');
     setPartInsta('');
     setPartCoupon('');
-    alert('Nova influenciadora cadastrada! Suas vendas vinculadas gerarão comissão.');
+    showToast('Nova influenciadora cadastrada! Suas vendas vinculadas gerarão comissão.', 'success');
   };
 
   const getChannelIcon = (channel: SalesChannel) => {
@@ -1847,7 +1868,7 @@ export default function CustomersCRM({
                         type="button"
                         onClick={() => {
                           setFollowups(prev => prev.map(f => f.id === fup.id ? { ...f, completed: true } : f));
-                          alert('Atividade marcada como realizada e arquivada!');
+                          showToast('Atividade marcada como realizada e arquivada!', 'success');
                         }}
                         className="py-1 px-2.5 bg-green-500 hover:bg-green-600 text-white font-bold rounded transition text-[10px] border-none cursor-pointer"
                       >
@@ -3274,8 +3295,8 @@ export default function CustomersCRM({
                                       <span className="text-[9.5px] text-slate-400">Cupom Especial:</span>
                                       <span 
                                         onClick={() => {
-                                          navigator.clipboard.writeText(dynamicCoupon);
-                                          alert(`Cupom "${dynamicCoupon}" copiado para a área de transferência!`);
+                                          navigator.clipboard?.writeText(dynamicCoupon);
+                                          showToast(`Cupom "${dynamicCoupon}" copiado para a área de transferência!`, 'success');
                                         }}
                                         className="font-mono text-[10px] font-black bg-slate-100 hover:bg-pink-100 hover:text-pink-700 text-slate-700 px-2 py-0.5 rounded cursor-pointer transition border border-slate-200/50 flex items-center gap-1"
                                         title="Clique para copiar cupom"
@@ -3310,8 +3331,8 @@ export default function CustomersCRM({
                                       type="button"
                                       onClick={() => {
                                         const text = getCompiledTemplate(item.role, item.name, dynamicCoupon);
-                                        navigator.clipboard.writeText(text);
-                                        alert('Mensagem personalizada copiada com sucesso para você disparar onde quiser!');
+                                        navigator.clipboard?.writeText(text);
+                                        showToast('Mensagem personalizada copiada com sucesso para você disparar onde quiser!', 'success');
                                       }}
                                       className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg text-[10px] font-bold cursor-pointer border border-slate-200/50 transition-all flex items-center gap-1"
                                       title="Copiar texto do template substituído"

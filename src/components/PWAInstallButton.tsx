@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Smartphone, X } from 'lucide-react';
+import { showToast } from '../lib/uiDialog';
 
 export const PWAInstallButton: React.FC<{ className?: string }> = ({ className }) => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -54,7 +55,7 @@ export const PWAInstallButton: React.FC<{ className?: string }> = ({ className }
       setShowIOSModal(true);
     } else {
       // Fallback for browsers that don't support beforeinstallprompt
-      alert('Para instalar o aplicativo no seu computador ou celular:\n\n1. No Chrome/Edge: Clique no ícone de computador/instalação na barra de endereços (ao lado da estrela de favoritos).\n2. No celular: Abra o menu de 3 pontinhos do navegador e toque em "Instalar aplicativo" ou "Adicionar à tela inicial".');
+      showToast('No Chrome/Edge use o ícone Instalar na barra de endereços; no celular toque no menu ⋮ e escolha "Instalar aplicativo".', 'info', 7000);
     }
   };
 

@@ -1,4 +1,5 @@
 import { pushSystemConfigToSupabase } from '../supabase';
+import { safeLocalStorageSet } from '../utils/dateUtils';
 
 export interface StoreConfig {
   name: string;
@@ -130,8 +131,8 @@ export async function saveStoreConfig(updates: Record<string, string>): Promise<
     const now = Date.now().toString();
     for (const [key, value] of Object.entries(updates)) {
       if (value !== undefined) {
-        localStorage.setItem(key, value);
-        localStorage.setItem(`ap_config_saved_at_${key}`, now);
+        safeLocalStorageSet(key, value);
+        safeLocalStorageSet(`ap_config_saved_at_${key}`, now);
         // Sync asynchronously to Supabase cloud
         pushSystemConfigToSupabase(key, value).catch(e => {
           console.warn(`[StoreConfig] Failed to push ${key} to Supabase:`, e);
@@ -152,8 +153,8 @@ export async function saveStoreConfig(updates: Record<string, string>): Promise<
         parsedCompany.addressLine2 = `${updates.ap_store_city || localStorage.getItem('ap_store_city') || ''} - ${updates.ap_store_state || localStorage.getItem('ap_store_state') || ''}`;
       }
       if (updates.ap_store_slogan) parsedCompany.slogan = updates.ap_store_slogan;
-      localStorage.setItem('ap_moda_company_info', JSON.stringify(parsedCompany));
-      localStorage.setItem('ap_config_saved_at_ap_moda_company_info', now);
+      safeLocalStorageSet('ap_moda_company_info', JSON.stringify(parsedCompany));
+      safeLocalStorageSet('ap_config_saved_at_ap_moda_company_info', now);
       pushSystemConfigToSupabase('ap_moda_company_info', JSON.stringify(parsedCompany)).catch(() => {});
     } catch (err) {}
 

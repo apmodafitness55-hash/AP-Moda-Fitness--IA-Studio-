@@ -27,25 +27,43 @@ import {
   Info
 } from 'lucide-react';
 import { Sale } from '../types';
+import { getLocalDateKey, safeLocalStorageSet } from '../utils/dateUtils';
+import { pushSystemConfigToSupabase } from '../supabase';
 
 interface SalesGoalSimulatorProps {
   sales: Sale[];
 }
 
 export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
-  // Dynamic current calendar month & day
-  const nowDate = new Date();
-  const simulatedYear = nowDate.getFullYear();
-  const simulatedMonth = nowDate.getMonth();
-  const simulatedTodayDay = nowDate.getDate();
+  // Dynamic current calendar month & day in BRT
+  const todayBrtKey = getLocalDateKey();
+  const [yPart, mPart, dPart] = todayBrtKey.split('-').map(Number);
+  const simulatedYear = yPart;
+  const simulatedMonth = mPart - 1;
+  const simulatedTodayDay = dPart;
   const totalDaysInMonth = new Date(simulatedYear, simulatedMonth + 1, 0).getDate();
-  const rawMonthName = nowDate.toLocaleDateString('pt-BR', { month: 'long' });
+  const rawMonthName = new Date(simulatedYear, simulatedMonth, 15, 12, 0, 0).toLocaleDateString('pt-BR', { month: 'long' });
   const monthNameCapitalized = rawMonthName.charAt(0).toUpperCase() + rawMonthName.slice(1);
   const monthNumberStr = String(simulatedMonth + 1).padStart(2, '0');
+  const currentYearMonth = `${simulatedYear}-${monthNumberStr}`;
   const naturalRemainingDays = Math.max(1, totalDaysInMonth - simulatedTodayDay);
   
-  // States for interactive simulations
-  const [monthlyGoal, setMonthlyGoal] = useState<number>(20000); // Default R$ 20.000,00
+  // States for interactive simulations (persisted)
+  const [monthlyGoal, setMonthlyGoalState] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem('ap_monthly_sales_goal'));
+      if (Number.isFinite(saved) && saved >= 1000) return saved;
+    } catch {}
+    return 20000;
+  });
+  const setMonthlyGoal = (updater: number | ((prev: number) => number)) => {
+    setMonthlyGoalState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      safeLocalStorageSet('ap_monthly_sales_goal', String(next));
+      pushSystemConfigToSupabase('ap_monthly_sales_goal', String(next)).catch(() => {});
+      return next;
+    });
+  };
   const [remainingDays, setRemainingDays] = useState<number>(() => Math.max(1, totalDaysInMonth - simulatedTodayDay));
   const [useOnlyBusinessDays, setUseOnlyBusinessDays] = useState<boolean>(false);
   const [simulatedExtraSale, setSimulatedExtraSale] = useState<number>(0);
@@ -59,16 +77,15 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
-  // 1. Calculate Real Completed Revenue for the current month
+  // 1. Calculate Real Completed Revenue for the current month in BRT
   const realizedRevenue = useMemo(() => {
     const monthSales = sales.filter(sale => {
       if (sale.status !== 'Concluída') return false;
-      const saleDate = new Date(sale.createdAt);
-      return saleDate.getFullYear() === simulatedYear && saleDate.getMonth() === simulatedMonth;
+      return getLocalDateKey(sale.createdAt).startsWith(currentYearMonth);
     });
     
     return monthSales.reduce((sum, s) => sum + s.total, 0);
-  }, [sales, simulatedYear, simulatedMonth]);
+  }, [sales, currentYearMonth]);
 
   // Adjust current total in real-time if user plays with the simulated extra sale input
   const totalWithSimulated = useMemo(() => {
@@ -160,10 +177,10 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
 
     sales.forEach(sale => {
       if (sale.status !== 'Concluída') return;
-      const saleDate = new Date(sale.createdAt);
-      if (saleDate.getFullYear() === simulatedYear && saleDate.getMonth() === simulatedMonth) {
-        const dayNum = saleDate.getDate();
-        if (dayNum <= totalDays) {
+      const key = getLocalDateKey(sale.createdAt);
+      if (key.startsWith(currentYearMonth)) {
+        const dayNum = Number(key.split('-')[2]);
+        if (dayNum >= 1 && dayNum <= totalDays) {
           dailySalesMap[dayNum] = (dailySalesMap[dayNum] || 0) + sale.total;
         }
       }

@@ -7,6 +7,8 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { saveStoredPartners, addPartnerWithdrawRequest, getStoredPartnerWithdrawRequests, syncPartnerWithdrawRequestsWithServer, saveStoredPartnerWithdrawRequests, PartnerWithdrawRequest } from '../utils/partnerUtils';
 import { getAppUrl } from '../config';
 import { pushSystemConfigToSupabase, syncBulkSalesToSupabase, syncBulkOnlineOrdersToSupabase, syncBulkTransactionsToSupabase, fetchSystemConfigsFromSupabase } from '../supabase';
+import { showToast } from '../lib/uiDialog';
+import { getLocalDateKey, safeLocalStorageSet, createUniqueId } from '../utils/dateUtils';
 import { 
   Award, 
   DollarSign, 
@@ -226,7 +228,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
               id: s.id || `VND-${(s as any).number || Math.floor(1000 + Math.random() * 9000)}`,
               clientName: s.clientName || (s as any).customerName || (s as any).client || 'Cliente',
               total: totalVal,
-              date: s.date ? s.date.split('T')[0] : (s.createdAt ? s.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]),
+              date: getLocalDateKey(s.date || s.createdAt),
               status: s.status || 'Concluída',
               commission: commVal,
               type: 'Venda Loja'
@@ -256,7 +258,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
               id: o.id || `PED-${(o as any).number || Math.floor(1000 + Math.random() * 9000)}`,
               clientName: o.clientName || (o as any).customerName || (o as any).client || 'Cliente Site',
               total: totalVal,
-              date: o.date ? o.date.split('T')[0] : (o.createdAt ? o.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]),
+              date: getLocalDateKey(o.date || o.createdAt),
               status: o.status || 'Concluído',
               commission: commVal,
               type: 'Pedido Online'
@@ -278,7 +280,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
             id: m.id || `RET-${Math.floor(1000 + Math.random() * 9000)}`,
             clientName: m.clientName || 'Cliente Retroativo',
             total: totalVal,
-            date: m.date ? m.date.split('T')[0] : new Date().toISOString().split('T')[0],
+            date: getLocalDateKey(m.date),
             status: m.status || 'Concluída',
             commission: commVal,
             type: m.type || 'Lançamento Retroativo',
@@ -299,7 +301,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
   // Manual entry form state
   const [manualClientName, setManualClientName] = useState('');
   const [manualTotal, setManualTotal] = useState('');
-  const [manualDate, setManualDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [manualDate, setManualDate] = useState(() => getLocalDateKey());
   const [manualOrderNum, setManualOrderNum] = useState('');
   const [manualChannel, setManualChannel] = useState('Cupom / Link de Afiliado');
   const [manualNotes, setManualNotes] = useState('');
@@ -371,7 +373,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
           if (manualCfg && manualCfg.value) {
             const parsed = typeof manualCfg.value === 'string' ? JSON.parse(manualCfg.value) : manualCfg.value;
             if (Array.isArray(parsed)) {
-              localStorage.setItem('ap_manual_partner_sales', JSON.stringify(parsed));
+              safeLocalStorageSet('ap_manual_partner_sales', JSON.stringify(parsed));
               reloadPartnerData();
             }
           }
@@ -379,7 +381,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
           if (partnersCfg && partnersCfg.value) {
             const parsedP = typeof partnersCfg.value === 'string' ? JSON.parse(partnersCfg.value) : partnersCfg.value;
             if (Array.isArray(parsedP)) {
-              localStorage.setItem('ap_moda_partners', JSON.stringify(parsedP));
+              safeLocalStorageSet('ap_moda_partners', JSON.stringify(parsedP));
               reloadPartnerData();
             }
           }
@@ -411,7 +413,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
       partnerName: currentPartner.name,
       clientName,
       total: totalVal,
-      date: item.date ? item.date.split('T')[0] : (item.createdAt ? item.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]),
+      date: getLocalDateKey(item.date || item.createdAt),
       status: 'Concluída',
       commissionRate: commRate,
       commission: commVal,
@@ -421,13 +423,13 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
 
     const updatedLocal = [newManualItem, ...manualSales.filter(m => m.id !== saleId)];
     setManualSales(updatedLocal);
-    localStorage.setItem(`ap_manual_partner_sales_${currentPartner.id}`, JSON.stringify(updatedLocal));
+    safeLocalStorageSet(`ap_manual_partner_sales_${currentPartner.id}`, JSON.stringify(updatedLocal));
 
     try {
       const savedGlobal = localStorage.getItem('ap_manual_partner_sales');
       const parsedGlobal = savedGlobal ? JSON.parse(savedGlobal) : [];
       const updatedGlobal = [newManualItem, ...parsedGlobal.filter((g: any) => g.id !== saleId)];
-      localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
+      safeLocalStorageSet('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
       pushSystemConfigToSupabase('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
     } catch(e) {}
 
@@ -444,8 +446,8 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
             }
             return o;
           });
-          localStorage.setItem('ap_moda_online_orders', JSON.stringify(updated));
-          localStorage.setItem('ap_online_orders', JSON.stringify(updated));
+          safeLocalStorageSet('ap_moda_online_orders', JSON.stringify(updated));
+          safeLocalStorageSet('ap_online_orders', JSON.stringify(updated));
           if (targetObj) {
             syncBulkOnlineOrdersToSupabase([targetObj]);
           }
@@ -467,7 +469,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
             }
             return s;
           });
-          localStorage.setItem('ap_moda_sales', JSON.stringify(updated));
+          safeLocalStorageSet('ap_moda_sales', JSON.stringify(updated));
           if (targetObj) {
             syncBulkSalesToSupabase([targetObj]);
           }
@@ -489,16 +491,16 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
   const handleSaveManualSale = (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualClientName.trim()) {
-      alert('Por favor, informe o nome do cliente.');
+      showToast('Por favor, informe o nome do cliente.', 'warning');
       return;
     }
     const totalVal = parseFloat(manualTotal);
     if (isNaN(totalVal) || totalVal <= 0) {
-      alert('Por favor, informe um valor total válido maior que R$ 0,00.');
+      showToast('Por favor, informe um valor total válido maior que R$ 0,00.', 'warning');
       return;
     }
 
-    const saleId = manualOrderNum.trim() ? manualOrderNum.trim().toUpperCase() : `RET-${Math.floor(10000 + Math.random() * 90000)}`;
+    const saleId = manualOrderNum.trim() ? manualOrderNum.trim().toUpperCase() : createUniqueId('RET').toUpperCase();
     const commRate = currentPartner.commissionRate || 10;
     const commVal = (totalVal * commRate) / 100;
 
@@ -508,7 +510,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
       partnerName: currentPartner.name,
       clientName: manualClientName.trim(),
       total: totalVal,
-      date: manualDate || new Date().toISOString().split('T')[0],
+      date: manualDate || getLocalDateKey(),
       status: 'Concluída',
       commissionRate: commRate,
       commission: commVal,
@@ -518,13 +520,13 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
 
     const updatedLocal = [newItem, ...manualSales.filter(m => m.id !== saleId)];
     setManualSales(updatedLocal);
-    localStorage.setItem(`ap_manual_partner_sales_${currentPartner.id}`, JSON.stringify(updatedLocal));
+    safeLocalStorageSet(`ap_manual_partner_sales_${currentPartner.id}`, JSON.stringify(updatedLocal));
 
     try {
       const savedGlobal = localStorage.getItem('ap_manual_partner_sales');
       const parsedGlobal = savedGlobal ? JSON.parse(savedGlobal) : [];
       const updatedGlobal = [newItem, ...parsedGlobal.filter((g: any) => g.id !== saleId)];
-      localStorage.setItem('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
+      safeLocalStorageSet('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
       pushSystemConfigToSupabase('ap_manual_partner_sales', JSON.stringify(updatedGlobal));
     } catch(e) {}
 
@@ -638,9 +640,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
   const toggleProductInCuratedList = (prodId: string) => {
     setPartnerCuratedIds(prev => {
       const updated = prev.includes(prodId) ? prev.filter(id => id !== prodId) : [...prev, prodId];
-      try {
-        localStorage.setItem(`ap_partner_curated_${currentPartner.id}`, JSON.stringify(updated));
-      } catch(e){}
+      safeLocalStorageSet(`ap_partner_curated_${currentPartner.id}`, JSON.stringify(updated));
       return updated;
     });
   };
@@ -721,7 +721,7 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
 
     // Add to request logs
     const newReq: PartnerWithdrawRequest = {
-      id: `REQ-${Date.now().toString().slice(-6)}`,
+      id: createUniqueId('REQ').toUpperCase(),
       partnerId: currentPartner.id,
       partnerName: currentPartner.name,
       partnerCoupon: currentPartner.couponCode,
@@ -730,13 +730,13 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
       pixKeyType,
       pixKey,
       status: 'Pendente',
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalDateKey(),
       createdAt: new Date().toISOString()
     };
     
     const updatedReqs = [newReq, ...withdrawRequests.filter(r => r.id !== newReq.id)];
     setWithdrawRequests(updatedReqs);
-    localStorage.setItem(`ap_withdraw_requests_${currentPartner.id}`, JSON.stringify(updatedReqs));
+    safeLocalStorageSet(`ap_withdraw_requests_${currentPartner.id}`, JSON.stringify(updatedReqs));
 
     // Sincroniza globalmente e envia para o Supabase
     addPartnerWithdrawRequest(newReq).catch(err => {
@@ -781,15 +781,15 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
       const savedTrans = localStorage.getItem('ap_moda_transactions');
       const coreTransactions = savedTrans ? JSON.parse(savedTrans) : [];
       const trackingTrans = {
-        id: `TX-PRT-${Math.floor(1000 + Math.random() * 9000)}`,
+        id: createUniqueId('TX-PRT').toUpperCase(),
         type: 'Outflow' as const,
         category: 'Comissão Parceiro',
         description: `Saque comissão Pix solicitado por ${currentPartner.name} (${currentPartner.couponCode})`,
         amount: val,
         status: 'pendente' as const,
-        date: new Date().toISOString().split('T')[0]
+        date: getLocalDateKey()
       };
-      localStorage.setItem('ap_moda_transactions', JSON.stringify([trackingTrans, ...coreTransactions]));
+      safeLocalStorageSet('ap_moda_transactions', JSON.stringify([trackingTrans, ...coreTransactions]));
       syncBulkTransactionsToSupabase([trackingTrans]).catch(() => {});
     } catch(e){}
 

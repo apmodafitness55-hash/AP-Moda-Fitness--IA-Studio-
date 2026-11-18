@@ -1,3 +1,5 @@
+import { safeLocalStorageSet } from '../utils/dateUtils';
+
 export interface CardMachineConfig {
   id: string;
   name: string;
@@ -119,7 +121,7 @@ export function getCardMachinesConfig(): CardMachineConfig[] {
   const saved = localStorage.getItem('ap_card_machines_rates');
   if (!saved) {
     // If not saved yet, initialize it
-    localStorage.setItem('ap_card_machines_rates', JSON.stringify(DEFAULT_CARD_MACHINES));
+    safeLocalStorageSet('ap_card_machines_rates', JSON.stringify(DEFAULT_CARD_MACHINES));
     return DEFAULT_CARD_MACHINES;
   }
   try {
@@ -131,7 +133,7 @@ export function getCardMachinesConfig(): CardMachineConfig[] {
 }
 
 export function saveCardMachinesConfig(configs: CardMachineConfig[]): void {
-  localStorage.setItem('ap_card_machines_rates', JSON.stringify(configs));
+  safeLocalStorageSet('ap_card_machines_rates', JSON.stringify(configs));
 }
 
 /**

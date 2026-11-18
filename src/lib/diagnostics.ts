@@ -3,8 +3,11 @@ import {
   isSupabaseConfigured,
   pushSystemConfigToSupabase,
   syncBulkProductsToSupabase,
+  syncBulkSalesToSupabase,
+  syncBulkTransactionsToSupabase,
   syncSystemConfigsWithSupabase
 } from '../supabase';
+import { safeLocalStorageSet } from '../utils/dateUtils';
 
 export interface DiagnosticLog {
   timestamp: string;
@@ -67,9 +70,20 @@ const CRITICAL_JSON_KEYS = [
 function isBadPlaceholderImage(imgUrl: unknown): boolean {
   if (typeof imgUrl !== 'string') return false;
   const trimmed = imgUrl.trim();
+  if (!trimmed.startsWith('data:image/svg+xml')) return false;
+  let decoded = trimmed;
+  try {
+    decoded = decodeURIComponent(trimmed);
+  } catch {
+    decoded = trimmed;
+  }
   return (
-    trimmed.startsWith('data:image/svg+xml') &&
-    (trimmed.includes('Imagem') || trimmed.includes('Foto') || trimmed.includes('Sem Foto'))
+    decoded.includes('AP MODA') ||
+    decoded.includes('ALTA PERFORMANCE') ||
+    decoded.includes('Imagem') ||
+    decoded.includes('Foto') ||
+    decoded.includes('Sem Foto') ||
+    decoded.includes('Sem Imagem')
   );
 }
 
@@ -89,15 +103,9 @@ export async function runDeepSystemDiagnostics(): Promise<DiagnosticResult> {
   let tablesVerified = 0;
 
   let backendHealth: any = null;
-  const storedGeminiKey =
-    localStorage.getItem('gemini_api_key') ||
-    localStorage.getItem('GEMINI_API_KEY') ||
-    '';
 
   try {
-    const res = await fetch('/api/system/health-check?probeGemini=1&checkRender=1', {
-      headers: storedGeminiKey ? { 'x-gemini-api-key': storedGeminiKey } : {}
-    });
+    const res = await fetch('/api/system/health-check?probeGemini=1&checkRender=1');
     if (res.ok) {
       backendHealth = await res.json();
     } else {
@@ -302,7 +310,7 @@ export async function runDeepSystemDiagnostics(): Promise<DiagnosticResult> {
         testName: 'API Gemini / Agentes IA',
         status: hub?.configured ? 'error' : 'warning',
         message: hub?.message || 'Hub de IA não respondeu ao teste.',
-        details: 'Configure GEMINI_API_KEY nas variáveis do servidor ou salve sua chave na aba Configurações.'
+        details: 'Configure GEMINI_API_KEY nas variáveis de ambiente do servidor.'
       });
     }
 
@@ -486,6 +494,25 @@ export async function runDeepSystemDiagnostics(): Promise<DiagnosticResult> {
         message: `Catálogo íntegro (${Array.isArray(prods) ? prods.length : 0} produtos locais verificados, sem URLs placeholder ou IDs duplicados).`
       });
     }
+    // Check sales status consistency ('Pago' / 'Concluído' vs canonical 'Concluída')
+    try {
+      const rawSales = localStorage.getItem('ap_moda_sales');
+      const salesArr = rawSales ? JSON.parse(rawSales) : [];
+      if (Array.isArray(salesArr)) {
+        const legacyPagoCount = salesArr.filter((s: any) => s && (s.status === 'Pago' || s.status === 'Concluído' || s.status === 'Entregue')).length;
+        if (legacyPagoCount > 0) {
+          if (analyticsStatus === 'success') analyticsStatus = 'warning';
+          analyticLogs.push({
+            timestamp: new Date().toISOString(),
+            scope: 'Integridade de Dados',
+            testName: 'Padronização de Faturamento',
+            status: 'warning',
+            message: `${legacyPagoCount} venda(s) com status legado ("Pago"/"Concluído") fora do filtro de Faturamento.`,
+            details: 'Clique em "Autocorreção (Self-Heal)" para normalizar todas para "Concluída".'
+          });
+        }
+      }
+    } catch {}
   } catch {}
 
   // Check Pix & InfinitePay config consistency
@@ -637,7 +664,7 @@ export async function runSystemSelfHeal(): Promise<SelfHealReport> {
         }
       }
       if (removed > 0) {
-        localStorage.setItem(k, JSON.stringify(clean));
+        safeLocalStorageSet(k, JSON.stringify(clean));
         fixedCount += removed;
         actions.push(`Removido(s) ${removed} ID(s) duplicado(s) em ${k}.`);
       }
@@ -675,7 +702,7 @@ export async function runSystemSelfHeal(): Promise<SelfHealReport> {
         });
 
         if (repairedProducts.length > 0) {
-          localStorage.setItem('ap_moda_products', JSON.stringify(updatedList));
+          safeLocalStorageSet('ap_moda_products', JSON.stringify(updatedList));
           fixedCount += repairedProducts.length;
           await syncBulkProductsToSupabase(repairedProducts);
           actions.push(`Corrigidas imagens/valores em ${repairedProducts.length} produto(s) e sincronizado com o banco.`);
@@ -684,6 +711,71 @@ export async function runSystemSelfHeal(): Promise<SelfHealReport> {
     }
   } catch (e: any) {
     remainingWarnings.push(`Reparo de produtos: ${e.message || e}`);
+  }
+
+  // 4.5. Normalizar status de vendas legados ('Pago'/'Concluído' -> 'Concluída') e deduplicar entradas financeiras de vendas
+  try {
+    const rawSales = localStorage.getItem('ap_moda_sales');
+    if (rawSales) {
+      const salesArr = JSON.parse(rawSales);
+      if (Array.isArray(salesArr)) {
+        const repairedSales: any[] = [];
+        const normalizedSales = salesArr.map((s: any) => {
+          if (s && (s.status === 'Pago' || s.status === 'Concluído' || s.status === 'Entregue')) {
+            const updated = { ...s, status: 'Concluída' };
+            repairedSales.push(updated);
+            return updated;
+          }
+          return s;
+        });
+        if (repairedSales.length > 0) {
+          safeLocalStorageSet('ap_moda_sales', JSON.stringify(normalizedSales));
+          await syncBulkSalesToSupabase(repairedSales);
+          fixedCount += repairedSales.length;
+          actions.push(`Padronizado status de ${repairedSales.length} venda(s) para "Concluída" no cache e na nuvem.`);
+        }
+      }
+    }
+
+    const rawTx = localStorage.getItem('ap_moda_transactions');
+    if (rawTx) {
+      const txArr = JSON.parse(rawTx);
+      if (Array.isArray(txArr)) {
+        const seenSaleTx = new Set<string>();
+        const cleanTx: any[] = [];
+        let dupTxCount = 0;
+        for (const t of txArr) {
+          if (!t) continue;
+          let saleKey = '';
+          const idStr = String(t.id || '');
+          const descStr = String(t.description || '');
+          if (t.type === 'inflow') {
+            if (idStr.startsWith('tx-')) {
+              saleKey = idStr.slice(3).toUpperCase();
+            } else if (idStr.startsWith('t-inf-')) {
+              const m = descStr.match(/Pedido\s*#?([A-Za-z0-9\-_]+)/i);
+              if (m && m[1]) saleKey = m[1].toUpperCase();
+            }
+          }
+          if (saleKey) {
+            if (seenSaleTx.has(saleKey)) {
+              dupTxCount++;
+              continue;
+            }
+            seenSaleTx.add(saleKey);
+          }
+          cleanTx.push(t);
+        }
+        if (dupTxCount > 0) {
+          safeLocalStorageSet('ap_moda_transactions', JSON.stringify(cleanTx));
+          await syncBulkTransactionsToSupabase(cleanTx);
+          fixedCount += dupTxCount;
+          actions.push(`Removido(s) ${dupTxCount} lançamento(s) financeiro(s) duplicado(s) de venda.`);
+        }
+      }
+    }
+  } catch (e: any) {
+    remainingWarnings.push(`Reparo de vendas: ${e.message || e}`);
   }
 
   // 5. Unificar Chave Pix e Handle InfinitePay entre módulos
@@ -698,18 +790,18 @@ export async function runSystemSelfHeal(): Promise<SelfHealReport> {
     if (canonicalPix) {
       let pixChanged = false;
       if (directPix !== canonicalPix) {
-        localStorage.setItem('ap_pix_key', canonicalPix);
+        safeLocalStorageSet('ap_pix_key', canonicalPix);
         await pushSystemConfigToSupabase('ap_pix_key', canonicalPix);
         pixChanged = true;
       }
       if (String(payObj?.pixKey || '').trim() !== canonicalPix) {
         const nextPay = { ...payObj, pixKey: canonicalPix };
-        localStorage.setItem('ap_moda_payment_config', JSON.stringify(nextPay));
+        safeLocalStorageSet('ap_moda_payment_config', JSON.stringify(nextPay));
         await pushSystemConfigToSupabase('ap_moda_payment_config', JSON.stringify(nextPay));
         pixChanged = true;
       }
       if (rawComp && String(compObj?.pixKey || '').trim() !== canonicalPix) {
-        localStorage.setItem('ap_moda_company_info', JSON.stringify({ ...compObj, pixKey: canonicalPix }));
+        safeLocalStorageSet('ap_moda_company_info', JSON.stringify({ ...compObj, pixKey: canonicalPix }));
         pixChanged = true;
       }
       if (pixChanged) {
@@ -723,11 +815,11 @@ export async function runSystemSelfHeal(): Promise<SelfHealReport> {
     const directHandle = (localStorage.getItem('infinitepay_handle') || '').trim();
     const canonicalHandle = String(infObj?.handle || directHandle || '').trim();
     if (canonicalHandle && (directHandle !== canonicalHandle || String(infObj?.handle || '').trim() !== canonicalHandle)) {
-      localStorage.setItem('infinitepay_handle', canonicalHandle);
+      safeLocalStorageSet('infinitepay_handle', canonicalHandle);
       await pushSystemConfigToSupabase('infinitepay_handle', canonicalHandle);
       if (rawInf) {
         const nextInf = { ...infObj, handle: canonicalHandle };
-        localStorage.setItem('ap_infinitepay_config', JSON.stringify(nextInf));
+        safeLocalStorageSet('ap_infinitepay_config', JSON.stringify(nextInf));
         await pushSystemConfigToSupabase('ap_infinitepay_config', JSON.stringify(nextInf));
       }
       fixedCount++;
@@ -759,7 +851,7 @@ export async function runSystemSelfHeal(): Promise<SelfHealReport> {
   // 7. Re-sincronizar configurações da nuvem e atualizar UI do sistema
   try {
     await syncSystemConfigsWithSupabase();
-    localStorage.setItem('ap_last_schema_heal', new Date().toISOString());
+    safeLocalStorageSet('ap_last_schema_heal', new Date().toISOString());
     window.dispatchEvent(new Event('ap-storage-synced'));
     window.dispatchEvent(new Event('store_config_updated'));
   } catch {}

@@ -1,0 +1,1629 @@
+{
+  "ap_products": [
+    {
+      "id": "prod-1783018503677",
+      "name": "Calça Legging",
+      "sku": "CALÇA-LEGG-SCUL",
+      "category": "Leggings",
+      "price": 49.99,
+      "cost": 19,
+      "stock": 20,
+      "minstock": null,
+      "image": "https://i.ibb.co/HDJgD4rc/1000568172-jpg.jpg",
+      "images": [
+        "https://i.ibb.co/HDJgD4rc/1000568172-jpg.jpg",
+        "https://i.ibb.co/wNWHZHvr/1000568173-jpg.jpg",
+        "https://i.ibb.co/s9xKPwRj/1000568174-jpg.jpg",
+        "https://i.ibb.co/My0W0wmG/1000568175-jpg.jpg"
+      ],
+      "salescount": 0,
+      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP --> Veste do\t34\tao\t36\nM\t--> Veste do\t38\tao\t40\nG\t--> Veste do\t42\tao\t44\nPs\t--> Veste do\t46\tao\t50\n \nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cor1es podem variar conforme o brilho da tela",
+      "videourl": null,
+      "colors": [
+        "Vermelho",
+        "Azul Marinho",
+        "Verde",
+        "Fucsia",
+        "Roxo",
+        "Marrom",
+        "Preto",
+        "Lilás",
+        "Bege",
+        "Rosa",
+        "Cinza"
+      ],
+      "sizes": [
+        "P",
+        "M"
+      ],
+      "created_at": "2026-07-02T18:55:04.135435+00:00",
+      "size_colors": {},
+      "minStock": 5,
+      "salesCount": 0,
+      "videoUrl": "",
+      "color_stocks": {
+        "Bege": 0,
+        "Rosa": 0,
+        "Roxo": 0,
+        "Cinza": 0,
+        "Preto": 4,
+        "Verde": 4,
+        "Fucsia": 4,
+        "Lilás": 0,
+        "Marrom": 0,
+        "Vermelho": 4,
+        "Azul Marinho": 3
+      },
+      "size_color_stocks": {
+        "M": {
+          "Bege": 0,
+          "Rosa": 0,
+          "Roxo": 0,
+          "Cinza": 0,
+          "Preto": 2,
+          "Verde": 2,
+          "Fucsia": 2,
+          "Lilás": 0,
+          "Marrom": 0,
+          "Vermelho": 2,
+          "Azul Marinho": 1
+        },
+        "P": {
+          "Bege": 0,
+          "Rosa": 0,
+          "Roxo": 0,
+          "Cinza": 0,
+          "Preto": 2,
+          "Verde": 2,
+          "Fucsia": 2,
+          "Lilás": 0,
+          "Marrom": 0,
+          "Vermelho": 2,
+          "Azul Marinho": 2
+        }
+      },
+      "sizeColors": {},
+      "colorStocks": {
+        "Bege": 0,
+        "Rosa": 0,
+        "Roxo": 0,
+        "Cinza": 0,
+        "Preto": 4,
+        "Verde": 4,
+        "Fucsia": 4,
+        "Lilás": 0,
+        "Marrom": 0,
+        "Vermelho": 4,
+        "Azul Marinho": 3
+      },
+      "sizeColorStocks": {
+        "M": {
+          "Bege": 0,
+          "Rosa": 0,
+          "Roxo": 0,
+          "Cinza": 0,
+          "Preto": 2,
+          "Verde": 2,
+          "Fucsia": 2,
+          "Lilás": 0,
+          "Marrom": 0,
+          "Vermelho": 2,
+          "Azul Marinho": 1
+        },
+        "P": {
+          "Bege": 0,
+          "Rosa": 0,
+          "Roxo": 0,
+          "Cinza": 0,
+          "Preto": 2,
+          "Verde": 2,
+          "Fucsia": 2,
+          "Lilás": 0,
+          "Marrom": 0,
+          "Vermelho": 2,
+          "Azul Marinho": 2
+        }
+      }
+    },
+    {
+      "id": "prod-1783017531559",
+      "name": "Conj. Run Top & Calça",
+      "sku": "CONJ-RUM-TOP+CALÇA-SCUL",
+      "category": "Conjuntos",
+      "price": 129.9,
+      "cost": 39,
+      "stock": 7,
+      "minstock": null,
+      "image": "https://i.ibb.co/LhHzK5LR/1000568169-jpg.jpg",
+      "images": [
+        "https://i.ibb.co/LhHzK5LR/1000568169-jpg.jpg",
+        "https://i.ibb.co/Xr00T2Xg/1000568168-jpg.jpg",
+        "https://i.ibb.co/tp526HqS/1000568165-jpg.jpg",
+        "https://i.ibb.co/ZRjQzpSd/1000568170-jpg.jpg",
+        "https://i.ibb.co/TMNN4GR0/1000568171-jpg.jpg"
+      ],
+      "salescount": 0,
+      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP\t--> Veste do\t34\tao\t36\nM\t--i Veste do\t38\tao\t40\nG\t--> Veste do\t42\tao\t44\nPs\t--> Veste do\t46\tao\t50\n \nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cor1es podem variar conforme o brilho da tela",
+      "videourl": null,
+      "colors": [
+        "Vermelho",
+        "Azul Marinho",
+        "Verde",
+        "Fucsia",
+        "Roxo",
+        "Marrom",
+        "Preto",
+        "Lilás",
+        "Bege",
+        "Rosa",
+        "Cinza"
+      ],
+      "sizes": [
+        "P",
+        "M"
+      ],
+      "created_at": "2026-07-02T18:38:52.416236+00:00",
+      "size_colors": {},
+      "minStock": 5,
+      "salesCount": 0,
+      "videoUrl": "",
+      "color_stocks": {
+        "Bege": 0,
+        "Rosa": 0,
+        "Roxo": 0,
+        "Cinza": 1,
+        "Preto": 1,
+        "Verde": 2,
+        "Fucsia": 0,
+        "Lilás": 0,
+        "Marrom": 1,
+        "Vermelho": 2,
+        "Azul Marinho": 0
+      },
+      "size_color_stocks": {
+        "M": {
+          "Bege": 0,
+          "Rosa": 0,
+          "Roxo": 0,
+          "Cinza": 0,
+          "Preto": 1,
+          "Verde": 1,
+          "Fucsia": 0,
+          "Lilás": 0,
+          "Marrom": 0,
+          "Vermelho": 1,
+          "Azul Marinho": 0
+        },
+        "P": {
+          "Bege": 0,
+          "Rosa": 0,
+          "Roxo": 0,
+          "Cinza": 1,
+          "Preto": 0,
+          "Verde": 1,
+          "Fucsia": 0,
+          "Lilás": 0,
+          "Marrom": 1,
+          "Vermelho": 1,
+          "Azul Marinho": 0
+        }
+      },
+      "sizeColors": {},
+      "colorStocks": {
+        "Bege": 0,
+        "Rosa": 0,
+        "Roxo": 0,
+        "Cinza": 1,
+        "Preto": 1,
+        "Verde": 2,
+        "Fucsia": 0,
+        "Lilás": 0,
+        "Marrom": 1,
+        "Vermelho": 2,
+        "Azul Marinho": 0
+      },
+      "sizeColorStocks": {
+        "M": {
+          "Bege": 0,
+          "Rosa": 0,
+          "Roxo": 0,
+          "Cinza": 0,
+          "Preto": 1,
+          "Verde": 1,
+          "Fucsia": 0,
+          "Lilás": 0,
+          "Marrom": 0,
+          "Vermelho": 1,
+          "Azul Marinho": 0
+        },
+        "P": {
+          "Bege": 0,
+          "Rosa": 0,
+          "Roxo": 0,
+          "Cinza": 1,
+          "Preto": 0,
+          "Verde": 1,
+          "Fucsia": 0,
+          "Lilás": 0,
+          "Marrom": 1,
+          "Vermelho": 1,
+          "Azul Marinho": 0
+        }
+      }
+    },
+    {
+      "id": "prod-1783019204672",
+      "name": "Conj. Top & Short EBB",
+      "sku": "CONJ-TOP+SHORT-EBB-SCUL",
+      "category": "Conjuntos EBB (Empina Bumbum)",
+      "price": 74.9,
+      "cost": 28,
+      "stock": 9,
+      "minstock": null,
+      "image": "https://i.ibb.co/Zp32MkxN/1000568201-jpg.jpg",
+      "images": [
+        "https://i.ibb.co/Zp32MkxN/1000568201-jpg.jpg",
+        "https://i.ibb.co/99Np0v6Y/1000568202-jpg.jpg",
+        "https://i.ibb.co/bgJhqmTM/1000568209-jpg.jpg",
+        "https://i.ibb.co/21gdGL63/1000568210-jpg.jpg",
+        "https://i.ibb.co/gZLfmq3k/1000568211-jpg.jpg",
+        "https://i.ibb.co/WpjtXg4k/1000568212-jpg.jpg"
+      ],
+      "salescount": 0,
+      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP --> Veste do\t34\tao\t36\nM\t--> Veste do\t38\tao\t40\nG\t--> Veste do\t42\tao\t44\nPs\t--> Veste do\t46\tao\t50\n \nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cor1es podem variar conforme o brilho da tela",
+      "videourl": null,
+      "colors": [
+        "Vermelho",
+        "Azul Marinho",
+        "Verde",
+        "Fucsia",
+        "Roxo",
+        "Marrom",
+        "Preto",
+        "Lilás",
+        "Bege",
+        "Rosa",
+        "Cinza"
+      ],
+      "sizes": [
+        "P",
+        "M"
+      ],
+      "created_at": "2026-07-02T19:06:44.834524+00:00",
+      "size_colors": {},
+      "minStock": 5,
+      "salesCount": 0,
+      "videoUrl": "",
+      "color_stocks": {
+        "Bege": 0,
+        "Rosa": 0,
+        "Roxo": 2,
+        "Cinza": 0,
+        "Preto": 3,
+        "Verde": 2,
+        "Fucsia": 0,
+        "Lilás": 0,
+        "Marrom": 0,
+        "Vermelho": 1,
+        "Azul Marinho": 1
+      },
+      "size_color_stocks": {
+        "M": {
+          "Bege": 0,
+          "Rosa": 0,
+          "Roxo": 1,
+          "Cinza": 0,
+          "Preto": 2,
+          "Verde": 1,
+          "Fucsia": 0,
+          "Lilás": 0,
+          "Marrom": 0,
+          "Vermelho": 0,
+          "Azul Marinho": 1
+        },
+        "P": {
+          "Bege": 0,
+          "Rosa": 0,
+          "Roxo": 1,
+          "Cinza": 0,
+          "Preto": 1,
+          "Verde": 1,
+          "Fucsia": 0,
+          "Lilás": 0,
+          "Marrom": 0,
+          "Vermelho": 1,
+          "Azul Marinho": 0
+        }
+      },
+      "sizeColors": {},
+      "colorStocks": {
+        "Bege": 0,
+        "Rosa": 0,
+        "Roxo": 2,
+        "Cinza": 0,
+        "Preto": 3,
+        "Verde": 2,
+        "Fucsia": 0,
+        "Lilás": 0,
+        "Marrom": 0,
+        "Vermelho": 1,
+        "Azul Marinho": 1
+      },
+      "sizeColorStocks": {
+        "M": {
+          "Bege": 0,
+          "Rosa": 0,
+          "Roxo": 1,
+          "Cinza": 0,
+          "Preto": 2,
+          "Verde": 1,
+          "Fucsia": 0,
+          "Lilás": 0,
+          "Marrom": 0,
+          "Vermelho": 0,
+          "Azul Marinho": 1
+        },
+        "P": {
+          "Bege": 0,
+          "Rosa": 0,
+          "Roxo": 1,
+          "Cinza": 0,
+          "Preto": 1,
+          "Verde": 1,
+          "Fucsia": 0,
+          "Lilás": 0,
+          "Marrom": 0,
+          "Vermelho": 1,
+          "Azul Marinho": 0
+        }
+      }
+    },
+    {
+      "id": "prod-1783020106428",
+      "name": "Top Alça Sem Bojo - Slim Fit",
+      "sku": "TOP-SCUL",
+      "category": "Tops",
+      "price": 35.9,
+      "cost": 8.5,
+      "stock": 13,
+      "minstock": null,
+      "image": "https://i.ibb.co/m58BgDwx/1000568220-jpg.jpg",
+      "images": [
+        "https://i.ibb.co/m58BgDwx/1000568220-jpg.jpg",
+        "https://i.ibb.co/prdxL6M2/1000568219-jpg.jpg",
+        "https://i.ibb.co/201vr0Sr/1000568222-jpg.jpg",
+        "https://i.ibb.co/mrg5q3CH/1000568221-jpg.jpg",
+        "https://i.ibb.co/99Np0v6Y/1000568202-jpg.jpg"
+      ],
+      "salescount": 0,
+      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP --> Veste do\t34\tao\t36\nM\t--> Veste do\t38\tao\t40\nG\t--> Veste do\t42\tao\t44\nPs\t--> Veste do\t46\tao\t50\n \nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cor1es podem variar conforme o brilho da tela",
+      "videourl": null,
+      "colors": [
+        "Vermelho",
+        "Azul Marinho",
+        "Verde",
+        "Fucsia",
+        "Roxo",
+        "Marrom",
+        "Preto",
+        "Lilás",
+        "Bege",
+        "Rosa",
+        "Cinza"
+      ],
+      "sizes": [
+        "P"
+      ],
+      "created_at": "2026-07-02T19:21:46.994861+00:00",
+      "size_colors": {},
+      "minStock": 5,
+      "salesCount": 1,
+      "videoUrl": "",
+      "color_stocks": {
+        "Bege": 0,
+        "Rosa": 0,
+        "Roxo": 0,
+        "Cinza": 0,
+        "Preto": 3,
+        "Verde": 3,
+        "Fucsia": 0,
+        "Lilás": 0,
+        "Marrom": 3,
+        "Vermelho": 1,
+        "Azul Marinho": 2
+      },
+      "size_color_stocks": {
+        "P": {
+          "Bege": 0,
+          "Rosa": 0,
+          "Roxo": 0,
+          "Cinza": 0,
+          "Preto": 3,
+          "Verde": 3,
+          "Fucsia": 0,
+          "Lilás": 0,
+          "Marrom": 3,
+          "Vermelho": 1,
+          "Azul Marinho": 2
+        }
+      },
+      "sizeColors": {},
+      "colorStocks": {
+        "Bege": 0,
+        "Rosa": 0,
+        "Roxo": 0,
+        "Cinza": 0,
+        "Preto": 3,
+        "Verde": 3,
+        "Fucsia": 0,
+        "Lilás": 0,
+        "Marrom": 3,
+        "Vermelho": 1,
+        "Azul Marinho": 2
+      },
+      "sizeColorStocks": {
+        "P": {
+          "Bege": 0,
+          "Rosa": 0,
+          "Roxo": 0,
+          "Cinza": 0,
+          "Preto": 3,
+          "Verde": 3,
+          "Fucsia": 0,
+          "Lilás": 0,
+          "Marrom": 3,
+          "Vermelho": 1,
+          "Azul Marinho": 2
+        }
+      }
+    },
+    {
+      "id": "prod-1782180430648",
+      "name": "Conj. Top & Short - Slim Fit",
+      "sku": "CTSHOR",
+      "category": "Conjuntos",
+      "price": 72.9,
+      "cost": 28,
+      "stock": 4,
+      "minstock": null,
+      "image": "https://i.ibb.co/TD0d9fhc/1000568002-jpg.jpg",
+      "images": [
+        "https://i.ibb.co/TD0d9fhc/1000568002-jpg.jpg",
+        "https://i.ibb.co/r2NfRMpY/1000568001-jpg.jpg",
+        "https://i.ibb.co/Fbgc6852/1000567988-jpg.jpg",
+        "https://i.ibb.co/5Xn1PYDC/1000567989-jpg.jpg"
+      ],
+      "salescount": 0,
+      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP --> Veste do\t34\tao\t36\nM\t--> Veste do\t38\tao\t40\nG\t--> Veste do\t42\tao\t44\nPs\t--> Veste do\t46\tao\t50\n \nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cor1es podem variar conforme o brilho da tela",
+      "videourl": null,
+      "colors": [
+        "Vermelho",
+        "Azul Marinho",
+        "Verde",
+        "Fucsia",
+        "Roxo",
+        "Marrom",
+        "Preto",
+        "Lilás",
+        "Bege",
+        "Rosa",
+        "Cinza"
+      ],
+      "sizes": [
+        "P",
+        "M"
+      ],
+      "created_at": "2026-06-25T18:15:37.637129+00:00",
+      "size_colors": {},
+      "minStock": 1,
+      "salesCount": 0,
+      "videoUrl": "",
+      "color_stocks": {
+        "Bege": 0,
+        "Rosa": 0,
+        "Roxo": 0,
+        "Cinza": 0,
+        "Preto": 2,
+        "Verde": 1,
+        "Fucsia": 1,
+        "Lilás": 0,
+        "Marrom": 0,
+        "Vermelho": 0,
+        "Azul Marinho": 0
+      },
+      "size_color_stocks": {
+        "M": {
+          "Bege": 0,
+          "Rosa": 0,
+          "Roxo": 0,
+          "Cinza": 0,
+          "Preto": 1,
+          "Verde": 1,
+          "Fucsia": 0,
+          "Lilás": 0,
+          "Marrom": 0,
+          "Vermelho": 0,
+          "Azul Marinho": 0
+        },
+        "P": {
+          "Bege": 0,
+          "Rosa": 0,
+          "Roxo": 0,
+          "Cinza": 0,
+          "Preto": 1,
+          "Verde": 0,
+          "Fucsia": 1,
+          "Lilás": 0,
+          "Marrom": 0,
+          "Vermelho": 0,
+          "Azul Marinho": 0
+        }
+      },
+      "sizeColors": {},
+      "colorStocks": {
+        "Bege": 0,
+        "Rosa": 0,
+        "Roxo": 0,
+        "Cinza": 0,
+        "Preto": 2,
+        "Verde": 1,
+        "Fucsia": 1,
+        "Lilás": 0,
+        "Marrom": 0,
+        "Vermelho": 0,
+        "Azul Marinho": 0
+      },
+      "sizeColorStocks": {
+        "M": {
+          "Bege": 0,
+          "Rosa": 0,
+          "Roxo": 0,
+          "Cinza": 0,
+          "Preto": 1,
+          "Verde": 1,
+          "Fucsia": 0,
+          "Lilás": 0,
+          "Marrom": 0,
+          "Vermelho": 0,
+          "Azul Marinho": 0
+        },
+        "P": {
+          "Bege": 0,
+          "Rosa": 0,
+          "Roxo": 0,
+          "Cinza": 0,
+          "Preto": 1,
+          "Verde": 0,
+          "Fucsia": 1,
+          "Lilás": 0,
+          "Marrom": 0,
+          "Vermelho": 0,
+          "Azul Marinho": 0
+        }
+      }
+    },
+    {
+      "id": "prod-1782562708664",
+      "name": "Blusa Dry-Fit 100% Poliamida",
+      "sku": "BLU-POLI-SCUL",
+      "category": "Blusa Dry-Fit",
+      "price": 44.9,
+      "cost": 18,
+      "stock": 28,
+      "minstock": null,
+      "image": "https://i.ibb.co/wFq85JLW/1000536691.jpg",
+      "images": [
+        "https://i.ibb.co/wFq85JLW/1000536691.jpg",
+        "https://i.ibb.co/8L3JKttr/1000536692.jpg",
+        "https://i.ibb.co/TD0d9fhc/1000568002-jpg.jpg"
+      ],
+      "salescount": 0,
+      "description": "DESCRIÇÃO\nFeitas com tecido 100% poliamida, nossas regatas e blusas são super macias, leves e respiráveis. Perfeitas para atividades físicas, elas secam rapidamente e proporcionam conforto ao longo do dia.\n\nDetalhes:\n\n✔️ Tecido: Poliamida 100%\n✔️ Gramatura: 280g\n✔️ Toque macio e Respirável\n\n\nTamanhos Disponíveis:\n\nP – Veste do 34 ao 36\nM – Veste do 38 ao 40\nG – Veste do 42 ao 44\nPlus Size – Veste do 46 ao 50\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela",
+      "videourl": null,
+      "colors": [
+        "Preto",
+        "Lilás",
+        "Marrom",
+        "Verde",
+        "Vermelho",
+        "Fucsia"
+      ],
+      "sizes": [
+        "P",
+        "M"
+      ],
+      "created_at": "2026-06-27T12:18:28.884371+00:00",
+      "size_colors": {},
+      "minStock": 5,
+      "salesCount": 0,
+      "videoUrl": "",
+      "color_stocks": {
+        "Preto": 3,
+        "Verde": 8,
+        "Fucsia": 4,
+        "Lilás": 5,
+        "Marrom": 3,
+        "Vermelho": 3
+      },
+      "size_color_stocks": {
+        "M": {
+          "Preto": 3,
+          "Verde": 4,
+          "Fucsia": 3,
+          "Lilás": 3,
+          "Marrom": 0,
+          "Vermelho": 3
+        },
+        "P": {
+          "Preto": 0,
+          "Verde": 4,
+          "Fucsia": 1,
+          "Lilás": 2,
+          "Marrom": 3,
+          "Vermelho": 0
+        }
+      },
+      "sizeColors": {},
+      "colorStocks": {
+        "Preto": 3,
+        "Verde": 8,
+        "Fucsia": 4,
+        "Lilás": 5,
+        "Marrom": 3,
+        "Vermelho": 3
+      },
+      "sizeColorStocks": {
+        "M": {
+          "Preto": 3,
+          "Verde": 4,
+          "Fucsia": 3,
+          "Lilás": 3,
+          "Marrom": 0,
+          "Vermelho": 3
+        },
+        "P": {
+          "Preto": 0,
+          "Verde": 4,
+          "Fucsia": 1,
+          "Lilás": 2,
+          "Marrom": 3,
+          "Vermelho": 0
+        }
+      }
+    },
+    {
+      "id": "prod-1782825544494",
+      "name": "Cropped Dry-Fit 100% Poliamida",
+      "sku": "CROP-POLI-SCUL",
+      "category": "Regatas",
+      "price": 37.9,
+      "cost": 13,
+      "stock": 19,
+      "minstock": null,
+      "image": "https://i.ibb.co/TD0d9fhc/1000568002-jpg.jpg",
+      "images": [
+        "https://i.ibb.co/TD0d9fhc/1000568002-jpg.jpg"
+      ],
+      "salescount": 0,
+      "description": "0\n\nPágina inicial\n Coleção Gym Fit\n Cropped Dry Fit\nCropped Dry Fit\nCód.: CRO01\n\n (0)\nR$11,00\nAzul Marinho\nM\n\nAvise-meAzul Royal\nM\n\n33\nBranco\nM\n\n5\nChumbo\nM\n\n9\nFúcsia\nM\n\n86\nLilás\nM\n\n82\nPreto\nM\n\n26\nRosa Chiclete\nM\n\n9\nRosa Neon\nM\n\nAvise-meRosa Pink\nM\n\nAvise-meVerde Neon\nM\n\nAvise-meVermelho\nM\n\n61\nADICIONAR AO CARRINHO\nCalcular frete e prazo\n\nDigite seu CEP\nOK\nDESCRIÇÃO\nFeitas com tecido 100% poliamida, nossas regatas e blusas são super macias, leves e respiráveis. Perfeitas para atividades físicas, elas secam rapidamente e proporcionam conforto ao longo do dia.\n\nDetalhes:\n\n✔️ Tecido: Poliamida 100%\n✔️ Gramatura: 280g\n✔️ Toque macio e Respirável\n\n\nTamanhos Disponíveis:\n\nP – Veste do 34 ao 36\nM – Veste do 38 ao 40\nG – Veste do 42 ao 44\nPlus Size – Veste do 46 ao 50\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela",
+      "videourl": null,
+      "colors": [
+        "VERMELHO",
+        "AZUL MARINHO",
+        "VERDE",
+        "FUCSIA",
+        "MARROM",
+        "PRETO",
+        "Lilás",
+        "BEGE",
+        "ROSA"
+      ],
+      "sizes": [
+        "M"
+      ],
+      "created_at": "2026-06-30T13:19:09.120612+00:00",
+      "size_colors": {},
+      "minStock": 5,
+      "salesCount": 0,
+      "videoUrl": "",
+      "color_stocks": {
+        "BEGE": 2,
+        "ROSA": 1,
+        "PRETO": 3,
+        "VERDE": 2,
+        "FUCSIA": 2,
+        "Lilás": 2,
+        "MARROM": 1,
+        "VERMELHO": 3,
+        "AZUL MARINHO": 1
+      },
+      "size_color_stocks": {
+        "M": {
+          "BEGE": 2,
+          "ROSA": 1,
+          "PRETO": 3,
+          "VERDE": 2,
+          "FUCSIA": 2,
+          "Lilás": 2,
+          "MARROM": 1,
+          "VERMELHO": 3,
+          "AZUL MARINHO": 1
+        }
+      },
+      "sizeColors": {},
+      "colorStocks": {
+        "BEGE": 2,
+        "ROSA": 1,
+        "PRETO": 3,
+        "VERDE": 2,
+        "FUCSIA": 2,
+        "Lilás": 2,
+        "MARROM": 1,
+        "VERMELHO": 3,
+        "AZUL MARINHO": 1
+      },
+      "sizeColorStocks": {
+        "M": {
+          "BEGE": 2,
+          "ROSA": 1,
+          "PRETO": 3,
+          "VERDE": 2,
+          "FUCSIA": 2,
+          "Lilás": 2,
+          "MARROM": 1,
+          "VERMELHO": 3,
+          "AZUL MARINHO": 1
+        }
+      }
+    },
+    {
+      "id": "prod-macacao-curto-run",
+      "name": "Macacão Curto - Run",
+      "sku": "MAC-RUN-CURTO-01",
+      "category": "Macacões",
+      "price": 72.9,
+      "compare_at_price": 89.9,
+      "cost": 32,
+      "stock": 0,
+      "minStock": 5,
+      "salesCount": 14,
+      "image": "",
+      "images": [],
+      "description": "Macacão fitness curto Coleção Run de alta sustentação e modelagem impecável. Tecido com toque aveludado e compressão na medida certa.",
+      "colors": [
+        "Roxo",
+        "Preto",
+        "Azul Marinho"
+      ],
+      "sizes": [
+        "P",
+        "M",
+        "G"
+      ],
+      "created_at": "2026-07-02T19:30:00.000Z"
+    },
+    {
+      "id": "prod-macacao-longo-run",
+      "name": "Macacão Longo - Run",
+      "sku": "MAC-RUN-LONGO-02",
+      "category": "Macacões",
+      "price": 74.9,
+      "compare_at_price": 94.9,
+      "cost": 34,
+      "stock": 0,
+      "minStock": 5,
+      "salesCount": 18,
+      "image": "",
+      "images": [],
+      "description": "Macacão longo modelador Coleção Run. Cós duplo com alta compressão, valoriza a silhueta e proporciona conforto máximo nos treinos.",
+      "colors": [
+        "Marrom",
+        "Preto",
+        "Verde Militar"
+      ],
+      "sizes": [
+        "P",
+        "M",
+        "G"
+      ],
+      "created_at": "2026-07-02T19:35:00.000Z"
+    },
+    {
+      "id": "prod-conj-top-calca-slim",
+      "name": "conj top + calça slim",
+      "sku": "CONJ-TOP-CALCA-SLIM",
+      "category": "Conjuntos",
+      "price": 59.9,
+      "compare_at_price": 89.9,
+      "cost": 25,
+      "stock": 0,
+      "minStock": 5,
+      "salesCount": 16,
+      "image": "",
+      "images": [],
+      "description": "Conjunto completo Top + Calça Slim Fit de alta compressão modeladora.",
+      "colors": [
+        "Preto",
+        "Cinza",
+        "Azul Marinho"
+      ],
+      "sizes": [
+        "P",
+        "M"
+      ],
+      "created_at": "2026-07-02T19:40:00.000Z"
+    },
+    {
+      "id": "__verify_test_prod__",
+      "name": "Verify Prod",
+      "sku": "VRF-01",
+      "category": "Tops",
+      "price": 50,
+      "cost": 20,
+      "stock": 5,
+      "minStock": 1,
+      "image": "https://i.ibb.co/test1.jpg",
+      "images": [
+        "https://i.ibb.co/test1.jpg",
+        "https://i.ibb.co/test2.jpg"
+      ]
+    }
+  ],
+  "ap_clients": [
+    {
+      "id": "cli-amaro",
+      "name": "Amaro Honório Pereira Neto",
+      "email": "amaro.honorio@gmail.com",
+      "phone": "84 99146-8136",
+      "cpf": "016.956.564-58",
+      "channel": "Loja Online",
+      "addressStreet": "Travessa José Jorge",
+      "addressNum": "51",
+      "addressBairro": "Centro",
+      "addressCidade": "São José de Mipibu",
+      "addressEstado": "RN",
+      "addressCep": "59162-000",
+      "totalSpent": 363.8,
+      "ordersCount": 2,
+      "createdAt": "2026-07-20T21:04:15.059Z",
+      "wishlist": ""
+    },
+    {
+      "id": "cli-cinthia",
+      "name": "Cinthia Rodrigues da Silva",
+      "email": "cinthia.rodrigues@gmail.com",
+      "phone": "(84) 99198-2963",
+      "channel": "Loja Online",
+      "totalSpent": 51.21,
+      "ordersCount": 1,
+      "createdAt": "2026-07-10T21:58:05.892Z",
+      "wishlist": ""
+    },
+    {
+      "id": "cli-pericles",
+      "name": "pericles ramos",
+      "email": "pericles.ramos@gmail.com",
+      "phone": "(84) 99198-2963",
+      "channel": "Loja Online",
+      "totalSpent": 44.9,
+      "ordersCount": 1,
+      "createdAt": "2026-07-10T14:06:08.324Z",
+      "wishlist": ""
+    },
+    {
+      "id": "cli-carla",
+      "name": "Carla Oliveira",
+      "email": "carla.oliveira@gmail.com",
+      "phone": "(84) 99198-2963",
+      "channel": "PDV",
+      "totalSpent": 209.8,
+      "ordersCount": 1,
+      "createdAt": "2026-07-10T14:04:54.907Z",
+      "wishlist": ""
+    }
+  ],
+  "ap_sales": [
+    {
+      "id": "V-00892",
+      "clientName": "Cinthia Rodrigues da Silva",
+      "clientDoc": "",
+      "channel": "Loja Online",
+      "items": [
+        {
+          "productId": "prod-1783018503677",
+          "name": "Calça Legging",
+          "quantity": 1,
+          "price": 51.21,
+          "cost": 19
+        }
+      ],
+      "total": 51.21,
+      "costTotal": 19,
+      "status": "Concluída",
+      "createdAt": "2026-07-10T21:58:05.892Z",
+      "payments": [
+        {
+          "method": "PIX",
+          "amount": 51.21
+        }
+      ],
+      "salesperson": "E-commerce",
+      "deliveryMethod": "Correios",
+      "address": "Travessa Jose Jorge, 51, Centro - Sao Jose de Mipibu/RN",
+      "tipo_envio": "correios",
+      "status_logistico": "pendente",
+      "valor_bruto": 51.21,
+      "taxa_financeira": 0,
+      "valor_liquido": 51.21
+    },
+    {
+      "id": "V-00688",
+      "clientName": "pericles ramos",
+      "clientDoc": "",
+      "channel": "Loja Online",
+      "items": [
+        {
+          "productId": "prod-1783018503677",
+          "name": "Calça Legging",
+          "quantity": 1,
+          "price": 47.49,
+          "cost": 19
+        }
+      ],
+      "total": 47.49,
+      "costTotal": 19,
+      "status": "Cancelada",
+      "createdAt": "2026-07-10T21:13:14.688Z",
+      "payments": [
+        {
+          "method": "PIX",
+          "amount": 47.49
+        }
+      ],
+      "salesperson": "E-commerce",
+      "deliveryMethod": "Correios",
+      "notes": "Venda estornada / cancelada pelo cliente"
+    },
+    {
+      "id": "V-00398",
+      "clientName": "pericles",
+      "clientDoc": "",
+      "channel": "Loja Online",
+      "items": [
+        {
+          "productId": "prod-1783018503677",
+          "name": "Calça Legging",
+          "quantity": 1,
+          "price": 44.9,
+          "cost": 19
+        }
+      ],
+      "total": 44.9,
+      "costTotal": 19,
+      "status": "Concluída",
+      "createdAt": "2026-07-10T14:18:42.398Z",
+      "payments": [
+        {
+          "method": "InfinitePay",
+          "amount": 44.9
+        }
+      ],
+      "salesperson": "E-commerce",
+      "deliveryMethod": "Correios"
+    },
+    {
+      "id": "V-00012",
+      "clientName": "pericles",
+      "clientDoc": "",
+      "channel": "Loja Online",
+      "items": [
+        {
+          "productId": "prod-1783018503677",
+          "name": "Calça Legging",
+          "quantity": 1,
+          "price": 37.9,
+          "cost": 19
+        }
+      ],
+      "total": 37.9,
+      "costTotal": 19,
+      "status": "Cancelada",
+      "createdAt": "2026-07-10T14:07:34.012Z",
+      "payments": [
+        {
+          "method": "InfinitePay",
+          "amount": 37.9
+        }
+      ],
+      "salesperson": "E-commerce",
+      "notes": "Venda estornada"
+    },
+    {
+      "id": "V-00324",
+      "clientName": "pericles",
+      "clientDoc": "",
+      "channel": "Loja Online",
+      "items": [
+        {
+          "productId": "prod-1783018503677",
+          "name": "Calça Legging",
+          "quantity": 1,
+          "price": 37.9,
+          "cost": 19
+        }
+      ],
+      "total": 37.9,
+      "costTotal": 19,
+      "status": "Cancelada",
+      "createdAt": "2026-07-10T14:06:08.324Z",
+      "payments": [
+        {
+          "method": "InfinitePay",
+          "amount": 37.9
+        }
+      ],
+      "salesperson": "E-commerce",
+      "notes": "Venda estornada"
+    },
+    {
+      "id": "SALE-COND-1783692294907",
+      "clientName": "Carla Oliveira",
+      "clientDoc": "",
+      "channel": "PDV",
+      "items": [
+        {
+          "productId": "prod-1783017531559",
+          "name": "Conj. Run Top & Calça",
+          "quantity": 1,
+          "price": 129.9,
+          "cost": 39
+        },
+        {
+          "productId": "prod-1783017014631",
+          "name": "Conj. Top & Short EBB",
+          "quantity": 1,
+          "price": 49.9,
+          "cost": 20
+        },
+        {
+          "productId": "prod-1783018784358",
+          "name": "Top Alça Sem Bojo - Slim Fit",
+          "quantity": 1,
+          "price": 30,
+          "cost": 10
+        }
+      ],
+      "total": 209.8,
+      "costTotal": 69,
+      "status": "Concluída",
+      "createdAt": "2026-07-10T14:04:54.907Z",
+      "payments": [
+        {
+          "method": "Dinheiro",
+          "amount": 209.8
+        }
+      ],
+      "salesperson": "AP Moda Fitness"
+    },
+    {
+      "id": "ped-web-6664",
+      "clientName": "Amaro Honório Pereira Neto",
+      "clientDoc": "016.956.564-58",
+      "channel": "Loja Online",
+      "items": [
+        {
+          "productId": "prod-7",
+          "name": "Macacão Wave Sculpt Sem Costura (Preto - P)",
+          "quantity": 1,
+          "price": 249.9,
+          "cost": 80
+        }
+      ],
+      "total": 249.9,
+      "costTotal": 80,
+      "status": "Pendente",
+      "createdAt": "2026-07-20T21:08:17.598Z",
+      "payments": [
+        {
+          "method": "Cartão de Crédito",
+          "amount": 249.9
+        }
+      ],
+      "deliveryMethod": "motoboy",
+      "address": "Travessa José Jorge, 51 - Bairro: Centro - São José de Mipibu/RN - CEP: 59162-000",
+      "notes": "Cor: Preto | CPF: 016.956.564-58"
+    },
+    {
+      "id": "ped-web-8418",
+      "clientName": "Amaro Honório Pereira Neto",
+      "clientDoc": "016.956.564-58",
+      "channel": "Loja Online",
+      "items": [
+        {
+          "productId": "prod-1",
+          "name": "Legging Glow Cós Anatômico (Preto - P)",
+          "quantity": 1,
+          "price": 119.9,
+          "cost": 45
+        }
+      ],
+      "total": 113.9,
+      "costTotal": 45,
+      "status": "Pendente",
+      "createdAt": "2026-07-20T21:04:15.059Z",
+      "payments": [
+        {
+          "method": "PIX",
+          "amount": 113.9
+        }
+      ],
+      "deliveryMethod": "motoboy",
+      "address": "Travessa José Jorge, 51 - Bairro: Centro - São José de Mipibu/RN - CEP: 59162-000",
+      "notes": "Cor: Preto | CPF: 016.956.564-58"
+    }
+  ],
+  "ap_transactions": [
+    {
+      "id": "t-1783692294908",
+      "type": "Inflow",
+      "category": "Venda",
+      "description": "Venda SALE-COND-1783692294907 para Carla Oliveira",
+      "amount": 209.8,
+      "date": "2026-07-10T14:04:54.907Z",
+      "created_at": "2026-07-10T14:04:54.899662+00:00",
+      "dueDate": null,
+      "installmentsGroup": null,
+      "installmentNumber": null,
+      "totalInstallments": null,
+      "due_date": "2026-07-10T14:04:54.907Z",
+      "installments_group": null,
+      "installment_number": null,
+      "installmentnumber": null,
+      "total_installments": null,
+      "totalinstallments": null,
+      "installmentsgroup": null,
+      "status": "pago",
+      "paymentMethod": null,
+      "payment_method": null,
+      "createdAt": null
+    },
+    {
+      "id": "t-1783692368325",
+      "type": "Inflow",
+      "category": "Venda",
+      "description": "Venda V-00324 para pericles (Link de Pagamento (InfinitePay): R$ 37,90)",
+      "amount": 37.9,
+      "date": "2026-07-10T14:06:08.324Z",
+      "created_at": "2026-07-10T14:06:08.251215+00:00",
+      "dueDate": null,
+      "installmentsGroup": null,
+      "installmentNumber": null,
+      "totalInstallments": null,
+      "due_date": "2026-07-10T14:06:08.324Z",
+      "installments_group": null,
+      "installment_number": null,
+      "installmentnumber": null,
+      "total_installments": null,
+      "totalinstallments": null,
+      "installmentsgroup": null,
+      "status": "pago",
+      "paymentMethod": null,
+      "payment_method": null,
+      "createdAt": null
+    },
+    {
+      "id": "t-1783692454013",
+      "type": "Inflow",
+      "category": "Venda",
+      "description": "Venda V-00012 para pericles (Link de Pagamento (InfinitePay): R$ 37,90)",
+      "amount": 37.9,
+      "date": "2026-07-10T14:07:34.012Z",
+      "created_at": "2026-07-10T14:07:33.942909+00:00",
+      "dueDate": null,
+      "installmentsGroup": null,
+      "installmentNumber": null,
+      "totalInstallments": null,
+      "due_date": "2026-07-10T14:07:34.012Z",
+      "installments_group": null,
+      "installment_number": null,
+      "installmentnumber": null,
+      "total_installments": null,
+      "totalinstallments": null,
+      "installmentsgroup": null,
+      "status": "pago",
+      "paymentMethod": null,
+      "payment_method": null,
+      "createdAt": null
+    },
+    {
+      "id": "t-refund-1783693043809",
+      "type": "Outflow",
+      "category": "Venda Cancelada",
+      "description": "Estorno de venda #V-00012 - Cliente pericles",
+      "amount": 37.9,
+      "date": "2026-07-10T14:17:23.809Z",
+      "created_at": "2026-07-10T14:17:23.731447+00:00",
+      "dueDate": null,
+      "installmentsGroup": null,
+      "installmentNumber": null,
+      "totalInstallments": null,
+      "due_date": "2026-07-10T14:17:23.809Z",
+      "installments_group": null,
+      "installment_number": null,
+      "installmentnumber": null,
+      "total_installments": null,
+      "totalinstallments": null,
+      "installmentsgroup": null,
+      "status": "pago",
+      "paymentMethod": null,
+      "payment_method": null,
+      "createdAt": null
+    },
+    {
+      "id": "t-refund-1783693050958",
+      "type": "Outflow",
+      "category": "Venda Cancelada",
+      "description": "Estorno de venda #V-00324 - Cliente pericles",
+      "amount": 37.9,
+      "date": "2026-07-10T14:17:30.958Z",
+      "created_at": "2026-07-10T14:17:30.876334+00:00",
+      "dueDate": null,
+      "installmentsGroup": null,
+      "installmentNumber": null,
+      "totalInstallments": null,
+      "due_date": "2026-07-10T14:17:30.958Z",
+      "installments_group": null,
+      "installment_number": null,
+      "installmentnumber": null,
+      "total_installments": null,
+      "totalinstallments": null,
+      "installmentsgroup": null,
+      "status": "pago",
+      "paymentMethod": null,
+      "payment_method": null,
+      "createdAt": null
+    },
+    {
+      "id": "t-1783693122399",
+      "type": "Inflow",
+      "category": "Venda",
+      "description": "Venda V-00398 para pericles (Link de Pagamento (InfinitePay): R$ 44,90)",
+      "amount": 44.9,
+      "date": "2026-07-10T14:18:42.398Z",
+      "created_at": "2026-07-10T21:03:19.476183+00:00",
+      "dueDate": null,
+      "installmentsGroup": null,
+      "installmentNumber": null,
+      "totalInstallments": null,
+      "due_date": "2026-07-10T14:18:42.398Z",
+      "installments_group": null,
+      "installment_number": null,
+      "installmentnumber": null,
+      "total_installments": null,
+      "totalinstallments": null,
+      "installmentsgroup": null,
+      "status": "pago",
+      "paymentMethod": null,
+      "payment_method": null,
+      "createdAt": null
+    },
+    {
+      "id": "t-1783717994689",
+      "type": "Inflow",
+      "category": "Venda",
+      "description": "Venda V-00688 para pericles ramos (PIX: R$ 47,49)",
+      "amount": 47.490500000000004,
+      "date": "2026-07-10T21:13:14.688Z",
+      "created_at": "2026-07-10T21:13:14.566341+00:00",
+      "dueDate": null,
+      "installmentsGroup": null,
+      "installmentNumber": null,
+      "totalInstallments": null,
+      "due_date": "2026-07-10T21:13:14.688Z",
+      "installments_group": null,
+      "installment_number": null,
+      "installmentnumber": null,
+      "total_installments": null,
+      "totalinstallments": null,
+      "installmentsgroup": null,
+      "status": "pago",
+      "paymentMethod": null,
+      "payment_method": null,
+      "createdAt": null
+    },
+    {
+      "id": "t-refund-1783718215539",
+      "type": "Outflow",
+      "category": "Venda Cancelada",
+      "description": "Estorno de venda #V-00688 - Cliente pericles ramos",
+      "amount": 47.490500000000004,
+      "date": "2026-07-10T21:16:55.539Z",
+      "created_at": "2026-07-10T21:16:55.462548+00:00",
+      "dueDate": null,
+      "installmentsGroup": null,
+      "installmentNumber": null,
+      "totalInstallments": null,
+      "due_date": "2026-07-10T21:16:55.539Z",
+      "installments_group": null,
+      "installment_number": null,
+      "installmentnumber": null,
+      "total_installments": null,
+      "totalinstallments": null,
+      "installmentsgroup": null,
+      "status": "pago",
+      "paymentMethod": null,
+      "payment_method": null,
+      "createdAt": null
+    },
+    {
+      "id": "t-1783720685893",
+      "type": "Inflow",
+      "category": "Venda",
+      "description": "Venda V-00892 para Cinthia Rodrigues da Silva (PIX: R$ 51,21)",
+      "amount": 51.209999999999994,
+      "date": "2026-07-10T21:58:05.892Z",
+      "created_at": "2026-07-10T21:58:06.437311+00:00",
+      "dueDate": null,
+      "installmentsGroup": null,
+      "installmentNumber": null,
+      "totalInstallments": null,
+      "due_date": "2026-07-10T21:58:05.892Z",
+      "installments_group": null,
+      "installment_number": null,
+      "installmentnumber": null,
+      "total_installments": null,
+      "totalinstallments": null,
+      "installmentsgroup": null,
+      "status": "pago",
+      "paymentMethod": null,
+      "payment_method": null,
+      "createdAt": null
+    },
+    {
+      "id": "t-ped-web-6664",
+      "type": "Inflow",
+      "category": "Venda",
+      "description": "Pedido Online #ped-web-6664 - Amaro Honório Pereira Neto (Cartão de Crédito: R$ 249,90)",
+      "amount": 249.9,
+      "date": "2026-07-20T21:08:17.598Z",
+      "created_at": "2026-07-20T21:08:17.598Z",
+      "status": "pago"
+    },
+    {
+      "id": "t-ped-web-8418",
+      "type": "Inflow",
+      "category": "Venda",
+      "description": "Pedido Online #ped-web-8418 - Amaro Honório Pereira Neto (PIX: R$ 113,90)",
+      "amount": 113.9,
+      "date": "2026-07-20T21:04:15.059Z",
+      "created_at": "2026-07-20T21:04:15.059Z",
+      "status": "pago"
+    }
+  ],
+  "ap_online_orders": [
+    {
+      "id": "ped-web-6664",
+      "clientName": "Amaro Honório Pereira Neto",
+      "phone": "84 99146-8136",
+      "cpf": "016.956.564-58",
+      "items": [
+        {
+          "productName": "Macacão Wave Sculpt Sem Costura (Preto - P)",
+          "productId": "prod-7",
+          "quantity": 1,
+          "price": 249.9,
+          "color": "Preto",
+          "size": "P"
+        }
+      ],
+      "total": 249.9,
+      "status": "Pendente",
+      "status_pagamento": "pendente",
+      "createdAt": "2026-07-20T21:08:17.598Z",
+      "address": "Travessa José Jorge, 51 - Bairro: Centro - São José de Mipibu/RN - CEP: 59162-000",
+      "deliveryFee": 0,
+      "deliveryMethod": "motoboy",
+      "selectedFreightId": "",
+      "selectedFreightName": "",
+      "paymentMethod": "cartao",
+      "notes": "Cor: Preto | CPF: 016.956.564-58 | Pg: Cartão (1x) | Obs: "
+    },
+    {
+      "id": "ped-web-8418",
+      "clientName": "Amaro Honório Pereira Neto",
+      "phone": "84 99146-8136",
+      "cpf": "016.956.564-58",
+      "items": [
+        {
+          "productName": "Legging Glow Cós Anatômico (Preto - P)",
+          "productId": "prod-1",
+          "quantity": 1,
+          "price": 119.9,
+          "color": "Preto",
+          "size": "P"
+        }
+      ],
+      "total": 113.9,
+      "status": "Pendente",
+      "status_pagamento": "pendente",
+      "createdAt": "2026-07-20T21:04:15.059Z",
+      "address": "Travessa José Jorge, 51 - Bairro: Centro - São José de Mipibu/RN - CEP: 59162-000",
+      "deliveryFee": 0,
+      "deliveryMethod": "motoboy",
+      "selectedFreightId": "",
+      "selectedFreightName": "",
+      "paymentMethod": "pix",
+      "notes": "Cor: Preto | CPF: 016.956.564-58 | Pg: PIX | Obs: "
+    }
+  ],
+  "ap_checkouts": [],
+  "ap_team_members": [
+    {
+      "id": "usr-1",
+      "name": "AP Moda Fitness",
+      "login": "admin",
+      "password": "Ap01695*",
+      "role": "Admin",
+      "details": "Administradora Geral",
+      "birthdate": null,
+      "created_at": "2026-06-22T16:06:26.630674+00:00",
+      "createdat": "2026-06-22 16:06:26.630674+00",
+      "birthDate": "",
+      "createdAt": "2026-06-22 16:06:26.630674+00",
+      "avatar": ""
+    }
+  ],
+  "card_terminals": [],
+  "ap_system_configs": [
+    {
+      "key": "ap_whatsapp_token",
+      "value": "",
+      "updated_at": "2026-06-22T16:52:30.336082+00:00"
+    },
+    {
+      "key": "ap_whatsapp_phone_id",
+      "value": "084991982963",
+      "updated_at": "2026-06-22T16:52:30.336082+00:00"
+    },
+    {
+      "key": "ap_whatsapp_recipient",
+      "value": "084991982963",
+      "updated_at": "2026-06-22T16:52:30.336082+00:00"
+    },
+    {
+      "key": "ap_whatsapp_enabled",
+      "value": "true",
+      "updated_at": "2026-06-22T16:52:30.336082+00:00"
+    },
+    {
+      "key": "ap_vitrine_store_name",
+      "value": "AP Moda Fitness",
+      "updated_at": "2026-06-22T16:52:30.336082+00:00"
+    },
+    {
+      "key": "ap_vitrine_store_sub",
+      "value": "Moda Fitness Premium",
+      "updated_at": "2026-06-22T16:52:30.336082+00:00"
+    },
+    {
+      "key": "ap_vitrine_theme_color",
+      "value": "#db2777",
+      "updated_at": "2026-06-22T16:52:30.336082+00:00"
+    },
+    {
+      "key": "ap_vitrine_slides",
+      "value": "[{\"image\":\"https://images.unsplash.com/photo-1518310383802-640c2de311b2?w=1100&q=80\",\"tag\":\"COLEÇÃO EXCLUSIVA\",\"title\":\"ATACADO PREMIUM\",\"desc\":\"Compre no atacado a partir de 15 unidades com preços imbatíveis de fábrica.\"},{\"image\":\"https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=1100&q=80\",\"tag\":\"NOVA COLEÇÃO 2 EM 1\",\"title\":\"COLEÇÃO DUO\",\"desc\":\"Experimente peças de alta compressão e toque sensorial único. Confira Lançamentos!\"},{\"image\":\"https://images.unsplash.com/photo-1507398941214-572c25f4b1dc?w=1100&q=80\",\"tag\":\"ALTA PERFORMANCE\",\"title\":\"SUA JORNADA RUN\",\"desc\":\"Tecnologia respirável com costura reforçada e poliamida biodegradável premium.\"}]",
+      "updated_at": "2026-06-22T16:52:30.336082+00:00"
+    },
+    {
+      "key": "ap_vitrine_announcement",
+      "value": "{\"show\":true,\"text\":\"⚡ ENVIAMOS PARA TODO BRASIL • FRETE GRÁTIS ACIMA DE R$ 399 ATÉ 6X SEM JUROS ⚡\",\"bgColor\":\"#db2777\",\"textColor\":\"#ffffff\"}",
+      "updated_at": "2026-06-22T16:52:30.336082+00:00"
+    },
+    {
+      "key": "ap_vitrine_category_banners",
+      "value": "{\"slimFit\":\"https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=600&q=80\",\"plusSize\":\"https://images.unsplash.com/photo-1518310383802-640c2de311b2?w=600&q=80\"}",
+      "updated_at": "2026-06-22T16:52:30.336082+00:00"
+    },
+    {
+      "key": "ap_vitrine_floating_banner",
+      "value": "{\"show\":true,\"title\":\"✨ CUPOM DA SEMANA\",\"subtitle\":\"Insira APMODAFIT no carrinho para ganhar 5% OFF e frete grátis!\",\"ctaText\":\"Aproveitar Desconto\",\"ctaLink\":\"https://wa.me/5511999990000?text=Quero%20aproveitar%20o%20cupom%20de%20desconto\",\"bgColor\":\"#ec4899\",\"textColor\":\"#ffffff\"}",
+      "updated_at": "2026-06-22T16:52:30.336082+00:00"
+    },
+    {
+      "key": "ap_moda_card_terminals",
+      "value": "[{\"id\":\"term-1\",\"name\":\"Maquininha Presencial Stone AP01\",\"brand\":\"Stone Verde T3\",\"serialNumber\":\"ST-90182-AA\",\"status\":\"Ativo\",\"notes\":\"Fica com o motoboy principal do showroom.\"},{\"id\":\"term-2\",\"name\":\"Leitor Point Pro Mercado Pago\",\"brand\":\"Mercado Pago\",\"serialNumber\":\"MP-88210-BC\",\"status\":\"Ativo\",\"notes\":\"Utilizada no caixa do ponto de venda físico.\"},{\"id\":\"term-3\",\"name\":\"Minizinha Chip 3 PagSeguro\",\"brand\":\"PagSeguro\",\"serialNumber\":\"PS-10293-XZ\",\"status\":\"Inativo\",\"notes\":\"Reserva para eventos e feiras fitness.\"}]",
+      "updated_at": "2026-06-22T16:52:30.336082+00:00"
+    },
+    {
+      "key": "ap_card_machines_rates",
+      "value": "[{\"id\":\"infinitepay\",\"name\":\"InfinitePay\",\"debitFee\":1.38,\"debitDiscount\":0,\"creditDiscount\":0,\"creditInstallments\":{\"1\":3.16,\"2\":4.38,\"3\":4.98,\"4\":5.58,\"5\":6.18,\"6\":6.78,\"7\":7.38,\"8\":7.98,\"9\":8.58,\"10\":9.18,\"11\":9.78,\"12\":10.38}},{\"id\":\"saipay\",\"name\":\"Saipay (PagSeguro)\",\"debitFee\":1.69,\"debitDiscount\":0,\"creditDiscount\":0,\"creditInstallments\":{\"1\":3.79,\"2\":5.49,\"3\":6.99,\"4\":7.99,\"5\":8.99,\"6\":9.99,\"7\":10.99,\"8\":11.99,\"9\":12.99,\"10\":13.99,\"11\":14.99,\"12\":15.99}},{\"id\":\"mercadopago\",\"name\":\"Mercado Pago\",\"debitFee\":1.99,\"debitDiscount\":0,\"creditDiscount\":0,\"creditInstallments\":{\"1\":4.74,\"2\":6.34,\"3\":7.34,\"4\":8.34,\"5\":9.34,\"6\":10.34,\"7\":11.34,\"8\":12.34,\"9\":13.34,\"10\":14.34,\"11\":15.34,\"12\":16.34}},{\"id\":\"ton\",\"name\":\"Ton (Ultra)\",\"debitFee\":1.39,\"debitDiscount\":0,\"creditDiscount\":0,\"creditInstallments\":{\"1\":3.18,\"2\":4.69,\"3\":5.39,\"4\":6.09,\"5\":6.79,\"6\":7.49,\"7\":8.19,\"8\":8.89,\"9\":9.59,\"10\":10.29,\"11\":10.99,\"12\":11.69}},{\"id\":\"stone\",\"name\":\"Stone\",\"debitFee\":1.5,\"debitDiscount\":0,\"creditDiscount\":0,\"creditInstallments\":{\"1\":3.5,\"2\":4.9,\"3\":5.8,\"4\":6.5,\"5\":7.2,\"6\":7.9,\"7\":8.6,\"8\":9.3,\"9\":10,\"10\":10.7,\"11\":11.4,\"12\":12.1}}]",
+      "updated_at": "2026-06-22T16:52:30.336082+00:00"
+    },
+    {
+      "key": "ap_imgbb_key",
+      "value": "",
+      "updated_at": "2026-06-22T16:55:21.727775+00:00"
+    },
+    {
+      "key": "ap_pix_key",
+      "value": "67.074.681/0001-03",
+      "updated_at": "2026-06-28T14:49:55.054+00:00"
+    },
+    {
+      "key": "ap_store_state",
+      "value": "RN",
+      "updated_at": "2026-06-25T18:01:58.366+00:00"
+    },
+    {
+      "key": "ap_store_name",
+      "value": "AP Moda Fitness",
+      "updated_at": "2026-06-25T18:01:57.851+00:00"
+    },
+    {
+      "key": "ap_store_phone",
+      "value": "(84) 99198-2963",
+      "updated_at": "2026-06-25T18:01:58.491+00:00"
+    },
+    {
+      "key": "ap_store_slogan",
+      "value": "Onde o seu limite vira ponto de partida",
+      "updated_at": "2026-06-25T18:01:57.981+00:00"
+    },
+    {
+      "key": "ap_store_cnpj",
+      "value": "67.074.681/0001-03",
+      "updated_at": "2026-06-25T18:01:58.08+00:00"
+    },
+    {
+      "key": "ap_moda_payment_config",
+      "value": "{\"pixActive\":true,\"pixKey\":\"67.074.681/0001-03\",\"pixKeyType\":\"CNPJ\",\"pixDiscountPercent\":5,\"pixInstructions\":\"Copie o código Pix copia e cola ou escaneie o QR Code no seu banco para pagar instantaneamente. Depois nos envie o comprovante no WhatsApp.\",\"cardActive\":true,\"cardMaxInstallments\":6,\"cardMinInstallmentAmount\":30,\"cardGateway\":\"AP Rede Gateway SSL\",\"cashActive\":true,\"cashInstructions\":\"Pague em dinheiro físico diretamente no momento de retirada no showroom/local ou na entrega via motoboy.\"}",
+      "updated_at": "2026-06-25T18:01:57.606+00:00"
+    },
+    {
+      "key": "ap_store_address",
+      "value": "Travessa Jose Jorge, 51, Centro",
+      "updated_at": "2026-06-25T18:01:58.163+00:00"
+    },
+    {
+      "key": "ap_store_footer",
+      "value": "Obrigado por escolher a AP Moda Fitness! Peças lindas que elevam seu treino. Siga-nos no Instagram: @ap_moda_fitness2",
+      "updated_at": "2026-06-25T18:01:58.686+00:00"
+    },
+    {
+      "key": "ap_store_logo",
+      "value": "https://i.ibb.co/7tVk1tjm/1000533457.png",
+      "updated_at": "2026-06-25T18:01:58.815+00:00"
+    },
+    {
+      "key": "ap_store_city",
+      "value": "Sao Jose de Mipibu ",
+      "updated_at": "2026-06-25T18:01:58.282+00:00"
+    },
+    {
+      "key": "ap_melhor_envio_token",
+      "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIxIiwianRpIjoiZTdlN2Q4MzVjZmRhNGFkNjQ2MDk4MWIxMzdjMzFkMjY4Yjk4Y2IwMThiYWQwYWJhZDlkZTMzNzhhNGYzZDFjMjIwZWNiZjIzNDQ2YTBmYTIiLCJpYXQiOjE3ODMwMjg2MDcuOTY3MDg5LCJuYmYiOjE3ODMwMjg2MDcuOTY3MDkzLCJleHAiOjE4MTQ1NjQ2MDcuOTU1MzgzLCJzdWIiOiJhMjJhNTdmMy02NjdjLTQzM2ItYjRmMS03Mzg0OGI2MzI1ZGYiLCJzY29wZXMiOlsiY2FydC1yZWFkIiwiY2FydC13cml0ZSIsImNvbXBhbmllcy1yZWFkIiwiY29tcGFuaWVzLXdyaXRlIiwiY291cG9ucy1yZWFkIiwiY291cG9ucy13cml0ZSIsIm5vdGlmaWNhdGlvbnMtcmVhZCIsIm9yZGVycy1yZWFkIiwicHJvZHVjdHMtcmVhZCIsInByb2R1Y3RzLWRlc3Ryb3kiLCJwcm9kdWN0cy13cml0ZSIsInB1cmNoYXNlcy1yZWFkIiwic2hpcHBpbmctY2FsY3VsYXRlIiwic2hpcHBpbmctY2FuY2VsIiwic2hpcHBpbmctY2hlY2tvdXQiLCJzaGlwcGluZy1jb21wYW5pZXMiLCJzaGlwcGluZy1nZW5lcmF0ZSIsInNoaXBwaW5nLXByZXZpZXciLCJzaGlwcGluZy1wcmludCIsInNoaXBwaW5nLXNoYXJlIiwic2hpcHBpbmctdHJhY2tpbmciLCJlY29tbWVyY2Utc2hpcHBpbmciLCJ0cmFuc2FjdGlvbnMtcmVhZCIsInVzZXJzLXJlYWQiLCJ1c2Vycy13cml0ZSIsIndlYmhvb2tzLXJlYWQiLCJ3ZWJob29rcy13cml0ZSIsIndlYmhvb2tzLWRlbGV0ZSIsInRkZWFsZXItd2ViaG9vayJdfQ.evhF0yGdTFMOXuFPOFkVjkha_Bq5ffN1Ovas2xGLfCdZ09CWd94OIBO56MDn5iWqGIqyJIT2SeU0oxa1L1woU4nB1UKLziOo_MGRGAcnuARccazPWH1ukfNtj9eiDXBWk0PuDuHEXnj6Zmitdq6ycbTaCkjphXwyExG9VUqCx868i3UtJQJEqOXobrhP_sLIE4RDEkCxiYZlF0X43vb3eCAOTCWZaV5vhOHvwU1Ld8aBZEbtLXJOSgf2NmVXOHvJqt8yTk2FNhp9g8xqlk3awXbvZ1amyv6ZzpnFvm3XoPcO_7OivBSvGRhlVfOMC6H7NAw2vrsHzJKWDHMqKxB66eistZjuDqWoL5jIwkKyrjR_NK3TFQVM9CuWNEOkUUGtwZLW_YjVvHopoLeSrKcX0Bt7qBMj9W5xCOjLhx014Au6Ge_t7HciwfqbrrgdzXuL-xpXXcT1pzEg5WcmLqPsCoH-WyLZyuUpVz-1hURD9nnLq6KvuRj-ckorqe3FTN-mQOxMKhQNRNWvUKeGjEitD6YH2E-2Pzq7YWcwDHvU_KDcXd9_nBSVrV4nUYmg1qAFCJW7d8_tC7UMEDTH-BxGxZtmNjuunDd7mRE1oqWYuiFaxfXyt6dpKpeRYJSjZAS3PLayD2955SD0ItfYHOkxG0eEmpcGWzsxI0S6bhXvgW0",
+      "updated_at": "2026-07-03T11:18:54.200639+00:00"
+    },
+    {
+      "key": "ap_vitrine_benefit_cards",
+      "value": "[{\"id\":1,\"title\":\"Envio para todo o Brasil\",\"subtitle\":\"Correios ou Transportadora\"},{\"id\":2,\"title\":\"Até 6x no Cartão\",\"subtitle\":\"Parcelamento facilitado\"},{\"id\":3,\"title\":\"Compra 100% Segura\",\"subtitle\":\"Seus dados protegidos\"},{\"id\":4,\"title\":\"Desconto Extra no Pix\",\"subtitle\":\"Ganhe 5% OFF Extra!\"}]",
+      "updated_at": "2026-07-02T19:55:31.447876+00:00"
+    },
+    {
+      "key": "ap_moda_company_info",
+      "value": "{\"name\":\"AP Moda Fitness\",\"subName\":\"AP Moda Fitness - Confecções Femininas\",\"cnpj\":\"67.074.681/0001-03\",\"addressLine1\":\"Travessa Jose Jorge, 51, Centro\",\"addressLine2\":\"Sao Jose de Mipibu  - RN\",\"phone\":\"(84) 99198-2963\",\"slogan\":\"Onde o seu limite vira ponto de partida\",\"website\":\"www.apmodafitness.com.br\",\"instructions\":\"Para solicitar Nota Fiscal oficial, fale conosco via WhatsApp\",\"pixKey\":\"67.074.681/0001-03\"}",
+      "updated_at": "2026-06-28T14:49:55.053+00:00"
+    },
+    {
+      "key": "ap_coupons",
+      "value": "[{\"code\":\"PRIMEIRACOMPRA\",\"type\":\"percent\",\"value\":10,\"minPurchase\":0,\"limitUses\":1000,\"usedCount\":12,\"validUntil\":\"2026-12-31\",\"maxPerCpf\":1,\"isFirstPurchase\":true,\"category\":\"Todas\"},{\"code\":\"FITNESS10\",\"type\":\"percent\",\"value\":10,\"minPurchase\":150,\"limitUses\":100,\"usedCount\":32,\"validUntil\":\"2026-06-30\",\"maxPerCpf\":1,\"category\":\"Todas\"},{\"code\":\"BEMVINDA50\",\"type\":\"fixed\",\"value\":50,\"minPurchase\":300,\"limitUses\":50,\"usedCount\":15,\"validUntil\":\"2026-07-15\",\"maxPerCpf\":1,\"category\":\"Todas\"},{\"code\":\"FRETEGRATIS\",\"type\":\"percent\",\"value\":0,\"minPurchase\":399,\"limitUses\":500,\"usedCount\":88,\"validUntil\":\"2026-12-31\",\"maxPerCpf\":0,\"category\":\"Todas\"},{\"code\":\"MACACAO20\",\"type\":\"percent\",\"value\":20,\"minPurchase\":0,\"limitUses\":100,\"usedCount\":5,\"validUntil\":\"2026-12-31\",\"maxPerCpf\":1,\"category\":\"Macacões\"},{\"code\":\"LEGGING15\",\"type\":\"percent\",\"value\":15,\"minPurchase\":0,\"limitUses\":100,\"usedCount\":8,\"validUntil\":\"2026-12-31\",\"maxPerCpf\":1,\"category\":\"Leggings\"},{\"code\":\"PATRICIA10\",\"type\":\"percent\",\"value\":10,\"minPurchase\":0,\"limitUses\":500,\"usedCount\":18,\"validUntil\":\"2026-12-31\",\"maxPerCpf\":0,\"category\":\"Todas\",\"partnerName\":\"Patricia Cardoso\",\"partnerId\":\"part-patricia\"}]",
+      "created_at": "2026-10-29T21:23:50.822Z"
+    },
+    {
+      "key": "ap_moda_partners",
+      "value": "[{\"id\":\"part-patricia\",\"name\":\"Patricia Cardoso\",\"login\":\"patriciacardoso\",\"password\":\"123\",\"instagram\":\"@patriciacardoso\",\"couponCode\":\"PATRICIA10\",\"commissionRate\":10,\"salesCount\":18,\"totalGenerated\":2890,\"availableBalance\":289}]",
+      "created_at": "2026-10-29T21:23:50.822Z"
+    }
+  ]
+}

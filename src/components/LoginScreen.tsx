@@ -8,6 +8,7 @@ import React, { useState, useEffect } from 'react';
 export const metadata = { robots: { index: false, follow: false } };
 import { Lock, User, Shield, Users, Truck, Eye, EyeOff, Award, Sparkles } from 'lucide-react';
 import { Client } from '../types';
+import { safeLocalStorageSet, createUniqueId } from '../utils/dateUtils';
 
 interface LoginScreenProps {
   sellers: string[];
@@ -88,7 +89,7 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
           const cleanName = targetLogin.replace(/[@_.]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
           const cleanPhone = targetLogin.replace(/\D/g, '');
           const autoClient = {
-            id: `cli-auto-${Date.now()}`,
+            id: createUniqueId('cli-auto'),
             name: cleanName.length > 2 ? cleanName : 'Cliente VIP AP Moda',
             email: targetLogin.includes('@') ? targetLogin : `${targetLogin.toLowerCase().replace(/\s+/g, '')}@cliente.apmoda.com`,
             phone: cleanPhone || '(11) 99999-8888',
@@ -104,7 +105,7 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
             const currentClients = localStorage.getItem('ap_moda_clients');
             const list = currentClients ? JSON.parse(currentClients) : [];
             list.push(autoClient);
-            localStorage.setItem('ap_moda_clients', JSON.stringify(list));
+            safeLocalStorageSet('ap_moda_clients', JSON.stringify(list));
           } catch(e){}
 
           onLogin({

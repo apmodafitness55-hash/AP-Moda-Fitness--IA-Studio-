@@ -19,6 +19,8 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { getWhatsAppUrl } from '../utils/storeConfig';
+import { safeLocalStorageSet } from '../utils/dateUtils';
+import { showToast, showConfirm } from '../lib/uiDialog';
 
 interface CheckoutItem {
   productName: string;
@@ -133,7 +135,7 @@ export default function AbandonedCarts({ checkouts = [], setCheckouts, onSyncChe
       });
       const data = await response.json();
       if (data && data.success) {
-        alert(`Mensagem enviada com sucesso de forma automática via API oficial do WhatsApp!`);
+        showToast('Mensagem enviada com sucesso de forma automática via API oficial do WhatsApp!', 'success');
         return true;
       }
     } catch (e) {
@@ -155,12 +157,10 @@ export default function AbandonedCarts({ checkouts = [], setCheckouts, onSyncChe
     setSelectedCheckout(checkout);
 
     try {
-      const storedKey = localStorage.getItem('ap_gemini_key') || '';
       const response = await fetch('/api/gemini/recovery-message', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'x-gemini-api-key': storedKey
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           clientName: checkout.clientName,
@@ -193,13 +193,19 @@ export default function AbandonedCarts({ checkouts = [], setCheckouts, onSyncChe
         : c
     );
     setCheckouts(updatedCheckouts);
-    localStorage.setItem('ap_moda_checkouts', JSON.stringify(updatedCheckouts));
+    safeLocalStorageSet('ap_moda_checkouts', JSON.stringify(updatedCheckouts));
 
-    // Try background API notification first, then fallback to direct window open
+    // Try background API notification first, then fallback to direct link
     const sentApi = await sendWhatsAppRecoveryMessage(checkout, textMessage);
     if (!sentApi) {
       const waUrl = getDirectWhatsAppLink(checkout.phone, textMessage);
-      window.open(waUrl, '_blank');
+      const link = document.createElement('a');
+      link.href = waUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
     
     setSelectedCheckout(null);
@@ -217,22 +223,33 @@ export default function AbandonedCarts({ checkouts = [], setCheckouts, onSyncChe
         : c
     );
     setCheckouts(updatedCheckouts);
-    localStorage.setItem('ap_moda_checkouts', JSON.stringify(updatedCheckouts));
+    safeLocalStorageSet('ap_moda_checkouts', JSON.stringify(updatedCheckouts));
 
-    // Try background API notification first, then fallback to direct window open
+    // Try background API notification first, then fallback to direct link
     const sentApi = await sendWhatsAppRecoveryMessage(checkout, message);
     if (!sentApi) {
       const waUrl = getDirectWhatsAppLink(checkout.phone, message);
-      window.open(waUrl, '_blank');
+      const link = document.createElement('a');
+      link.href = waUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
   };
 
   // Clear checkout record
   const handleDeleteCheckout = async (id: string) => {
-    if (window.confirm('Deseja realmente arquivar/remover este registro de carrinho abandonado?')) {
+    if (await showConfirm({
+      title: 'Arquivar Carrinho Abandonado',
+      message: 'Deseja realmente arquivar/remover este registro de carrinho abandonado?',
+      confirmText: 'Remover',
+      tone: 'danger'
+    })) {
       const updated = checkouts.filter(c => c.id !== id);
       setCheckouts(updated);
-      localStorage.setItem('ap_moda_checkouts', JSON.stringify(updated));
+      safeLocalStorageSet('ap_moda_checkouts', JSON.stringify(updated));
 
       try {
         await fetch(`/api/proxy/checkouts/${id}`, { method: 'DELETE' });

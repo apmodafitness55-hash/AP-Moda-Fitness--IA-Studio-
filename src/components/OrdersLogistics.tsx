@@ -32,7 +32,9 @@ import {
 import { Product, Sale, Client } from '../types';
 import CorreiosLabel from './CorreiosLabel';
 import { getWhatsAppUrl } from '../utils/storeConfig';
-import { deleteOnlineOrderFromSupabase, syncBulkOnlineOrdersToSupabase } from '../supabase';
+import { deleteOnlineOrderFromSupabase, syncBulkOnlineOrdersToSupabase, pushSystemConfigToSupabase } from '../supabase';
+import { getLocalDateKey, getLocalDateOffset, safeLocalStorageSet, createUniqueId } from '../utils/dateUtils';
+import { showToast, showConfirm } from '../lib/uiDialog';
 
 interface OrdersLogisticsProps {
   products: Product[];
@@ -122,13 +124,28 @@ export default function OrdersLogistics({
   const [copiedTextId, setCopiedTextId] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<any | null>(null);
 
-  const handleDeleteOnlineOrder = (orderId: string) => {
-    if (confirm(`Tem certeza de que deseja excluir definitivamente o pedido online #${orderId}? Esta ação removerá o pedido do sistema.`)) {
+  const openExternalSafely = (url: string) => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleDeleteOnlineOrder = async (orderId: string) => {
+    if (await showConfirm({
+      title: 'Excluir Pedido Online',
+      message: `Tem certeza de que deseja excluir definitivamente o pedido online #${orderId}? Esta ação removerá o pedido do sistema.`,
+      confirmText: 'Excluir Pedido',
+      tone: 'danger'
+    })) {
       try {
         const deletedIds: string[] = JSON.parse(localStorage.getItem('ap_deleted_online_orders') || '[]');
         if (!deletedIds.includes(orderId)) {
           deletedIds.push(orderId);
-          localStorage.setItem('ap_deleted_online_orders', JSON.stringify(deletedIds));
+          safeLocalStorageSet('ap_deleted_online_orders', JSON.stringify(deletedIds));
         }
       } catch (e) {}
 
@@ -138,14 +155,18 @@ export default function OrdersLogistics({
     }
   };
 
-  const handleInvoiceOrder = (order: any) => {
+  const handleInvoiceOrder = async (order: any) => {
     const alreadyInvoiced = sales.some(s => s.id === order.id && s.status !== 'Cancelada');
     if (alreadyInvoiced && (order.status_pagamento === 'pago' || order.status === 'Entregue')) {
       showCustomAlert('Já Faturado', `O pedido #${order.id} já foi faturado e consta no histórico de Vendas.`);
       return;
     }
 
-    if (confirm(`Deseja lançar e faturar o pedido #${order.id} diretamente no PDV/Faturamento de Vendas?`)) {
+    if (await showConfirm({
+      title: 'Faturar Pedido Online',
+      message: `Deseja lançar e faturar o pedido #${order.id} diretamente no PDV/Faturamento de Vendas?`,
+      confirmText: 'Faturar Pedido'
+    })) {
       onUpdateOnlineOrderStatus(order.id, 'Entregue', 'pago');
 
       if (!alreadyInvoiced) {
@@ -298,29 +319,39 @@ export default function OrdersLogistics({
 
   const motoboys = deliveryRiders.map(dr => dr.name);
 
-  // Sync to local storage
+  const hasMountedLogisticsRef = React.useRef(false);
+
+  // Sync to localStorage & Supabase
   React.useEffect(() => {
-    try {
-      localStorage.setItem('ap_moda_reservas', JSON.stringify(reservas));
-    } catch (e) {}
+    const str = JSON.stringify(reservas);
+    safeLocalStorageSet('ap_moda_reservas', str);
+    if (hasMountedLogisticsRef.current) {
+      pushSystemConfigToSupabase('ap_moda_reservas', str).catch(() => {});
+    }
   }, [reservas]);
 
   React.useEffect(() => {
-    try {
-      localStorage.setItem('ap_moda_crediario', JSON.stringify(crediario));
-    } catch (e) {}
+    const str = JSON.stringify(crediario);
+    safeLocalStorageSet('ap_moda_crediario', str);
+    if (hasMountedLogisticsRef.current) {
+      pushSystemConfigToSupabase('ap_moda_crediario', str).catch(() => {});
+    }
   }, [crediario]);
 
   React.useEffect(() => {
-    try {
-      localStorage.setItem('ap_moda_trocas', JSON.stringify(trocas));
-    } catch (e) {}
+    const str = JSON.stringify(trocas);
+    safeLocalStorageSet('ap_moda_trocas', str);
+    if (hasMountedLogisticsRef.current) {
+      pushSystemConfigToSupabase('ap_moda_trocas', str).catch(() => {});
+    }
   }, [trocas]);
 
   React.useEffect(() => {
-    try {
-      localStorage.setItem('ap_moda_motoboys_detailed', JSON.stringify(deliveryRiders));
-    } catch (e) {}
+    const str = JSON.stringify(deliveryRiders);
+    safeLocalStorageSet('ap_moda_motoboys_detailed', str);
+    if (hasMountedLogisticsRef.current) {
+      pushSystemConfigToSupabase('ap_moda_motoboys_detailed', str).catch(() => {});
+    }
   }, [deliveryRiders]);
 
   React.useEffect(() => {
@@ -479,9 +510,15 @@ export default function OrdersLogistics({
     return [];
   });
 
-  // Sync condicionais to localStorage
+  // Sync condicionais to localStorage & Supabase
   React.useEffect(() => {
-    localStorage.setItem('ap_moda_condicionais', JSON.stringify(condicionais));
+    const str = JSON.stringify(condicionais);
+    safeLocalStorageSet('ap_moda_condicionais', str);
+    if (hasMountedLogisticsRef.current) {
+      pushSystemConfigToSupabase('ap_moda_condicionais', str).catch(() => {});
+    } else {
+      hasMountedLogisticsRef.current = true;
+    }
   }, [condicionais]);
 
   // Form states for creating a new condicional bag
@@ -497,7 +534,7 @@ export default function OrdersLogistics({
   // Active closure/return modal
   const [closingCondBag, setClosingCondBag] = useState<any | null>(null);
   const [itemsToBuyQty, setItemsToBuyQty] = useState<{ [itemKey: string]: number }>({});
-  const [condSalesperson, setCondSalesperson] = useState('Juliana Cardoso');
+  const [condSalesperson, setCondSalesperson] = useState(() => sellers[0] || 'Sem Vendedor');
   const [condPaymentMethod, setCondPaymentMethod] = useState('Pix');
 
   // Stats summaries
@@ -551,7 +588,7 @@ export default function OrdersLogistics({
       );
       
       if (data.printUrl) {
-        window.open(data.printUrl, '_blank');
+        openExternalSafely(data.printUrl);
       }
     } catch (err: any) {
       console.error('[Melhor Envio Generate Error]', err);
@@ -600,7 +637,6 @@ export default function OrdersLogistics({
 
     setOnlineOrders(prev => [newOrder, ...prev]);
 
-    // Reset Form
     setNewOrderClient('');
     setNewOrderPhone('');
     setNewOrderAddress('');
@@ -628,7 +664,7 @@ export default function OrdersLogistics({
     
     try {
       const url = getWhatsAppUrl(order.phone, msg);
-      window.open(url, '_blank');
+      openExternalSafely(url);
     } catch {
       showCustomAlert('Mensagem do WhatsApp', msg);
     }
@@ -645,16 +681,13 @@ export default function OrdersLogistics({
     const prodName = matchedProd ? matchedProd.name : 'Produto Selecionado';
     const prodPrice = matchedProd ? matchedProd.price : 100;
 
-    const limitDate = new Date();
-    limitDate.setDate(limitDate.getDate() + Number(reservaDays));
-
     const newReserva: Reserva = {
-      id: `res-${Date.now().toString().slice(-4)}`,
+      id: createUniqueId('res'),
       clientName: reservaClient,
       productName: prodName,
       quantity: reservaQty,
       total: prodPrice * reservaQty,
-      validUntil: limitDate.toISOString().split('T')[0],
+      validUntil: getLocalDateOffset(Number(reservaDays)),
       status: 'Ativa'
     };
 
@@ -673,7 +706,7 @@ export default function OrdersLogistics({
     }
 
     const newTroca: TrocaItem = {
-      id: `trc-${Date.now().toString().slice(-4)}`,
+      id: createUniqueId('trc'),
       clientName: trocaClient,
       productReturned: trocaReturned,
       productTaken: trocaTaken,
@@ -684,7 +717,6 @@ export default function OrdersLogistics({
 
     setTrocas(prev => [newTroca, ...prev]);
 
-    // If there is difference to receive, we can optionally register a transaction
     if (Number(trocaDiff) > 0) {
       showCustomAlert('Troca Registrada', `Troca registrada! Cliente pagou diferença de R$ ${Number(trocaDiff).toFixed(2)}.`);
     } else if (Number(trocaDiff) < 0) {
@@ -714,7 +746,7 @@ export default function OrdersLogistics({
           return {
             ...c,
             usedAmount: Math.max(0, c.usedAmount - val),
-            lastPaymentDate: new Date().toISOString().split('T')[0]
+            lastPaymentDate: getLocalDateKey()
           };
         }
         return c;
@@ -1291,7 +1323,7 @@ export default function OrdersLogistics({
                         type="button"
                         onClick={() => {
                           setReservas(prev => prev.map(r => r.id === res.id ? {...r, status: 'Retirada'} : r));
-                          alert('Reserva faturada com sucesso! Lembre-se de lançar a venda correspondente no PDV.');
+                          showToast('Reserva faturada com sucesso! Lembre-se de lançar a venda correspondente no PDV.', 'success');
                         }}
                         className="flex-1 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 transition-colors text-[9px] font-bold rounded"
                       >
@@ -1301,7 +1333,7 @@ export default function OrdersLogistics({
                         type="button"
                         onClick={() => {
                           setReservas(prev => prev.filter(r => r.id !== res.id));
-                          alert('Reserva excluída e estoque liberado.');
+                          showToast('Reserva excluída e estoque liberado.', 'info');
                         }}
                         className="py-1 px-2 text-rose-600 hover:bg-rose-50 rounded transition-colors text-[9px] font-semibold"
                       >
@@ -1802,14 +1834,14 @@ export default function OrdersLogistics({
                                   <button
                                     title="Chamar WhatsApp para alinhar peças"
                                     type="button"
-                                    onClick={() => {
-                                      const dateLimitFormatted = cond.dateLimit;
-                                      const itemsText = cond.items.map((i: any) => `• ${i.quantity}x ${i.productName} - R$ ${i.price.toFixed(2)}`).join('\n');
-                                      const totalVal = cond.items.reduce((s: number, i: any) => s + (i.price * i.quantity), 0);
-                                      const totalFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalVal);
-                                      const text = `Olá, ${cond.clientName}! Tudo bem? ❤️\n\nPassando para acompanhar as pecinhas da sua *Mala de Condicional* da *AP Moda Fitness*! 🥰\n\n📦 *Peças na sua mala:*\n${itemsText}\n\n💰 *Valor total sob prova:* ${totalFormatted}\n⏳ *Prazo de devolução/retorno:* ${dateLimitFormatted}\n\nExperimente com calma e me diga quais você mais amou e quer ficar! Se precisar de ajuda para escolher ou quiser simular suas medidas no nosso *Provador Virtual*, estou por aqui! 🌸🏼‍♀️`;
-                                      window.open(getWhatsAppUrl(cond.phone, text), '_blank');
-                                    }}
+                                      onClick={() => {
+                                        const dateLimitFormatted = cond.dateLimit;
+                                        const itemsText = cond.items.map((i: any) => `• ${i.quantity}x ${i.productName} - R$ ${i.price.toFixed(2)}`).join('\n');
+                                        const totalVal = cond.items.reduce((s: number, i: any) => s + (i.price * i.quantity), 0);
+                                        const totalFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalVal);
+                                        const text = `Olá, ${cond.clientName}! Tudo bem? ❤️\n\nPassando para acompanhar as pecinhas da sua *Mala de Condicional* da *AP Moda Fitness*! 🥰\n\n📦 *Peças na sua mala:*\n${itemsText}\n\n💰 *Valor total sob prova:* ${totalFormatted}\n⏳ *Prazo de devolução/retorno:* ${dateLimitFormatted}\n\nExperimente com calma e me diga quais você mais amou e quer ficar! Se precisar de ajuda para escolher ou quiser simular suas medidas no nosso *Provador Virtual*, estou por aqui! 🌸🏼‍♀️`;
+                                        openExternalSafely(getWhatsAppUrl(cond.phone, text));
+                                      }}
                                     className="p-1 px-2.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors border-none font-bold text-[10px] cursor-pointer flex items-center gap-1"
                                   >
                                     <MessageCircle size={10} />
@@ -1836,8 +1868,8 @@ export default function OrdersLogistics({
                               <button
                                 title="Excluir Condicional"
                                 type="button"
-                                onClick={() => {
-                                  if (confirm('Deseja realmente remover esta sacola condicional sem registrar venda?')) {
+                                onClick={async () => {
+                                  if (await showConfirm('Deseja realmente remover esta sacola condicional sem registrar venda?', 'Excluir Condicional', 'danger')) {
                                     setCondicionais(prev => prev.filter(c => c.id !== cond.id));
                                   }
                                 }}
@@ -2033,7 +2065,7 @@ export default function OrdersLogistics({
                     type="button"
                     onClick={() => {
                       if (!currentSelectedProdId) {
-                        alert('Por favor, selecione uma peça!');
+                        showToast('Por favor, selecione uma peça!', 'warning');
                         return;
                       }
                       const p = products.find(prod => prod.id === currentSelectedProdId);
@@ -2111,23 +2143,21 @@ export default function OrdersLogistics({
                 </button>
                 <button 
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     if (!condClient.trim()) {
-                      alert('Favor inserir o nome da cliente!');
+                      showToast('Favor inserir o nome da cliente!', 'warning');
                       return;
                     }
                     if (selectedCondProducts.length === 0) {
-                      alert('Selecione pelo menos um produto para o condicional!');
+                      showToast('Selecione pelo menos um produto para o condicional!', 'warning');
                       return;
                     }
 
-                    const dateOutStr = new Date().toISOString().split('T')[0];
-                    const limitDate = new Date();
-                    limitDate.setDate(limitDate.getDate() + condDays);
-                    const dateLimitStr = limitDate.toISOString().split('T')[0];
+                    const dateOutStr = getLocalDateKey();
+                    const dateLimitStr = getLocalDateOffset(condDays);
 
                     const newCondBag = {
-                      id: `cond-${Date.now()}`,
+                      id: createUniqueId('cond'),
                       clientName: condClient.trim(),
                       phone: condPhone.trim(),
                       items: selectedCondProducts,
@@ -2139,13 +2169,18 @@ export default function OrdersLogistics({
                     setCondicionais(prev => [newCondBag, ...prev]);
                     setIsCondicionalModalOpen(false);
                     
-                    const openWhatsApp = confirm(`Sacola condicional para a cliente ${condClient} gravada com sucesso!\n\nDeseja abrir o WhatsApp para enviar o recibo detalhado da mala condicional com a lista de peças?`);
+                    const openWhatsApp = await showConfirm({
+                      title: 'Sacola Condicional Gravada',
+                      message: `Sacola condicional para a cliente ${condClient} gravada! Deseja abrir o WhatsApp para enviar o recibo detalhado?`,
+                      confirmText: 'Abrir WhatsApp',
+                      cancelText: 'Agora Não'
+                    });
                     if (openWhatsApp) {
                       const itemsText = selectedCondProducts.map(i => `• ${i.quantity}x ${i.productName} - R$ ${i.price.toFixed(2)}`).join('\n');
                       const totalVal = selectedCondProducts.reduce((s, i) => s + (i.price * i.quantity), 0);
                       const totalFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalVal);
                       const msgText = `Olá, ${condClient.trim()}! Tudo bem? ❤️\n\nSua *Mala de Condicional* da *AP Moda Fitness* está pronta e a caminho! 🥰\n\n📦 *Peças enviadas para você provar em casa:*\n${itemsText}\n\n💰 *Valor total sob prova:* ${totalFormatted}\n⏳ *Prazo para retorno sugerido:* ${dateLimitStr}\n\nExperimente tudo com carinho! Caso queira ajustar ou simular suas medidas no nosso *Provador Virtual*, estamos à disposição. Boas provas! 🌸🏃‍♀️`;
-                      window.open(getWhatsAppUrl(condPhone, msgText), '_blank');
+                      openExternalSafely(getWhatsAppUrl(condPhone, msgText));
                     }
                   }}
                   className="flex-1 py-2.5 bg-pink-600 text-white hover:bg-pink-700 rounded-xl font-bold transition-all cursor-pointer text-center shadow-md shadow-pink-500/10 border-none text-xs"
@@ -2289,10 +2324,7 @@ export default function OrdersLogistics({
                                 <option key={name} value={name}>{name}</option>
                               ))
                             ) : (
-                              <>
-                                <option value="Sem Vendedor">Sem Vendedor</option>
-                                <option value="Juliana Cardoso">Juliana Cardoso</option>
-                              </>
+                              <option value="Sem Vendedor">Sem Vendedor</option>
                             )}
                           </select>
                         </div>
@@ -2323,7 +2355,6 @@ export default function OrdersLogistics({
                       <button 
                         type="button"
                         onClick={() => {
-                          // Compile items bought
                           const saleItems: any[] = [];
                           let totalToPay = 0;
                           let totalCost = 0;
@@ -2344,10 +2375,9 @@ export default function OrdersLogistics({
                             }
                           });
 
-                          // Register Sale if any items bought
                           if (saleItems.length > 0) {
                             onAddSale({
-                              id: `sale-cond-${Date.now()}`,
+                              id: createUniqueId('sale-cond'),
                               clientName: closingCondBag.clientName,
                               channel: 'WhatsApp',
                               items: saleItems,
@@ -2360,7 +2390,6 @@ export default function OrdersLogistics({
                             });
                           }
 
-                          // Mark as closed in state
                           setCondicionais(prev => prev.map(c => {
                             if (c.id === closingCondBag.id) {
                               return { ...c, status: 'Finalizado' };
@@ -2369,7 +2398,7 @@ export default function OrdersLogistics({
                           }));
 
                           setClosingCondBag(null);
-                          alert(`Resolução da sacola condicional realizada com sucesso! ${saleItems.length > 0 ? `Venda registrada no valor de R$ ${totalToPay.toFixed(2)}.` : 'Nenhum item foi selecionado para compra. As peças foram recolhidas com sucesso!'}`);
+                          showToast(`Sacola condicional finalizada! ${saleItems.length > 0 ? `Venda registrada: R$ ${totalToPay.toFixed(2)}.` : 'Peças recolhidas com sucesso.'}`, 'success');
                         }}
                         className="flex-1 py-2.5 bg-pink-600 text-white hover:bg-pink-700 rounded-xl font-bold transition-all cursor-pointer text-center shadow-md shadow-pink-500/10 border-none text-xs"
                       >
@@ -2612,7 +2641,7 @@ export default function OrdersLogistics({
                   const dirtyOrders: string[] = JSON.parse(localStorage.getItem('ap_dirty_online_orders') || '[]');
                   if (!dirtyOrders.includes(editingOrder.id)) {
                     dirtyOrders.push(editingOrder.id);
-                    localStorage.setItem('ap_dirty_online_orders', JSON.stringify(dirtyOrders));
+                    safeLocalStorageSet('ap_dirty_online_orders', JSON.stringify(dirtyOrders));
                   }
                 } catch (err) {}
                 syncBulkOnlineOrdersToSupabase([editingOrder]).catch(() => {});

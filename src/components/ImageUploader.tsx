@@ -79,15 +79,6 @@ export default function ImageUploader({ onUploadSuccess, currentImageUrl, classN
   const [optimizationInfo, setOptimizationInfo] = useState<{ originalKb: number; newKb: number; reduction: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Retrieve the ImgBB Key from local storage
-  const getImgbbKey = (): string => {
-    const rawKey = localStorage.getItem('ap_imgbb_key') || '';
-    if (!rawKey || rawKey === 'imgbb_live_tok_9821379128') {
-      return '18601b3928fe35b4d0d517fe002c2df7';
-    }
-    return rawKey.trim();
-  };
-
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -297,7 +288,7 @@ export default function ImageUploader({ onUploadSuccess, currentImageUrl, classN
             )}
             
             <div className="flex items-center gap-1.5 text-[9px] text-emerald-600 bg-emerald-50 rounded-lg p-2 border border-emerald-100 mt-2 max-w-xs justify-center leading-relaxed font-medium">
-              <span>Nuvem Segura Ativa! Imagens salvas direto no Supabase Storage 🎉</span>
+              <span>Otimização Automática WebP + CDN Permanente Ativa ⚡</span>
             </div>
           </>
         )}

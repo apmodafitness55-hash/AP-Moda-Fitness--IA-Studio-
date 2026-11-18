@@ -28,6 +28,22 @@ import { validateCouponForCpf } from '../utils/couponUtils';
 import { getSupabaseClient } from '../supabase';
 import { playSaleSuccessSound } from '../lib/audioFeedback';
 import { getWhatsAppUrl } from '../utils/storeConfig';
+import { showToast } from '../lib/uiDialog';
+import { getLocalDateKey, safeLocalStorageSet } from '../utils/dateUtils';
+
+const openExternalSafely = (url: string) => {
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch {
+    showToast(`Abra o link manualmente: ${url}`, 'info', 6000);
+  }
+};
 
 interface CheckoutWizardProps {
   cart: {
@@ -447,8 +463,8 @@ export function CheckoutWizard({
         addressEstado: estado || addressEstado,
         addressCep: cep || addressCep
       };
-      localStorage.setItem('ap_checkout_client_data', JSON.stringify(currentData));
-      localStorage.setItem('ap_site_current_user', JSON.stringify(currentData));
+      safeLocalStorageSet('ap_checkout_client_data', JSON.stringify(currentData));
+      safeLocalStorageSet('ap_site_current_user', JSON.stringify(currentData));
     } catch (e) {}
   };
 
@@ -978,7 +994,7 @@ export function CheckoutWizard({
                     onClick={() => {
                       const storePhone = localStorage.getItem('ap_store_phone') || '84991982963';
                       const whatsappUrl = getWhatsAppUrl(storePhone, completedOrder.orderMsg);
-                      window.open(whatsappUrl, '_blank');
+                      openExternalSafely(whatsappUrl);
                     }}
                     className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-600/15 transition-all flex items-center justify-center gap-2 cursor-pointer border-none active:scale-97"
                   >
@@ -996,7 +1012,7 @@ export function CheckoutWizard({
                     type="button"
                     onClick={() => {
                       if (completedOrder.paymentUrl) {
-                        window.open(completedOrder.paymentUrl, '_blank');
+                        openExternalSafely(completedOrder.paymentUrl);
                       }
                     }}
                     className="w-full py-3 bg-pink-600 hover:bg-pink-700 text-white rounded-xl text-xs font-black shadow-lg shadow-pink-500/15 transition-all flex items-center justify-center gap-2 cursor-pointer border-none active:scale-97 animate-pulse"
@@ -1011,7 +1027,7 @@ export function CheckoutWizard({
                     onClick={() => {
                       const storePhone = localStorage.getItem('ap_store_phone') || '84991982963';
                       const whatsappUrl = getWhatsAppUrl(storePhone, completedOrder.orderMsg);
-                      window.open(whatsappUrl, '_blank');
+                      openExternalSafely(whatsappUrl);
                     }}
                     className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer border-none active:scale-97"
                   >
@@ -1782,7 +1798,7 @@ export function CheckoutWizard({
                               type="date"
                               required
                               value={pickupDate}
-                              min={new Date().toISOString().split('T')[0]}
+                              min={getLocalDateKey()}
                               onChange={(e) => setPickupDate(e.target.value)}
                               className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-[10px] bg-white font-semibold focus:outline-none focus:border-pink-500"
                             />
@@ -1985,7 +2001,7 @@ export function CheckoutWizard({
                                 onChange={(e) => {
                                   const id = e.target.value;
                                   setSelectedMotoboyRegionId(id);
-                                  localStorage.setItem('ap_selected_motoboy_region', id);
+                                  safeLocalStorageSet('ap_selected_motoboy_region', id);
                                   
                                   const reg = motoboyRegions.find((r: any) => r.id === id);
                                   if (reg) {

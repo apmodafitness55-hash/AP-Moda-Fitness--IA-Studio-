@@ -29,6 +29,7 @@ import {
   Check
 } from 'lucide-react';
 import { Sale } from '../types';
+import { safeLocalStorageSet } from '../utils/dateUtils';
 
 interface SellerDashboardProps {
   currentUser: any;
@@ -63,7 +64,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
     const val = parseFloat(goalInput);
     if (!isNaN(val) && val > 0) {
       setIndividualGoal(val);
-      localStorage.setItem(`ap_seller_goal_${currentUser?.name}`, val.toString());
+      safeLocalStorageSet(`ap_seller_goal_${currentUser?.name}`, val.toString());
       setIsEditingGoal(false);
     }
   };
