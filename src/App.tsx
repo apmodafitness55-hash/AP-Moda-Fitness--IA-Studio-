@@ -3977,6 +3977,143 @@ export default function App() {
   }, [systemOffline]);
 
   // Handlers
+  const updateClientStatsForCompletedSale = (completedSale: Sale) => {
+    const rawName = (completedSale.clientName || '').trim();
+    const lowerName = rawName.toLowerCase();
+    const isGenericClient =
+      !lowerName ||
+      lowerName === 'cliente avulso' ||
+      lowerName === 'cliente online' ||
+      lowerName === 'consumidor final';
+    if (isGenericClient && !completedSale.clientId && !completedSale.clientDoc) {
+      return;
+    }
+
+    let vipRules: any = null;
+    try {
+      const saved = localStorage.getItem('ap_vip_rules_config');
+      if (saved) vipRules = JSON.parse(saved);
+    } catch (e) {}
+
+    if (!vipRules) {
+      vipRules = {
+        autoVipEnabled: true,
+        minSpentEnabled: true,
+        minSpent: 500,
+        minOrdersEnabled: true,
+        minOrders: 3,
+        matchType: 'or'
+      };
+    }
+
+    const cashbackRate = (() => {
+      try {
+        const saved = localStorage.getItem('ap_moda_cashback_rate');
+        const parsed = saved ? parseFloat(saved) : 5;
+        return Number.isFinite(parsed) ? parsed : 5;
+      } catch {
+        return 5;
+      }
+    })();
+
+    const cleanSaleDoc = (completedSale.clientDoc || '').replace(/\D/g, '');
+    const isOnlineChannel =
+      completedSale.channel === 'Loja Online' || completedSale.channel === 'E-commerce';
+
+    let updatedClients: Client[] = [];
+    setClients(prevClients => {
+      const exactNameMatches = prevClients.filter(
+        c => (c.name || '').trim().toLowerCase() === lowerName
+      );
+
+      let matchedId: string | null = null;
+      if (completedSale.clientId) {
+        const byId = prevClients.find(c => c.id === completedSale.clientId);
+        if (byId) matchedId = byId.id;
+      }
+      if (!matchedId && cleanSaleDoc.length >= 11) {
+        const byDoc = prevClients.find(
+          c => (c.cpf || '').replace(/\D/g, '') === cleanSaleDoc
+        );
+        if (byDoc) matchedId = byDoc.id;
+      }
+      if (!matchedId && !isGenericClient && exactNameMatches.length === 1) {
+        matchedId = exactNameMatches[0].id;
+      }
+
+      if (!matchedId) return prevClients;
+
+      const newList = prevClients.map(cli => {
+        if (cli.id !== matchedId) return cli;
+
+        const newSpent = Number(((cli.totalSpent || 0) + Number(completedSale.total || 0)).toFixed(2));
+        const newOrders = (cli.ordersCount || 0) + 1;
+
+        let isVip = cli.vip || false;
+        if (vipRules.autoVipEnabled) {
+          const spentQualified = vipRules.minSpentEnabled ? newSpent >= vipRules.minSpent : false;
+          const ordersQualified = vipRules.minOrdersEnabled ? newOrders >= vipRules.minOrders : false;
+
+          if (vipRules.minSpentEnabled && vipRules.minOrdersEnabled) {
+            if (vipRules.matchType === 'and') {
+              isVip = isVip || (spentQualified && ordersQualified);
+            } else {
+              isVip = isVip || (spentQualified || ordersQualified);
+            }
+          } else if (vipRules.minSpentEnabled) {
+            isVip = isVip || spentQualified;
+          } else if (vipRules.minOrdersEnabled) {
+            isVip = isVip || ordersQualified;
+          }
+        }
+
+        // PDVTerminal credits earned cashback on creation; Online Store credits upon payment confirmation
+        const earnedCashback = isOnlineChannel
+          ? Number((Math.max(0, Number(completedSale.total || 0) - Number(completedSale.deliveryFee || 0)) * (cashbackRate / 100)).toFixed(2))
+          : 0;
+
+        const updatedCli: Client = {
+          ...cli,
+          totalSpent: newSpent,
+          ordersCount: newOrders,
+          vip: isVip,
+          ...(earnedCashback > 0
+            ? { cashbackBalance: Number(((cli.cashbackBalance || 0) + earnedCashback).toFixed(2)) }
+            : {})
+        };
+        updatedClients.push(updatedCli);
+        return updatedCli;
+      });
+
+      if (updatedClients.length > 0) {
+        lastClientsRef.current = newList;
+        safeLocalStorageSet('ap_moda_clients', JSON.stringify(newList));
+      }
+      return newList;
+    });
+
+    if (updatedClients.length > 0) {
+      saveDirtyIds(
+        'ap_dirty_clients',
+        Array.from(new Set([...getDirtyIds('ap_dirty_clients'), ...updatedClients.map(c => c.id)]))
+      );
+      const config = getSupabaseConfig();
+      if (config && !systemOffline) {
+        syncBulkClientsToSupabase(updatedClients)
+          .then(success => {
+            if (success) {
+              const affectedIds = updatedClients.map(c => c.id);
+              saveDirtyIds(
+                'ap_dirty_clients',
+                getDirtyIds('ap_dirty_clients').filter(id => !affectedIds.includes(id))
+              );
+            }
+          })
+          .catch(e => console.error(e));
+      }
+    }
+  };
+
   const handleAddSale = (newSale: Sale, skipStockDeduction = false) => {
     const existingSale = lastSalesRef.current.find(s => s.id === newSale.id);
     if (existingSale) {
@@ -3995,6 +4132,8 @@ export default function App() {
           safeLocalStorageSet('ap_moda_sales', JSON.stringify(updated));
           return updated;
         });
+
+        updateClientStatsForCompletedSale(upgradedSale);
 
         const deterministicTxId = `tx-${upgradedSale.id}`;
         let upgradedTxRecord: Transaction | null = null;
@@ -4145,69 +4284,17 @@ export default function App() {
       return updated;
     });
 
-    // Load VIP rules configuration from localStorage
-    let vipRules: any = null;
-    try {
-      const saved = localStorage.getItem('ap_vip_rules_config');
-      if (saved) vipRules = JSON.parse(saved);
-    } catch (e) {}
-
-    if (!vipRules) {
-      vipRules = {
-        autoVipEnabled: true,
-        minSpentEnabled: true,
-        minSpent: 500,
-        minOrdersEnabled: true,
-        minOrders: 3,
-        matchType: 'or'
-      };
+    // Update Client spent/orders/VIP when sale is completed
+    if (normalizedSale.status === 'Concluída') {
+      updateClientStatsForCompletedSale(normalizedSale);
     }
 
-    // Update Client spent bounds if they already exist
-    let updatedClients: Client[] = [];
-    setClients(prevClients => {
-      const newList = prevClients.map(cli => {
-        if (cli.name.toLowerCase() === newSale.clientName.toLowerCase()) {
-          const newSpent = cli.totalSpent + newSale.total;
-          const newOrders = cli.ordersCount + 1;
-          
-          let isVip = cli.vip || false;
-          if (vipRules.autoVipEnabled) {
-            const spentQualified = vipRules.minSpentEnabled ? (newSpent >= vipRules.minSpent) : false;
-            const ordersQualified = vipRules.minOrdersEnabled ? (newOrders >= vipRules.minOrders) : false;
-            
-            if (vipRules.minSpentEnabled && vipRules.minOrdersEnabled) {
-              if (vipRules.matchType === 'and') {
-                isVip = isVip || (spentQualified && ordersQualified);
-              } else {
-                isVip = isVip || (spentQualified || ordersQualified);
-              }
-            } else if (vipRules.minSpentEnabled) {
-              isVip = isVip || spentQualified;
-            } else if (vipRules.minOrdersEnabled) {
-              isVip = isVip || ordersQualified;
-            }
-          }
-
-          const updatedCli = {
-            ...cli,
-            totalSpent: newSpent,
-            ordersCount: newOrders,
-            vip: isVip
-          };
-          updatedClients.push(updatedCli);
-          return updatedCli;
-        }
-        return cli;
-      });
-      return newList;
-    });
-
-    // Update Partner statistics ONLY when explicit partnerId, partnerName, or real couponCode matches (never partner login)
-    const couponCodeForPartner = (newSale.couponCode || newSale.coupon || newSale.partnerCoupon || '').trim().toUpperCase();
-    const partnerNameForSale = (newSale.partnerName || newSale.partner || '').trim().toLowerCase();
-    const partnerIdForSale = (newSale.partnerId || '').trim();
-    if (couponCodeForPartner || partnerNameForSale || partnerIdForSale) {
+    // Update Partner statistics ONLY when explicit partnerId, partnerName, or real couponCode matches (and not already credited by handleAddOnlineOrder)
+    const alreadyOnlineOrderCredited = lastOnlineOrdersRef.current.some(o => o.id === normalizedSale.id);
+    const couponCodeForPartner = (normalizedSale.couponCode || normalizedSale.coupon || normalizedSale.partnerCoupon || '').trim().toUpperCase();
+    const partnerNameForSale = (normalizedSale.partnerName || normalizedSale.partner || '').trim().toLowerCase();
+    const partnerIdForSale = (normalizedSale.partnerId || '').trim();
+    if (!alreadyOnlineOrderCredited && (couponCodeForPartner || partnerNameForSale || partnerIdForSale)) {
       try {
         const savedP = localStorage.getItem('ap_moda_partners');
         let partnersList: any[] = savedP ? JSON.parse(savedP) : [];
@@ -4227,8 +4314,8 @@ export default function App() {
             if (matchesCoupon || matchesPartner) {
               updated = true;
               const commRate = p.commissionRate || 10;
-              const saleAmount = Number(newSale.total || 0);
-              const commVal = (saleAmount * commRate) / 100;
+              const saleAmount = Math.max(0, Number(normalizedSale.total || 0) - Number(normalizedSale.deliveryFee || 0));
+              const commVal = Number(((saleAmount * commRate) / 100).toFixed(2));
               return {
                 ...p,
                 salesCount: (p.salesCount || 0) + 1,
@@ -4256,9 +4343,6 @@ export default function App() {
     if (updatedProducts.length > 0) {
       saveDirtyIds('ap_dirty_products', Array.from(new Set([...getDirtyIds('ap_dirty_products'), ...updatedProducts.map(p => p.id)])));
     }
-    if (updatedClients.length > 0) {
-      saveDirtyIds('ap_dirty_clients', Array.from(new Set([...getDirtyIds('ap_dirty_clients'), ...updatedClients.map(c => c.id)])));
-    }
 
     // Immediate Supabase sync for all affected entities!
     const config = getSupabaseConfig();
@@ -4280,15 +4364,6 @@ export default function App() {
           if (success) {
             const affectedIds = updatedProducts.map(p => p.id);
             saveDirtyIds('ap_dirty_products', getDirtyIds('ap_dirty_products').filter(id => !affectedIds.includes(id)));
-          }
-        }).catch(e => console.error(e));
-      }
-
-      if (updatedClients.length > 0) {
-        syncBulkClientsToSupabase(updatedClients).then(success => {
-          if (success) {
-            const affectedIds = updatedClients.map(c => c.id);
-            saveDirtyIds('ap_dirty_clients', getDirtyIds('ap_dirty_clients').filter(id => !affectedIds.includes(id)));
           }
         }).catch(e => console.error(e));
       }
@@ -4350,7 +4425,20 @@ export default function App() {
     setNotifications(prev => [newNotify, ...prev]);
   };
 
-  const handleUpdateOnlineOrderStatus = (orderId: string, newStatus: any, statusPagamento?: string, trackingCode?: string, statusLogistico?: string, motoboy?: string) => {
+  const handleUpdateOnlineOrderStatus = (
+    orderId: string,
+    newStatus: any,
+    statusPagamento?: string,
+    trackingCode?: string,
+    statusLogistico?: string,
+    motoboy?: string,
+    extraFields?: {
+      receiverName?: string;
+      receiverDoc?: string;
+      deliverySignature?: string;
+      deliveredAt?: string;
+    }
+  ) => {
     setOnlineOrders(prev => {
       const updated = prev.map(o => {
         if (o.id === orderId) {
@@ -4380,11 +4468,13 @@ export default function App() {
 
             const newSale: Sale = {
               id: o.id, // Use order ID as sale ID to prevent duplication!
+              clientId: o.clientId || undefined,
               clientName: o.clientName,
               clientDoc: o.cpf || '',
               channel: 'E-commerce',
               items: saleItems,
               total: o.total,
+              deliveryFee: Number(o.deliveryFee || 0),
               costTotal: saleItems.reduce((currSum: number, it: any) => currSum + (it.cost * it.quantity), 0),
               status: 'Concluída',
               createdAt: o.createdAt || new Date().toISOString(),
@@ -4401,6 +4491,12 @@ export default function App() {
               couponCode: o.couponCode || o.coupon || o.partnerCoupon || undefined,
               partnerCoupon: o.partnerCoupon || o.couponCode || o.coupon || undefined,
               coupon: o.coupon || o.couponCode || undefined,
+              commissionRate: o.commissionRate,
+              commissionAmount: o.commissionAmount,
+              pixDiscount: o.pixDiscount,
+              vipDiscount: o.vipDiscount,
+              couponDiscount: o.couponDiscount,
+              cashbackDiscount: o.cashbackDiscount,
               notes: o.notes || undefined
             };
 
@@ -4408,6 +4504,8 @@ export default function App() {
               handleAddSale(newSale, true);
             }, 100);
           }
+
+          let partnerCommissionReversedFlag = Boolean(o.partnerCommissionReversed);
 
           if ((newStatus === 'Cancelado' || newStatus === 'Recusado') && o.status !== 'Cancelado' && o.status !== 'Recusado') {
             let restoredProducts: Product[] = [];
@@ -4461,6 +4559,67 @@ export default function App() {
                 syncBulkProductsToSupabase(restoredProducts).catch(e => console.warn('Error syncing restored products:', e));
               }
             }
+
+            // Mark linked Sale as Cancelada so dashboard metrics stay clean
+            setSales(prevSales => {
+              const target = prevSales.find(s => s.id === o.id);
+              if (!target || target.status === 'Cancelada') return prevSales;
+              const nextSales = prevSales.map(s => s.id === o.id ? { ...s, status: 'Cancelada' as const } : s);
+              lastSalesRef.current = nextSales;
+              safeLocalStorageSet('ap_moda_sales', JSON.stringify(nextSales));
+              const cfg = getSupabaseConfig();
+              if (cfg && !systemOffline) {
+                syncBulkSalesToSupabase([{ ...target, status: 'Cancelada' }]).catch(() => {});
+              }
+              return nextSales;
+            });
+
+            // Reverse partner commission if attributed and not yet reversed
+            if (!partnerCommissionReversedFlag) {
+              const couponCodeForPartner = (o.couponCode || o.coupon || o.partnerCoupon || '').trim().toUpperCase();
+              const partnerNameForSale = (o.partnerName || o.partner || '').trim().toLowerCase();
+              const partnerIdForSale = (o.partnerId || '').trim();
+              if (couponCodeForPartner || partnerNameForSale || partnerIdForSale) {
+                try {
+                  const savedP = localStorage.getItem('ap_moda_partners');
+                  let partnersList: any[] = savedP ? JSON.parse(savedP) : [];
+                  if (Array.isArray(partnersList) && partnersList.length > 0) {
+                    let reversed = false;
+                    partnersList = partnersList.map(p => {
+                      const pCoupon = (p.couponCode || '').trim().toUpperCase();
+                      const pName = (p.name || '').trim().toLowerCase();
+                      const pId = String(p.id || '').trim();
+                      const matchesCoupon = Boolean(couponCodeForPartner && pCoupon && pCoupon === couponCodeForPartner);
+                      const matchesPartner = Boolean(
+                        (partnerIdForSale && pId === partnerIdForSale) ||
+                        (partnerNameForSale && (pName === partnerNameForSale || pId.toLowerCase() === partnerNameForSale))
+                      );
+                      if (matchesCoupon || matchesPartner) {
+                        reversed = true;
+                        const commRate = Number(o.commissionRate || p.commissionRate || 10);
+                        const saleAmount = Math.max(0, Number(o.total || 0) - Number(o.deliveryFee || 0));
+                        const commVal = Number((o.commissionAmount ?? ((saleAmount * commRate) / 100)).toFixed(2));
+                        return {
+                          ...p,
+                          salesCount: Math.max(0, (p.salesCount || 0) - 1),
+                          totalGenerated: Math.max(0, Number(((p.totalGenerated || 0) - saleAmount).toFixed(2))),
+                          availableBalance: Math.max(0, Number(((p.availableBalance || 0) - commVal).toFixed(2)))
+                        };
+                      }
+                      return p;
+                    });
+                    if (reversed) {
+                      partnerCommissionReversedFlag = true;
+                      safeLocalStorageSet('ap_moda_partners', JSON.stringify(partnersList));
+                      pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(partnersList));
+                      window.dispatchEvent(new Event('ap-storage-synced'));
+                    }
+                  }
+                } catch (e) {
+                  console.error('Error reversing partner metrics on order cancellation:', e);
+                }
+              }
+            }
           }
 
           if (newStatus === 'Entregue' && o.status !== 'Entregue') {
@@ -4479,7 +4638,9 @@ export default function App() {
             status_pagamento: updatedStatusPag,
             ...(trackingCode !== undefined ? { trackingCode } : {}),
             ...(statusLogistico !== undefined ? { status_logistico: statusLogistico } : {}),
-            ...(motoboy !== undefined ? { motoboy } : {})
+            ...(motoboy !== undefined ? { motoboy } : {}),
+            ...(extraFields || {}),
+            ...(partnerCommissionReversedFlag ? { partnerCommissionReversed: true } : {})
           };
         }
         return o;
@@ -4970,9 +5131,9 @@ export default function App() {
 
             if (matchesCoupon || matchesName) {
               updated = true;
-              const commRate = p.commissionRate || 10;
-              const saleAmount = Number(newOrder.total || 0);
-              const commVal = (saleAmount * commRate) / 100;
+              const commRate = Number(newOrder.commissionRate || p.commissionRate || 10);
+              const saleAmount = Math.max(0, Number(newOrder.total || 0) - Number(newOrder.deliveryFee || 0));
+              const commVal = Number((newOrder.commissionAmount ?? ((saleAmount * commRate) / 100)).toFixed(2));
               return {
                 ...p,
                 salesCount: (p.salesCount || 0) + 1,
@@ -5013,11 +5174,13 @@ export default function App() {
 
     const newSaleFromOrder: Sale = {
       id: newOrder.id,
+      clientId: newOrder.clientId || undefined,
       clientName: newOrder.clientName || 'Cliente Online',
       clientDoc: newOrder.cpf || '',
       channel: 'Loja Online',
       items: saleItems,
       total: Number(newOrder.total || 0),
+      deliveryFee: Number(newOrder.deliveryFee || 0),
       costTotal: saleItems.reduce((acc: number, it: any) => acc + (it.cost * it.quantity), 0),
       status: isPaidOnline ? 'Concluída' : 'Pendente',
       createdAt: newOrder.createdAt || new Date().toISOString(),
@@ -5035,8 +5198,16 @@ export default function App() {
       commissionRate: newOrder.commissionRate,
       commissionAmount: newOrder.commissionAmount,
       couponCode: newOrder.couponCode || newOrder.coupon || undefined,
+      pixDiscount: newOrder.pixDiscount,
+      vipDiscount: newOrder.vipDiscount,
+      couponDiscount: newOrder.couponDiscount,
+      cashbackDiscount: newOrder.cashbackDiscount,
       notes: newOrder.notes || undefined
     };
+
+    if (isPaidOnline) {
+      updateClientStatsForCompletedSale(newSaleFromOrder);
+    }
 
     setSales(prevSales => {
       if (prevSales.some(s => s.id === newOrder.id)) return prevSales;

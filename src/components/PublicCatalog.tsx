@@ -959,8 +959,8 @@ export default function PublicCatalog({
       return;
     }
 
-    const topPriceWithDiscount = top.price * 0.95;
-    const bottomPriceWithDiscount = bottom.price * 0.95;
+    const topPriceWithDiscount = Number((top.price * 0.95).toFixed(2));
+    const bottomPriceWithDiscount = Number((bottom.price * 0.95).toFixed(2));
 
     setCart(prev => {
       let updated = [...prev];
@@ -1583,6 +1583,7 @@ export default function PublicCatalog({
   // InfinitePay Dynamic Pix States
   const [checkoutOrderId, setCheckoutOrderId] = useState<string>('');
   const [dynamicPixCode, setDynamicPixCode] = useState<string>('');
+  const [dynamicPixAmountCents, setDynamicPixAmountCents] = useState<number>(0);
   const [isFetchingPix, setIsFetchingPix] = useState<boolean>(false);
 
   // Initialize a stable checkoutOrderId when the cart drawer is opened
@@ -1597,21 +1598,24 @@ export default function PublicCatalog({
     if (!isCartOpen) {
       setCheckoutOrderId('');
       setDynamicPixCode('');
+      setDynamicPixAmountCents(0);
     }
   }, [isCartOpen]);
 
-  // Request real-time dynamic Pix from the InfinitePay API
+  // Request real-time dynamic Pix from the InfinitePay API (regenerating whenever cartTotal cents change)
   const fetchDynamicPix = async (orderId: string, amount: number) => {
-    if (!orderId || amount <= 0 || isFetchingPix || dynamicPixCode) return;
+    const targetCents = Math.round(Number(amount || 0) * 100);
+    if (!orderId || targetCents <= 0 || isFetchingPix) return;
+    if (dynamicPixCode && dynamicPixAmountCents === targetCents) return;
     setIsFetchingPix(true);
     try {
-      console.log(`[InfinitePay] Solicitando Pix Dinâmico para Pedido ${orderId}, Valor: R$ ${amount}`);
+      console.log(`[InfinitePay] Solicitando Pix Dinâmico para Pedido ${orderId}, Valor: R$ ${(targetCents / 100).toFixed(2)}`);
       const response = await fetch('/api/infinitepay/create-pix', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           order_id: orderId,
-          amount: Math.round(amount * 100) // valor em centavos
+          amount: targetCents // valor exato em centavos
         })
       });
       if (response.ok) {
@@ -1619,13 +1623,20 @@ export default function PublicCatalog({
         if (data.success && data.qr_code) {
           console.log('[InfinitePay] Pix dinâmico gerado com sucesso:', data.qr_code);
           setDynamicPixCode(data.qr_code);
+          setDynamicPixAmountCents(targetCents);
         } else {
+          setDynamicPixCode('');
+          setDynamicPixAmountCents(0);
           console.warn('[InfinitePay] Usando Pix local (chave estática):', data.message || 'Sem dados de QR Code');
         }
       } else {
+        setDynamicPixCode('');
+        setDynamicPixAmountCents(0);
         console.warn('[InfinitePay] Erro de resposta HTTP ao gerar Pix dinâmico. Usando fallback.');
       }
     } catch (err) {
+      setDynamicPixCode('');
+      setDynamicPixAmountCents(0);
       console.warn('[InfinitePay] Falha ao conectar com endpoint de Pix dinâmico. Usando fallback:', err);
     } finally {
       setIsFetchingPix(false);
@@ -2846,36 +2857,37 @@ export default function PublicCatalog({
   }, [products, cart]);
 
   const cartSubtotal = useMemo(() => {
-    return cart.reduce((sum, item) => {
+    const cents = cart.reduce((sumCents, item) => {
       const isUpsellItem = Boolean(item.isUpsell);
-      const price = isUpsellItem
-        ? Number(item.priceAtTime ?? item.product.price * 0.9)
+      const rawPrice = isUpsellItem
+        ? Number(item.priceAtTime ?? Number((item.product.price * 0.9).toFixed(2)))
         : Number(item.priceAtTime ?? item.product.price);
-      return sum + (price * item.quantity);
+      const unitCents = Math.round(rawPrice * 100);
+      return sumCents + unitCents * Math.max(1, Number(item.quantity || 1));
     }, 0);
+    return Number((cents / 100).toFixed(2));
   }, [cart]);
 
   const deliveryFee = useMemo(() => {
     if (deliveryMethod === 'retirada' || deliveryMethod === 'combinar') return 0;
     if (appliedCoupon?.code === 'FRETEGRATIS' || cartSubtotal >= 399) return 0;
-    if (deliveryMethod === 'motoboy') return selectedFreightFee !== null ? selectedFreightFee : 12;
-    if (selectedFreightFee !== null) return selectedFreightFee;
-    return 0; // Se não preencheu CEP ou não escolheu frete, a taxa de envio é exibida zerada (R$ 0,00)
+    if (deliveryMethod === 'motoboy') return selectedFreightFee !== null ? Number(Number(selectedFreightFee).toFixed(2)) : 12;
+    if (selectedFreightFee !== null) return Number(Number(selectedFreightFee).toFixed(2));
+    return 0;
   }, [deliveryMethod, cartSubtotal, appliedCoupon, selectedFreightFee]);
 
   const cartDiscount = useMemo(() => {
     if (!appliedCoupon) return 0;
     const { discountAmount } = calculateEligibleCouponDiscount(appliedCoupon, cart, suggestedProduct);
-    return discountAmount;
-  }, [appliedCoupon, cart, suggestedProduct]);
+    return Number(Math.min(cartSubtotal, Math.max(0, discountAmount)).toFixed(2));
+  }, [appliedCoupon, cart, suggestedProduct, cartSubtotal]);
 
-  // Load payment configs dynamically from local storage
-  const paymentConfig = useMemo(() => {
+  // Load payment configs dynamically & reactively from localStorage / Supabase sync events
+  const readStoredPaymentConfig = () => {
     try {
       const saved = localStorage.getItem('ap_moda_payment_config');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
-    // Backward compatibility with legacy company info
     try {
       const savedLegacy = localStorage.getItem('ap_moda_company_info');
       if (savedLegacy) {
@@ -2895,6 +2907,24 @@ export default function PublicCatalog({
       pixKey: 'apmodafitness55@gmail.com',
       pixKeyType: 'E-mail',
       pixDiscountPercent: 5
+    };
+  };
+
+  const [paymentConfig, setPaymentConfig] = useState<any>(() => readStoredPaymentConfig());
+
+  useEffect(() => {
+    const refreshPaymentConfig = () => {
+      setPaymentConfig(readStoredPaymentConfig());
+    };
+    window.addEventListener('storage', refreshPaymentConfig);
+    window.addEventListener('store_config_updated', refreshPaymentConfig);
+    window.addEventListener('ap-storage-synced', refreshPaymentConfig);
+    window.addEventListener('ap-system-configs-refreshed', refreshPaymentConfig);
+    return () => {
+      window.removeEventListener('storage', refreshPaymentConfig);
+      window.removeEventListener('store_config_updated', refreshPaymentConfig);
+      window.removeEventListener('ap-storage-synced', refreshPaymentConfig);
+      window.removeEventListener('ap-system-configs-refreshed', refreshPaymentConfig);
     };
   }, []);
 
@@ -2972,21 +3002,27 @@ export default function PublicCatalog({
   }, [paymentConfig]);
 
   const pixDiscountPercent = useMemo(() => {
-    return paymentConfig.pixDiscountPercent ?? 5;
+    const val = Number(paymentConfig?.pixDiscountPercent);
+    return Number.isFinite(val) ? Math.max(0, Math.min(100, val)) : 5;
   }, [paymentConfig]);
 
   const vipDiscount = useMemo(() => {
     if (loggedClient && (loggedClient as any).vip) {
-      const afterCoupon = Math.max(0, cartSubtotal - cartDiscount);
-      return Number((afterCoupon * 0.10).toFixed(2));
+      const subtotalCents = Math.round(cartSubtotal * 100);
+      const couponCents = Math.round(cartDiscount * 100);
+      const afterCouponCents = Math.max(0, subtotalCents - couponCents);
+      return Number((Math.round(afterCouponCents * 0.10) / 100).toFixed(2));
     }
     return 0;
   }, [loggedClient, cartSubtotal, cartDiscount]);
 
   const pixDiscount = useMemo(() => {
-    if (paymentMethod !== 'pix') return 0;
-    const afterCouponAndVip = Math.max(0, cartSubtotal - cartDiscount - vipDiscount);
-    return Number((afterCouponAndVip * (pixDiscountPercent / 100)).toFixed(2));
+    if (paymentMethod !== 'pix' || pixDiscountPercent <= 0) return 0;
+    const subtotalCents = Math.round(cartSubtotal * 100);
+    const couponCents = Math.round(cartDiscount * 100);
+    const vipCents = Math.round(vipDiscount * 100);
+    const afterCouponAndVipCents = Math.max(0, subtotalCents - couponCents - vipCents);
+    return Number((Math.round((afterCouponAndVipCents * pixDiscountPercent) / 100) / 100).toFixed(2));
   }, [paymentMethod, cartSubtotal, cartDiscount, vipDiscount, pixDiscountPercent]);
 
   const loggedClientSales = useMemo(() => {
@@ -3076,12 +3112,24 @@ export default function PublicCatalog({
 
   const cashbackDiscount = useMemo(() => {
     if (!useCashback) return 0;
-    const maxDiscountable = Math.max(0, cartSubtotal - cartDiscount - vipDiscount - pixDiscount);
-    return Number(Math.min(availableCashback, maxDiscountable).toFixed(2));
+    const subtotalCents = Math.round(cartSubtotal * 100);
+    const couponCents = Math.round(cartDiscount * 100);
+    const vipCents = Math.round(vipDiscount * 100);
+    const pixCents = Math.round(pixDiscount * 100);
+    const maxDiscountableCents = Math.max(0, subtotalCents - couponCents - vipCents - pixCents);
+    const availCents = Math.max(0, Math.round(availableCashback * 100));
+    return Number((Math.min(availCents, maxDiscountableCents) / 100).toFixed(2));
   }, [useCashback, availableCashback, cartSubtotal, cartDiscount, vipDiscount, pixDiscount]);
 
   const cartTotal = useMemo(() => {
-    return Math.max(0, Number((cartSubtotal - cartDiscount - vipDiscount - pixDiscount - cashbackDiscount + deliveryFee).toFixed(2)));
+    const subtotalCents = Math.round(cartSubtotal * 100);
+    const couponCents = Math.round(cartDiscount * 100);
+    const vipCents = Math.round(vipDiscount * 100);
+    const pixCents = Math.round(pixDiscount * 100);
+    const cashbackCents = Math.round(cashbackDiscount * 100);
+    const deliveryCents = Math.round(deliveryFee * 100);
+    const totalCents = Math.max(0, subtotalCents - couponCents - vipCents - pixCents - cashbackCents + deliveryCents);
+    return Number((totalCents / 100).toFixed(2));
   }, [cartSubtotal, cartDiscount, vipDiscount, pixDiscount, cashbackDiscount, deliveryFee]);
 
   const pixPayload = useMemo(() => {
@@ -3340,11 +3388,103 @@ export default function PublicCatalog({
       return `${prefix}${middleNum}BR`;
     })() : undefined;
 
-    // Process order back to the administration orders system via hook
+    const cleanedPhone = clientPhone.replace(/\D/g, '');
+    const cleanedName = clientName.trim();
+    const cleanedCpf = clientCpf.replace(/\D/g, '');
+    const cleanedEmail = clientEmail.trim().toLowerCase();
+
+    // Match customer strictly by logged ID, CPF, Phone, or Email — NEVER by name alone (prevents homonym collisions)
+    const existingClientIndex = (clients || []).findIndex(c => {
+      if (loggedClient?.id && c.id === loggedClient.id) return true;
+      const cCpf = (c.cpf || '').replace(/\D/g, '');
+      const cPhone = (c.phone || c.whatsapp || '').replace(/\D/g, '');
+      const cEmail = (c.email || '').trim().toLowerCase();
+      const matchCpf = cleanedCpf.length === 11 && cCpf === cleanedCpf;
+      const matchPhone = cleanedPhone.length >= 8 && cPhone === cleanedPhone;
+      const matchEmail = cleanedEmail.length > 0 && cEmail === cleanedEmail;
+      return matchCpf || matchPhone || matchEmail;
+    });
+
+    const appliedCashbackDiscount = useCashback ? cashbackDiscount : 0;
+    const cashbackRateCfg = (() => {
+      try {
+        const saved = localStorage.getItem('ap_moda_cashback_rate');
+        const parsed = saved ? parseFloat(saved) : 5;
+        return Number.isFinite(parsed) ? parsed : 5;
+      } catch {
+        return 5;
+      }
+    })();
+    const projectedCashbackEarned = Number((cartTotal * (cashbackRateCfg / 100)).toFixed(2));
+    let linkedClientId: string;
+
+    if (existingClientIndex !== -1) {
+      const existingClient = clients[existingClientIndex];
+      linkedClientId = existingClient.id;
+      const updatedList = [...clients];
+      // Deduct redeemed cashback now (prevent double-spending), while totalSpent/ordersCount/earned cashback credit upon payment confirmation in handleAddSale!
+      const nextBalance = appliedCashbackDiscount > 0
+        ? Math.max(0, Number(((existingClient.cashbackBalance || 0) - appliedCashbackDiscount).toFixed(2)))
+        : (existingClient.cashbackBalance || 0);
+
+      updatedList[existingClientIndex] = {
+        ...existingClient,
+        name: existingClient.name || cleanedName,
+        email: clientEmail.trim() || existingClient.email,
+        cpf: clientCpf.trim() || existingClient.cpf,
+        birthDate: clientBirthDate.trim() || existingClient.birthDate,
+        phone: clientPhone.trim() || existingClient.phone,
+        whatsapp: clientPhone.trim() || existingClient.whatsapp,
+        addressStreet: addressStreet.trim() || existingClient.addressStreet,
+        addressNum: addressNum.trim() || existingClient.addressNum,
+        addressComp: addressComp.trim() || existingClient.addressComp,
+        addressBairro: addressBairro.trim() || existingClient.addressBairro,
+        addressCidade: addressCidade.trim() || existingClient.addressCidade,
+        addressEstado: addressEstado.trim() || existingClient.addressEstado,
+        addressCep: addressCep.trim() || existingClient.addressCep,
+        cashbackBalance: nextBalance
+      };
+      if (onUpdateClients) {
+        await Promise.resolve(onUpdateClients(updatedList));
+      }
+      setLoggedClient(updatedList[existingClientIndex]);
+      setVipMessage(`Pedido registrado! Assim que o pagamento for confirmado, você acumulará +R$ ${projectedCashbackEarned.toFixed(2)} de cashback (saldo atual após resgate: R$ ${nextBalance.toFixed(2)}). 🌸`);
+    } else {
+      linkedClientId = `cli-${Date.now()}`;
+      const newClient: Client = {
+        id: linkedClientId,
+        name: cleanedName,
+        email: clientEmail.trim() || '',
+        phone: clientPhone.trim(),
+        cpf: clientCpf.trim() || undefined,
+        birthDate: clientBirthDate.trim() || undefined,
+        whatsapp: clientPhone.trim(),
+        addressStreet: addressStreet.trim() || undefined,
+        addressNum: addressNum.trim() || undefined,
+        addressComp: addressComp.trim() || undefined,
+        addressBairro: addressBairro.trim() || undefined,
+        addressCidade: addressCidade.trim() || undefined,
+        addressEstado: addressEstado.trim() || undefined,
+        addressCep: addressCep.trim() || undefined,
+        channel: 'E-commerce',
+        npsScore: 10,
+        totalSpent: 0,
+        ordersCount: 0,
+        cashbackBalance: 0,
+        createdAt: new Date().toISOString()
+      };
+      await Promise.resolve(onAddClient(newClient));
+      setLoggedClient(newClient);
+      setVipMessage(`Seja bem-vinda, ${cleanedName}! Seu cadastro VIP foi salvo. Assim que o pagamento for confirmado, você ganhará R$ ${projectedCashbackEarned.toFixed(2)} de cashback! ✨`);
+    }
+
+    // Process order back to the administration orders system via hook (now with linkedClientId & exact product net base for commission)
+    const productsNetForCommission = Math.max(0, Number((cartTotal - deliveryFee).toFixed(2)));
     if (onAddOnlineOrder) {
       const orderData = {
         id: orderId,
-        clientName: clientName.trim(),
+        clientId: linkedClientId,
+        clientName: cleanedName,
         phone: clientPhone.trim(),
         cpf: clientCpf.trim(),
         items: cart.map(it => ({
@@ -3375,7 +3515,11 @@ export default function PublicCatalog({
         partnerId: appliedCoupon?.partnerId || undefined,
         partner: appliedCoupon?.partnerName || undefined,
         commissionRate: appliedCoupon?.commissionRate || 10,
-        commissionAmount: appliedCoupon?.partnerName ? Number(((cartTotal - deliveryFee) * ((appliedCoupon?.commissionRate || 10) / 100)).toFixed(2)) : 0,
+        commissionAmount: (appliedCoupon?.partnerName || appliedCoupon?.partnerId) ? Number((productsNetForCommission * ((appliedCoupon?.commissionRate || 10) / 100)).toFixed(2)) : 0,
+        pixDiscount: pixDiscount,
+        vipDiscount: vipDiscount,
+        couponDiscount: cartDiscount,
+        cashbackDiscount: appliedCashbackDiscount,
         notes: `Cor: ${cart.map(c=>c.color).join(', ')} | CPF: ${clientCpf.trim()} | Pg: ${paymentMethod === 'pix' ? 'PIX' : `Cartão (${cardInstallments}x)`}${appliedCoupon?.code ? ` | Cupom: ${appliedCoupon.code}` : ''}${appliedCoupon?.partnerName ? ` | Parceiro: ${appliedCoupon.partnerName}` : ''} | Obs: ${clientNotes.trim()}`
       };
       
@@ -3387,7 +3531,7 @@ export default function PublicCatalog({
     if (currentCheckoutId && onAddCheckout) {
       const checkoutData = {
         id: currentCheckoutId,
-        clientName: clientName.trim(),
+        clientName: cleanedName,
         phone: clientPhone.trim(),
         email: clientEmail.trim(),
         items: cart.map(it => ({
@@ -3407,114 +3551,66 @@ export default function PublicCatalog({
       localStorage.removeItem('ap_current_checkout_id');
     }
 
-    // Save or update Customer details in CRM system
-    const cleanedPhone = clientPhone.replace(/\D/g, '');
-    const cleanedName = clientName.trim();
-    const cleanedCpf = clientCpf.replace(/\D/g, '');
-    
-    // Calculate cashback accumulation: 5% of order total
-    const cashbackEarned = Number((cartTotal * 0.05).toFixed(2));
-    const appliedCashbackDiscount = useCashback ? cashbackDiscount : 0;
-
-    const existingClientIndex = (clients || []).findIndex(c => {
-      const matchPhone = c.phone.replace(/\D/g, '') === cleanedPhone && cleanedPhone.length > 0;
-      const matchCpf = c.cpf && c.cpf.replace(/\D/g, '') === cleanedCpf && cleanedCpf.length > 0;
-      const matchName = c.name.toLowerCase() === cleanedName.toLowerCase();
-      return matchPhone || matchCpf || matchName;
-    });
-
-    if (existingClientIndex !== -1) {
-      const existingClient = clients[existingClientIndex];
-      const updatedList = [...clients];
-      const nextBalance = Math.max(0, Number(((existingClient.cashbackBalance || 0) - appliedCashbackDiscount + cashbackEarned).toFixed(2)));
-
-      updatedList[existingClientIndex] = {
-        ...existingClient,
-        email: clientEmail.trim() || existingClient.email,
-        cpf: clientCpf.trim() || existingClient.cpf,
-        birthDate: clientBirthDate.trim() || existingClient.birthDate,
-        whatsapp: clientPhone.trim() || existingClient.whatsapp,
-        addressStreet: addressStreet.trim() || existingClient.addressStreet,
-        addressNum: addressNum.trim() || existingClient.addressNum,
-        addressComp: addressComp.trim() || existingClient.addressComp,
-        addressBairro: addressBairro.trim() || existingClient.addressBairro,
-        addressCidade: addressCidade.trim() || existingClient.addressCidade,
-        addressEstado: addressEstado.trim() || existingClient.addressEstado,
-        addressCep: addressCep.trim() || existingClient.addressCep,
-        totalSpent: Number((existingClient.totalSpent + cartTotal).toFixed(2)),
-        ordersCount: (existingClient.ordersCount || 0) + 1,
-        cashbackBalance: nextBalance
-      };
-      if (onUpdateClients) {
-        await Promise.resolve(onUpdateClients(updatedList));
-      }
-      setVipMessage(`Fidelidade Ativa! Cashback atualizado: você acumulou R$ ${cashbackEarned.toFixed(2)} nesta compra e possui R$ ${nextBalance.toFixed(2)} disponíveis para novos pedidos! 🌸`);
-    } else {
-      const newClient: Client = {
-        id: `cli-${Date.now()}`,
-        name: cleanedName,
-        email: clientEmail.trim() || '',
-        phone: clientPhone.trim(),
-        cpf: clientCpf.trim() || undefined,
-        birthDate: clientBirthDate.trim() || undefined,
-        whatsapp: clientPhone.trim(),
-        addressStreet: addressStreet.trim() || undefined,
-        addressNum: addressNum.trim() || undefined,
-        addressComp: addressComp.trim() || undefined,
-        addressBairro: addressBairro.trim() || undefined,
-        addressCidade: addressCidade.trim() || undefined,
-        addressEstado: addressEstado.trim() || undefined,
-        addressCep: addressCep.trim() || undefined,
-        channel: 'E-commerce',
-        npsScore: 10,
-        totalSpent: Number(cartTotal.toFixed(2)),
-        ordersCount: 1,
-        cashbackBalance: cashbackEarned,
-        createdAt: new Date().toISOString()
-      };
-      await Promise.resolve(onAddClient(newClient));
-      setLoggedClient(newClient);
-      setVipMessage(`Seja bem-vinda, ${cleanedName}! Seu cadastro de cliente VIP foi salvo automaticamente no sistema. ✨ Você acumulou R$ ${cashbackEarned.toFixed(2)} de cashback nesta compra!`);
-    }
-
     // Reset cashback toggle after order
     setUseCashback(false);
     setIsVipRegisteredJustNow(true);
 
-    // Unified payment link generation via real InfinitePay API (Rule 2)
+    // Unified payment link generation via real InfinitePay API (exact cent-for-cent match to cartTotal)
     setIsGeneratingPaymentLink(true);
     try {
-      const productsFinalTotal = Math.max(0, Number((cartTotal - deliveryFee).toFixed(2)));
-      const targetProductsCents = Math.round(productsFinalTotal * 100);
-      const rawItemsSubtotal = cart.reduce((sum, it) => {
+      const targetProductsCents = Math.max(0, Math.round(cartTotal * 100) - Math.round(deliveryFee * 100));
+      const rawItemsCents = cart.reduce((sumCents, it) => {
         const unitPrice = Boolean(it.isUpsell)
-          ? Number(it.priceAtTime ?? it.product.price * 0.9)
+          ? Number(it.priceAtTime ?? Number((it.product.price * 0.9).toFixed(2)))
           : Number(it.priceAtTime ?? it.product.price);
-        return sum + (unitPrice * it.quantity);
+        return sumCents + Math.round(unitPrice * 100) * Math.max(1, it.quantity);
       }, 0);
-      const ratio = rawItemsSubtotal > 0 ? (productsFinalTotal / rawItemsSubtotal) : 1;
 
       const itensPayload: Array<{ quantity: number; price: number; description: string }> = [];
-      if (targetProductsCents > 0) {
+      if (targetProductsCents > 0 && rawItemsCents > 0) {
         let accumulatedCents = 0;
         cart.forEach((it, idx) => {
           const isLast = idx === cart.length - 1;
+          const qty = Math.max(1, Math.round(Number(it.quantity) || 1));
           const unitPrice = Boolean(it.isUpsell)
-            ? Number(it.priceAtTime ?? it.product.price * 0.9)
+            ? Number(it.priceAtTime ?? Number((it.product.price * 0.9).toFixed(2)))
             : Number(it.priceAtTime ?? it.product.price);
-          let unitCents = Math.max(0, Math.round(unitPrice * ratio * 100));
-          if (isLast) {
-            const remainingCents = Math.max(0, targetProductsCents - accumulatedCents);
-            unitCents = Math.max(0, Math.round(remainingCents / Math.max(1, it.quantity)));
+          const itemLineRawCents = Math.round(unitPrice * 100) * qty;
+          const desc = `${it.product.name} (${it.color} - ${it.size})`;
+
+          if (!isLast) {
+            const proportionalLineCents = Math.round((itemLineRawCents / rawItemsCents) * targetProductsCents);
+            const unitCents = Math.max(0, Math.floor(proportionalLineCents / qty));
+            const remainder = proportionalLineCents - unitCents * qty;
+            if (remainder === 0) {
+              if (unitCents > 0) {
+                itensPayload.push({ quantity: qty, price: unitCents, description: desc });
+                accumulatedCents += unitCents * qty;
+              }
+            } else if (qty > 1 && unitCents > 0) {
+              itensPayload.push({ quantity: qty - 1, price: unitCents, description: desc });
+              itensPayload.push({ quantity: 1, price: unitCents + remainder, description: desc });
+              accumulatedCents += proportionalLineCents;
+            } else if (proportionalLineCents > 0) {
+              itensPayload.push({ quantity: 1, price: proportionalLineCents, description: qty > 1 ? `${qty}x ${desc}` : desc });
+              accumulatedCents += proportionalLineCents;
+            }
           } else {
-            accumulatedCents += unitCents * it.quantity;
-          }
-          if (unitCents > 0) {
-            itensPayload.push({
-              quantity: it.quantity,
-              price: unitCents,
-              description: `${it.product.name} (${it.color} - ${it.size})`
-            });
+            const remainingCents = Math.max(0, targetProductsCents - accumulatedCents);
+            if (remainingCents > 0) {
+              if (qty === 1 || remainingCents % qty === 0) {
+                itensPayload.push({ quantity: qty, price: Math.round(remainingCents / qty), description: desc });
+              } else {
+                const baseUnitCents = Math.floor(remainingCents / qty);
+                const extraUnitCents = remainingCents - baseUnitCents * (qty - 1);
+                if (baseUnitCents > 0) {
+                  itensPayload.push({ quantity: qty - 1, price: baseUnitCents, description: desc });
+                  itensPayload.push({ quantity: 1, price: extraUnitCents, description: desc });
+                } else {
+                  itensPayload.push({ quantity: 1, price: remainingCents, description: `${qty}x ${desc}` });
+                }
+              }
+            }
           }
         });
       }
@@ -3522,15 +3618,15 @@ export default function PublicCatalog({
       if (deliveryFee > 0) {
         itensPayload.push({
           quantity: 1,
-          price: Math.round(deliveryFee * 100), // convert unit price to cents (inteiro)
+          price: Math.round(deliveryFee * 100),
           description: 'Taxa de Entrega'
         });
       }
 
       if (itensPayload.length === 0) {
         itensPayload.push({
-          quantity: cart.reduce((s, it) => s + it.quantity, 0) || 1,
-          price: 100,
+          quantity: 1,
+          price: Math.max(100, Math.round(cartTotal * 100)),
           description: 'Pedido AP Moda Fitness'
         });
       }
@@ -4240,7 +4336,7 @@ export default function PublicCatalog({
                           R$ {(pair.top.price + pair.bottom.price).toFixed(2)}
                         </span>
                         <span className="text-[14px] font-extrabold text-[#1E3A42] font-mono">
-                          R$ {((pair.top.price + pair.bottom.price) * 0.95).toFixed(2)}
+                          R$ {(Math.round((pair.top.price + pair.bottom.price) * 0.95 * 100) / 100).toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -5326,7 +5422,7 @@ export default function PublicCatalog({
                     if (!compProduct) return null;
 
                     const originalTotal = selectedProduct.price + compProduct.price;
-                    const comboTotal = originalTotal * 0.95;
+                    const comboTotal = Number((originalTotal * 0.95).toFixed(2));
 
                     return (
                       <div className="border border-[#1E3A42]/15 rounded-2xl bg-white p-4 space-y-3 shadow-2xs text-left">

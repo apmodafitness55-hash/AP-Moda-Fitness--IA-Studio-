@@ -31,6 +31,7 @@ import {
   Palette,
   Search
 } from 'lucide-react';
+import QRCode from 'qrcode';
 import { Sale } from '../types';
 import { pushSystemConfigToSupabase } from '../supabase';
 import { getStoreConfig } from '../utils/storeConfig';
@@ -117,10 +118,11 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
     };
   });
 
-  // Client documentation CPF model editable live for printing
+  // Client documentation CPF model editable live for printing (never fake 000.000.000-00 unless user types)
   const [clientCpf, setClientCpf] = useState<string>(() => {
-    return sale.clientDoc || '000.000.000-00';
+    return sale.clientDoc || '';
   });
+  const [pixQrDataUrl, setPixQrDataUrl] = useState<string>('');
 
   // Custom live discount on printing template (if they want to adjust, or use existing calculations)
   const [discountPercent, setDiscountPercent] = useState<number>(0);
@@ -215,31 +217,58 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
 
   // Real subtotal calculated from sum of individual items
   const itemsSubtotal = useMemo(() => {
-    if (!sale || !sale.items || sale.items.length === 0) return sale?.total || 0;
-    return sale.items.reduce((acc, item) => acc + ((item.price || 0) * (item.quantity || 1)), 0);
+    if (!sale || !sale.items || sale.items.length === 0) return Number((sale?.total || 0).toFixed(2));
+    return Number(
+      sale.items.reduce((acc, item) => acc + ((item.price || 0) * (item.quantity || 1)), 0).toFixed(2)
+    );
   }, [sale]);
 
-  // Real discount recorded on the sale (e.g. coupons, promotions, PIX discount)
+  // Explicit or inferred discounts & freight/extras so receipt math is always 100% consistent
+  const explicitDiscounts = useMemo(() => {
+    if (!sale) return 0;
+    return Number(
+      (
+        Number(sale.pixDiscount || 0) +
+        Number(sale.vipDiscount || 0) +
+        Number(sale.couponDiscount || 0) +
+        Number(sale.cashbackDiscount || 0)
+      ).toFixed(2)
+    );
+  }, [sale]);
+
+  const freightOrExtras = useMemo(() => {
+    const netTarget = Number((sale?.total || 0).toFixed(2));
+    const explicitFee = Number(sale?.deliveryFee || 0);
+    if (explicitFee > 0) return Number(explicitFee.toFixed(2));
+    if (explicitDiscounts > 0) {
+      return Math.max(0, Number((netTarget - (itemsSubtotal - explicitDiscounts)).toFixed(2)));
+    }
+    return netTarget > itemsSubtotal ? Number((netTarget - itemsSubtotal).toFixed(2)) : 0;
+  }, [sale, itemsSubtotal, explicitDiscounts]);
+
+  // Real discount recorded on the sale (e.g. coupons, VIP, cashback, PIX discount)
   const saleDiscount = useMemo(() => {
-    if (itemsSubtotal > (sale?.total || 0) && (sale?.total || 0) > 0) {
-      return Number((itemsSubtotal - sale.total).toFixed(2));
+    if (explicitDiscounts > 0) return explicitDiscounts;
+    const netTarget = Number((sale?.total || 0).toFixed(2));
+    if (netTarget > 0 && itemsSubtotal + freightOrExtras > netTarget) {
+      return Number(((itemsSubtotal + freightOrExtras) - netTarget).toFixed(2));
     }
     return 0;
-  }, [itemsSubtotal, sale]);
+  }, [itemsSubtotal, freightOrExtras, explicitDiscounts, sale]);
 
   // Optional manual discount adjustment slider on the preview panel
   const manualDiscountAmount = useMemo(() => {
     if (discountPercent > 0) {
-      const net = itemsSubtotal - saleDiscount;
-      return Number(((net * discountPercent) / 100).toFixed(2));
+      const baseNet = Math.max(0, itemsSubtotal + freightOrExtras - saleDiscount);
+      return Number(((baseNet * discountPercent) / 100).toFixed(2));
     }
     return 0;
-  }, [itemsSubtotal, saleDiscount, discountPercent]);
+  }, [itemsSubtotal, freightOrExtras, saleDiscount, discountPercent]);
 
   const finalTotal = useMemo(() => {
-    const total = itemsSubtotal - saleDiscount - manualDiscountAmount;
+    const total = itemsSubtotal + freightOrExtras - saleDiscount - manualDiscountAmount;
     return Math.max(0, Number(total.toFixed(2)));
-  }, [itemsSubtotal, saleDiscount, manualDiscountAmount]);
+  }, [itemsSubtotal, freightOrExtras, saleDiscount, manualDiscountAmount]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -356,6 +385,25 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
     const crcStr = crc.toString(16).toUpperCase().padStart(4, '0');
     return `${basePayload}${crcStr}`;
   }, [companyInfo.pixKey, companyInfo.addressLine2, companyInfo.name, finalTotal]);
+
+  // Generate local offline QR Code data URL (never depends on external api.qrserver.com during print)
+  useEffect(() => {
+    if (!companyInfo.pixKey || !pixPayload) {
+      setPixQrDataUrl('');
+      return;
+    }
+    let cancelled = false;
+    QRCode.toDataURL(pixPayload, { width: 160, margin: 1, errorCorrectionLevel: 'M' })
+      .then((url: string) => {
+        if (!cancelled) setPixQrDataUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setPixQrDataUrl('');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pixPayload, companyInfo.pixKey]);
 
   const handleCopyPixString = () => {
     navigator.clipboard.writeText(pixPayload);
@@ -1056,9 +1104,9 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
 
             {/* COMPROVANTE BOX */}
             <div className="border border-dashed border-slate-300 p-2 text-center text-[10px] space-y-0.5 leading-tight select-none rounded bg-slate-50/50">
-              <p className="font-black tracking-wider text-slate-700">COMPROVANTE DE VENDA</p>
-              <p className="text-slate-500 text-[8px] uppercase tracking-wide">Este documento não possui valor fiscal</p>
-              <p className="text-slate-500 text-[8px] uppercase tracking-wide">Não substitui a NF-e oficial</p>
+              <p className="font-black tracking-wider text-slate-700">COMPROVANTE DE VENDA • NÃO FISCAL</p>
+              <p className="text-slate-500 text-[8px] uppercase tracking-wide">Documento auxiliar sem valor fiscal</p>
+              <p className="text-slate-500 text-[8px] uppercase tracking-wide">Não substitui NFC-e / NF-e oficial</p>
             </div>
 
             {/* Dynamic Divider */}
@@ -1143,10 +1191,19 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
                 <span>Subtotal dos itens</span>
                 <span>{formatCurrency(itemsSubtotal)}</span>
               </div>
+
+              {freightOrExtras > 0 && (
+                <div className="flex justify-between text-slate-600 font-medium">
+                  <span>Frete / Adicionais</span>
+                  <span>+ {formatCurrency(freightOrExtras)}</span>
+                </div>
+              )}
               
               {saleDiscount > 0 && (
                 <div className="flex justify-between text-rose-600 font-medium">
-                  <span>Desconto do Pedido ({Math.round((saleDiscount / itemsSubtotal) * 100)}% OFF)</span>
+                  <span>
+                    Descontos ({itemsSubtotal > 0 ? Math.round((saleDiscount / itemsSubtotal) * 100) : 0}% OFF)
+                  </span>
                   <span>- {formatCurrency(saleDiscount)}</span>
                 </div>
               )}
@@ -1243,17 +1300,23 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
               )}
             </div>
 
-            {/* Pix key dynamic QRCode section in layout */}
-            {showQrCode && companyInfo.pixKey ? (
+            {/* Paid confirmation or Pix QRCode section (QR payment prompt only when Pendente) */}
+            {sale.status === 'Concluída' ? (
+              <div className="py-2 mt-2 text-center font-sans space-y-1 flex flex-col items-center justify-center">
+                <div className="border-t border-dashed border-slate-300 w-full mb-1" />
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-black text-[9px] uppercase tracking-wider">
+                  <CheckCircle size={11} /> Pagamento Liquidado / Confirmado
+                </span>
+              </div>
+            ) : showQrCode && companyInfo.pixKey && pixQrDataUrl ? (
               <div className="py-1 select-all mt-2.5 text-center font-sans space-y-2 flex flex-col items-center justify-center">
                 <div className="border-t border-dashed border-slate-300 w-full mb-1" />
                 <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest select-none">Pague com Pix instantâneo</p>
                 <div id="pix-qr-print-wrapper" className="p-2 border border-slate-200 rounded-xl bg-white w-28 h-28 flex items-center justify-center">
                   <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(pixPayload)}`}
+                    src={pixQrDataUrl}
                     alt="Pix QR Code"
                     className="w-full h-full object-contain"
-                    referrerPolicy="no-referrer"
                   />
                 </div>
                 <div className="space-y-0.5 leading-snug">

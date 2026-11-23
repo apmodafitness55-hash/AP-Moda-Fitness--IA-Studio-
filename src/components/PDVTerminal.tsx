@@ -477,17 +477,26 @@ export default function PDVTerminal({
   const [pixDiscountPercent, setPixDiscountPercent] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('ap_pdv_pix_discount');
-      if (saved) {
+      if (saved !== null) {
         const parsed = parseFloat(saved);
         if (!isNaN(parsed) && parsed >= 0) return parsed;
+      }
+      const storePayCfg = localStorage.getItem('ap_moda_payment_config');
+      if (storePayCfg) {
+        const parsedCfg = JSON.parse(storePayCfg);
+        if (parsedCfg && parsedCfg.pixDiscountPercent !== undefined) {
+          const val = parseFloat(parsedCfg.pixDiscountPercent);
+          if (!isNaN(val) && val >= 0) return val;
+        }
       }
     } catch (e) {}
     return 5; // default to 5%
   });
 
   const handlePixDiscountPercentChange = (newVal: number) => {
-    setPixDiscountPercent(newVal);
-    safeLocalStorageSet('ap_pdv_pix_discount', newVal.toString());
+    const clean = Number.isFinite(newVal) ? Math.max(0, Math.min(100, newVal)) : 0;
+    setPixDiscountPercent(clean);
+    safeLocalStorageSet('ap_pdv_pix_discount', clean.toString());
   };
 
   const cardTerminalsList = useMemo(() => {
@@ -589,30 +598,72 @@ export default function PDVTerminal({
     try {
       const orderId = createUniqueId('v-pdv');
       
+      const targetCents = Math.round(Number(amount) * 100);
       let itensPayload: any[] = [];
       try {
-        if (cart && cart.length > 0) {
-          itensPayload = cart.map(item => {
-            const sizeColorInfo = [item.selectedColor, item.selectedSize].filter(Boolean).join(' - ');
-            const desc = `${item.product.name}${sizeColorInfo ? ` (${sizeColorInfo})` : ''}`.trim();
-            return {
-              quantity: Math.round(Number(item.quantity)) || 1,
-              price: Math.round(Number(item.product.price) * 100), // convert unit price to cents (inteiro)
-              description: desc || 'Produto AP Moda Fitness'
-            };
-          });
+        if (cart && cart.length > 0 && payments.length === 1 && targetCents > 0) {
+          const rawItemsCents = cart.reduce((sum, item) => {
+            return sum + Math.round(Number(item.product.price) * 100) * Math.max(1, Math.round(Number(item.quantity) || 1));
+          }, 0);
+
+          if (rawItemsCents > 0) {
+            let accumulatedCents = 0;
+            cart.forEach((item, cartIdx) => {
+              const isLast = cartIdx === cart.length - 1;
+              const qty = Math.max(1, Math.round(Number(item.quantity) || 1));
+              const sizeColorInfo = [item.selectedColor, item.selectedSize].filter(Boolean).join(' - ');
+              const desc = `${item.product.name}${sizeColorInfo ? ` (${sizeColorInfo})` : ''}`.trim() || 'Produto AP Moda Fitness';
+              const lineRawCents = Math.round(Number(item.product.price) * 100) * qty;
+
+              if (!isLast) {
+                const proportionalLineCents = Math.round((lineRawCents / rawItemsCents) * targetCents);
+                const unitCents = Math.max(0, Math.floor(proportionalLineCents / qty));
+                const rem = proportionalLineCents - unitCents * qty;
+                if (rem === 0 && unitCents > 0) {
+                  itensPayload.push({ quantity: qty, price: unitCents, description: desc });
+                  accumulatedCents += proportionalLineCents;
+                } else if (qty > 1 && unitCents > 0) {
+                  itensPayload.push({ quantity: qty - 1, price: unitCents, description: desc });
+                  itensPayload.push({ quantity: 1, price: unitCents + rem, description: desc });
+                  accumulatedCents += proportionalLineCents;
+                } else if (proportionalLineCents > 0) {
+                  itensPayload.push({ quantity: 1, price: proportionalLineCents, description: qty > 1 ? `${qty}x ${desc}` : desc });
+                  accumulatedCents += proportionalLineCents;
+                }
+              } else {
+                const remainingCents = Math.max(0, targetCents - accumulatedCents);
+                if (remainingCents > 0) {
+                  if (qty === 1 || remainingCents % qty === 0) {
+                    itensPayload.push({ quantity: qty, price: Math.round(remainingCents / qty), description: desc });
+                  } else {
+                    const baseUnit = Math.floor(remainingCents / qty);
+                    const extraUnit = remainingCents - baseUnit * (qty - 1);
+                    if (baseUnit > 0) {
+                      itensPayload.push({ quantity: qty - 1, price: baseUnit, description: desc });
+                      itensPayload.push({ quantity: 1, price: extraUnit, description: desc });
+                    } else {
+                      itensPayload.push({ quantity: 1, price: remainingCents, description: `${qty}x ${desc}` });
+                    }
+                  }
+                }
+              }
+            });
+          }
         }
       } catch (mapErr) {
         console.warn('[InfinitePay POS] Erro ao varrer os itens do carrinho para o link:', mapErr);
       }
 
-      // Fallback de segurança se por algum motivo o array de itens nativo estiver vazio ou falhar
+      // Fallback exato (inclusive para pagamentos divididos ou carrinho com 100% desconto parcial)
       if (!itensPayload || itensPayload.length === 0) {
+        const itemsSummary = cart.length > 0
+          ? `Venda PDV (${cart.map(i => `${i.quantity}x ${i.product.name}`).join(', ').slice(0, 80)})`
+          : 'Venda PDV - AP Moda Fitness';
         itensPayload = [
           {
             quantity: 1,
-            price: Math.round(Number(amount) * 100), // valor estritamente em centavos
-            description: "Venda PDV - AP Moda Fitness"
+            price: Math.max(100, targetCents),
+            description: itemsSummary
           }
         ];
       }
@@ -860,14 +911,17 @@ export default function PDVTerminal({
   }, [payments]);
 
   const pdvDiscountBreakdown = useMemo(() => {
-    // 1. Commercial discounts: % + fixed value + coupon
-    let commercialDiscounts = 0;
+    const cartTotalCents = Math.round(cartTotal * 100);
+
+    // 1. Commercial discounts in exact cents: manual % + manual fixed + coupon
+    let commercialCents = 0;
     if (discountPercent > 0) {
-      commercialDiscounts += Number((cartTotal * (discountPercent / 100)).toFixed(2));
+      commercialCents += Math.round((cartTotalCents * discountPercent) / 100);
     }
     if (discountValue > 0) {
-      commercialDiscounts += Number(discountValue);
+      commercialCents += Math.round(Number(discountValue) * 100);
     }
+    let couponDiscountCents = 0;
     if (appliedCoupon) {
       const couponCalc = calculateEligibleCouponDiscount(
         {
@@ -878,83 +932,121 @@ export default function PDVTerminal({
         },
         cart
       );
-      commercialDiscounts += couponCalc.discountAmount;
+      couponDiscountCents = Math.round(couponCalc.discountAmount * 100);
+      commercialCents += couponDiscountCents;
     }
-    commercialDiscounts = Math.min(cartTotal, Number(commercialDiscounts.toFixed(2)));
-    const afterCommercial = Math.max(0, Number((cartTotal - commercialDiscounts).toFixed(2)));
+    commercialCents = Math.min(cartTotalCents, Math.max(0, commercialCents));
+    const afterCommercialCents = Math.max(0, cartTotalCents - commercialCents);
 
-    // 2. Payment-method discounts (PIX and Card, proportional in split payments)
-    let pixDiscountVal = 0;
-    if (hasPixDiscount && pixDiscountPercent > 0 && afterCommercial > 0) {
-      let pixShare = 1;
-      if (payments.length > 1) {
-        const pixAmountSum = payments
-          .filter(p => p.method === 'PIX')
-          .reduce((sum, p) => sum + Number(p.amount || 0), 0);
-        pixShare = paymentsTotalSum > 0 ? Math.min(1, pixAmountSum / paymentsTotalSum) : 0;
+    // 2. Payment-method discounts (PIX and Card) calculated stably in cents without circular loops
+    let pixDiscountCents = 0;
+    let cardDiscountCents = 0;
+
+    if (payments.length === 1) {
+      const onlyPayment = payments[0];
+      if (onlyPayment.method === 'PIX' && pixDiscountPercent > 0 && afterCommercialCents > 0) {
+        pixDiscountCents = Math.round((afterCommercialCents * pixDiscountPercent) / 100);
+      } else if (
+        (onlyPayment.method === 'Cartão de Crédito' || onlyPayment.method === 'Cartão de Débito') &&
+        onlyPayment.cardDiscountPercent &&
+        onlyPayment.cardDiscountPercent > 0 &&
+        afterCommercialCents > 0
+      ) {
+        cardDiscountCents = Math.round((afterCommercialCents * onlyPayment.cardDiscountPercent) / 100);
       }
-      pixDiscountVal = Number(((afterCommercial * pixShare) * (pixDiscountPercent / 100)).toFixed(2));
+    } else if (payments.length > 1 && afterCommercialCents > 0) {
+      // Solve analytically from each row's gross equivalent: gross = net / (1 - rate)
+      let remainingGrossCents = afterCommercialCents;
+      payments.forEach(p => {
+        const netCents = Math.max(0, Math.round(Number(p.amount || 0) * 100));
+        if (netCents <= 0 || remainingGrossCents <= 0) return;
+
+        let rate = 0;
+        let isPix = false;
+        let isCard = false;
+        if (p.method === 'PIX' && pixDiscountPercent > 0) {
+          rate = Math.min(0.99, pixDiscountPercent / 100);
+          isPix = true;
+        } else if (
+          (p.method === 'Cartão de Crédito' || p.method === 'Cartão de Débito') &&
+          p.cardDiscountPercent &&
+          p.cardDiscountPercent > 0
+        ) {
+          rate = Math.min(0.99, p.cardDiscountPercent / 100);
+          isCard = true;
+        }
+
+        const rowGrossCents = rate > 0
+          ? Math.min(remainingGrossCents, Math.round(netCents / (1 - rate)))
+          : Math.min(remainingGrossCents, netCents);
+        const rowDiscCents = rate > 0 ? Math.round(rowGrossCents * rate) : 0;
+
+        if (isPix) pixDiscountCents += rowDiscCents;
+        else if (isCard) cardDiscountCents += rowDiscCents;
+
+        remainingGrossCents = Math.max(0, remainingGrossCents - rowGrossCents);
+      });
     }
 
-    let cardDiscountsVal = 0;
-    payments.forEach(p => {
-      if ((p.method === 'Cartão de Crédito' || p.method === 'Cartão de Débito') && p.cardDiscountPercent && p.cardDiscountPercent > 0) {
-        const cardShare = payments.length === 1
-          ? 1
-          : (paymentsTotalSum > 0 ? Math.min(1, Number(p.amount || 0) / paymentsTotalSum) : 0);
-        cardDiscountsVal += Number(((afterCommercial * cardShare) * (p.cardDiscountPercent / 100)).toFixed(2));
-      }
-    });
-    cardDiscountsVal = Number(cardDiscountsVal.toFixed(2));
-
-    const maxMethodDiscount = afterCommercial;
-    if (pixDiscountVal + cardDiscountsVal > maxMethodDiscount) {
-      const scale = maxMethodDiscount / (pixDiscountVal + cardDiscountsVal || 1);
-      pixDiscountVal = Number((pixDiscountVal * scale).toFixed(2));
-      cardDiscountsVal = Number((maxMethodDiscount - pixDiscountVal).toFixed(2));
+    if (pixDiscountCents + cardDiscountCents > afterCommercialCents) {
+      const scale = afterCommercialCents / (pixDiscountCents + cardDiscountCents || 1);
+      pixDiscountCents = Math.round(pixDiscountCents * scale);
+      cardDiscountCents = Math.max(0, afterCommercialCents - pixDiscountCents);
     }
 
     // 3. Cashback applied over remaining balance
-    const afterMethodDiscounts = Math.max(0, Number((afterCommercial - pixDiscountVal - cardDiscountsVal).toFixed(2)));
-    const cashbackUsed = (useCashback && clientCashbackAvailable > 0)
-      ? Number(Math.min(clientCashbackAvailable, afterMethodDiscounts).toFixed(2))
+    const afterMethodCents = Math.max(0, afterCommercialCents - pixDiscountCents - cardDiscountCents);
+    const cashbackAvailCents = Math.max(0, Math.round(clientCashbackAvailable * 100));
+    const cashbackUsedCents = (useCashback && cashbackAvailCents > 0)
+      ? Math.min(cashbackAvailCents, afterMethodCents)
       : 0;
 
-    const totalDiscountsVal = Math.min(
-      cartTotal,
-      Number((commercialDiscounts + pixDiscountVal + cardDiscountsVal + cashbackUsed).toFixed(2))
+    const totalDiscountsCents = Math.min(
+      cartTotalCents,
+      commercialCents + pixDiscountCents + cardDiscountCents + cashbackUsedCents
     );
 
     return {
-      commercialDiscounts,
-      pixDiscountVal,
-      cardDiscountsVal,
-      cashbackUsed,
-      totalDiscountsVal
+      commercialDiscounts: Number((commercialCents / 100).toFixed(2)),
+      couponDiscountVal: Number((couponDiscountCents / 100).toFixed(2)),
+      pixDiscountVal: Number((pixDiscountCents / 100).toFixed(2)),
+      cardDiscountsVal: Number((cardDiscountCents / 100).toFixed(2)),
+      cashbackUsed: Number((cashbackUsedCents / 100).toFixed(2)),
+      totalDiscountsVal: Number((totalDiscountsCents / 100).toFixed(2))
     };
-  }, [cart, cartTotal, discountPercent, discountValue, appliedCoupon, hasPixDiscount, pixDiscountPercent, useCashback, clientCashbackAvailable, payments, paymentsTotalSum]);
+  }, [cart, cartTotal, discountPercent, discountValue, appliedCoupon, pixDiscountPercent, useCashback, clientCashbackAvailable, payments]);
 
   const totalDiscounts = pdvDiscountBreakdown.totalDiscountsVal;
 
   const finalCartTotal = useMemo(() => {
-    return Math.max(0, Number((cartTotal - totalDiscounts).toFixed(2)));
+    const cents = Math.max(0, Math.round(cartTotal * 100) - Math.round(totalDiscounts * 100));
+    return Number((cents / 100).toFixed(2));
   }, [cartTotal, totalDiscounts]);
 
   React.useEffect(() => {
     setPayments(prev => {
       if (prev.length !== 1) return prev;
       const nextAmt = Number(finalCartTotal.toFixed(2));
-      if (Math.abs((prev[0].amount || 0) - nextAmt) < 0.005) return prev;
-      const row = { ...prev[0], amount: nextAmt };
-      if ((row.method === 'Cartão de Crédito' || row.method === 'Cartão de Débito') && row.cardFeePercent !== undefined) {
-        const billed = row.amount - (row.amount * (row.cardDiscountPercent || 0) / 100);
-        row.netAmount = Number((billed - (billed * row.cardFeePercent / 100)).toFixed(2));
-      } else if (row.method === 'Dinheiro') {
-        const recv = row.receivedCash !== undefined && row.receivedCash > nextAmt ? row.receivedCash : nextAmt;
-        row.receivedCash = recv;
-        row.changeAmount = Math.max(0, Number((recv - nextAmt).toFixed(2)));
+      const row = prev[0];
+      const isCard = row.method === 'Cartão de Crédito' || row.method === 'Cartão de Débito';
+      const expectedNet = isCard && row.cardFeePercent !== undefined
+        ? Number((nextAmt - (nextAmt * row.cardFeePercent / 100)).toFixed(2))
+        : row.netAmount;
+
+      if (Math.abs((row.amount || 0) - nextAmt) < 0.005 && (!isCard || expectedNet === row.netAmount)) {
+        return prev;
       }
-      return [row];
+
+      const nextRow = { ...row, amount: nextAmt };
+      if (isCard && nextRow.cardFeePercent !== undefined) {
+        // nextAmt já está com o desconto comercial/maquininha aplicado; aplica apenas a taxa da maquininha
+        nextRow.netAmount = Number((nextAmt - (nextAmt * nextRow.cardFeePercent / 100)).toFixed(2));
+      } else if (nextRow.method === 'Dinheiro') {
+        const recv = nextRow.receivedCash !== undefined && nextRow.receivedCash > nextAmt ? nextRow.receivedCash : nextAmt;
+        nextRow.receivedCash = recv;
+        nextRow.changeAmount = Math.max(0, Number((recv - nextAmt).toFixed(2)));
+      }
+      return [nextRow];
     });
   }, [finalCartTotal, payments.length]);
 
@@ -1023,9 +1115,9 @@ export default function PDVTerminal({
             
             updated.cardFeePercent = feePercent;
             updated.cardDiscountPercent = discPercent;
-            
-            const billedAmount = updated.amount - (updated.amount * discPercent / 100);
-            updated.netAmount = Number((billedAmount - (billedAmount * feePercent / 100)).toFixed(2));
+
+            // updated.amount já reflete o valor cobrado na maquininha; desconta apenas a taxa
+            updated.netAmount = Number((updated.amount - (updated.amount * feePercent / 100)).toFixed(2));
             
             // Clean up Cash fields if changing from cash to card
             delete updated.receivedCash;
@@ -1080,10 +1172,9 @@ export default function PDVTerminal({
             }
             
             const activeRate = rate !== undefined ? rate : 0;
-            const activeDiscountRate = discountRate !== undefined ? discountRate : 0;
-            
-            const billedAmount = updated.amount - (updated.amount * activeDiscountRate / 100);
-            updated.netAmount = Number((billedAmount - (billedAmount * activeRate / 100)).toFixed(2));
+
+            // updated.amount já representa o valor final cobrado no cartão (sem dupla dedução de cardDiscountPercent)
+            updated.netAmount = Number((updated.amount - (updated.amount * activeRate / 100)).toFixed(2));
           } else if (updated.method === 'Dinheiro') {
             const recv = updated.receivedCash !== undefined ? updated.receivedCash : updated.amount;
             updated.receivedCash = recv;
@@ -1101,15 +1192,34 @@ export default function PDVTerminal({
 
   const autoBalancePayments = () => {
     if (payments.length === 0) return;
-    const sumExceptLast = payments.slice(0, -1).reduce((sum, p) => sum + Number(p.amount || 0), 0);
-    const target = Number(Math.max(0, finalCartTotal - sumExceptLast).toFixed(2));
+    const afterCommercialAndCashback = Math.max(0, cartTotal - pdvDiscountBreakdown.commercialDiscounts - pdvDiscountBreakdown.cashbackUsed);
+    const otherRows = payments.slice(0, -1);
+    let otherGrossSum = 0;
+    otherRows.forEach(r => {
+      let rate = 0;
+      if (r.method === 'PIX' && pixDiscountPercent > 0) rate = Math.min(0.99, pixDiscountPercent / 100);
+      else if ((r.method === 'Cartão de Crédito' || r.method === 'Cartão de Débito') && r.cardDiscountPercent && r.cardDiscountPercent > 0) {
+        rate = Math.min(0.99, r.cardDiscountPercent / 100);
+      }
+      otherGrossSum += rate > 0 ? (Number(r.amount || 0) / (1 - rate)) : Number(r.amount || 0);
+    });
+
+    const lastRow = payments[payments.length - 1];
+    let lastRate = 0;
+    if (lastRow.method === 'PIX' && pixDiscountPercent > 0) lastRate = Math.min(0.99, pixDiscountPercent / 100);
+    else if ((lastRow.method === 'Cartão de Crédito' || lastRow.method === 'Cartão de Débito') && lastRow.cardDiscountPercent && lastRow.cardDiscountPercent > 0) {
+      lastRate = Math.min(0.99, lastRow.cardDiscountPercent / 100);
+    }
+
+    const remainingGross = Math.max(0, afterCommercialAndCashback - otherGrossSum);
+    const target = Number((remainingGross * (1 - lastRate)).toFixed(2));
+
     setPayments(prev => {
       const updated = prev.map((row, idx) => {
         if (idx !== prev.length - 1) return row;
         const nextRow = { ...row, amount: target };
         if ((nextRow.method === 'Cartão de Crédito' || nextRow.method === 'Cartão de Débito') && nextRow.cardFeePercent !== undefined) {
-          const billed = nextRow.amount - (nextRow.amount * (nextRow.cardDiscountPercent || 0) / 100);
-          nextRow.netAmount = Number((billed - (billed * nextRow.cardFeePercent / 100)).toFixed(2));
+          nextRow.netAmount = Number((nextRow.amount - (nextRow.amount * nextRow.cardFeePercent / 100)).toFixed(2));
         } else if (nextRow.method === 'Dinheiro') {
           const recv = nextRow.receivedCash !== undefined && nextRow.receivedCash > target ? nextRow.receivedCash : target;
           nextRow.receivedCash = recv;
@@ -1143,12 +1253,17 @@ export default function PDVTerminal({
       return;
     }
 
+    const cleanQuickCpf = quickCpf.trim().replace(/\D/g, '');
+    const cleanQuickPhone = quickPhone.trim().replace(/\D/g, '');
+    const cleanQuickEmail = quickEmail.trim().toLowerCase();
     const exists = clients.find(c => 
-      c.name.toLowerCase() === selectedClientName.trim().toLowerCase() ||
-      (quickCpf.trim() && c.cpf && c.cpf.replace(/\D/g, '') === quickCpf.trim().replace(/\D/g, ''))
+      (cleanQuickCpf.length === 11 && c.cpf && c.cpf.replace(/\D/g, '') === cleanQuickCpf) ||
+      (cleanQuickPhone.length >= 8 && (c.phone || c.whatsapp || '').replace(/\D/g, '') === cleanQuickPhone) ||
+      (cleanQuickEmail.length > 0 && (c.email || '').trim().toLowerCase() === cleanQuickEmail)
     );
     if (exists) {
-      showToast(`A cliente "${selectedClientName}" ou o CPF informado já consta no sistema.`, 'info');
+      showToast(`Cliente já cadastrado no sistema (${exists.name}). Selecionado automaticamente!`, 'info');
+      setSelectedClientName(exists.name);
       setIsQuickAddOpen(false);
       return;
     }
@@ -1328,24 +1443,33 @@ export default function PDVTerminal({
       selectedSize: item.selectedSize
     }));
 
-    // Find custom or existing client (by name or CPF)
+    // Find custom or existing client safely (CPF, Phone, or unique non-anonymous name — never create CRM entry for anonymous "Cliente Avulso")
     let finalClientName = selectedClientName.trim() || 'Cliente Avulso';
-    let clientExists = clients.find(c => 
-      c.name.toLowerCase() === finalClientName.toLowerCase() ||
-      (c.cpf && c.cpf.replace(/\D/g, '') === finalClientName.replace(/\D/g, ''))
+    const isAnonymousWalkIn = finalClientName.toLowerCase() === 'cliente avulso';
+    const cleanedInputDigits = finalClientName.replace(/\D/g, '');
+    const clientExists = isAnonymousWalkIn ? undefined : clients.find(c =>
+      (cleanedInputDigits.length === 11 && c.cpf && c.cpf.replace(/\D/g, '') === cleanedInputDigits) ||
+      (cleanedInputDigits.length >= 8 && (c.phone || c.whatsapp || '').replace(/\D/g, '') === cleanedInputDigits) ||
+      c.name.toLowerCase() === finalClientName.toLowerCase()
     );
 
     const cashbackRate = (() => {
       try {
         const saved = localStorage.getItem('ap_moda_cashback_rate');
-        return saved ? parseFloat(saved) : 5;
+        const parsed = saved ? parseFloat(saved) : 5;
+        return Number.isFinite(parsed) ? parsed : 5;
       } catch (e) {
         return 5;
       }
     })();
 
+    let linkedClientId: string | undefined;
+    let linkedClientDoc: string | undefined;
+
     if (clientExists) {
       finalClientName = clientExists.name;
+      linkedClientId = clientExists.id;
+      linkedClientDoc = clientExists.cpf || undefined;
       // deduct used cashback and add earned cashback WITHOUT mutating totalSpent/ordersCount (handled in App.handleAddSale)
       let currentCashback = clientExists.cashbackBalance || 0;
       if (useCashback && currentCashback > 0) {
@@ -1358,20 +1482,21 @@ export default function PDVTerminal({
       if (onUpdateClients) {
         onUpdateClients(
           clients.map(c =>
-            c.id === clientExists!.id ? { ...c, cashbackBalance: nextCashbackBalance } : c
+            c.id === clientExists.id ? { ...c, cashbackBalance: nextCashbackBalance } : c
           )
         );
       }
-    } else {
-      // Create client inline with zeroed stats so App.handleAddSale increments totalSpent and ordersCount once cleanly
+    } else if (!isAnonymousWalkIn) {
       const isCpfText = /^\d[\d.\-/]+$/.test(finalClientName);
       const cashbackEarned = finalCartTotal * (cashbackRate / 100);
+      const newClientId = createUniqueId('cli');
+      const resolvedCpf = isCpfText ? finalClientName : (quickCpf.trim() || undefined);
       const newClient: Client = {
-        id: `cli-${Date.now()}`,
+        id: newClientId,
         name: isCpfText ? `Cliente CPF ${finalClientName}` : finalClientName,
-        email: '',
-        phone: '',
-        cpf: isCpfText ? finalClientName : undefined,
+        email: quickEmail.trim() || '',
+        phone: quickPhone.trim() || '',
+        cpf: resolvedCpf,
         channel: selectedChannel,
         npsScore: npsScore,
         totalSpent: 0,
@@ -1381,6 +1506,8 @@ export default function PDVTerminal({
       };
       onAddClient(newClient);
       finalClientName = newClient.name;
+      linkedClientId = newClientId;
+      linkedClientDoc = resolvedCpf;
     }
 
     const isCorreios = deliveryMethod === 'correios_pac' || deliveryMethod === 'correios_sedex';
@@ -1406,10 +1533,13 @@ export default function PDVTerminal({
     }
     const partnerNameForSale = appliedCoupon?.partnerName || partnerForSale?.name || undefined;
     const partnerIdForSale = appliedCoupon?.partnerId || partnerForSale?.id || undefined;
+    const partnerCommRate = partnerForSale?.commissionRate || 10;
 
     const newSale: Sale = {
       id: createUniqueId('v-pdv'),
+      clientId: linkedClientId,
       clientName: finalClientName,
+      clientDoc: linkedClientDoc,
       channel: selectedChannel,
       items: saleItems,
       total: finalCartTotal,
@@ -1428,6 +1558,11 @@ export default function PDVTerminal({
       partnerName: partnerNameForSale,
       partnerId: partnerIdForSale,
       partner: partnerNameForSale,
+      commissionRate: (partnerNameForSale || partnerIdForSale) ? partnerCommRate : undefined,
+      commissionAmount: (partnerNameForSale || partnerIdForSale) ? Number(((finalCartTotal * partnerCommRate) / 100).toFixed(2)) : undefined,
+      pixDiscount: pdvDiscountBreakdown.pixDiscountVal,
+      couponDiscount: pdvDiscountBreakdown.couponDiscountVal,
+      cashbackDiscount: pdvDiscountBreakdown.cashbackUsed,
       notes: activeCouponCode ? `Cupom: ${activeCouponCode}${partnerNameForSale ? ` | Parceira: ${partnerNameForSale}` : ''}` : undefined
     };
 
@@ -2403,7 +2538,7 @@ export default function PDVTerminal({
                 </div>
                 {appliedCoupon && (
                   <div className="flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded p-1 text-[10px] text-emerald-700 font-medium">
-                    <span>Cupom <strong>{appliedCoupon.code}</strong> ativo (-{appliedCoupon.percent}%)</span>
+                    <span>Cupom <strong>{appliedCoupon.code}</strong> ativo ({appliedCoupon.percent > 0 ? `-${appliedCoupon.percent}%` : `-${formatCurrency(appliedCoupon.fixedValue || 0)}`})</span>
                     <button 
                       type="button" 
                       onClick={() => setAppliedCoupon(null)}

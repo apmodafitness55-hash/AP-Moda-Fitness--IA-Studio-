@@ -990,14 +990,14 @@ function resolveSupabaseCredentials() {
   return { url: matchedUrl, key: matchedKey };
 }
 
-async function checkSupabaseHealth(url: string, key: string): Promise<boolean> {
+async function checkSupabaseHealth(url: string, key: string, timeoutMs: number = 5000): Promise<boolean> {
   if (!url || !url.startsWith('http') || !key || key.startsWith('MY_')) {
     return false;
   }
   currentConfigUrl = url;
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     const response = await fetch(`${url}/rest/v1/ap_products?select=id&limit=1`, {
       headers: {
         'apikey': key,
@@ -1075,6 +1075,21 @@ const PORT = resolveServerPort();
 // Set high body payload limit for base64 image uploads
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+let initialHealthCheckPromise: Promise<boolean> | null = null;
+
+app.get('/api/health', (_req, res) => {
+  res.status(200).json({ ok: true, port: PORT, uptimeSec: Math.round(process.uptime()) });
+});
+
+app.use('/api/proxy', async (_req, _res, next) => {
+  if (initialHealthCheckPromise) {
+    try {
+      await initialHealthCheckPromise;
+    } catch {}
+  }
+  next();
+});
 
 // Dynamic DB configuration endpoints to bridge the communication gap between frontend settings and backend server
 app.get('/api/get-db-config', (req, res) => {
@@ -2651,6 +2666,85 @@ async function sanitizeClients(clients: any[]) {
   return clients.filter(c => !isMock(c));
 }
 
+async function getExtendedMetadataMap(configKey: 'ap_sales_metadata_ext' | 'ap_orders_metadata_ext'): Promise<Record<string, any>> {
+  try {
+    const db = getFirebaseServerDb();
+    const { data } = await db.from('ap_system_configs').select('value').eq('key', configKey).limit(1);
+    if (data && data.length > 0 && data[0].value) {
+      const parsed = typeof data[0].value === 'string' ? JSON.parse(data[0].value) : data[0].value;
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
+  } catch {}
+  try {
+    const local = readLocalDb();
+    const row = Array.isArray(local.ap_system_configs) ? local.ap_system_configs.find((c: any) => c && c.key === configKey) : null;
+    if (row && row.value) {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
+  } catch {}
+  return {};
+}
+
+async function saveExtendedMetadataEntries(
+  configKey: 'ap_sales_metadata_ext' | 'ap_orders_metadata_ext',
+  items: any[],
+  fields: string[]
+) {
+  try {
+    if (!Array.isArray(items) || items.length === 0) return;
+    const existingMap = await getExtendedMetadataMap(configKey);
+    let dirty = false;
+
+    for (const item of items) {
+      if (!item || !item.id) continue;
+      const id = String(item.id);
+      const entry: Record<string, any> = { ...(existingMap[id] || {}) };
+      let hasAnyField = false;
+
+      for (const f of fields) {
+        if (item[f] !== undefined && item[f] !== null && item[f] !== '') {
+          if (entry[f] !== item[f]) {
+            entry[f] = item[f];
+            dirty = true;
+          }
+          hasAnyField = true;
+        }
+      }
+
+      if (hasAnyField) {
+        existingMap[id] = entry;
+      }
+    }
+
+    if (!dirty) return;
+
+    // Keep latest 1500 entries so metadata config never grows unbounded
+    const keys = Object.keys(existingMap);
+    if (keys.length > 1500) {
+      keys.slice(0, keys.length - 1500).forEach(k => delete existingMap[k]);
+    }
+
+    const serialized = JSON.stringify(existingMap);
+    const db = getFirebaseServerDb();
+    await db.from('ap_system_configs').upsert({
+      key: configKey,
+      value: serialized,
+      updatedAt: new Date().toISOString()
+    }, { onConflict: 'key' });
+
+    const local = readLocalDb();
+    if (!Array.isArray(local.ap_system_configs)) local.ap_system_configs = [];
+    const idx = local.ap_system_configs.findIndex((c: any) => c && c.key === configKey);
+    const cfgObj = { key: configKey, value: serialized, updatedAt: new Date().toISOString() };
+    if (idx >= 0) local.ap_system_configs[idx] = cfgObj;
+    else local.ap_system_configs.push(cfgObj);
+    writeLocalDb(local);
+  } catch (err) {
+    console.warn(`[Extended Metadata Save Warn ${configKey}]:`, err);
+  }
+}
+
 async function sanitizeSales(sales: any[]) {
   const isMock = (s: any) => {
     const id = String(s.id || '').toLowerCase().trim();
@@ -2699,11 +2793,13 @@ async function sanitizeSales(sales: any[]) {
       .filter((x: any) => x && x.id)
       .map((x: any) => [String(x.id), x])
   );
+  const extSalesMeta = await getExtendedMetadataMap('ap_sales_metadata_ext');
 
   return sales
     .filter(s => !isMock(s))
     .map(s => {
       const existingLocal = localSalesById.get(String(s.id));
+      const extMeta = extSalesMeta[String(s.id)] || {};
       const preservedDate =
         s.createdAt ||
         s.created_at ||
@@ -2713,12 +2809,28 @@ async function sanitizeSales(sales: any[]) {
         existingLocal?.date ||
         '2026-01-01T12:00:00.000Z';
       return {
+        ...extMeta,
         ...s,
         status: normalizeSaleStatus(s.status),
+        clientId: s.clientId || s.client_id || existingLocal?.clientId || extMeta.clientId || undefined,
         clientName: s.clientName || s.client_name || existingLocal?.clientName || 'Cliente',
-        clientDoc: s.clientDoc || s.client_doc || existingLocal?.clientDoc || '',
+        clientDoc: s.clientDoc || s.client_doc || existingLocal?.clientDoc || extMeta.clientDoc || '',
         costTotal: Number(s.costTotal ?? s.cost_total ?? existingLocal?.costTotal ?? 0),
         total: Number(s.total ?? existingLocal?.total ?? 0),
+        deliveryFee: s.deliveryFee !== undefined ? Number(s.deliveryFee) : (existingLocal?.deliveryFee ?? extMeta.deliveryFee),
+        couponCode: s.couponCode || existingLocal?.couponCode || extMeta.couponCode || undefined,
+        coupon: s.coupon || existingLocal?.coupon || extMeta.coupon || undefined,
+        partnerCoupon: s.partnerCoupon || existingLocal?.partnerCoupon || extMeta.partnerCoupon || undefined,
+        partnerName: s.partnerName || existingLocal?.partnerName || extMeta.partnerName || undefined,
+        partnerId: s.partnerId || existingLocal?.partnerId || extMeta.partnerId || undefined,
+        partner: s.partner || existingLocal?.partner || extMeta.partner || undefined,
+        commissionRate: s.commissionRate ?? existingLocal?.commissionRate ?? extMeta.commissionRate,
+        commissionAmount: s.commissionAmount ?? existingLocal?.commissionAmount ?? extMeta.commissionAmount,
+        pixDiscount: s.pixDiscount ?? existingLocal?.pixDiscount ?? extMeta.pixDiscount,
+        vipDiscount: s.vipDiscount ?? existingLocal?.vipDiscount ?? extMeta.vipDiscount,
+        couponDiscount: s.couponDiscount ?? existingLocal?.couponDiscount ?? extMeta.couponDiscount,
+        cashbackDiscount: s.cashbackDiscount ?? existingLocal?.cashbackDiscount ?? extMeta.cashbackDiscount,
+        notes: s.notes || existingLocal?.notes || extMeta.notes || undefined,
         createdAt: preservedDate,
         items: parseJsonArray(s.items).length > 0 ? parseJsonArray(s.items) : (existingLocal?.items || []),
         payments: parseJsonArray(s.payments).length > 0 ? parseJsonArray(s.payments) : (existingLocal?.payments || [])
@@ -2809,16 +2921,41 @@ async function sanitizeOnlineOrders(orders: any[]) {
       .filter((x: any) => x && x.id)
       .map((x: any) => [String(x.id), x])
   );
+  const extOrdersMeta = await getExtendedMetadataMap('ap_orders_metadata_ext');
 
   return orders
     .filter(o => !isMock(o))
     .map(o => {
       const existingLocal = localOrdersById.get(String(o.id));
+      const extMeta = extOrdersMeta[String(o.id)] || {};
       return {
+        ...extMeta,
         ...o,
+        clientId: o.clientId || o.client_id || existingLocal?.clientId || extMeta.clientId || undefined,
         clientName: o.clientName || o.clientname || o.client_name || existingLocal?.clientName || 'Cliente Online',
+        cpf: o.cpf || existingLocal?.cpf || extMeta.cpf || undefined,
         total: Number(o.total ?? existingLocal?.total ?? 0),
-        deliveryFee: o.deliveryFee !== undefined ? Number(o.deliveryFee) : (o.delivery_fee !== undefined ? Number(o.delivery_fee) : existingLocal?.deliveryFee),
+        deliveryFee: o.deliveryFee !== undefined ? Number(o.deliveryFee) : (o.delivery_fee !== undefined ? Number(o.delivery_fee) : (existingLocal?.deliveryFee ?? extMeta.deliveryFee)),
+        deliveryMethod: o.deliveryMethod || o.delivery_method || existingLocal?.deliveryMethod || extMeta.deliveryMethod || undefined,
+        trackingCode: o.trackingCode || o.tracking_code || existingLocal?.trackingCode || extMeta.trackingCode || undefined,
+        motoboy: o.motoboy || existingLocal?.motoboy || extMeta.motoboy || undefined,
+        receiverName: o.receiverName || existingLocal?.receiverName || extMeta.receiverName || undefined,
+        receiverDoc: o.receiverDoc || existingLocal?.receiverDoc || extMeta.receiverDoc || undefined,
+        deliverySignature: o.deliverySignature || existingLocal?.deliverySignature || extMeta.deliverySignature || undefined,
+        deliveredAt: o.deliveredAt || existingLocal?.deliveredAt || extMeta.deliveredAt || undefined,
+        couponCode: o.couponCode || existingLocal?.couponCode || extMeta.couponCode || undefined,
+        coupon: o.coupon || existingLocal?.coupon || extMeta.coupon || undefined,
+        partnerCoupon: o.partnerCoupon || existingLocal?.partnerCoupon || extMeta.partnerCoupon || undefined,
+        partnerName: o.partnerName || existingLocal?.partnerName || extMeta.partnerName || undefined,
+        partnerId: o.partnerId || existingLocal?.partnerId || extMeta.partnerId || undefined,
+        partner: o.partner || existingLocal?.partner || extMeta.partner || undefined,
+        commissionRate: o.commissionRate ?? existingLocal?.commissionRate ?? extMeta.commissionRate,
+        commissionAmount: o.commissionAmount ?? existingLocal?.commissionAmount ?? extMeta.commissionAmount,
+        pixDiscount: o.pixDiscount ?? existingLocal?.pixDiscount ?? extMeta.pixDiscount,
+        vipDiscount: o.vipDiscount ?? existingLocal?.vipDiscount ?? extMeta.vipDiscount,
+        couponDiscount: o.couponDiscount ?? existingLocal?.couponDiscount ?? extMeta.couponDiscount,
+        cashbackDiscount: o.cashbackDiscount ?? existingLocal?.cashbackDiscount ?? extMeta.cashbackDiscount,
+        notes: o.notes || existingLocal?.notes || extMeta.notes || undefined,
         createdAt: o.createdAt || o.createdat || o.created_at || o.date || existingLocal?.createdAt || '2026-01-01T12:00:00.000Z',
         paymentMethod: o.paymentMethod || o.paymentmethod || o.payment_method || existingLocal?.paymentMethod || 'pix',
         items: parseJsonArray(o.items).length > 0 ? parseJsonArray(o.items) : (existingLocal?.items || [])
@@ -3086,18 +3223,44 @@ app.post('/api/proxy/clients', async (req, res) => {
     const rawPayloads = req.body;
     const payloads = Array.isArray(rawPayloads) ? rawPayloads : [rawPayloads];
 
-    // Fetch existing clients matching the incoming CPFs or emails to resolve any conflicts (max 20)
+    // Fetch existing clients matching incoming ids, CPFs, emails, or phones to resolve any conflicts cleanly
+    const ids = payloads.map((p: any) => p.id).filter(Boolean);
     const cpfs = payloads.map((p: any) => (p.cpf || '').replace(/\D/g, '')).filter(Boolean);
+    const rawCpfs = payloads.map((p: any) => (p.cpf || '').trim()).filter(Boolean);
     const emails = payloads.map((p: any) => (p.email || '').trim().toLowerCase()).filter(Boolean);
+    const phones = payloads.map((p: any) => (p.phone || '').replace(/\D/g, '')).filter(Boolean);
+    const rawPhones = payloads.map((p: any) => (p.phone || '').trim()).filter(Boolean);
     let existingList: any[] = [];
-    if (cpfs.length > 0 || emails.length > 0) {
+    if (ids.length > 0 || cpfs.length > 0 || emails.length > 0 || phones.length > 0) {
       const orParts: string[] = [];
-      cpfs.forEach(cpf => orParts.push(`cpf.eq.${cpf}`));
-      emails.forEach(email => orParts.push(`email.eq.${email}`));
+      ids.slice(0, 15).forEach(id => orParts.push(`id.eq.${id}`));
+      Array.from(new Set([...cpfs, ...rawCpfs])).slice(0, 15).forEach(cpf => orParts.push(`cpf.eq.${cpf}`));
+      emails.slice(0, 15).forEach(email => orParts.push(`email.eq.${email}`));
+      Array.from(new Set([...phones, ...rawPhones])).slice(0, 15).forEach(ph => orParts.push(`phone.eq.${ph}`));
       if (orParts.length > 0) {
-        const { data } = await db.from('ap_clients').select('*').or(orParts.join(',')).limit(20);
+        const { data } = await db.from('ap_clients').select('*').or(orParts.join(',')).limit(50);
         if (data) existingList = data;
       }
+      // Also merge local DB clients for digits-only phone normalization fallback
+      try {
+        const local = readLocalDb();
+        if (Array.isArray(local.ap_clients)) {
+          for (const lc of local.ap_clients) {
+            if (!lc || !lc.id) continue;
+            const lcCpf = (lc.cpf || '').replace(/\D/g, '');
+            const lcPhone = (lc.phone || lc.whatsapp || '').replace(/\D/g, '');
+            const lcEmail = (lc.email || '').trim().toLowerCase();
+            if (
+              ids.includes(lc.id) ||
+              (lcCpf && cpfs.includes(lcCpf)) ||
+              (lcEmail && emails.includes(lcEmail)) ||
+              (lcPhone && phones.includes(lcPhone))
+            ) {
+              if (!existingList.some(e => e.id === lc.id)) existingList.push(lc);
+            }
+          }
+        }
+      } catch {}
     }
 
     // Map to keep track of consolidated clients
@@ -3107,18 +3270,19 @@ app.post('/api/proxy/clients', async (req, res) => {
       if (!client || !client.id) continue;
 
       const cleanCpf = (client.cpf || '').replace(/\D/g, '');
-      const cleanPhone = (client.phone || '').replace(/\D/g, '');
+      const cleanPhone = (client.phone || client.whatsapp || '').replace(/\D/g, '');
       const cleanEmail = (client.email || '').trim().toLowerCase();
 
-      // Find any duplicate in already consolidated map or existing DB
+      // Match strictly by ID, CPF, Email, or Phone — NEVER merge strangers by name alone
       let existingDuplicate = existingList.find(c => {
+        if (c.id === client.id) return true;
         const cCpf = (c.cpf || '').replace(/\D/g, '');
-        const cPhone = (c.phone || '').replace(/\D/g, '');
+        const cPhone = (c.phone || c.whatsapp || '').replace(/\D/g, '');
         const cEmail = (c.email || '').trim().toLowerCase();
         return (
           (cleanCpf && cCpf === cleanCpf) ||
           (cleanEmail && cEmail === cleanEmail) ||
-          (cleanPhone && cPhone === cleanPhone)
+          (cleanPhone && cleanPhone.length >= 8 && cPhone === cleanPhone)
         );
       });
 
@@ -3129,23 +3293,30 @@ app.post('/api/proxy/clients', async (req, res) => {
         .filter(Boolean);
 
       if (existingDuplicate) {
-        // Consolidate the client data into the existing client's ID
         const existingWishlist = (existingDuplicate.wishlist || '')
           .split(',')
           .map((s: string) => s.trim())
           .filter(Boolean);
         const mergedWishlist = Array.from(new Set([...existingWishlist, ...clientWishlist])).join(',');
 
+        const isSameRecord = existingDuplicate.id === client.id;
+        const nextCashback = client.cashbackBalance !== undefined
+          ? Number(client.cashbackBalance)
+          : Number(existingDuplicate.cashbackBalance || 0);
+
         const consolidated = {
           ...existingDuplicate,
           ...client,
-          id: existingDuplicate.id, // KEEP the older client's ID to prevent duplicates!
+          id: existingDuplicate.id,
           wishlist: mergedWishlist,
           password: client.password || existingDuplicate.password,
-          // Sum or choose max metrics if applicable
-          totalSpent: Math.max(Number(client.totalSpent || 0), Number(existingDuplicate.totalSpent || 0)),
-          ordersCount: Math.max(Number(client.ordersCount || 0), Number(existingDuplicate.ordersCount || 0)),
-          cashbackBalance: Math.max(Number(client.cashbackBalance || 0), Number(existingDuplicate.cashbackBalance || 0))
+          totalSpent: isSameRecord
+            ? Number(client.totalSpent ?? existingDuplicate.totalSpent ?? 0)
+            : Math.max(Number(client.totalSpent || 0), Number(existingDuplicate.totalSpent || 0)),
+          ordersCount: isSameRecord
+            ? Number(client.ordersCount ?? existingDuplicate.ordersCount ?? 0)
+            : Math.max(Number(client.ordersCount || 0), Number(existingDuplicate.ordersCount || 0)),
+          cashbackBalance: Number(Math.max(0, nextCashback).toFixed(2))
         };
         consolidatedMap.set(existingDuplicate.id, consolidated);
       } else {
@@ -3286,6 +3457,12 @@ app.post('/api/proxy/sales', async (req, res) => {
       const { error } = await db.from('ap_sales').upsert(payloads, { onConflict: 'id' });
       if (error) console.warn('[Proxy Sales POST Supabase]', error.message);
     }
+
+    await saveExtendedMetadataEntries('ap_sales_metadata_ext', raw, [
+      'clientId', 'clientDoc', 'deliveryFee', 'couponCode', 'coupon', 'partnerCoupon',
+      'partnerName', 'partnerId', 'partner', 'commissionRate', 'commissionAmount',
+      'pixDiscount', 'vipDiscount', 'couponDiscount', 'cashbackDiscount', 'notes'
+    ]);
 
     for (const item of raw) {
       if (item && item.id) {
@@ -3639,6 +3816,14 @@ app.post(['/api/proxy/online-orders', '/api/proxy/online_orders'], async (req, r
 
     const { error } = await db.from('ap_online_orders').upsert(payloads, { onConflict: 'id' });
     if (error) console.warn('[Proxy Online Orders POST Supabase]', error.message);
+
+    await saveExtendedMetadataEntries('ap_orders_metadata_ext', raw, [
+      'clientId', 'cpf', 'deliveryFee', 'deliveryMethod', 'trackingCode', 'motoboy',
+      'receiverName', 'receiverDoc', 'deliverySignature', 'deliveredAt',
+      'couponCode', 'coupon', 'partnerCoupon', 'partnerName', 'partnerId', 'partner',
+      'commissionRate', 'commissionAmount', 'pixDiscount', 'vipDiscount',
+      'couponDiscount', 'cashbackDiscount', 'notes'
+    ]);
 
     // Broadcast new order immediately to all active store devices via SSE
     for (const item of raw) {
@@ -7531,7 +7716,7 @@ async function startServer() {
 
   if (!isProd) {
     const vitePromise = createViteServer({
-      server: { middlewareMode: true, hmr: false, watch: null },
+      server: { middlewareMode: true, hmr: false, ws: false, watch: null },
       appType: 'spa',
     }).then((vite) => {
       console.log('Vite middleware mounted for development.');
@@ -7568,16 +7753,28 @@ async function startServer() {
     console.log('Production static files mounted from dist with cache-control headers.');
   }
 
-  // Check Supabase health before serving requests so offline fallback engages immediately without transient fetch errors
+  // Start Supabase health check in parallel so port binding is never delayed on slow networks,
+  // while /api/proxy waits for initialHealthCheckPromise before hitting Supabase.
   const { url, key } = resolveSupabaseCredentials();
   if (url && key) {
-    isSupabaseVerifiedHealthy = await checkSupabaseHealth(url, key);
+    initialHealthCheckPromise = checkSupabaseHealth(url, key, 2500).then((healthy) => {
+      isSupabaseVerifiedHealthy = healthy;
+      return healthy;
+    }).catch(() => {
+      isSupabaseVerifiedHealthy = false;
+      return false;
+    });
   } else {
     isSupabaseVerifiedHealthy = false;
+    initialHealthCheckPromise = Promise.resolve(false);
   }
 
   app.listen(PORT, '0.0.0.0', async () => {
     console.log(`Express custom server running at http://0.0.0.0:${PORT}`);
+
+    if (initialHealthCheckPromise) {
+      await initialHealthCheckPromise;
+    }
     console.log(`[Supabase Server Boot] Status de saúde inicial: ${isSupabaseVerifiedHealthy ? 'SAUDÁVEL' : 'BANCO LOCAL PERSISTENTE ATIVO'}`);
 
     // Pre-warm image CDN cache asynchronously

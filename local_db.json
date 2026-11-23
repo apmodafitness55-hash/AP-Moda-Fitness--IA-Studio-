@@ -79,7 +79,7 @@
       "category": "Blusa Dry-Fit",
       "price": 33.9,
       "cost": 18,
-      "stock": 27,
+      "stock": 28,
       "minStock": 5,
       "image": "https://i.ibb.co/wFq85JLW/1000536691.jpg",
       "images": [
@@ -108,10 +108,10 @@
       "sizeColors": {},
       "colorStocks": {
         "Vermelho": 3,
-        "Verde": 7,
-        "Fucsia": 5,
+        "Verde": 8,
+        "Fucsia": 4,
         "Marrom": 3,
-        "Preto": 4,
+        "Preto": 5,
         "Lilás": 5
       },
       "sizeColorStocks": {
@@ -125,10 +125,10 @@
         },
         "M": {
           "Vermelho": 3,
-          "Verde": 3,
-          "Fucsia": 4,
+          "Verde": 4,
+          "Fucsia": 3,
           "Marrom": 0,
-          "Preto": 2,
+          "Preto": 3,
           "Lilás": 3
         },
         "G": {
@@ -837,7 +837,7 @@
       "category": "Conjuntos",
       "price": 59.9,
       "cost": 31,
-      "stock": 14,
+      "stock": 0,
       "minStock": 5,
       "image": "https://i.ibb.co/DZcskJB/1000735307-png.webp",
       "images": [
@@ -864,25 +864,25 @@
       ],
       "sizeColors": {},
       "colorStocks": {
-        "Preto": 4,
+        "Preto": 0,
         "Rosa": 0,
-        "Vermelho": 4,
-        "Verde": 4,
-        "Azul": 2
+        "Vermelho": 0,
+        "Verde": 0,
+        "Azul": 0
       },
       "sizeColorStocks": {
         "P": {
-          "Preto": 2,
+          "Preto": 0,
           "Rosa": 0,
-          "Vermelho": 2,
-          "Verde": 2,
-          "Azul": 2
+          "Vermelho": 0,
+          "Verde": 0,
+          "Azul": 0
         },
         "M": {
-          "Preto": 2,
+          "Preto": 0,
           "Rosa": 0,
-          "Vermelho": 2,
-          "Verde": 2,
+          "Vermelho": 0,
+          "Verde": 0,
           "Azul": 0
         },
         "G": {

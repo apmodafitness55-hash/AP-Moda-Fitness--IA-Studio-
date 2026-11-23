@@ -76,6 +76,7 @@ export interface SaleItem {
 
 export interface Sale {
   id: string;
+  clientId?: string;
   clientName: string;
   clientDoc?: string;
   channel: SalesChannel;
@@ -87,6 +88,7 @@ export interface Sale {
   payments?: { method: string; amount: number }[];
   salesperson?: string;
   deliveryMethod?: string;
+  deliveryFee?: number;
   address?: string;
   trackingCode?: string;
   terminal_id?: string;
@@ -104,6 +106,10 @@ export interface Sale {
   partner?: string;
   commissionRate?: number;
   commissionAmount?: number;
+  pixDiscount?: number;
+  vipDiscount?: number;
+  couponDiscount?: number;
+  cashbackDiscount?: number;
   notes?: string;
 }
 

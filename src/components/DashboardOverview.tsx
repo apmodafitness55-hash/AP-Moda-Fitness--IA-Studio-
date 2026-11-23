@@ -32,7 +32,8 @@ import {
   Printer,
   AlertTriangle,
   Sparkles,
-  Wallet
+  Wallet,
+  Award
 } from 'lucide-react';
 import { Product, Sale, Client, Transaction, ActiveTab, SalesChannel } from '../types';
 import { getStoredPartnerWithdrawRequests } from '../utils/partnerUtils';
@@ -353,6 +354,50 @@ export default function DashboardOverview({
     return getStoredPartnerWithdrawRequests().filter(r => r.status === 'Pendente');
   }, [transactions, sales]);
 
+  const affiliateSummary = useMemo(() => {
+    let partnersList: any[] = [];
+    try {
+      const savedP = localStorage.getItem('ap_moda_partners');
+      partnersList = savedP ? JSON.parse(savedP) : [];
+      if (!Array.isArray(partnersList)) partnersList = [];
+    } catch {
+      partnersList = [];
+    }
+
+    let partnerRevenue = 0;
+    let totalCommissions = 0;
+    let partnerOrdersCount = 0;
+
+    sales.forEach(s => {
+      if (s.status !== 'Concluída') return;
+      const couponCode = (s.couponCode || s.coupon || s.partnerCoupon || '').trim().toUpperCase();
+      const pName = (s.partnerName || s.partner || '').trim().toLowerCase();
+      const pId = String(s.partnerId || '').trim();
+      const matchedPartner = partnersList.find(p =>
+        (pId && String(p.id) === pId) ||
+        (couponCode && (p.couponCode || '').trim().toUpperCase() === couponCode) ||
+        (pName && (p.name || '').trim().toLowerCase() === pName)
+      );
+      if (matchedPartner || couponCode || pName || pId) {
+        const netSale = Math.max(0, Number(s.total || 0) - Number(s.deliveryFee || 0));
+        const rate = Number(s.commissionRate || matchedPartner?.commissionRate || 10);
+        const comm = Number(s.commissionAmount ?? ((netSale * rate) / 100));
+        partnerRevenue += netSale;
+        totalCommissions += comm;
+        partnerOrdersCount += 1;
+      }
+    });
+
+    const pendingWithdrawTotal = pendingWithdraws.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+    return {
+      partnersCount: partnersList.length,
+      partnerOrdersCount,
+      partnerRevenue: Number(partnerRevenue.toFixed(2)),
+      totalCommissions: Number(totalCommissions.toFixed(2)),
+      pendingWithdrawTotal: Number(pendingWithdrawTotal.toFixed(2))
+    };
+  }, [sales, pendingWithdraws]);
+
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
@@ -588,6 +633,52 @@ export default function DashboardOverview({
           </div>
         </div>
       </div>
+
+      {/* Affiliates / Partners Summary Strip */}
+      {(affiliateSummary.partnersCount > 0 || affiliateSummary.partnerOrdersCount > 0) && (
+        <div
+          onClick={() => {
+            setActiveTab(ActiveTab.CLIENTES);
+            if (setCustomersCRMSubTab) setCustomersCRMSubTab('parceiros');
+          }}
+          className="bg-white border border-pink-100 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 hover:shadow-md hover:border-pink-200 transition-all cursor-pointer select-none"
+          title="Clique para abrir o painel completo de Afiliados & Comissões no CRM"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-pink-50 border border-pink-100 flex items-center justify-center text-pink-600 shrink-0">
+              <Award size={18} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Afiliados & Comissões de Parceiros</h3>
+                <span className="bg-pink-50 text-pink-600 border border-pink-100 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                  {affiliateSummary.partnersCount} Parceiro(s)
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {affiliateSummary.partnerOrdersCount} venda(s) concluída(s) via cupom ou indicação de parceiro
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 md:gap-6 text-right">
+            <div>
+              <span className="text-[9px] font-bold uppercase text-slate-400 block">Receita Gerada</span>
+              <span className="text-xs md:text-sm font-extrabold text-slate-800 font-mono">{formatCurrency(affiliateSummary.partnerRevenue)}</span>
+            </div>
+            <div>
+              <span className="text-[9px] font-bold uppercase text-slate-400 block">Comissões Apuradas</span>
+              <span className="text-xs md:text-sm font-extrabold text-pink-600 font-mono">{formatCurrency(affiliateSummary.totalCommissions)}</span>
+            </div>
+            <div>
+              <span className="text-[9px] font-bold uppercase text-slate-400 block">Saques Pendentes</span>
+              <span className={`text-xs md:text-sm font-extrabold font-mono ${affiliateSummary.pendingWithdrawTotal > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                {formatCurrency(affiliateSummary.pendingWithdrawTotal)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sales Goals Simulator Section */}
       <SalesGoalSimulator sales={sales} />

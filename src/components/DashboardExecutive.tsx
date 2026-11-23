@@ -273,6 +273,78 @@ export default function DashboardExecutive({
     return stats.sort((a, b) => b.revenue - a.revenue);
   }, [sales, sellers]);
 
+  const affiliatePartnerStats = useMemo(() => {
+    let partnersList: any[] = [];
+    try {
+      const savedP = localStorage.getItem('ap_moda_partners');
+      partnersList = savedP ? JSON.parse(savedP) : [];
+      if (!Array.isArray(partnersList)) partnersList = [];
+    } catch {
+      partnersList = [];
+    }
+
+    const map = new Map<string, { id: string; name: string; couponCode: string; commissionRate: number; revenue: number; orders: number; commission: number; availableBalance: number }>();
+
+    partnersList.forEach(p => {
+      const key = String(p.id || p.name || '');
+      if (!key) return;
+      map.set(key, {
+        id: key,
+        name: p.name || 'Parceiro',
+        couponCode: (p.couponCode || '').toUpperCase(),
+        commissionRate: Number(p.commissionRate || 10),
+        revenue: 0,
+        orders: 0,
+        commission: 0,
+        availableBalance: Number(p.availableBalance || 0)
+      });
+    });
+
+    sales.forEach(s => {
+      if (s.status !== 'Concluída') return;
+      const couponCode = (s.couponCode || s.coupon || s.partnerCoupon || '').trim().toUpperCase();
+      const pName = (s.partnerName || s.partner || '').trim().toLowerCase();
+      const pId = String(s.partnerId || '').trim();
+      if (!couponCode && !pName && !pId) return;
+
+      let matchedKey: string | null = null;
+      for (const [key, entry] of map.entries()) {
+        if (
+          (pId && entry.id === pId) ||
+          (couponCode && entry.couponCode && entry.couponCode === couponCode) ||
+          (pName && entry.name.toLowerCase() === pName)
+        ) {
+          matchedKey = key;
+          break;
+        }
+      }
+
+      const netSale = Math.max(0, Number(s.total || 0) - Number(s.deliveryFee || 0));
+      if (!matchedKey) {
+        matchedKey = pId || couponCode || pName;
+        map.set(matchedKey, {
+          id: matchedKey,
+          name: s.partnerName || s.partner || `Cupom ${couponCode}`,
+          couponCode,
+          commissionRate: Number(s.commissionRate || 10),
+          revenue: 0,
+          orders: 0,
+          commission: 0,
+          availableBalance: 0
+        });
+      }
+
+      const target = map.get(matchedKey)!;
+      const rate = Number(s.commissionRate || target.commissionRate || 10);
+      const commVal = Number(s.commissionAmount ?? ((netSale * rate) / 100));
+      target.revenue = Number((target.revenue + netSale).toFixed(2));
+      target.orders += 1;
+      target.commission = Number((target.commission + commVal).toFixed(2));
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue || b.commission - a.commission);
+  }, [sales]);
+
   const monthlyRevenuePct = useMemo(() => {
     const target = configuredMonthlyGoal > 0 ? configuredMonthlyGoal : 20000;
     const currentYmKey = getLocalYearMonth().key;
@@ -603,12 +675,12 @@ export default function DashboardExecutive({
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-50 pb-4">
           <div>
             <h3 className="text-sm font-extrabold text-slate-800 tracking-tight flex items-center gap-1.5 font-sans">
-              <span>Desempenho de Equipe & Comissões ({(parseFloat(localStorage.getItem('ap_commission_rate') || '5')).toFixed(1)}%)</span>
+              <span>Desempenho de Equipe Interna & Comissões ({(parseFloat(localStorage.getItem('ap_commission_rate') || '5')).toFixed(1)}%)</span>
               <span className="bg-pink-100 text-pink-700 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full tracking-wider">
                 Comissão Unificada
               </span>
             </h3>
-            <p className="text-slate-400 text-xs mt-0.5">Acompanhe as metas atingidas, comissões individuais e faturamento de cada vendedora parceira</p>
+            <p className="text-slate-400 text-xs mt-0.5">Acompanhe as metas atingidas, comissões individuais e faturamento de cada vendedora interna</p>
           </div>
           
           <div className="bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl font-mono text-xs text-slate-600 font-bold flex items-center gap-2">
@@ -692,6 +764,68 @@ export default function DashboardExecutive({
             <p className="text-[9px] text-slate-400 font-sans leading-normal leading-relaxed text-center">💡 A comissão é calculada sobre o faturamento faturado real e liquidado. Pagamentos de comissão podem ser lançados como "Saída / Salários de Equipe" no Painel Financeiro.</p>
           </div>
         </div>
+      </div>
+
+      {/* Affiliates / Influencers Commissions Breakdown */}
+      <div className="bg-white border border-slate-100 rounded-2xl p-5 md:p-6 shadow-xs flex flex-col gap-4 text-left font-sans" id="executive-affiliates-team">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-50 pb-4">
+          <div>
+            <h3 className="text-sm font-extrabold text-slate-800 tracking-tight flex items-center gap-1.5">
+              <span>Afiliados / Influenciadores (Cupons & Comissões)</span>
+              <span className="bg-emerald-50 text-emerald-700 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full tracking-wider border border-emerald-100">
+                Base Sem Frete
+              </span>
+            </h3>
+            <p className="text-slate-400 text-xs mt-0.5">Vendas concluídas vinculadas por cupom do parceiro, comissões apuradas e saldo disponível</p>
+          </div>
+          <div className="bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl font-mono text-xs text-slate-600 font-bold flex items-center gap-2">
+            <span>Total Comissões Afiliados:</span>
+            <span className="text-pink-600 font-black">
+              {formatCurrency(affiliatePartnerStats.reduce((sum, p) => sum + p.commission, 0))}
+            </span>
+          </div>
+        </div>
+
+        {affiliatePartnerStats.length === 0 ? (
+          <div className="py-6 text-center text-xs text-slate-400">
+            Nenhum parceiro/afiliado ou venda com cupom de parceiro registrada ainda.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs font-sans">
+              <thead>
+                <tr className="border-b border-slate-100 text-slate-400 uppercase text-[9px] font-bold select-none text-left">
+                  <th className="pb-2.5">Parceiro / Afiliado</th>
+                  <th className="pb-2.5">Cupom</th>
+                  <th className="pb-2.5">Vendas</th>
+                  <th className="pb-2.5">Receita (s/ Frete)</th>
+                  <th className="pb-2.5">Taxa</th>
+                  <th className="pb-2.5 text-right font-black">Comissão Apurada</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {affiliatePartnerStats.map((partner) => (
+                  <tr key={partner.id} className="hover:bg-slate-50/40 transition-colors">
+                    <td className="py-3 font-bold text-slate-700">{partner.name}</td>
+                    <td className="py-3">
+                      {partner.couponCode ? (
+                        <span className="bg-pink-50 text-pink-700 border border-pink-100 px-2 py-0.5 rounded font-mono font-bold text-[10px]">
+                          {partner.couponCode}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-[10px]">—</span>
+                      )}
+                    </td>
+                    <td className="py-3 text-slate-600 font-mono">{partner.orders} pedido(s)</td>
+                    <td className="py-3 text-slate-800 font-mono font-bold">{formatCurrency(partner.revenue)}</td>
+                    <td className="py-3 text-slate-500 font-mono">{partner.commissionRate}%</td>
+                    <td className="py-3 text-right font-mono font-extrabold text-pink-600">{formatCurrency(partner.commission)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

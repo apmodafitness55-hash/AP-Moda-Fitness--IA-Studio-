@@ -44,9 +44,24 @@ const openExternalSafely = (url: string) => {
   }
 };
 // Locally extend OnlineOrder to cover standard fields
+interface DriverDeliveryExtraFields {
+  receiverName?: string;
+  receiverDoc?: string;
+  deliverySignature?: string;
+  deliveredAt?: string;
+}
+
 interface DriverAppPortalProps {
   onlineOrders: any[];
-  onUpdateOrderStatus: (orderId: string, status: any, statusPagamento?: string, trackingCode?: string, statusLogistico?: string, motoboy?: string) => void;
+  onUpdateOrderStatus: (
+    orderId: string,
+    status: any,
+    statusPagamento?: string,
+    trackingCode?: string,
+    statusLogistico?: string,
+    motoboy?: string,
+    extraFields?: DriverDeliveryExtraFields
+  ) => void;
   onExitPortal: () => void;
   currentUser?: any;
   onLogout?: () => void;
@@ -84,18 +99,19 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
   // Signature Pad State
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [hasSigned, setHasSigned] = useState(false);
   const [receiverName, setReceiverName] = useState('');
   const [receiverDoc, setReceiverDoc] = useState('');
-  const [signatureSaved, setSignatureSaved] = useState(false);
 
   // Administrative PIN state to exit driver mode
   const [showExitModal, setShowExitModal] = useState(false);
   const [exitPin, setExitPin] = useState('');
   const [pinError, setPinError] = useState(false);
 
-  // GPS navigation simulation state inside the detailed card
-  const [routeStep, setRouteStep] = useState(0); // 0: Idle, 1: En Route, 2: Arrived
-  const [simulatedDistance, setSimulatedDistance] = useState(4.2); // km
+  // Real browser geolocation state
+  const [routeStep, setRouteStep] = useState(0); // 0: Idle, 1: En Route
+  const [driverCoords, setDriverCoords] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
+  const [gpsStatus, setGpsStatus] = useState<'idle' | 'searching' | 'active' | 'denied' | 'unsupported'>('idle');
   
   // New tabs & filters for routing / logistics
   const [feedTab, setFeedTab] = useState<'pending' | 'completed'>('pending');
@@ -170,6 +186,7 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
     ctx.beginPath();
     ctx.moveTo(clientX - rect.left, clientY - rect.top);
     setIsDrawing(true);
+    setHasSigned(true);
   };
 
   // Draw coordinate updates
@@ -194,6 +211,7 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
 
     ctx.lineTo(clientX - rect.left, clientY - rect.top);
     ctx.stroke();
+    setHasSigned(true);
   };
 
   const stopDrawing = () => {
@@ -206,10 +224,39 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    setSignatureSaved(false);
+    setHasSigned(false);
   };
 
-  // Launch real turn-by-turn GPS navigation in Google Maps
+  // Track real driver GPS when route / map detail is active
+  useEffect(() => {
+    if (activeStep !== 'delivery_detail' && routeStep !== 1) return;
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+      setGpsStatus('unsupported');
+      return;
+    }
+
+    setGpsStatus(prev => (prev === 'active' ? 'active' : 'searching'));
+    const watchId = navigator.geolocation.watchPosition(
+      pos => {
+        setDriverCoords({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: Math.round(pos.coords.accuracy || 0)
+        });
+        setGpsStatus('active');
+      },
+      () => {
+        setGpsStatus('denied');
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 5000 }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [activeStep, routeStep]);
+
+  // Launch real turn-by-turn GPS navigation in Google Maps (with real origin when GPS granted)
   const handleOpenGoogleMaps = (address: string) => {
     if (!address) return;
     const cleanAddr = address.replace(/^Retirada no Local|^A combinar/i, '').trim();
@@ -218,7 +265,8 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
       return;
     }
     const encoded = encodeURIComponent(cleanAddr);
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${encoded}&travelmode=driving`;
+    const originParam = driverCoords ? `&origin=${driverCoords.lat},${driverCoords.lng}` : '';
+    const url = `https://www.google.com/maps/dir/?api=1${originParam}&destination=${encoded}&travelmode=driving`;
     openExternalSafely(url);
   };
 
@@ -246,34 +294,11 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
     openExternalSafely(`https://wa.me/55${cleanPhone}?text=${msg}`);
   };
 
-  // Simulate routing GPS animation
-  useEffect(() => {
-    let timer: any;
-    if (routeStep === 1) {
-      timer = setInterval(() => {
-        setSimulatedDistance(prev => {
-          if (prev <= 0.2) {
-            setRouteStep(2);
-            clearInterval(timer);
-            // Notify status change on master system when driver reaches destination
-            if (activeOrder) {
-              onUpdateOrderStatus(activeOrder.id, 'Saiu para Entrega');
-            }
-            return 0;
-          }
-          return Number((prev - 0.4).toFixed(1));
-        });
-      }, 1500);
-    }
-    return () => clearInterval(timer);
-  }, [routeStep, activeOrder]);
-
   const handleStartRoute = (order: any, assignedMotoboy?: string) => {
     const nextOrder = assignedMotoboy ? { ...order, motoboy: assignedMotoboy } : order;
     setActiveOrder(nextOrder);
     setRouteStep(1);
-    setSimulatedDistance(4.5);
-    onUpdateOrderStatus(order.id, 'Saiu para Entrega', undefined, undefined, undefined, assignedMotoboy);
+    onUpdateOrderStatus(order.id, 'Saiu para Entrega', undefined, undefined, 'saiu_para_entrega', assignedMotoboy);
 
     // Build automated WhatsApp link and show modal
     const rawPhone = order.phone || '';
@@ -291,24 +316,38 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
     setActiveStep('delivery_detail');
   };
 
-  // Complete Signature and close order
+  // Complete Signature and close order with full delivery proof saved onto the order
   const handleFinalizeDeliverySubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!receiverName) {
+    if (!receiverName.trim()) {
       showToast('Por favor, informe quem recebeu a encomenda.', 'warning');
       return;
     }
 
-    onUpdateOrderStatus(activeOrder.id, 'Entregue');
+    const signatureDataUrl = hasSigned && canvasRef.current ? canvasRef.current.toDataURL('image/png') : undefined;
+
+    onUpdateOrderStatus(
+      activeOrder.id,
+      'Entregue',
+      'pago',
+      undefined,
+      'entregue',
+      selectedRider,
+      {
+        receiverName: receiverName.trim(),
+        receiverDoc: receiverDoc.trim() || undefined,
+        deliverySignature: signatureDataUrl,
+        deliveredAt: new Date().toISOString()
+      }
+    );
     
-    // Save locally or dispatch online
-    showToast(`Sucesso! Encomenda entregue para ${receiverName}. Assinatura salva no histórico.`, 'success');
+    showToast(`Sucesso! Encomenda entregue para ${receiverName.trim()}. Comprovante salvo no pedido.`, 'success');
     setActiveStep('feed');
     setActiveOrder(null);
     setRouteStep(0);
     setReceiverName('');
     setReceiverDoc('');
-    setSignatureSaved(false);
+    setHasSigned(false);
   };
 
   // Lock bypass evaluation
@@ -554,8 +593,15 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
                         )}
 
                         <div className="flex justify-between items-center text-[10px] text-slate-400 border-t border-slate-800 pt-2 font-mono">
-                          <span>Total Coleta:</span>
-                          <span className="font-extrabold text-pink-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((Number(ord.total) || 0) + (Number(ord.deliveryFee) || 0))}</span>
+                          <span className="flex items-center gap-1.5">
+                            <span>Total do Pedido:</span>
+                            {(ord.status_pagamento === 'pago' || statusLower === 'pago' || statusLower === 'entregue') ? (
+                              <span className="bg-emerald-950 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded text-[8px] font-sans font-bold uppercase">Pago Online</span>
+                            ) : (
+                              <span className="bg-amber-950 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded text-[8px] font-sans font-bold uppercase">Cobrar</span>
+                            )}
+                          </span>
+                          <span className="font-extrabold text-pink-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(ord.total || 0))}</span>
                         </div>
 
                         <div className="grid grid-cols-3 gap-1.5 pt-1">
@@ -667,7 +713,11 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
                 <div className="absolute inset-0 z-0">
                   <iframe
                     title="Mapa de Entrega Real"
-                    src={`https://maps.google.com/maps?q=${encodeURIComponent(activeOrder.address)}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                    src={
+                      driverCoords
+                        ? `https://maps.google.com/maps?saddr=${driverCoords.lat},${driverCoords.lng}&daddr=${encodeURIComponent(activeOrder.address || '')}&output=embed`
+                        : `https://maps.google.com/maps?q=${encodeURIComponent(activeOrder.address || '')}&t=&z=15&ie=UTF8&iwloc=&output=embed`
+                    }
                     className="w-full h-full border-0 filter brightness-90 contrast-105"
                     loading="lazy"
                   />
@@ -680,7 +730,7 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
                     <div>
                       <p className="font-extrabold text-[11px] text-white flex items-center gap-1.5">
                         <span>Rota de Entrega Ativa</span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                        <span className={`w-1.5 h-1.5 rounded-full ${gpsStatus === 'active' ? 'bg-emerald-500 animate-ping' : 'bg-amber-400'}`} />
                       </p>
                       <p className="text-[10px] text-slate-300 font-medium truncate max-w-[170px]">
                         {activeOrder.clientName}
@@ -688,9 +738,19 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="px-2 py-0.5 rounded-full bg-pink-900/60 border border-pink-500/40 text-[9px] font-bold text-pink-300">
-                      GPS Ativo
-                    </span>
+                    {gpsStatus === 'active' && driverCoords ? (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-900/60 border border-emerald-500/40 text-[9px] font-bold text-emerald-300">
+                        GPS Real ±{driverCoords.accuracy || 10}m
+                      </span>
+                    ) : gpsStatus === 'denied' ? (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-900/60 border border-amber-500/40 text-[9px] font-bold text-amber-300">
+                        GPS Bloqueado
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-pink-900/60 border border-pink-500/40 text-[9px] font-bold text-pink-300">
+                        Localizando GPS...
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -700,7 +760,9 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
                     <div className="flex justify-between items-center">
                       <p className="text-slate-400 uppercase text-[8px] font-black tracking-wider">Endereço de Entrega</p>
                       <span className="text-[9px] font-mono text-pink-400 font-bold">
-                        A Receber: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(activeOrder.total + (activeOrder.deliveryFee || 0))}
+                        {(activeOrder.status_pagamento === 'pago' || (activeOrder.status || '').toLowerCase() === 'pago')
+                          ? `Pago (${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(activeOrder.total || 0))})`
+                          : `A Cobrar: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(activeOrder.total || 0))}`}
                       </span>
                     </div>
                     <p className="font-bold text-slate-100 text-[11px] mt-1 leading-snug">{activeOrder.address}</p>
@@ -842,8 +904,12 @@ export default function DriverAppPortal({ onlineOrders, onUpdateOrderStatus, onE
 
                   {/* Payment reminder block */}
                   <div className="p-2 bg-pink-900/10 border border-pink-500/20 text-pink-300 rounded-xl flex items-center justify-between text-[11px] font-bold">
-                    <span>Valide a Cobrança:</span>
-                    <span className="font-mono text-emerald-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((Number(activeOrder.total) || 0) + (Number(activeOrder.deliveryFee) || 0))}</span>
+                    <span>
+                      {(activeOrder.status_pagamento === 'pago' || (activeOrder.status || '').toLowerCase() === 'pago')
+                        ? 'Pedido já Pago Online:'
+                        : 'Valide a Cobrança:'}
+                    </span>
+                    <span className="font-mono text-emerald-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(activeOrder.total || 0))}</span>
                   </div>
 
                   <button

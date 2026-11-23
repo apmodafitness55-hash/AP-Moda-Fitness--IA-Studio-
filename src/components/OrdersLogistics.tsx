@@ -619,7 +619,8 @@ export default function OrdersLogistics({
     if (!matchedProd) return;
 
     const price = matchedProd.price;
-    const total = price * newOrderQty;
+    const fee = Number(newOrderFee) || 0;
+    const total = Number(((price * newOrderQty) + fee).toFixed(2));
 
     const newOrder: OnlineOrder = {
       id: `ped-web-${(onlineOrders.length + 1).toString().padStart(2, '0')}`,
@@ -630,7 +631,7 @@ export default function OrdersLogistics({
       status: 'Pendente',
       createdAt: new Date().toISOString(),
       address: newOrderAddress,
-      deliveryFee: Number(newOrderFee),
+      deliveryFee: fee,
       motoboy: newOrderRider || undefined,
       notes: newOrderNotes || undefined
     };
@@ -660,7 +661,7 @@ export default function OrdersLogistics({
 
   const handleSendWhatsAppOrder = (order: OnlineOrder) => {
     const itemsText = order.items.map(it => `• ${it.quantity}x ${it.productName}`).join('\n');
-    const msg = `Olá, ${order.clientName}! 🌸\n\nSomos do suporte da *AP Moda Fitness*. Seu pedido *${order.id.toUpperCase()}* está no status: *${order.status}*!\n\n🛍️ *Seus Itens:*\n${itemsText}\n\n📍 *Endereço de Entrega:*\n${order.address}\n\n💵 *Total:* ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.total + order.deliveryFee)} (já incluindo entrega).\n\n${order.status === 'Saiu para Entrega' ? `🏍️ Entregador encarregado: *${order.motoboy || 'Próprio'}*. Já estamos a caminho!` : 'Qualquer dúvida estamos à disposição!'}`;
+    const msg = `Olá, ${order.clientName}! 🌸\n\nSomos do suporte da *AP Moda Fitness*. Seu pedido *${order.id.toUpperCase()}* está no status: *${order.status}*!\n\n🛍️ *Seus Itens:*\n${itemsText}\n\n📍 *Endereço de Entrega:*\n${order.address}\n\n💵 *Total:* ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(order.total || 0))}${(Number(order.deliveryFee) || 0) > 0 ? ' (já incluindo entrega)' : ''}.\n\n${order.status === 'Saiu para Entrega' ? `🏍️ Entregador encarregado: *${order.motoboy || 'Próprio'}*. Já estamos a caminho!` : 'Qualquer dúvida estamos à disposição!'}`;
     
     try {
       const url = getWhatsAppUrl(order.phone, msg);
@@ -1023,6 +1024,27 @@ export default function OrdersLogistics({
                               <strong>Obs:</strong> {order.notes}
                             </p>
                           )}
+
+                          {(order.receiverName || order.deliverySignature) && (
+                            <div className="text-emerald-700 bg-emerald-50/80 border border-emerald-200/70 text-[10px] p-2 rounded-lg space-y-1">
+                              <p className="font-bold flex items-center gap-1">
+                                <span>✅ Recebido por: {order.receiverName || 'Cliente'}</span>
+                                {order.receiverDoc && <span className="font-mono text-emerald-600">({order.receiverDoc})</span>}
+                              </p>
+                              {order.deliveredAt && (
+                                <p className="text-[9px] text-emerald-600 font-mono">
+                                  Em {new Date(order.deliveredAt).toLocaleString('pt-BR')}
+                                </p>
+                              )}
+                              {order.deliverySignature && (
+                                <img
+                                  src={order.deliverySignature}
+                                  alt="Assinatura da entrega"
+                                  className="h-10 max-w-[180px] object-contain bg-white border border-emerald-100 rounded p-0.5"
+                                />
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         {/* Column 2: Order Items & Delivery Method */}
@@ -1035,9 +1057,11 @@ export default function OrdersLogistics({
                               </p>
                             ))}
                             <div className="border-t border-slate-100 pt-1.5 flex justify-between items-center">
-                              <span className="text-slate-400 text-[11px]">Total c/ Entrega:</span>
+                              <span className="text-slate-400 text-[11px]">
+                                Total{(Number(order.deliveryFee) || 0) > 0 ? ` (Frete ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(order.deliveryFee))} incl.)` : ''}:
+                              </span>
                               <span className="font-extrabold text-pink-600 font-mono text-sm">
-                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.total + order.deliveryFee)}
+                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(order.total || 0))}
                               </span>
                             </div>
                           </div>
