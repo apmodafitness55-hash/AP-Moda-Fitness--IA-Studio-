@@ -1731,18 +1731,103 @@ app.post('/api/infinitepay/create-pix', async (req, res) => {
   }
 });
 
-// Configuração de taxas financeiras da InfinitePay (fáceis de alterar)
-const INFINITEPAY_RATES = {
-  PIX: 0.00,             // 0.00%
-  DEBITO: 0.0138,        // 1.38%
-  CREDITO_1X: 0.0316,    // 3.16%
-  CREDITO_PARCELADO: 0.0540 // 5.40% (parcelado)
+// Taxas padrão InfinitePay (usadas como fallback caso ap_card_machines_rates ainda não esteja salvo)
+const DEFAULT_INFINITEPAY_WEBHOOK_MACHINE = {
+  id: 'infinitepay',
+  debitFee: 1.38,
+  creditInstallments: {
+    1: 3.16, 2: 4.38, 3: 4.98, 4: 5.58, 5: 6.18, 6: 6.78,
+    7: 7.38, 8: 7.98, 9: 8.58, 10: 9.18, 11: 9.78, 12: 10.38
+  } as Record<number, number>,
+  linkRates: {
+    pixFee: 0.00,
+    passInterestToCustomer: false,
+    creditInstallments: {
+      1: 3.16, 2: 4.38, 3: 4.98, 4: 5.58, 5: 6.18, 6: 6.78,
+      7: 7.38, 8: 7.98, 9: 8.58, 10: 9.18, 11: 9.78, 12: 10.38
+    } as Record<number, number>
+  }
 };
+
+async function resolveInfinitePayWebhookRate(db: any, paymentMethod: string, installments: number): Promise<{ rate: number; ratePercent: number; source: string; passInterestToCustomer: boolean }> {
+  let machineConfig: any = DEFAULT_INFINITEPAY_WEBHOOK_MACHINE;
+  let source = 'default';
+
+  try {
+    let rawRates: any = null;
+    const { data: cfgRows } = await db
+      .from('ap_system_configs')
+      .select('key, value')
+      .eq('key', 'ap_card_machines_rates');
+    if (Array.isArray(cfgRows) && cfgRows.length > 0 && cfgRows[0]?.value) {
+      rawRates = cfgRows[0].value;
+      source = 'ap_system_configs';
+    } else {
+      const local = readLocalDb();
+      const localCfg = Array.isArray(local?.ap_system_configs)
+        ? local.ap_system_configs.find((c: any) => c && c.key === 'ap_card_machines_rates')
+        : null;
+      if (localCfg?.value) {
+        rawRates = localCfg.value;
+        source = 'local_db';
+      }
+    }
+
+    if (rawRates) {
+      const parsed = typeof rawRates === 'string' ? JSON.parse(rawRates) : rawRates;
+      if (Array.isArray(parsed)) {
+        const found = parsed.find((m: any) => m && m.id === 'infinitepay');
+        if (found) {
+          machineConfig = found;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[InfinitePay Webhook] Falha ao ler ap_card_machines_rates, usando padrão:', e);
+  }
+
+  const inst = Math.min(12, Math.max(1, Math.round(Number(installments || 1))));
+  const linkRates = machineConfig.linkRates || {};
+  const machineCredit = machineConfig.creditInstallments || DEFAULT_INFINITEPAY_WEBHOOK_MACHINE.creditInstallments;
+  const linkCredit = linkRates.creditInstallments || machineCredit;
+  const passInterestToCustomer = Boolean(linkRates.passInterestToCustomer);
+
+  const pixPercent = linkRates.pixFee !== undefined && !Number.isNaN(Number(linkRates.pixFee))
+    ? Number(linkRates.pixFee)
+    : 0;
+  const debitPercent = machineConfig.debitFee !== undefined && !Number.isNaN(Number(machineConfig.debitFee))
+    ? Number(machineConfig.debitFee)
+    : 1.38;
+  const credit1xPercent = Number(
+    linkCredit?.[1] ?? linkCredit?.['1'] ?? machineCredit?.[1] ?? machineCredit?.['1'] ?? 3.16
+  );
+
+  let ratePercent = credit1xPercent;
+  if (paymentMethod.includes('pix')) {
+    ratePercent = pixPercent;
+  } else if (paymentMethod.includes('debit') || paymentMethod.includes('debito') || paymentMethod.includes('débito')) {
+    ratePercent = debitPercent;
+  } else {
+    if (inst > 1 && passInterestToCustomer) {
+      ratePercent = credit1xPercent;
+    } else {
+      const instVal = linkCredit?.[inst] ?? linkCredit?.[String(inst)] ?? machineCredit?.[inst] ?? machineCredit?.[String(inst)];
+      ratePercent = instVal !== undefined && !Number.isNaN(Number(instVal)) ? Number(instVal) : credit1xPercent;
+    }
+  }
+
+  return {
+    rate: Number((ratePercent / 100).toFixed(6)),
+    ratePercent,
+    source,
+    passInterestToCustomer
+  };
+}
 
 const handleInfinitePayWebhook = async (req: any, res: any) => {
   try {
-    const { invoice_slug, paid_amount, order_nsu } = req.body;
-    console.log(`[InfinitePay Webhook] Recebido webhook de pagamento. NSU: ${order_nsu}, Slug: ${invoice_slug}, Pago: ${paid_amount}`);
+    const { invoice_slug, paid_amount, amount, order_nsu } = req.body;
+    console.log(`[InfinitePay Webhook] Recebido webhook de pagamento. NSU: ${order_nsu}, Slug: ${invoice_slug}, Pago: ${paid_amount}, Método: ${req.body.capture_method || req.body.payment_method || req.body.method || 'n/a'}`);
 
     if (!order_nsu) {
       console.warn('[InfinitePay Webhook Warning] Webhook sem order_nsu:', req.body);
@@ -1751,27 +1836,15 @@ const handleInfinitePayWebhook = async (req: any, res: any) => {
 
     const db = getFirebaseServerDb();
 
-    // Identificar o método de pagamento e parcelas
-    let paymentMethod = req.body.payment_method || req.body.method || req.body.payment_details?.payment_method || '';
+    // Identificar o método de pagamento (InfinitePay envia capture_method: 'pix' | 'credit_card') e parcelas
+    let paymentMethod = req.body.capture_method || req.body.payment_method || req.body.method || req.body.payment_details?.capture_method || req.body.payment_details?.payment_method || '';
     let installments = Number(req.body.installments || req.body.payment_details?.installments || 1);
 
     paymentMethod = String(paymentMethod).toLowerCase();
 
-    // Determinar a taxa correspondente
-    let rate = INFINITEPAY_RATES.CREDITO_1X; // Default de cartão de crédito 1x
-    if (paymentMethod.includes('pix')) {
-      rate = INFINITEPAY_RATES.PIX;
-    } else if (paymentMethod.includes('debit') || paymentMethod.includes('debito') || paymentMethod.includes('débito')) {
-      rate = INFINITEPAY_RATES.DEBITO;
-    } else if (paymentMethod.includes('credit') || paymentMethod.includes('credito') || paymentMethod.includes('crédito') || paymentMethod.includes('card')) {
-      if (installments > 1) {
-        rate = INFINITEPAY_RATES.CREDITO_PARCELADO;
-      } else {
-        rate = INFINITEPAY_RATES.CREDITO_1X;
-      }
-    } else if (installments > 1) {
-      rate = INFINITEPAY_RATES.CREDITO_PARCELADO;
-    }
+    // Determinar a taxa exata com base na tabela unificada (ap_card_machines_rates -> InfinitePay Link/Maquininha)
+    const { rate, ratePercent, source: rateSource, passInterestToCustomer } = await resolveInfinitePayWebhookRate(db, paymentMethod, installments);
+    console.log(`[InfinitePay Webhook] Taxa resolvida (${rateSource}): ${ratePercent.toFixed(2)}% (Parcelas: ${installments}, Repassa juros: ${passInterestToCustomer})`);
 
     // 1. Check if it's an Online Order
     const { data: order, error: fetchError } = await firebase
@@ -1787,10 +1860,14 @@ const handleInfinitePayWebhook = async (req: any, res: any) => {
       .eq('id', order_nsu)
       .maybeSingle();
 
-    // Determinar o valor bruto em reais
+    // Determinar o valor bruto base em reais (quando juros são repassados ao cliente, usa `amount` original da venda em vez de `paid_amount` com acréscimo de juros do comprador)
+    const rawWebhookAmount = (passInterestToCustomer && installments > 1 && amount !== undefined)
+      ? amount
+      : (paid_amount !== undefined ? paid_amount : amount);
+
     let valorBruto = 0;
-    if (paid_amount !== undefined) {
-      const parsedAmount = Number(paid_amount);
+    if (rawWebhookAmount !== undefined) {
+      const parsedAmount = Number(rawWebhookAmount);
       if (Number.isInteger(parsedAmount) && parsedAmount > 0) {
         valorBruto = parsedAmount / 100;
       } else {

@@ -1537,6 +1537,18 @@ export default function App() {
             } catch(e) {}
           }
 
+          // Sync Card Machine & InfinitePay Link Rates across devices
+          const cardRatesConfig = dbConfigs.find((config: any) => config.key === 'ap_card_machines_rates');
+          if (cardRatesConfig && cardRatesConfig.value) {
+            try {
+              const parsedRates = typeof cardRatesConfig.value === 'string' ? JSON.parse(cardRatesConfig.value) : cardRatesConfig.value;
+              if (Array.isArray(parsedRates) && parsedRates.length > 0) {
+                safeLocalStorageSet('ap_card_machines_rates', JSON.stringify(parsedRates));
+                window.dispatchEvent(new Event('ap-card-machines-updated'));
+              }
+            } catch(e) {}
+          }
+
           // Sync Store Configurations (phone, name, instagram, pix key, address, etc.)
           const storeKeys = [
             'ap_store_name',

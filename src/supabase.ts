@@ -873,6 +873,24 @@ export async function syncSystemConfigsWithSupabase(...args: any[]) {
         }
       }
 
+      // Sync ap_card_machines_rates
+      const cardRatesCfg = configs.find((c: any) => c.key === 'ap_card_machines_rates');
+      if (cardRatesCfg && cardRatesCfg.value) {
+        const remoteVal = typeof cardRatesCfg.value === 'string' ? cardRatesCfg.value : JSON.stringify(cardRatesCfg.value);
+        const localVal = localStorage.getItem('ap_card_machines_rates');
+        const lastSavedAt = Number(localStorage.getItem('ap_config_saved_at_ap_card_machines_rates') || 0);
+        const isRecentlyEditedLocally = Date.now() - lastSavedAt < 60000;
+        if (isRecentlyEditedLocally) {
+          if (localVal && remoteVal !== localVal) {
+            pushSystemConfigToSupabase('ap_card_machines_rates', localVal).catch(() => {});
+          }
+        } else if (remoteVal !== localVal && remoteVal.trim().length > 2) {
+          safeLocalStorageSet('ap_card_machines_rates', remoteVal);
+          window.dispatchEvent(new Event('ap-card-machines-updated'));
+          localModified = true;
+        }
+      }
+
       // Sync Store Configurations (phone, name, instagram, pix key, etc.)
       const storeConfigKeys = [
         'ap_store_name',

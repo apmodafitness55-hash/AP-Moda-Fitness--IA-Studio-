@@ -36,7 +36,7 @@ import {
   Check
 } from 'lucide-react';
 import { Product, SaleItem, Sale, Client, SalesChannel, ActiveTab } from '../types';
-import { getCardMachinesConfig, CardMachineConfig } from '../lib/cardMachines';
+import { getCardMachinesConfig, CardMachineConfig, calculateInfinitePayLinkEstimate } from '../lib/cardMachines';
 import { validateCouponForCpf, calculateEligibleCouponDiscount } from '../utils/couponUtils';
 import { getStoreConfig } from '../utils/storeConfig';
 import ThermalReceipt from './ThermalReceipt';
@@ -528,6 +528,18 @@ export default function PDVTerminal({
 
   const [generatedLinks, setGeneratedLinks] = useState<{[key: number]: string}>({});
   const [isGeneratingLinkMap, setIsGeneratingLinkMap] = useState<{[key: number]: boolean}>({});
+  const [linkSimInstallments, setLinkSimInstallments] = useState<number>(3);
+  const [cardMachinesVersion, setCardMachinesVersion] = useState<number>(0);
+
+  useEffect(() => {
+    const bumpVersion = () => setCardMachinesVersion(v => v + 1);
+    window.addEventListener('ap-card-machines-updated', bumpVersion);
+    window.addEventListener('ap-system-configs-refreshed', bumpVersion);
+    return () => {
+      window.removeEventListener('ap-card-machines-updated', bumpVersion);
+      window.removeEventListener('ap-system-configs-refreshed', bumpVersion);
+    };
+  }, []);
 
   const generateStaticPix = (amount: number) => {
     const storeCfg = getStoreConfig();
@@ -2223,102 +2235,164 @@ export default function PDVTerminal({
                             <span>
                               Desc ({p.cardDiscountPercent}%):{' '}
                               <strong className="text-emerald-600 font-mono">
-                                -R$ {((p.amount * (p.cardDiscountPercent || 0)) / 100).toFixed(2)}
+                                -R$ {(() => {
+                                  const rate = Math.min(0.99, (p.cardDiscountPercent || 0) / 100);
+                                  const gross = rate > 0 ? p.amount / (1 - rate) : p.amount;
+                                  return Math.max(0, gross - p.amount).toFixed(2);
+                                })()}
                               </strong>
                             </span>
                           ) : (
                             <span className="text-slate-400">Sem desconto</span>
                           )}
                           <span>
-                            Tarifa ({p.cardFeePercent}%):{' '}
+                            Tarifa ({p.cardFeePercent || 0}%):{' '}
                             <strong className="text-rose-500 font-mono">
-                              R$ {(((p.amount - (p.amount * (p.cardDiscountPercent || 0)) / 100) * (p.cardFeePercent || 0)) / 100).toFixed(2)}
+                              R$ {((p.amount * (p.cardFeePercent || 0)) / 100).toFixed(2)}
                             </strong>
                           </span>
                           <span>
                             Líquido:{' '}
                             <strong className="text-emerald-600 font-extrabold font-mono">
-                              R$ {
-                                (
-                                  (p.amount - (p.amount * (p.cardDiscountPercent || 0)) / 100) -
-                                  ((p.amount - (p.amount * (p.cardDiscountPercent || 0)) / 100) * (p.cardFeePercent || 0)) / 100
-                                ).toFixed(2)
-                              }
+                              R$ {(p.amount - ((p.amount * (p.cardFeePercent || 0)) / 100)).toFixed(2)}
                             </strong>
                           </span>
                         </div>
                       </div>
                     )}
 
-                    {p.method === 'Link de Pagamento (InfinitePay)' && (
-                      <div className="bg-white border border-pink-200 p-3 rounded-lg text-[10px] space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-extrabold text-pink-600 tracking-wide uppercase text-[8.5px]">Link de Pagamento InfinitePay</span>
-                          <span className="bg-pink-100 text-pink-700 font-bold text-[7.5px] px-1.5 py-0.5 rounded-full uppercase">API Integrada</span>
-                        </div>
+                    {p.method === 'Link de Pagamento (InfinitePay)' && (() => {
+                      void cardMachinesVersion;
+                      const linkEst = calculateInfinitePayLinkEstimate(p.amount || 0, linkSimInstallments);
+                      return (
+                        <div className="bg-white border border-pink-200 p-3 rounded-lg text-[10px] space-y-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-extrabold text-pink-600 tracking-wide uppercase text-[8.5px]">Link de Pagamento InfinitePay</span>
+                            <span className={`font-bold text-[7.5px] px-1.5 py-0.5 rounded-full uppercase ${
+                              linkEst.passInterestToCustomer
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-pink-100 text-pink-700'
+                            }`}>
+                              {linkEst.passInterestToCustomer ? 'Juros ao Cliente' : 'Loja Absorve Taxa'}
+                            </span>
+                          </div>
 
-                        {!generatedLinks[idx] ? (
-                          <button
-                            type="button"
-                            disabled={isGeneratingLinkMap[idx] || (p.amount || 0) <= 0}
-                            onClick={() => generateInfinitePayLinkForPos(idx, p.amount)}
-                            className="w-full py-1.5 bg-pink-600 hover:bg-pink-700 text-white rounded font-bold transition flex items-center justify-center gap-1.5 cursor-pointer disabled:bg-slate-200 disabled:cursor-not-allowed disabled:text-slate-400 border-none"
-                          >
-                            {isGeneratingLinkMap[idx] ? (
-                              <>
-                                <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
-                                <span>Gerando Link...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Link size={12} />
-                                <span>Gerar Link de Pagamento (R$ {(p.amount || 0).toFixed(2)})</span>
-                              </>
-                            )}
-                          </button>
-                        ) : (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded p-1">
-                              <input
-                                type="text"
-                                readOnly
-                                value={generatedLinks[idx]}
-                                className="flex-1 bg-transparent border-none text-[9.5px] font-mono text-slate-700 focus:outline-hidden"
-                              />
+                          {/* Prévia automática de quanto você vai receber líquido pelo Link */}
+                          <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-2 space-y-1.5">
+                            <div className="flex items-center justify-between text-[9px] text-slate-500 font-bold uppercase tracking-wider">
+                              <span>Prévia Líquida Estimada</span>
+                              <div className="flex items-center gap-1 normal-case tracking-normal">
+                                <span className="text-[8.5px] text-slate-400 font-medium">Simular:</span>
+                                <select
+                                  value={linkSimInstallments}
+                                  onChange={(e) => setLinkSimInstallments(parseInt(e.target.value, 10) || 3)}
+                                  className="bg-white border border-slate-200 rounded px-1 py-0.5 text-[9px] font-bold text-slate-700 focus:outline-hidden cursor-pointer"
+                                >
+                                  {[2,3,4,5,6,7,8,9,10,11,12].map(n => (
+                                    <option key={n} value={n}>{n}x</option>
+                                  ))}
+                                </select>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(generatedLinks[idx]);
-                                  showToast('Link de pagamento copiado para a área de transferência!', 'success');
-                                }}
-                                className="flex-1 py-1 bg-pink-100 hover:bg-pink-200 text-pink-700 rounded font-extrabold text-[9.5px] transition flex items-center justify-center gap-1 cursor-pointer border-none"
-                              >
-                                📋 Copiar Link
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const text = `Olá! Segue o link seguro para o pagamento do seu pedido de R$ ${(p.amount || 0).toFixed(2)}: ${generatedLinks[idx]}`;
-                                  const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-                                  const a = document.createElement('a');
-                                  a.href = waUrl;
-                                  a.target = '_blank';
-                                  a.rel = 'noopener noreferrer';
-                                  document.body.appendChild(a);
-                                  a.click();
-                                  document.body.removeChild(a);
-                                }}
-                                className="flex-1 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded font-extrabold text-[9.5px] transition flex items-center justify-center gap-1 cursor-pointer border-none"
-                              >
-                                🟢 Compartilhar
-                              </button>
+
+                            <div className="grid grid-cols-3 gap-1.5 font-mono">
+                              <div className="bg-white border border-slate-200/70 rounded p-1.5">
+                                <div className="text-[8px] text-slate-400 font-sans font-semibold">PIX ({linkEst.pixFeePercent.toFixed(2)}%)</div>
+                                <div className="text-[10.5px] font-extrabold text-emerald-600 mt-0.5">
+                                  R$ {linkEst.pixNetAmount.toFixed(2)}
+                                </div>
+                              </div>
+                              <div className="bg-white border border-slate-200/70 rounded p-1.5">
+                                <div className="text-[8px] text-slate-400 font-sans font-semibold">Créd 1x ({linkEst.credit1xFeePercent.toFixed(2)}%)</div>
+                                <div className="text-[10.5px] font-extrabold text-slate-800 mt-0.5">
+                                  R$ {linkEst.credit1xNetAmount.toFixed(2)}
+                                </div>
+                              </div>
+                              <div className="bg-white border border-pink-200/70 rounded p-1.5">
+                                <div className="text-[8px] text-pink-600 font-sans font-bold">
+                                  {linkSimInstallments}x ({linkEst.selectedCreditFeePercent.toFixed(2)}%)
+                                </div>
+                                <div className="text-[10.5px] font-extrabold text-pink-700 mt-0.5">
+                                  R$ {linkEst.selectedCreditNetAmount.toFixed(2)}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-[8.5px] text-slate-400 pt-0.5">
+                              <span>
+                                {linkEst.passInterestToCustomer
+                                  ? 'Parcelamento com juros pagos pela cliente no link.'
+                                  : `Em 12x (${linkEst.credit12xFeePercent.toFixed(2)}%): líquido R$ ${linkEst.credit12xNetAmount.toFixed(2)}`}
+                              </span>
+                              <span className="font-mono text-rose-500 font-semibold">
+                                -{linkSimInstallments}x: R$ {linkEst.selectedCreditFeeAmount.toFixed(2)}
+                              </span>
                             </div>
                           </div>
-                        )}
-                      </div>
-                    )}
+
+                          {!generatedLinks[idx] ? (
+                            <button
+                              type="button"
+                              disabled={isGeneratingLinkMap[idx] || (p.amount || 0) <= 0}
+                              onClick={() => generateInfinitePayLinkForPos(idx, p.amount)}
+                              className="w-full py-1.5 bg-pink-600 hover:bg-pink-700 text-white rounded font-bold transition flex items-center justify-center gap-1.5 cursor-pointer disabled:bg-slate-200 disabled:cursor-not-allowed disabled:text-slate-400 border-none"
+                            >
+                              {isGeneratingLinkMap[idx] ? (
+                                <>
+                                  <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+                                  <span>Gerando Link...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Link size={12} />
+                                  <span>Gerar Link de Pagamento (R$ {(p.amount || 0).toFixed(2)})</span>
+                                </>
+                              )}
+                            </button>
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded p-1">
+                                <input
+                                  type="text"
+                                  readOnly
+                                  value={generatedLinks[idx]}
+                                  className="flex-1 bg-transparent border-none text-[9.5px] font-mono text-slate-700 focus:outline-hidden"
+                                />
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(generatedLinks[idx]);
+                                    showToast('Link de pagamento copiado para a área de transferência!', 'success');
+                                  }}
+                                  className="flex-1 py-1 bg-pink-100 hover:bg-pink-200 text-pink-700 rounded font-extrabold text-[9.5px] transition flex items-center justify-center gap-1 cursor-pointer border-none"
+                                >
+                                  📋 Copiar Link
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const text = `Olá! Segue o link seguro para o pagamento do seu pedido de R$ ${(p.amount || 0).toFixed(2)}: ${generatedLinks[idx]}`;
+                                    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+                                    const a = document.createElement('a');
+                                    a.href = waUrl;
+                                    a.target = '_blank';
+                                    a.rel = 'noopener noreferrer';
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                  }}
+                                  className="flex-1 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded font-extrabold text-[9.5px] transition flex items-center justify-center gap-1 cursor-pointer border-none"
+                                >
+                                  🟢 Compartilhar
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {p.method === 'PIX' && (
                       <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg text-[10px] space-y-2.5 font-sans">

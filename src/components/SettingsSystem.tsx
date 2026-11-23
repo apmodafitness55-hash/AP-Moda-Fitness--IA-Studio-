@@ -81,7 +81,7 @@ import {
   CardTerminal
 } from '../supabase';
 import { Product, Sale, Client, Transaction } from '../types';
-import { getCardMachinesConfig, saveCardMachinesConfig, CardMachineConfig, DEFAULT_CARD_MACHINES } from '../lib/cardMachines';
+import { getCardMachinesConfig, saveCardMachinesConfig, CardMachineConfig, DEFAULT_CARD_MACHINES, DEFAULT_INFINITEPAY_LINK_RATES } from '../lib/cardMachines';
 import { runDeepSystemDiagnostics, runSystemSelfHeal, DiagnosticResult, DiagnosticLog, SelfHealReport } from '../lib/diagnostics';
 import { getLocalDateKey, safeLocalStorageSet, createUniqueId } from '../utils/dateUtils';
 import { showToast, showConfirm } from '../lib/uiDialog';
@@ -565,6 +565,18 @@ export default function SettingsSystem({
   // Estados dos leitores de cartão (maquininhas) e suas taxas
   const [cardMachines, setCardMachines] = useState<CardMachineConfig[]>(() => getCardMachinesConfig());
   const [editingMachineId, setEditingMachineId] = useState<string>('infinitepay');
+
+  useEffect(() => {
+    const refreshMachines = () => {
+      setCardMachines(getCardMachinesConfig());
+    };
+    window.addEventListener('ap-card-machines-updated', refreshMachines);
+    window.addEventListener('ap-system-configs-refreshed', refreshMachines);
+    return () => {
+      window.removeEventListener('ap-card-machines-updated', refreshMachines);
+      window.removeEventListener('ap-system-configs-refreshed', refreshMachines);
+    };
+  }, []);
 
   // Estados para CardTerminals (operadoras de cartão do Supabase)
   const [terminalsList, setTerminalsList] = useState<CardTerminal[]>(() => {
@@ -3334,6 +3346,7 @@ export default function SettingsSystem({
                     tone: 'warning'
                   })) {
                     setCardMachines(DEFAULT_CARD_MACHINES);
+                    safeLocalStorageSet('ap_config_saved_at_ap_card_machines_rates', String(Date.now()));
                     saveCardMachinesConfig(DEFAULT_CARD_MACHINES);
                     pushSystemConfigToSupabase('ap_card_machines_rates', JSON.stringify(DEFAULT_CARD_MACHINES));
                     showToast('Todas as taxas padrão foram restauradas com sucesso!', 'success');
@@ -3615,13 +3628,139 @@ export default function SettingsSystem({
                         </div>
                       </div>
 
+                      {activeMachine.id === 'infinitepay' && (() => {
+                        const linkRates = activeMachine.linkRates || {
+                          ...DEFAULT_INFINITEPAY_LINK_RATES,
+                          creditInstallments: { ...activeMachine.creditInstallments }
+                        };
+                        const updateLinkRates = (updater: (prev: NonNullable<CardMachineConfig['linkRates']>) => NonNullable<CardMachineConfig['linkRates']>) => {
+                          setCardMachines(prev => prev.map(m => {
+                            if (m.id !== 'infinitepay') return m;
+                            const curr = m.linkRates || {
+                              ...DEFAULT_INFINITEPAY_LINK_RATES,
+                              creditInstallments: { ...m.creditInstallments }
+                            };
+                            return { ...m, linkRates: updater(curr) };
+                          }));
+                        };
+                        return (
+                          <div className="bg-white border border-pink-200 rounded-xl p-3.5 space-y-3 font-sans">
+                            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-pink-100">
+                              <div>
+                                <h4 className="text-[11px] font-extrabold text-pink-700 uppercase tracking-wider flex items-center gap-1.5">
+                                  <span>🔗 Taxas do Link de Pagamento (InfinitePay Online & Webhook)</span>
+                                </h4>
+                                <p className="text-[9.5px] text-slate-500 mt-0.5">
+                                  Define a prévia líquida exibida no PDV ao gerar o Link e a taxa aplicada automaticamente quando a InfinitePay confirma o pagamento.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  updateLinkRates(curr => ({
+                                    ...curr,
+                                    creditInstallments: { ...activeMachine.creditInstallments }
+                                  }));
+                                  showToast('Taxas 1x–12x da maquininha copiadas para o Link!', 'info');
+                                }}
+                                className="px-2.5 py-1 bg-pink-50 hover:bg-pink-100 text-pink-700 font-bold rounded-lg text-[9.5px] border border-pink-200 cursor-pointer"
+                              >
+                                Copiar taxas da Maquininha
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-600 mb-1">Taxa do PIX no Link (%)</label>
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    max="100"
+                                    value={linkRates.pixFee ?? 0}
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value) || 0;
+                                      updateLinkRates(curr => ({ ...curr, pixFee: val }));
+                                    }}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 font-mono font-bold text-xs focus:outline-hidden focus:border-pink-500"
+                                  />
+                                  <span className="absolute right-3 top-2 text-slate-400 font-bold">%</span>
+                                </div>
+                                <p className="text-[9px] text-slate-400 mt-1">Na InfinitePay normalmente o PIX no Link possui taxa 0,00%.</p>
+                              </div>
+
+                              <label className="flex items-start gap-2.5 p-2.5 rounded-xl border border-slate-200 bg-slate-50/70 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(linkRates.passInterestToCustomer)}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    updateLinkRates(curr => ({ ...curr, passInterestToCustomer: checked }));
+                                  }}
+                                  className="mt-0.5 accent-pink-600 w-4 h-4 cursor-pointer shrink-0"
+                                />
+                                <div>
+                                  <span className="block text-[10.5px] font-bold text-slate-800">
+                                    Cliente assume juros do parcelamento no Link
+                                  </span>
+                                  <span className="block text-[9px] text-slate-500 leading-snug mt-0.5">
+                                    Marque se no seu app InfinitePay o parcelamento repassa os juros ao comprador (assim PDV e Webhook descontam apenas a taxa de 1x).
+                                  </span>
+                                </div>
+                              </label>
+                            </div>
+
+                            <div>
+                              <span className="block text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">
+                                Taxas do Cartão no Link de Pagamento (1x a 12x)
+                              </span>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                                {[1,2,3,4,5,6,7,8,9,10,11,12].map((p) => {
+                                  const val = linkRates.creditInstallments?.[p] !== undefined
+                                    ? linkRates.creditInstallments[p]
+                                    : (activeMachine.creditInstallments[p] ?? 0);
+                                  return (
+                                    <div key={`link-${p}`} className="bg-slate-50/80 p-2 border border-slate-200 rounded-lg flex items-center justify-between gap-1">
+                                      <span className="text-[11px] font-bold text-pink-700 shrink-0 font-mono">{p}x:</span>
+                                      <div className="relative flex-1">
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          min="0"
+                                          max="100"
+                                          value={val}
+                                          onChange={(e) => {
+                                            const inputVal = parseFloat(e.target.value) || 0;
+                                            updateLinkRates(curr => ({
+                                              ...curr,
+                                              creditInstallments: {
+                                                ...curr.creditInstallments,
+                                                [p]: inputVal
+                                              }
+                                            }));
+                                          }}
+                                          className="w-full text-right bg-white border border-slate-200 focus:border-pink-500 rounded-md p-1 pr-4 font-mono font-bold text-[11px] focus:outline-hidden"
+                                        />
+                                        <span className="absolute right-1.5 top-1 text-[9px] text-slate-400 font-bold">%</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       <div className="flex justify-end gap-2 pt-1 font-sans">
                         <button
                           type="button"
                           onClick={() => {
+                            safeLocalStorageSet('ap_config_saved_at_ap_card_machines_rates', String(Date.now()));
                             saveCardMachinesConfig(cardMachines);
                             pushSystemConfigToSupabase('ap_card_machines_rates', JSON.stringify(cardMachines));
-                            showToast(`Taxas da maquininha "${activeMachine.name}" salvas e enviadas ao Supabase!`, 'success');
+                            showToast(`Taxas da maquininha "${activeMachine.name}" salvas e sincronizadas com o servidor!`, 'success');
                           }}
                           className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-lg transition-colors cursor-pointer text-[10.5px] border-none font-sans"
                         >

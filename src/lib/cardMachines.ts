@@ -1,5 +1,11 @@
 import { safeLocalStorageSet } from '../utils/dateUtils';
 
+export interface InfinitePayLinkRates {
+  pixFee: number; // Taxa do PIX no Link de Pagamento (padrão 0.00%)
+  passInterestToCustomer: boolean; // true = cliente assume juros de parcelamento no Link; false = loja absorve as taxas
+  creditInstallments: { [key: number]: number }; // 1x a 12x específicas do Link de Pagamento InfinitePay
+}
+
 export interface CardMachineConfig {
   id: string;
   name: string;
@@ -7,7 +13,27 @@ export interface CardMachineConfig {
   creditInstallments: { [key: number]: number }; // 1x to 12x rates represented as percentages (e.g. 1: 3.16, 2: 4.38...)
   debitDiscount?: number;   // discount/rate option for debit machine payment
   creditDiscount?: number;  // discount/rate option for credit machine payment
+  linkRates?: InfinitePayLinkRates; // Taxas específicas para Link de Pagamento Online (InfinitePay)
 }
+
+export const DEFAULT_INFINITEPAY_LINK_RATES: InfinitePayLinkRates = {
+  pixFee: 0.00,
+  passInterestToCustomer: false,
+  creditInstallments: {
+    1: 3.16,
+    2: 4.38,
+    3: 4.98,
+    4: 5.58,
+    5: 6.18,
+    6: 6.78,
+    7: 7.38,
+    8: 7.98,
+    9: 8.58,
+    10: 9.18,
+    11: 9.78,
+    12: 10.38
+  }
+};
 
 export const DEFAULT_CARD_MACHINES: CardMachineConfig[] = [
   {
@@ -29,6 +55,10 @@ export const DEFAULT_CARD_MACHINES: CardMachineConfig[] = [
       10: 9.18,
       11: 9.78,
       12: 10.38
+    },
+    linkRates: {
+      ...DEFAULT_INFINITEPAY_LINK_RATES,
+      creditInstallments: { ...DEFAULT_INFINITEPAY_LINK_RATES.creditInstallments }
     }
   },
   {
@@ -117,6 +147,41 @@ export const DEFAULT_CARD_MACHINES: CardMachineConfig[] = [
   }
 ];
 
+function hydrateMachineConfigs(parsed: any[]): CardMachineConfig[] {
+  if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_CARD_MACHINES;
+  return parsed.map((m: any) => {
+    const def = DEFAULT_CARD_MACHINES.find(d => d.id === m?.id);
+    if (m?.id === 'infinitepay') {
+      const baseInstallments = m.creditInstallments || def?.creditInstallments || {};
+      const existingLink = m.linkRates || {};
+      const linkCreditInstallments: { [key: number]: number } = {};
+      for (let i = 1; i <= 12; i++) {
+        const rawVal = existingLink.creditInstallments?.[i];
+        linkCreditInstallments[i] =
+          rawVal !== undefined && rawVal !== null && !Number.isNaN(Number(rawVal))
+            ? Number(rawVal)
+            : Number(baseInstallments[i] ?? DEFAULT_INFINITEPAY_LINK_RATES.creditInstallments[i] ?? 0);
+      }
+      return {
+        ...(def || {}),
+        ...m,
+        linkRates: {
+          pixFee:
+            existingLink.pixFee !== undefined && !Number.isNaN(Number(existingLink.pixFee))
+              ? Number(existingLink.pixFee)
+              : DEFAULT_INFINITEPAY_LINK_RATES.pixFee,
+          passInterestToCustomer: Boolean(existingLink.passInterestToCustomer),
+          creditInstallments: linkCreditInstallments
+        }
+      };
+    }
+    return {
+      ...(def || {}),
+      ...m
+    };
+  });
+}
+
 export function getCardMachinesConfig(): CardMachineConfig[] {
   const saved = localStorage.getItem('ap_card_machines_rates');
   if (!saved) {
@@ -125,7 +190,7 @@ export function getCardMachinesConfig(): CardMachineConfig[] {
     return DEFAULT_CARD_MACHINES;
   }
   try {
-    return JSON.parse(saved);
+    return hydrateMachineConfigs(JSON.parse(saved));
   } catch (e) {
     console.warn('Error reading ap_card_machines_rates from localStorage, using default.', e);
     return DEFAULT_CARD_MACHINES;
@@ -133,7 +198,98 @@ export function getCardMachinesConfig(): CardMachineConfig[] {
 }
 
 export function saveCardMachinesConfig(configs: CardMachineConfig[]): void {
-  safeLocalStorageSet('ap_card_machines_rates', JSON.stringify(configs));
+  const hydrated = hydrateMachineConfigs(configs);
+  safeLocalStorageSet('ap_card_machines_rates', JSON.stringify(hydrated));
+  try {
+    window.dispatchEvent(new Event('ap-card-machines-updated'));
+  } catch {}
+}
+
+export function getInfinitePayMachineConfig(): CardMachineConfig {
+  const configs = getCardMachinesConfig();
+  return configs.find(c => c.id === 'infinitepay') || DEFAULT_CARD_MACHINES[0];
+}
+
+export interface InfinitePayLinkEstimate {
+  grossAmount: number;
+  passInterestToCustomer: boolean;
+  pixFeePercent: number;
+  pixFeeAmount: number;
+  pixNetAmount: number;
+  credit1xFeePercent: number;
+  credit1xFeeAmount: number;
+  credit1xNetAmount: number;
+  selectedInstallments: number;
+  selectedCreditFeePercent: number;
+  selectedCreditFeeAmount: number;
+  selectedCreditNetAmount: number;
+  credit12xFeePercent: number;
+  credit12xFeeAmount: number;
+  credit12xNetAmount: number;
+}
+
+export function calculateInfinitePayLinkEstimate(
+  amount: number,
+  selectedInstallments: number = 3,
+  overridePassInterest?: boolean
+): InfinitePayLinkEstimate {
+  const gross = Math.max(0, Number(amount || 0));
+  const inst = Math.min(12, Math.max(1, Math.round(Number(selectedInstallments || 1))));
+  const machine = getInfinitePayMachineConfig();
+  const linkRates = machine.linkRates || {
+    ...DEFAULT_INFINITEPAY_LINK_RATES,
+    creditInstallments: machine.creditInstallments || DEFAULT_INFINITEPAY_LINK_RATES.creditInstallments
+  };
+
+  const passInterest =
+    overridePassInterest !== undefined
+      ? overridePassInterest
+      : Boolean(linkRates.passInterestToCustomer);
+
+  const pixFeePercent = Number(linkRates.pixFee ?? 0);
+  const credit1xFeePercent = Number(
+    linkRates.creditInstallments?.[1] ?? machine.creditInstallments?.[1] ?? 3.16
+  );
+
+  const rawSelectedCreditPercent = Number(
+    linkRates.creditInstallments?.[inst] ?? machine.creditInstallments?.[inst] ?? credit1xFeePercent
+  );
+  const selectedCreditFeePercent =
+    passInterest && inst > 1 ? credit1xFeePercent : rawSelectedCreditPercent;
+
+  const raw12xPercent = Number(
+    linkRates.creditInstallments?.[12] ?? machine.creditInstallments?.[12] ?? 10.38
+  );
+  const credit12xFeePercent = passInterest ? credit1xFeePercent : raw12xPercent;
+
+  const calcNet = (pct: number) => {
+    const fee = Number(((gross * pct) / 100).toFixed(2));
+    const net = Number(Math.max(0, gross - fee).toFixed(2));
+    return { fee, net };
+  };
+
+  const pix = calcNet(pixFeePercent);
+  const c1x = calcNet(credit1xFeePercent);
+  const cSel = calcNet(selectedCreditFeePercent);
+  const c12x = calcNet(credit12xFeePercent);
+
+  return {
+    grossAmount: gross,
+    passInterestToCustomer: passInterest,
+    pixFeePercent,
+    pixFeeAmount: pix.fee,
+    pixNetAmount: pix.net,
+    credit1xFeePercent,
+    credit1xFeeAmount: c1x.fee,
+    credit1xNetAmount: c1x.net,
+    selectedInstallments: inst,
+    selectedCreditFeePercent,
+    selectedCreditFeeAmount: cSel.fee,
+    selectedCreditNetAmount: cSel.net,
+    credit12xFeePercent,
+    credit12xFeeAmount: c12x.fee,
+    credit12xNetAmount: c12x.net
+  };
 }
 
 /**
