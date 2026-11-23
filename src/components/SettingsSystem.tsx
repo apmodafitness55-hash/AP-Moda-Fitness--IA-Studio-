@@ -174,9 +174,9 @@ export default function SettingsSystem({
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.length > 0) {
-          const sanitized = parsed.map((slide, idx) => {
+          const sanitized = parsed.map((slide) => {
             const updated = { ...slide };
-            const hasWholesale = idx === 0 || 
+            const hasWholesale =
               (updated.title && (updated.title.toLowerCase().includes("atacado") || updated.title.toLowerCase().includes("lote"))) ||
               (updated.desc && (updated.desc.toLowerCase().includes("atacado") || updated.desc.toLowerCase().includes("lote"))) ||
               (updated.tag && (updated.tag.toLowerCase().includes("atacado") || updated.tag.toLowerCase().includes("lote")));
@@ -427,12 +427,13 @@ export default function SettingsSystem({
         setImgbbKey(savedImgbb);
       }
       setDiscordWebhook(localStorage.getItem('ap_discord_webhook') || '');
-      let savedUrl = localStorage.getItem('ap_supabase_url') || localStorage.getItem('ap_supabase_url') || 'https://ckrwmdaocoyigpmzpdyz.supabase.co';
-      if (savedUrl.includes('.supabase.co')) {
-        savedUrl = savedUrl.replace('.supabase.co', '.supabase.co');
+      let savedUrl = localStorage.getItem('ap_supabase_url') || 'https://konvqchxhtdocoszedwm.supabase.co';
+      if (savedUrl.includes('ckrwmdaocoyigpmzpdyz')) {
+        savedUrl = 'https://konvqchxhtdocoszedwm.supabase.co';
       }
       setSupabaseUrl(savedUrl);
-      setSupabaseKey(localStorage.getItem('ap_supabase_key') || localStorage.getItem('ap_supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrcndtZGFvY295aWdwbXpwZHl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NDk2NzMsImV4cCI6MjA5NzEyNTY3M30.20vJ4pjavzl06v1dOIbx9rkxf7kc_72ApGgD6jCRiss');
+      const savedKey = localStorage.getItem('ap_supabase_key') || '';
+      setSupabaseKey(savedKey && !savedKey.includes('Y2tyd21kYW9jb3lpZ3BtenBkeXo') && !savedKey.includes('NrcndtZGFvY295aWdwbXpwZHl6') ? savedKey : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvbnZxY2h4aHRkb2Nvc3plZHdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5OTE3MjIsImV4cCI6MjA5OTU2NzcyMn0.C07ff6YU24aqEw1-sqN8gQ_MqqW-C70QoUHTIbaelhQ');
       
       // Reload Vitrine settings on cloud sync
       try {
@@ -522,13 +523,19 @@ export default function SettingsSystem({
     };
   }, []);
   const [supabaseUrl, setSupabaseUrl] = useState(() => {
-    let saved = localStorage.getItem('ap_supabase_url') || localStorage.getItem('ap_supabase_url') || 'https://ckrwmdaocoyigpmzpdyz.supabase.co';
-    if (saved.includes('.supabase.co')) {
-      saved = saved.replace('.supabase.co', '.supabase.co');
+    let saved = localStorage.getItem('ap_supabase_url') || 'https://konvqchxhtdocoszedwm.supabase.co';
+    if (saved.includes('ckrwmdaocoyigpmzpdyz')) {
+      saved = 'https://konvqchxhtdocoszedwm.supabase.co';
     }
     return saved;
   });
-  const [supabaseKey, setSupabaseKey] = useState(() => localStorage.getItem('ap_supabase_key') || localStorage.getItem('ap_supabase_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrcndtZGFvY295aWdwbXpwZHl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NDk2NzMsImV4cCI6MjA5NzEyNTY3M30.20vJ4pjavzl06v1dOIbx9rkxf7kc_72ApGgD6jCRiss');
+  const [supabaseKey, setSupabaseKey] = useState(() => {
+    const saved = localStorage.getItem('ap_supabase_key') || '';
+    if (!saved || saved.includes('NrcndtZGFvY295aWdwbXpwZHl6')) {
+      return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvbnZxY2h4aHRkb2Nvc3plZHdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5OTE3MjIsImV4cCI6MjA5OTU2NzcyMn0.C07ff6YU24aqEw1-sqN8gQ_MqqW-C70QoUHTIbaelhQ';
+    }
+    return saved;
+  });
   const [isTestingSupabase, setIsTestingSupabase] = useState(false);
   const [isSyncingTeam, setIsSyncingTeam] = useState(false);
   const [isForceSyncingAll, setIsForceSyncingAll] = useState(false);
@@ -928,6 +935,7 @@ export default function SettingsSystem({
   });
   const [currentPassword, setCurrentPassword] = useState('•••••••••');
   const [newPassword, setNewPassword] = useState('');
+  const [calcResult, setCalcResult] = useState<{ bruto: number; method: string; parts: number; feeRate: number; feeValue: number; net: number } | null>(null);
 
   // Form states to Add/Edit Team Member
   const [memberFormName, setMemberFormName] = useState('');
@@ -1566,14 +1574,25 @@ export default function SettingsSystem({
 
   const handleUpdatePassword = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPassword.trim()) {
-      showToast('Preencha a nova senha.', 'warning');
+    const trimmedNew = newPassword.trim();
+    if (!trimmedNew || trimmedNew.length < 4) {
+      showToast('Preencha a nova senha (mínimo 4 caracteres).', 'warning');
       return;
+    }
+    const targetAdmin = teamMembers.find(m => m.role === 'Admin' && (m.login?.toLowerCase() === 'admin' || m.id === 'usr-1')) || teamMembers.find(m => m.role === userRole) || teamMembers[0];
+    if (targetAdmin) {
+      const updatedList = teamMembers.map(m =>
+        m.id === targetAdmin.id ? { ...m, password: trimmedNew } : m
+      );
+      onUpdateTeamMembers?.(updatedList);
+      safeLocalStorageSet('ap_moda_team_users', JSON.stringify(updatedList));
+      safeLocalStorageSet('ap_moda_team_users_backup', JSON.stringify(updatedList));
+      syncBulkTeamMembersToSupabase(updatedList.filter(m => m.id === targetAdmin.id)).catch(() => {});
     }
     setCurrentPassword('•••••••••');
     setNewPassword('');
-    registerAuditLog('Alteração Cadastral', 'Senha do usuário modificada');
-    showToast('Senha alterada com sucesso!', 'success');
+    registerAuditLog('Alteração Cadastral', 'Senha do usuário modificada e sincronizada');
+    showToast('Senha alterada e salva com sucesso!', 'success');
   };
 
   const handleRoleChange = (newR: 'Admin' | 'Gerente' | 'Vendedor') => {
@@ -3422,20 +3441,11 @@ export default function SettingsSystem({
                           const method = (document.getElementById('calc-type-select2') as HTMLSelectElement)?.value || 'credit';
                           const parts = parseInt((document.getElementById('calc-installments-select2') as HTMLSelectElement)?.value || '3');
                           const activeM = cardMachines.find(m => m.id === editingMachineId);
-                          
                           if (activeM) {
                             const feeRate = method === 'debit' ? activeM.debitFee : (activeM.creditInstallments[parts] || 0);
                             const feeValue = (bruto * feeRate) / 100;
                             const net = bruto - feeValue;
-                            
-                            const resEl = document.getElementById('calc-results2') as HTMLDivElement;
-                            if (resEl) {
-                              resEl.innerHTML = `
-                                <div class="flex justify-between text-zinc-400 font-sans"><span>Taxa Aplicada:</span><span class="text-zinc-100 font-bold">${feeRate.toFixed(2)}%</span></div>
-                                <div class="flex justify-between text-zinc-400 font-sans"><span>Custo de Tarifa:</span><span class="text-rose-400 font-bold">R$ ${feeValue.toFixed(2)}</span></div>
-                                <div class="flex justify-between text-emerald-400 font-bold mt-1 font-sans"><span>Líquido a Receber:</span><span>R$ ${net.toFixed(2)}</span></div>
-                              `;
-                            }
+                            setCalcResult({ bruto, method, parts, feeRate, feeValue, net });
                           }
                         }}
                         className="w-full py-1 bg-pink-600 hover:bg-pink-700 text-white rounded font-bold text-[9px] transition-all cursor-pointer font-sans border-none"
@@ -3444,20 +3454,29 @@ export default function SettingsSystem({
                       </button>
 
                       <div id="calc-results2" className="mt-2 text-[9px] space-y-1.5 bg-slate-800 p-2 rounded-lg font-mono">
-                        <div className="flex justify-between text-zinc-400">
-                          <span>Taxa Aplicada:</span>
-                          <span className="text-zinc-100 font-bold">
-                            {(cardMachines.find(m => m.id === editingMachineId)?.creditInstallments[3] || 0).toFixed(2)}%
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-zinc-400">
-                          <span>Custo de Tarifa:</span>
-                          <span className="text-rose-400 font-bold">R$ {(100 * (cardMachines.find(m => m.id === editingMachineId)?.creditInstallments[3] || 0) / 100).toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-emerald-400 font-bold mt-1">
-                          <span>Líquido a Receber:</span>
-                          <span>R$ {(100 - (100 * (cardMachines.find(m => m.id === editingMachineId)?.creditInstallments[3] || 0) / 100)).toFixed(2)}</span>
-                        </div>
+                        {(() => {
+                          const activeM = cardMachines.find(m => m.id === editingMachineId);
+                          const defaultRate = activeM?.creditInstallments[3] || 0;
+                          const feeRate = calcResult ? calcResult.feeRate : defaultRate;
+                          const feeValue = calcResult ? calcResult.feeValue : (100 * defaultRate) / 100;
+                          const net = calcResult ? calcResult.net : 100 - (100 * defaultRate) / 100;
+                          return (
+                            <>
+                              <div className="flex justify-between text-zinc-400">
+                                <span>Taxa Aplicada:</span>
+                                <span className="text-zinc-100 font-bold">{feeRate.toFixed(2)}%</span>
+                              </div>
+                              <div className="flex justify-between text-zinc-400">
+                                <span>Custo de Tarifa:</span>
+                                <span className="text-rose-400 font-bold">R$ {feeValue.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between text-emerald-400 font-bold mt-1">
+                                <span>Líquido a Receber:</span>
+                                <span>R$ {net.toFixed(2)}</span>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>

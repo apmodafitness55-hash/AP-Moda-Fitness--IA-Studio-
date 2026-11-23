@@ -98,13 +98,14 @@ export default function StorefrontPaymentConfig() {
 
   // Card reader terminals state
   const [terminals, setTerminals] = useState<CardTerminal[]>(() => {
-    const saved = localStorage.getItem('ap_moda_card_terminals');
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: 'term-1', name: 'Maquininha Presencial Stone AP01', brand: 'Stone Verde T3', serialNumber: 'ST-90182-AA', status: 'Ativo', notes: 'Fica com o motoboy principal do showroom.' },
-      { id: 'term-2', name: 'Leitor Point Pro Mercado Pago', brand: 'Mercado Pago', serialNumber: 'MP-88210-BC', status: 'Ativo', notes: 'Utilizada no caixa do ponto de venda físico.' },
-      { id: 'term-3', name: 'Minizinha Chip 3 PagSeguro', brand: 'PagSeguro', serialNumber: 'PS-10293-XZ', status: 'Inativo', notes: 'Reserva para eventos e feiras fitness.' }
-    ];
+    try {
+      const saved = localStorage.getItem('ap_moda_card_terminals');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
   });
 
   // InfinitePay Configuration State

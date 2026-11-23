@@ -249,17 +249,17 @@ export default function DashboardExecutive({
 
   const monthlyRevenuePct = useMemo(() => {
     const target = configuredMonthlyGoal > 0 ? configuredMonthlyGoal : 20000;
-    const currentYm = getLocalYearMonth();
+    const currentYmKey = getLocalYearMonth().key;
     const current = sales
-      .filter(s => s.status === 'Concluída' && getLocalYearMonth(s.createdAt) === currentYm)
+      .filter(s => s.status === 'Concluída' && getLocalYearMonth(s.createdAt).key === currentYmKey)
       .reduce((sum, s) => sum + s.total, 0);
     return Math.min(Math.round((current / target) * 100), 100);
   }, [sales, configuredMonthlyGoal]);
 
   const monthlyNewClientsPct = useMemo(() => {
     const target = 20;
-    const currentYm = getLocalYearMonth();
-    const current = clients.filter(c => c.createdAt && getLocalYearMonth(c.createdAt) === currentYm).length;
+    const currentYmKey = getLocalYearMonth().key;
+    const current = clients.filter(c => c.createdAt && getLocalYearMonth(c.createdAt).key === currentYmKey).length;
     return Math.min(Math.round((current / target) * 100), 100);
   }, [clients]);
 

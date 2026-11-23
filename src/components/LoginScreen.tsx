@@ -64,60 +64,28 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
 
       const matchedClient = (clients || []).find(c => {
         const cPhone = cleanPhoneInput(c.phone || '');
+        const cCpf = cleanPhoneInput(c.cpf || '');
         const matchesLogin = 
           c.email?.trim().toLowerCase() === targetLoginLower ||
-          (c.cpf && cleanPhoneInput(c.cpf) === cleanInput) ||
-          cPhone === cleanInput ||
+          (cCpf && cCpf === cleanInput) ||
+          (cPhone && cPhone === cleanInput) ||
           c.name?.trim().toLowerCase() === targetLoginLower;
           
         if (!matchesLogin) return false;
         
-        // Match validation / password
+        // Match registered password, or registered phone/CPF when no password was explicitly set
         const pwdClean = cleanPhoneInput(targetPassword);
+        const clientPwd = (c as any).password ? String((c as any).password).trim() : '';
         const matchesPwd = 
-          targetPassword.toLowerCase() === c.email?.trim().toLowerCase() ||
-          cPhone === pwdClean ||
-          (c.cpf && cleanPhoneInput(c.cpf) === pwdClean) ||
-          targetPassword === '123' || // Standard test password
-          targetPassword === (c.phone || '').trim();
+          (clientPwd.length > 0 && targetPassword === clientPwd) ||
+          (!clientPwd && pwdClean.length >= 8 && (cPhone === pwdClean || cCpf === pwdClean)) ||
+          targetPassword.toLowerCase() === c.email?.trim().toLowerCase();
           
         return matchesPwd;
       });
 
       if (!matchedClient) {
-        if (targetLogin) {
-          const cleanName = targetLogin.replace(/[@_.]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-          const cleanPhone = targetLogin.replace(/\D/g, '');
-          const autoClient = {
-            id: createUniqueId('cli-auto'),
-            name: cleanName.length > 2 ? cleanName : 'Cliente VIP AP Moda',
-            email: targetLogin.includes('@') ? targetLogin : `${targetLogin.toLowerCase().replace(/\s+/g, '')}@cliente.apmoda.com`,
-            phone: cleanPhone || '(11) 99999-8888',
-            cpf: '000.000.000-00',
-            city: 'São Paulo',
-            cashbackBalance: 0,
-            totalPurchases: 0,
-            purchasesCount: 0,
-            tier: 'VIP'
-          };
-
-          try {
-            const currentClients = localStorage.getItem('ap_moda_clients');
-            const list = currentClients ? JSON.parse(currentClients) : [];
-            list.push(autoClient);
-            safeLocalStorageSet('ap_moda_clients', JSON.stringify(list));
-          } catch(e){}
-
-          onLogin({
-            name: autoClient.name,
-            role: 'Cliente',
-            details: autoClient,
-            supabaseData: autoClient
-          });
-          return;
-        }
-
-        setErrorMsg('Cliente não encontrado ou dados de validação incorretos (Dica: Use seu WhatsApp cadastrado e a senha padrão 123).');
+        setErrorMsg('Cliente não encontrado ou dados de validação incorretos. Use seu CPF, E-mail ou WhatsApp cadastrado.');
         return;
       }
 
@@ -126,32 +94,6 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
         role: 'Cliente',
         details: matchedClient,
         supabaseData: matchedClient
-      });
-      return;
-    }
-
-    // Standard staff/team members & partners login logic
-    const isMasterAdmin = 
-      targetLogin.toLowerCase() === 'admin' && 
-      [
-        'admin123', 
-        'apb1695*', 
-        'ap81695*', 
-        'ap01695*', 
-        'apb1695', 
-        'ap81695',
-        'ap01695',
-        'admin',
-        '123'
-      ].includes(targetPassword.toLowerCase());
-
-    if (isMasterAdmin && (role === 'Admin' || role === 'Gerente' || role === 'Vendedor')) {
-      const virtualAdmin = { id: 'usr-1', name: 'Ana Paula Admin', login: 'admin', role: 'Admin', details: 'Administradora Geral' };
-      onLogin({
-        name: 'Ana Paula Admin',
-        role: 'Admin',
-        details: virtualAdmin,
-        supabaseData: virtualAdmin
       });
       return;
     }
@@ -185,13 +127,11 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
     } catch(e) {}
 
     const targetLoginLower = targetLogin.toLowerCase().trim().replace(/[@\s]/g, '');
-    const cleanCouponInput = targetLogin.toUpperCase().trim();
 
-    const validatePwd = (userPwd: string) => {
+    const validatePwd = (userPwd?: string) => {
       const uPwd = (userPwd || '').trim();
       const tPwd = targetPassword.trim();
-      if (isMasterAdmin) return true;
-      if (!uPwd) return tPwd === '123';
+      if (!uPwd || !tPwd) return false;
       return tPwd === uPwd;
     };
 
@@ -210,9 +150,13 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
 
       if (!matchesLogin) return false;
 
-      // Check password
-      return validatePwd(m.password || '123');
+      return validatePwd(m.password);
     });
+
+    // Fallback: only if zero teamMembers are loaded at all and exact default admin credentials are entered
+    if (!authenticatedUser && allTeamMembers.length === 0 && targetLogin.toLowerCase() === 'admin' && targetPassword === 'Ap01695*' && role === 'Admin') {
+      authenticatedUser = { id: 'usr-1', name: 'AP Moda Fitness', login: 'admin', role: 'Admin', details: 'Administradora Geral' };
+    }
 
     // 2. Search in localPartners (strict matching by login, Instagram, or exact name — NEVER couponCode)
     if (!authenticatedUser) {
@@ -228,7 +172,7 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
 
         if (!matchesLogin) return false;
 
-        return validatePwd(p.password || '123');
+        return validatePwd(p.password);
       });
 
       if (matchedPartnerObj) {
@@ -237,7 +181,7 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
           name: matchedPartnerObj.name,
           login: matchedPartnerObj.login || '',
           role: 'Parceiro',
-          password: matchedPartnerObj.password || '123',
+          password: matchedPartnerObj.password,
           details: matchedPartnerObj,
           couponCode: matchedPartnerObj.couponCode || ''
         };
@@ -369,7 +313,7 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={role === 'Cliente' ? 'Digite seu número ou a senha padrão 123...' : 'Insira a sua senha...'}
+                placeholder={role === 'Cliente' ? 'Digite seu telefone ou senha cadastrada...' : 'Insira a sua senha...'}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 pr-10 text-white font-medium focus:outline-none focus:border-pink-500 transition-all font-mono placeholder:text-slate-700"
               />
               <button
@@ -382,7 +326,7 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
             </div>
             {role === 'Cliente' && (
               <span className="text-[9px] text-slate-500 font-medium block mt-1 leading-normal">
-                💡 Dica de acesso rápido: Você pode usar a sua senha de demonstração padrão <strong>123</strong>.
+                💡 Use sua senha cadastrada ou seu número de telefone completo sem espaços.
               </span>
             )}
           </div>

@@ -88,14 +88,14 @@ function isBadProductImageUrl(imgUrl: any): boolean {
 }
 
 let supabaseOfflineUntil = 0;
-function markSupabaseNetworkFailure(err: any) {
-  const msg = String(err?.message || err || '').toLowerCase();
-  const code = String(err?.code || '').toUpperCase();
-  // Nunca ativar circuit breaker por erros de schema PostgREST (PGRST...) ou validação de payload
+let lastOfflineLogAt = 0;
+function isSupabaseNetworkError(err: any): boolean {
+  const msg = `${err?.message || ''} ${err?.details || ''} ${err?.hint || ''} ${err?.cause?.message || ''} ${err?.cause?.code || ''} ${String(err || '')}`.toLowerCase();
+  const code = String(err?.code || err?.cause?.code || '').toUpperCase();
   if (code.startsWith('PGRST') || msg.includes('schema cache') || msg.includes('could not find the')) {
-    return;
+    return false;
   }
-  if (
+  return (
     msg.includes('fetch failed') ||
     msg.includes('enotfound') ||
     msg.includes('econnrefused') ||
@@ -103,13 +103,30 @@ function markSupabaseNetworkFailure(err: any) {
     msg.includes('econnreset') ||
     msg.includes('socket hang up') ||
     msg.includes('failed to fetch') ||
+    msg.includes('aborterror') ||
+    msg.includes('aborted') ||
     msg.includes('bad gateway') ||
     msg.includes('service unavailable') ||
     msg.includes('gateway timeout')
-  ) {
-    supabaseOfflineUntil = Date.now() + 60_000;
-    isSupabaseVerifiedHealthy = false;
+  );
+}
+
+function markSupabaseNetworkFailure(err: any): boolean {
+  if (!isSupabaseNetworkError(err)) {
+    return false;
   }
+  supabaseOfflineUntil = Date.now() + 5 * 60_000;
+  isSupabaseVerifiedHealthy = false;
+  try {
+    const creds = resolveSupabaseCredentials();
+    if (creds?.url) currentConfigUrl = creds.url;
+  } catch {}
+  const now = Date.now();
+  if (now - lastOfflineLogAt > 60_000) {
+    lastOfflineLogAt = now;
+    console.info('[Supabase Offline Shield] Nuvem Supabase inacessível no momento — operando via banco local persistente (local_db.json).');
+  }
+  return true;
 }
 
 class SupabaseQueryBuilder {
@@ -189,7 +206,6 @@ class SupabaseQueryBuilder {
   }
 
   private async runLocalFallbackSelect() {
-    console.warn(`[Supabase Fallback Select] Ativando fallback local para tabela: ${this.path}`);
     const localQB = new LocalQueryBuilder(this.path);
     if (this.isSingle) localQB.single();
     if (this.isMaybeSingle) localQB.maybeSingle();
@@ -206,6 +222,11 @@ class SupabaseQueryBuilder {
   }
 
   async then(onfulfilled?: (value: any) => any) {
+    if (supabaseOfflineUntil > Date.now()) {
+      const fallbackResult = await this.runLocalFallbackSelect();
+      if (onfulfilled) return onfulfilled(fallbackResult);
+      return fallbackResult;
+    }
     try {
       let q = this.query;
       if (!this.isSingle && !this.isMaybeSingle) {
@@ -224,8 +245,10 @@ class SupabaseQueryBuilder {
       }
       const { data, error } = await q;
       if (error) {
-        markSupabaseNetworkFailure(error);
-        console.warn(`[Supabase Query Error in table ${this.path}]:`, error.message || error);
+        const isNetErr = markSupabaseNetworkFailure(error);
+        if (!isNetErr) {
+          console.warn(`[Supabase Query Error in table ${this.path}]:`, error.message || error);
+        }
         const fallbackResult = await this.runLocalFallbackSelect();
         if (onfulfilled) return onfulfilled(fallbackResult);
         return fallbackResult;
@@ -236,8 +259,10 @@ class SupabaseQueryBuilder {
       }
       return result;
     } catch (err: any) {
-      markSupabaseNetworkFailure(err);
-      console.warn(`[Supabase Query Exception in table ${this.path}]:`, err.message || err);
+      const isNetErr = markSupabaseNetworkFailure(err);
+      if (!isNetErr) {
+        console.warn(`[Supabase Query Exception in table ${this.path}]:`, err.message || err);
+      }
       const fallbackResult = await this.runLocalFallbackSelect();
       if (onfulfilled) return onfulfilled(fallbackResult);
       return fallbackResult;
@@ -268,10 +293,13 @@ class SupabaseQueryBuilder {
   }
 
   async upsert(payload: any, options?: { onConflict?: string }) {
+    if (supabaseOfflineUntil > Date.now()) {
+      return new LocalQueryBuilder(this.path).upsert(payload, options);
+    }
     try {
       let currentPayload = payload;
       let lastError: any = null;
-      for (let attempt = 0; attempt < 8; attempt++) {
+      for (let attempt = 0; attempt < 10; attempt++) {
         const { data, error } = await this.client.from(this.path).upsert(currentPayload, options);
         if (!error) {
           return { data, error: null };
@@ -283,20 +311,48 @@ class SupabaseQueryBuilder {
           currentPayload = this.stripColumnFromPayload(currentPayload, missingCol);
           continue;
         }
+        const errMsg = String(error?.message || error?.details || '');
+        if (errMsg.toLowerCase().includes('malformed array literal')) {
+          const fixArrCols = (row: any) => {
+            if (!row || typeof row !== 'object') return row;
+            const copy = { ...row };
+            for (const col of ['images', 'colors', 'sizes']) {
+              if (typeof copy[col] === 'string' && copy[col].trim().startsWith('[')) {
+                try {
+                  const parsed = JSON.parse(copy[col]);
+                  if (Array.isArray(parsed)) copy[col] = parsed;
+                } catch {}
+              }
+            }
+            return copy;
+          };
+          currentPayload = Array.isArray(currentPayload) ? currentPayload.map(fixArrCols) : fixArrCols(currentPayload);
+          continue;
+        }
         break;
       }
-      markSupabaseNetworkFailure(lastError);
-      console.warn(`[Supabase Upsert Error in table ${this.path}]:`, lastError?.message || lastError);
+      const isNetErr = markSupabaseNetworkFailure(lastError);
+      if (!isNetErr) {
+        console.warn(`[Supabase Upsert Error in table ${this.path}]:`, lastError?.message || lastError);
+      }
+      if (supabaseOfflineUntil > Date.now()) {
+        return new LocalQueryBuilder(this.path).upsert(payload, options);
+      }
       new LocalQueryBuilder(this.path).upsert(payload, options).catch(() => {});
       return { data: null, error: lastError };
     } catch (err: any) {
-      markSupabaseNetworkFailure(err);
-      console.warn(`[Supabase Upsert Exception in table ${this.path}]:`, err.message || err);
+      const isNetErr = markSupabaseNetworkFailure(err);
+      if (!isNetErr) {
+        console.warn(`[Supabase Upsert Exception in table ${this.path}]:`, err.message || err);
+      }
       return new LocalQueryBuilder(this.path).upsert(payload, options);
     }
   }
 
   async insert(payload: any) {
+    if (supabaseOfflineUntil > Date.now()) {
+      return new LocalQueryBuilder(this.path).insert(payload);
+    }
     try {
       let currentPayload = payload;
       let lastError: any = null;
@@ -313,12 +369,16 @@ class SupabaseQueryBuilder {
         }
         break;
       }
-      markSupabaseNetworkFailure(lastError);
-      console.warn(`[Supabase Insert Error in table ${this.path}]:`, lastError?.message || lastError);
+      const isNetErr = markSupabaseNetworkFailure(lastError);
+      if (!isNetErr) {
+        console.warn(`[Supabase Insert Error in table ${this.path}]:`, lastError?.message || lastError);
+      }
       return new LocalQueryBuilder(this.path).insert(payload);
     } catch (err: any) {
-      markSupabaseNetworkFailure(err);
-      console.warn(`[Supabase Insert Exception in table ${this.path}]:`, err.message || err);
+      const isNetErr = markSupabaseNetworkFailure(err);
+      if (!isNetErr) {
+        console.warn(`[Supabase Insert Exception in table ${this.path}]:`, err.message || err);
+      }
       return new LocalQueryBuilder(this.path).insert(payload);
     }
   }
@@ -326,6 +386,9 @@ class SupabaseQueryBuilder {
   update(payload: any) {
     return {
       eq: async (col: string, val: any) => {
+        if (supabaseOfflineUntil > Date.now()) {
+          return new LocalQueryBuilder(this.path).update(payload).eq(col, val);
+        }
         try {
           let currentPayload = payload;
           let lastError: any = null;
@@ -347,12 +410,16 @@ class SupabaseQueryBuilder {
             }
             break;
           }
-          markSupabaseNetworkFailure(lastError);
-          console.warn(`[Supabase Update Error in table ${this.path}]:`, lastError?.message || lastError);
+          const isNetErr = markSupabaseNetworkFailure(lastError);
+          if (!isNetErr) {
+            console.warn(`[Supabase Update Error in table ${this.path}]:`, lastError?.message || lastError);
+          }
           return new LocalQueryBuilder(this.path).update(payload).eq(col, val);
         } catch (err: any) {
-          markSupabaseNetworkFailure(err);
-          console.warn(`[Supabase Update Exception in table ${this.path}]:`, err.message || err);
+          const isNetErr = markSupabaseNetworkFailure(err);
+          if (!isNetErr) {
+            console.warn(`[Supabase Update Exception in table ${this.path}]:`, err.message || err);
+          }
           return new LocalQueryBuilder(this.path).update(payload).eq(col, val);
         }
       }
@@ -367,16 +434,23 @@ class SupabaseQueryBuilder {
           await new LocalQueryBuilder(this.path).delete().eq(col, val);
         } catch (e) {}
 
+        if (supabaseOfflineUntil > Date.now()) {
+          return { error: null };
+        }
         try {
           const { error } = await this.client.from(this.path).delete().eq(col, val);
           if (error) {
-            markSupabaseNetworkFailure(error);
-            console.warn(`[Supabase Delete Error in table ${this.path}]:`, error.message || error);
+            const isNetErr = markSupabaseNetworkFailure(error);
+            if (!isNetErr) {
+              console.warn(`[Supabase Delete Error in table ${this.path}]:`, error.message || error);
+            }
           }
           return { error: null };
         } catch (err: any) {
-          markSupabaseNetworkFailure(err);
-          console.warn(`[Supabase Delete Exception in table ${this.path}]:`, err.message || err);
+          const isNetErr = markSupabaseNetworkFailure(err);
+          if (!isNetErr) {
+            console.warn(`[Supabase Delete Exception in table ${this.path}]:`, err.message || err);
+          }
           return { error: null };
         }
       },
@@ -385,16 +459,23 @@ class SupabaseQueryBuilder {
           await new LocalQueryBuilder(this.path).delete().neq(col, val);
         } catch (e) {}
 
+        if (supabaseOfflineUntil > Date.now()) {
+          return { error: null };
+        }
         try {
           const { error } = await this.client.from(this.path).delete().neq(col, val);
           if (error) {
-            markSupabaseNetworkFailure(error);
-            console.warn(`[Supabase Delete Error in table ${this.path}]:`, error.message || error);
+            const isNetErr = markSupabaseNetworkFailure(error);
+            if (!isNetErr) {
+              console.warn(`[Supabase Delete Error in table ${this.path}]:`, error.message || error);
+            }
           }
           return { error: null };
         } catch (err: any) {
-          markSupabaseNetworkFailure(err);
-          console.warn(`[Supabase Delete Exception in table ${this.path}]:`, err.message || err);
+          const isNetErr = markSupabaseNetworkFailure(err);
+          if (!isNetErr) {
+            console.warn(`[Supabase Delete Exception in table ${this.path}]:`, err.message || err);
+          }
           return { error: null };
         }
       },
@@ -403,14 +484,23 @@ class SupabaseQueryBuilder {
           await new LocalQueryBuilder(this.path).delete().in(col, vals);
         } catch (e) {}
 
+        if (supabaseOfflineUntil > Date.now()) {
+          return { error: null };
+        }
         try {
           const { error } = await this.client.from(this.path).delete().in(col, vals);
           if (error) {
-            console.warn(`[Supabase Delete Error in table ${this.path}]:`, error.message || error);
+            const isNetErr = markSupabaseNetworkFailure(error);
+            if (!isNetErr) {
+              console.warn(`[Supabase Delete Error in table ${this.path}]:`, error.message || error);
+            }
           }
           return { error: null };
         } catch (err: any) {
-          console.warn(`[Supabase Delete Exception in table ${this.path}]:`, err.message || err);
+          const isNetErr = markSupabaseNetworkFailure(err);
+          if (!isNetErr) {
+            console.warn(`[Supabase Delete Exception in table ${this.path}]:`, err.message || err);
+          }
           return { error: null };
         }
       }
@@ -891,8 +981,8 @@ function resolveSupabaseCredentials() {
 
   // 4. Default fallback: Verified production Supabase project
   if (!matchedUrl || !matchedKey) {
-    const defaultLiveUrl = 'https://ckrwmdaocoyigpmzpdyz.supabase.co';
-    const defaultLiveKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrcndtZGFvY295aWdwbXpwZHl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NDk2NzMsImV4cCI6MjA5NzEyNTY3M30.20vJ4pjavzl06v1dOIbx9rkxf7kc_72ApGgD6jCRiss';
+    const defaultLiveUrl = 'https://konvqchxhtdocoszedwm.supabase.co';
+    const defaultLiveKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvbnZxY2h4aHRkb2Nvc3plZHdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5OTE3MjIsImV4cCI6MjA5OTU2NzcyMn0.C07ff6YU24aqEw1-sqN8gQ_MqqW-C70QoUHTIbaelhQ';
     matchedUrl = defaultLiveUrl;
     matchedKey = defaultLiveKey;
   }
@@ -904,10 +994,11 @@ async function checkSupabaseHealth(url: string, key: string): Promise<boolean> {
   if (!url || !url.startsWith('http') || !key || key.startsWith('MY_')) {
     return false;
   }
+  currentConfigUrl = url;
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8-second timeout is safe for free-tier sleep wakeups
-    const response = await fetch(`${url}/rest/v1/`, {
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch(`${url}/rest/v1/ap_products?select=id&limit=1`, {
       headers: {
         'apikey': key,
         'Authorization': `Bearer ${key}`
@@ -916,15 +1007,17 @@ async function checkSupabaseHealth(url: string, key: string): Promise<boolean> {
     });
     clearTimeout(timeoutId);
     if (response.ok) {
+      supabaseOfflineUntil = 0;
       console.log(`[Supabase Health Check] Conectado com sucesso à instância ${url}`);
       return true;
     } else {
-      const txt = await response.text();
-      console.warn(`[Supabase Health Check] Instância ${url} retornou erro (possível quota excedida ou chave inválida). Código: ${response.status}`);
+      console.warn(`[Supabase Health Check] Instância ${url} retornou status ${response.status}. Ativando fallback local.`);
+      supabaseOfflineUntil = Date.now() + 5 * 60_000;
       return false;
     }
   } catch (e: any) {
-    console.warn(`[Supabase Health Check] Falha de conexão para ${url}:`, e.message || e);
+    supabaseOfflineUntil = Date.now() + 5 * 60_000;
+    console.info(`[Supabase Health Check] Nuvem ${url} indisponível (${e?.code || e?.message || 'offline'}). Operando via banco local persistente.`);
     return false;
   }
 }
@@ -934,7 +1027,7 @@ function getFirebaseServerDb() {
 
   const isSupabaseConfigured = supabaseUrl && supabaseUrl.startsWith('http') && supabaseKey && !supabaseKey.startsWith('MY_');
 
-  if (!isSupabaseConfigured || (supabaseOfflineUntil > Date.now() && currentConfigUrl === supabaseUrl)) {
+  if (!isSupabaseConfigured || (supabaseOfflineUntil > Date.now() && (!currentConfigUrl || currentConfigUrl === supabaseUrl))) {
     return new LocalDBAdapter();
   }
 
@@ -1078,9 +1171,10 @@ app.get('/api/proxy/cdn-image', async (req, res) => {
     // Resolve any viewer links (e.g. ibb.co -> i.ibb.co, Google Drive -> lh3 usercontent, Dropbox -> raw)
     const directUrl = await resolveDirectImageUrl(trimmedUrl);
     const targetUrl = directUrl || trimmedUrl;
+    const forceProxy = req.query.forceProxy === '1' || req.query.forceProxy === 'true';
 
-    // ImgBB CDN delivers directly to the client browser without datacenter IP blocking
-    if (targetUrl.includes('i.ibb.co') || targetUrl.includes('ibb.co.com')) {
+    // ImgBB CDN normally delivers directly to the client browser, unless client retried with forceProxy=1
+    if (!forceProxy && (targetUrl.includes('i.ibb.co') || targetUrl.includes('ibb.co.com'))) {
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       return res.redirect(302, targetUrl);
     }
@@ -1156,8 +1250,9 @@ app.get('/api/proxy/cdn-image', async (req, res) => {
           upstreamRes = await fetch(targetUrl, {
             signal: controller.signal,
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+              'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+              ...(targetUrl.includes('ibb.co') ? { 'Referer': 'https://ibb.co/' } : {})
             }
           });
         } finally {
@@ -1169,7 +1264,19 @@ app.get('/api/proxy/cdn-image', async (req, res) => {
         }
 
         const origBuf = Buffer.from(await upstreamRes.arrayBuffer());
-        const upstreamContentType = upstreamRes.headers.get('content-type') || 'image/jpeg';
+        const upstreamContentType = (upstreamRes.headers.get('content-type') || 'image/jpeg').toLowerCase();
+        const headText = origBuf.slice(0, 64).toString('utf8').trim().toLowerCase();
+
+        if (
+          upstreamContentType.includes('text/html') ||
+          upstreamContentType.includes('application/json') ||
+          upstreamContentType.includes('text/plain') ||
+          headText.startsWith('<!doctype') ||
+          headText.startsWith('<html') ||
+          headText.startsWith('{')
+        ) {
+          throw new Error(`Upstream returned non-image content (${upstreamContentType})`);
+        }
 
         if (upstreamContentType.includes('svg')) {
           return { buffer: origBuf, contentType: 'image/svg+xml' };
@@ -1193,6 +1300,9 @@ app.get('/api/proxy/cdn-image', async (req, res) => {
 
           return { buffer: transformed, contentType: 'image/webp' };
         } catch (sharpErr) {
+          if (!upstreamContentType.startsWith('image/')) {
+            throw new Error('Upstream buffer is not a valid image');
+          }
           console.warn('[Sharp Conversion Warning] Serving original buffer:', sharpErr);
           return { buffer: origBuf, contentType: upstreamContentType };
         }
@@ -1209,7 +1319,11 @@ app.get('/api/proxy/cdn-image', async (req, res) => {
     } catch (err: any) {
       cdnInFlight.delete(cacheKey);
       console.warn(`[CDN Image Fetch Error] ${targetUrl}:`, err.message);
-      // Resilient fallback: Redirect browser directly to the image URL so user's client loads it directly ONLY IF it is an actual direct image URL
+      // When forceProxy=1 is set (client retry after direct failure), return HTTP 502 instead of redirecting back to failing host
+      if (forceProxy) {
+        return res.status(502).send('Falha ao carregar imagem via proxy.');
+      }
+      // Resilient fallback: Redirect browser directly to the image URL ONLY IF it is an actual direct image URL
       if (targetUrl.includes('i.ibb.co') || targetUrl.includes('googleusercontent.com') || /\.(jpg|jpeg|png|webp|avif|gif)(\?.*)?$/i.test(targetUrl)) {
         return res.redirect(302, targetUrl);
       }
@@ -1794,15 +1908,28 @@ const handleInfinitePayWebhook = async (req: any, res: any) => {
       }
 
       // GRAVAÇÃO IMEDIATA NA TABELA ap_sales PARA ATUALIZAR O DASHBOARD GERAL
-      const saleItems = (Array.isArray(order.items) ? order.items : []).map((it: any, idx: number) => ({
-        productId: it.productId || `p-ext-${Date.now()}-${idx}`,
-        name: it.productName || it.name || '',
-        quantity: Number(it.quantity || 1),
-        price: Number(it.price || 0),
-        cost: Number(it.cost || Math.round((it.price || 0) * 0.45)),
-        selectedColor: it.color || '',
-        selectedSize: it.size || ''
-      }));
+      let webhookProducts: any[] = [];
+      try {
+        const { data: prods } = await db.from('ap_products').select('id, name, cost');
+        if (Array.isArray(prods)) webhookProducts = prods;
+      } catch {}
+
+      const saleItems = (Array.isArray(order.items) ? order.items : []).map((it: any, idx: number) => {
+        const matchedProd = webhookProducts.find((p: any) =>
+          (it.productId && String(p.id) === String(it.productId)) ||
+          (it.productName && String(p.name || '').trim().toLowerCase() === String(it.productName).split('(')[0].trim().toLowerCase())
+        );
+        const resolvedCost = Number(it.cost || matchedProd?.cost || Math.round((it.price || 0) * 0.45));
+        return {
+          productId: it.productId || matchedProd?.id || `p-ext-${Date.now()}-${idx}`,
+          name: it.productName || it.name || '',
+          quantity: Number(it.quantity || 1),
+          price: Number(it.price || 0),
+          cost: resolvedCost,
+          selectedColor: it.color || '',
+          selectedSize: it.size || ''
+        };
+      });
 
       const costTotal = saleItems.reduce((sum: number, it: any) => sum + (it.cost * it.quantity), 0);
 
@@ -2053,15 +2180,28 @@ app.post('/api/webhook/payment', async (req, res) => {
     }
 
     // GRAVAÇÃO IMEDIATA NA TABELA ap_sales PARA ATUALIZAR O DASHBOARD GERAL
-    const saleItems = (Array.isArray(order.items) ? order.items : []).map((it: any, idx: number) => ({
-      productId: it.productId || `p-ext-${Date.now()}-${idx}`,
-      name: it.productName || it.name || '',
-      quantity: Number(it.quantity || 1),
-      price: Number(it.price || 0),
-      cost: Number(it.cost || Math.round((it.price || 0) * 0.45)),
-      selectedColor: it.color || '',
-      selectedSize: it.size || ''
-    }));
+    let genericWebhookProducts: any[] = [];
+    try {
+      const { data: prods } = await db.from('ap_products').select('id, name, cost');
+      if (Array.isArray(prods)) genericWebhookProducts = prods;
+    } catch {}
+
+    const saleItems = (Array.isArray(order.items) ? order.items : []).map((it: any, idx: number) => {
+      const matchedProd = genericWebhookProducts.find((p: any) =>
+        (it.productId && String(p.id) === String(it.productId)) ||
+        (it.productName && String(p.name || '').trim().toLowerCase() === String(it.productName).split('(')[0].trim().toLowerCase())
+      );
+      const resolvedCost = Number(it.cost || matchedProd?.cost || Math.round((it.price || 0) * 0.45));
+      return {
+        productId: it.productId || matchedProd?.id || `p-ext-${Date.now()}-${idx}`,
+        name: it.productName || it.name || '',
+        quantity: Number(it.quantity || 1),
+        price: Number(it.price || 0),
+        cost: resolvedCost,
+        selectedColor: it.color || '',
+        selectedSize: it.size || ''
+      };
+    });
 
     const costTotal = saleItems.reduce((sum: number, it: any) => sum + (it.cost * it.quantity), 0);
 
@@ -2144,19 +2284,21 @@ async function getImgbbApiKeyFromDb(): Promise<string> {
   return process.env.IMGBB_API_KEY || '18601b3928fe35b4d0d517fe002c2df7';
 }
 
-// Upload de imagens no ImgBB com fallback otimizado para Armazenamento Local
+// Upload de imagens no ImgBB com fallback otimizado para WebP compacto permanente
 app.post('/api/proxy/upload-image', async (req, res) => {
   try {
     const { file, name } = req.body;
-    if (!file) {
+    if (!file || typeof file !== 'string') {
       return res.status(400).json({ error: 'Arquivo é obrigatório.' });
     }
 
     // Extrair buffer de imagem de Base64 ou data URI
     let rawBuffer: Buffer;
+    let origMime = 'image/jpeg';
     if (file.startsWith('data:')) {
-      const match = file.match(/^data:(.+);base64,(.+)$/);
+      const match = file.match(/^data:([^;]+);base64,(.+)$/);
       if (match) {
+        origMime = match[1] || 'image/jpeg';
         rawBuffer = Buffer.from(match[2], 'base64');
       } else {
         rawBuffer = Buffer.from(file.replace(/^data:[^;]+;base64,/, ''), 'base64');
@@ -2165,29 +2307,42 @@ app.post('/api/proxy/upload-image', async (req, res) => {
       rawBuffer = Buffer.from(file, 'base64');
     }
 
-    // Auto-otimização com Sharp para WebP de alta fidelidade e baixíssimo peso (máx 1200px)
+    if (!rawBuffer || rawBuffer.length === 0) {
+      return res.status(400).json({ error: 'Arquivo de imagem vazio ou inválido.' });
+    }
+
+    // Auto-otimização com Sharp para WebP de alta fidelidade, correção automática de orientação EXIF e baixíssimo peso
     let optimizedBuffer = rawBuffer;
+    let sharpWorked = false;
     let base64Data = '';
     try {
       optimizedBuffer = await sharp(rawBuffer)
+        .rotate()
         .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
         .webp({ quality: 82 })
         .toBuffer();
+      sharpWorked = true;
       base64Data = optimizedBuffer.toString('base64');
     } catch (sharpErr) {
       console.warn('[Sharp compress warning]:', sharpErr);
       base64Data = rawBuffer.toString('base64');
     }
 
-    // Tentar upload via ImgBB se a chave estiver configurada
-    try {
-      const apiKey = await getImgbbApiKeyFromDb();
-      if (apiKey) {
+    // Tentar upload via ImgBB (testa chave configurada no banco e faz fallback na chave padrão se falhar)
+    const fallbackKey = process.env.IMGBB_API_KEY || '18601b3928fe35b4d0d517fe002c2df7';
+    const configuredKey = await getImgbbApiKeyFromDb();
+    const candidateKeys = Array.from(new Set([configuredKey, fallbackKey].filter(k => typeof k === 'string' && k.trim().length > 8)));
+
+    for (const apiKey of candidateKeys) {
+      try {
         const body = new URLSearchParams();
         body.append('image', base64Data);
-        if (name) body.append('name', name);
+        if (name) {
+          const cleanName = String(name).replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48);
+          if (cleanName) body.append('name', cleanName);
+        }
 
-        const imgbbRes = await fetchWithTimeout(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+        const imgbbRes = await fetchWithTimeout(`https://api.imgbb.com/1/upload?key=${encodeURIComponent(apiKey.trim())}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: body.toString()
@@ -2195,33 +2350,56 @@ app.post('/api/proxy/upload-image', async (req, res) => {
 
         if (imgbbRes.ok) {
           const result = await imgbbRes.json() as any;
-          if (result && result.success && result.data && result.data.url) {
-            console.log('[ImgBB Proxy] Upload ImgBB concluído com sucesso. URL:', result.data.url);
-            return res.json({ success: true, url: result.data.url });
+          const uploadedDirectUrl = result?.data?.display_url || result?.data?.url || result?.data?.image?.url;
+          if (result && result.success && uploadedDirectUrl) {
+            console.log('[ImgBB Proxy] Upload ImgBB concluído com sucesso. URL:', uploadedDirectUrl);
+            return res.json({ success: true, url: uploadedDirectUrl, storageMode: 'imgbb' });
           }
+        } else {
+          const errTxt = await imgbbRes.text().catch(() => '');
+          console.warn(`[ImgBB Upload HTTP ${imgbbRes.status}]:`, errTxt.slice(0, 200));
         }
+      } catch (imgbbErr: any) {
+        console.warn('[ImgBB Upload Warning, tentando fallback]:', imgbbErr?.message || imgbbErr);
       }
-    } catch (imgbbErr) {
-      console.warn('[ImgBB Upload Warning, usando fallback local]:', imgbbErr);
     }
 
-    // Fallback resiliente: em vez de depender apenas do disco efêmero (/uploads) que pode sumir ao reiniciar container,
-    // compacta em WebP (<90KB) como data URI permanente salva direto junto ao produto no banco!
+    // Fallback resiliente: compacta em WebP (<95KB) como data URI permanente salva direto junto ao produto no banco!
     let durableDataUrl = '';
-    try {
-      let compactBuf = await sharp(rawBuffer)
-        .resize(900, 900, { fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: 72 })
-        .toBuffer();
-      if (compactBuf.length > 90000) {
-        compactBuf = await sharp(rawBuffer)
-          .resize(700, 700, { fit: 'inside', withoutEnlargement: true })
-          .webp({ quality: 62 })
+    if (sharpWorked) {
+      try {
+        let compactBuf = await sharp(rawBuffer)
+          .rotate()
+          .resize(900, 900, { fit: 'inside', withoutEnlargement: true })
+          .webp({ quality: 72 })
           .toBuffer();
+        if (compactBuf.length > 85000) {
+          compactBuf = await sharp(rawBuffer)
+            .rotate()
+            .resize(720, 720, { fit: 'inside', withoutEnlargement: true })
+            .webp({ quality: 58 })
+            .toBuffer();
+        }
+        if (compactBuf.length > 85000) {
+          compactBuf = await sharp(rawBuffer)
+            .rotate()
+            .resize(600, 600, { fit: 'inside', withoutEnlargement: true })
+            .webp({ quality: 46 })
+            .toBuffer();
+        }
+        if (compactBuf.length > 95000) {
+          compactBuf = await sharp(rawBuffer)
+            .rotate()
+            .resize(480, 480, { fit: 'inside', withoutEnlargement: true })
+            .webp({ quality: 38 })
+            .toBuffer();
+        }
+        durableDataUrl = `data:image/webp;base64,${compactBuf.toString('base64')}`;
+      } catch (compactErr) {
+        console.warn('[Compact DataURI Fallback Warn]:', compactErr);
       }
-      durableDataUrl = `data:image/webp;base64,${compactBuf.toString('base64')}`;
-    } catch (compactErr) {
-      console.warn('[Compact DataURI Fallback Warn]:', compactErr);
+    } else if (rawBuffer.length <= 120000 && origMime.startsWith('image/')) {
+      durableDataUrl = `data:${origMime};base64,${rawBuffer.toString('base64')}`;
     }
 
     if (durableDataUrl) {
@@ -2229,7 +2407,7 @@ app.post('/api/proxy/upload-image', async (req, res) => {
       return res.json({ success: true, url: durableDataUrl, storageMode: 'embedded-webp' });
     }
 
-    // Último recurso se Sharp falhar completamente
+    // Último recurso se Sharp falhar em arquivo muito grande
     const uploadsDir = path.join(process.cwd(), 'uploads');
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true });
@@ -2250,15 +2428,13 @@ app.post('/api/proxy/upload-image', async (req, res) => {
 // Sanitization helpers: restrict strictly to explicit seed/demo IDs — NEVER delete real customers or real notes
 async function sanitizeClients(clients: any[]) {
   const isMock = (c: any) => {
-    const email = String(c.email || '').toLowerCase().trim();
     const id = String(c.id || '').toLowerCase().trim();
     return (
       id === 'cli-1' ||
       id === 'cli-2' ||
       id === 'cli-3' ||
       id.startsWith('test-') ||
-      id.startsWith('cli-demo') ||
-      email.endsWith('@exemplo.com')
+      id.startsWith('cli-demo')
     );
   };
 
@@ -2516,8 +2692,8 @@ async function sanitizeTeamMembers(members: any[]) {
       if (m.login?.toLowerCase() === 'admin') {
         return {
           ...m,
-          name: 'AP Moda Fitness',
-          password: 'Ap01695*',
+          name: m.name || 'AP Moda Fitness',
+          password: (m.password && String(m.password).trim()) ? m.password : 'Ap01695*',
           role: 'Admin'
         };
       }
@@ -2613,7 +2789,7 @@ app.post('/api/clients/login', async (req, res) => {
     const cleanLogin = login.replace(/\D/g, '');
     const loginLower = login.trim().toLowerCase();
 
-    // Query clients matching the credentials safely (max 20)
+    // Query clients matching the credentials safely without dropping rows beyond limit(20)
     let clients: any[] = [];
     if (loginLower.includes('@')) {
       const { data } = await db.from('ap_clients').select('*').eq('email', loginLower).limit(20);
@@ -2624,7 +2800,7 @@ app.post('/api/clients/login', async (req, res) => {
     }
 
     if (clients.length === 0) {
-      const { data } = await db.from('ap_clients').select('*').limit(20);
+      const { data } = await db.from('ap_clients').select('*');
       if (data) clients = data;
     }
 
@@ -2646,18 +2822,17 @@ app.post('/api/clients/login', async (req, res) => {
       return res.status(400).json({ error: 'Cliente não encontrado com as credenciais informadas.' });
     }
 
-    // Validate password
+    // Validate password strictly against saved password or registered phone/CPF when no password was set
     const pwdClean = password.replace(/\D/g, '');
     const cPhoneClean = (matchedClient.phone || '').replace(/\D/g, '');
     const cCpfClean = (matchedClient.cpf || '').replace(/\D/g, '');
 
     const matchesPwd = 
-      password === matchedClient.password ||
-      password === '123' ||
-      (!matchedClient.password && (cPhoneClean === pwdClean || cCpfClean === pwdClean));
+      (Boolean(matchedClient.password) && password === matchedClient.password) ||
+      (!matchedClient.password && pwdClean.length >= 8 && (cPhoneClean === pwdClean || cCpfClean === pwdClean));
 
     if (!matchesPwd) {
-      return res.status(400).json({ error: 'Senha incorreta. Tente novamente ou use a senha padrão 123.' });
+      return res.status(400).json({ error: 'Senha incorreta. Confira sua senha ou seu telefone/CPF cadastrado.' });
     }
 
     if (pendingFavoriteProductId) {
@@ -2808,18 +2983,7 @@ app.get('/api/proxy/sales', async (req, res) => {
     
     const { data, error } = await query;
     if (error) throw error;
-    let sanitized = await sanitizeSales(data || []);
-
-    // If remote sales table is empty, auto-restore authentic sales history and persist
-    if (!sanitized || sanitized.length === 0) {
-      console.log('[Proxy Sales GET] Tabela ap_sales vazia. Auto-restaurando histórico de vendas autênticas...');
-      const localDb = readLocalDb();
-      const fallbackSales = (localDb.ap_sales && localDb.ap_sales.length > 0) ? localDb.ap_sales : [];
-      if (fallbackSales.length > 0) {
-        sanitized = fallbackSales;
-        db.from('ap_sales').upsert(fallbackSales, { onConflict: 'id' }).then(() => {});
-      }
-    }
+    const sanitized = await sanitizeSales(data || []);
 
     res.json(sanitized);
   } catch (err: any) {
@@ -3626,17 +3790,38 @@ app.get('/api/proxy/products', async (req, res) => {
   }
 });
 
+function isDirectImageUrlCandidate(url: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (trimmed.startsWith('data:image/') || trimmed.startsWith('/api/images/') || trimmed.startsWith('/optimized-images/')) {
+    return true;
+  }
+  const lower = trimmed.toLowerCase();
+  if (lower.includes('i.ibb.co') || lower.includes('i.ibb.co.com')) return true;
+  if (lower.includes('lh3.googleusercontent.com')) return true;
+  if (lower.includes('i.imgur.com') || lower.includes('i.postimg.cc')) return true;
+  if (lower.includes('dropbox.com') && (lower.includes('raw=1') || lower.includes('dl=1'))) return true;
+  if (/\.(jpg|jpeg|png|webp|avif|gif|bmp)(\?.*)?$/i.test(lower)) return true;
+  return false;
+}
+
 app.all('/api/proxy/resolve-image-url', async (req, res) => {
   try {
     const rawUrl = (req.method === 'POST' ? req.body?.url : req.query.url) as string;
     if (!rawUrl || typeof rawUrl !== 'string') {
-      return res.status(400).json({ error: 'URL é obrigatória.' });
+      return res.status(400).json({ error: 'URL é obrigatória.', success: false });
     }
     const resolved = await resolveDirectImageUrl(rawUrl);
-    res.json({ original: rawUrl, resolved, success: true });
+    const isDirect = isDirectImageUrlCandidate(resolved);
+    res.json({
+      original: rawUrl,
+      resolved,
+      isDirectImage: isDirect,
+      success: isDirect
+    });
   } catch (err: any) {
     console.error('[Proxy Resolve Image URL] Erro:', err);
-    res.status(500).json({ error: err.message || 'Erro ao resolver link da imagem.' });
+    res.status(500).json({ error: err.message || 'Erro ao resolver link da imagem.', success: false });
   }
 });
 
@@ -3698,34 +3883,49 @@ async function resolveDirectImageUrl(url: string): Promise<string> {
     return `https://i.imgur.com/${imgurMatch[1]}.jpg`;
   }
 
-  // 4. ImgBB viewer link resolution (e.g. ibb.co/XYZ or imgbb.com/XYZ) with strict 1.5s timeout
-  const isImgbbViewer = (normalized.includes('ibb.co') || normalized.includes('imgbb.com')) && 
-                        !normalized.includes('i.ibb.co') && 
-                        !normalized.includes('i.ibb.co.com') && 
-                        !/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(normalized);
+  // 4. ImgBB viewer link resolution (e.g. ibb.co/XYZ or imgbb.com/XYZ) with realistic browser headers and 6s timeout
+  const isImgbbViewer = (normalized.includes('ibb.co') || normalized.includes('imgbb.com')) &&
+                        !normalized.includes('i.ibb.co') &&
+                        !normalized.includes('i.ibb.co.com') &&
+                        !/\.(jpg|jpeg|png|gif|webp|avif|svg)(\?.*)?$/i.test(normalized);
   if (isImgbbViewer) {
     try {
       const response = await fetchWithTimeout(normalized, {
+        redirect: 'follow',
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
           'Referer': 'https://imgbb.com/'
         }
-      }, 1500);
+      }, 6000);
 
       if (response.ok) {
         const html = await response.text();
-        const ogImageMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i) || 
-                             html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i) ||
-                             html.match(/https?:\/\/i\.ibb\.co(?:\.com)?\/[a-zA-Z0-9_/.-]+/i);
-        if (ogImageMatch && ogImageMatch[1]) {
-          return ogImageMatch[1].trim();
-        } else if (ogImageMatch && ogImageMatch[0]) {
-          return ogImageMatch[0].trim();
+        const patterns = [
+          /<meta\s+[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i,
+          /<meta\s+[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i,
+          /<meta\s+[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i,
+          /<link\s+[^>]*rel=["']image_src["'][^>]*href=["']([^"']+)["']/i,
+          /"contentUrl"\s*:\s*"(https?:\\?\/\\?\/i\.ibb\.co[^"]+)"/i,
+          /https?:\/\/i\.ibb\.co(?:\.com)?\/[a-zA-Z0-9_\/.-]+\.(?:jpg|jpeg|png|webp|gif|avif)/i,
+          /https?:\/\/i\.ibb\.co(?:\.com)?\/[a-zA-Z0-9_\/.-]+/i
+        ];
+        for (const pat of patterns) {
+          const m = html.match(pat);
+          const candidate = (m && (m[1] || m[0])) ? (m[1] || m[0]).replace(/\\\//g, '/').replace(/&amp;/g, '&').trim() : '';
+          if (
+            candidate &&
+            !candidate.toLowerCase().includes('/favicon') &&
+            !candidate.toLowerCase().includes('/logo') &&
+            (candidate.includes('i.ibb.co') || isDirectImageUrlCandidate(candidate))
+          ) {
+            return candidate;
+          }
         }
       }
     } catch (err: any) {
-      // Non-blocking fallback
+      console.warn('[ImgBB Resolve Warning]:', err?.message || err);
     }
   }
 
@@ -3733,11 +3933,13 @@ async function resolveDirectImageUrl(url: string): Promise<string> {
   if (normalized.includes('postimg.cc/') && !normalized.includes('i.postimg.cc/')) {
     try {
       const response = await fetchWithTimeout(normalized, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-      }, 3000);
+        redirect: 'follow',
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36' }
+      }, 5000);
       if (response.ok) {
         const html = await response.text();
-        const ogMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i);
+        const ogMatch = html.match(/<meta\s+[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i) ||
+                        html.match(/<meta\s+[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i);
         if (ogMatch && ogMatch[1]) return ogMatch[1].trim();
       }
     } catch (err) {}
@@ -3751,16 +3953,24 @@ async function sanitizeAndCompressImage(val: string): Promise<string> {
   const trimmed = val.trim();
   if (!trimmed || isBadProductImageUrl(trimmed)) return '';
   if (trimmed.startsWith('data:image/')) {
-    // If it's a huge base64 string (>40KB), auto-compress using sharp to WebP
-    if (trimmed.length > 40000) {
+    // If it's a large base64 string (>65KB), auto-compress using sharp to WebP preserving aspect ratio
+    if (trimmed.length > 85000) {
       try {
-        const match = trimmed.match(/^data:image\/\w+;base64,(.+)$/);
+        const match = trimmed.match(/^data:image\/[a-zA-Z0-9+.-]+;base64,(.+)$/);
         if (match) {
           const buf = Buffer.from(match[1], 'base64');
-          const compressed = await sharp(buf)
-            .resize(800, 1066, { fit: 'cover', withoutEnlargement: true })
-            .webp({ quality: 80 })
+          let compressed = await sharp(buf)
+            .rotate()
+            .resize(900, 900, { fit: 'inside', withoutEnlargement: true })
+            .webp({ quality: 74 })
             .toBuffer();
+          if (compressed.length > 64000) {
+            compressed = await sharp(buf)
+              .rotate()
+              .resize(700, 700, { fit: 'inside', withoutEnlargement: true })
+              .webp({ quality: 58 })
+              .toBuffer();
+          }
           return 'data:image/webp;base64,' + compressed.toString('base64');
         }
       } catch (e) {
@@ -3864,8 +4074,9 @@ app.post('/api/proxy/products', async (req, res) => {
 
     // Dynamic schema discovery to strip invalid columns and avoid PostgREST column-not-found errors
     let finalPayloads = items;
+    const shouldQueryRemote = db.constructor.name !== 'LocalDBAdapter' && supabaseOfflineUntil <= Date.now();
 
-    if (db.constructor.name !== 'LocalDBAdapter') {
+    if (shouldQueryRemote) {
       try {
         const { data: sampleRows } = await db.from('ap_products').select('*').limit(1);
         const existingCols = (sampleRows && sampleRows.length > 0) ? Object.keys(sampleRows[0]) : null;
@@ -3954,27 +4165,30 @@ app.post('/api/proxy/products', async (req, res) => {
       }
     }
 
-    if (finalPayloads.length > 0) {
+    let remoteError: any = null;
+    if (finalPayloads.length > 0 && shouldQueryRemote) {
       const { error } = await db.from('ap_products').upsert(finalPayloads, { onConflict: 'id' });
-      if (error) throw error;
+      if (error && supabaseOfflineUntil <= Date.now()) {
+        remoteError = error;
+      }
     }
 
-    // Keep local_db.json cache in sync atomically so local fallback is never stale or empty
-    try {
-      const local = readLocalDb();
-      if (!Array.isArray(local.ap_products)) local.ap_products = [];
-      for (const p of items) {
-        if (!p || !p.id) continue;
-        const idx = local.ap_products.findIndex((lp: any) => lp && String(lp.id) === String(p.id));
-        if (idx >= 0) {
-          local.ap_products[idx] = { ...local.ap_products[idx], ...p };
-        } else {
-          local.ap_products.push(p);
-        }
+    // Keep local_db.json cache in sync atomically with clean camelCase items so local fallback never stores stale or snake_case payloads
+    const local = readLocalDb();
+    if (!Array.isArray(local.ap_products)) local.ap_products = [];
+    for (const p of items) {
+      if (!p || !p.id) continue;
+      const idx = local.ap_products.findIndex((lp: any) => lp && String(lp.id) === String(p.id));
+      if (idx >= 0) {
+        local.ap_products[idx] = { ...local.ap_products[idx], ...p };
+      } else {
+        local.ap_products.push(p);
       }
-      writeLocalDb(local);
-    } catch (localDbErr) {
-      console.warn('[Proxy Products POST] Warning writing local cache:', localDbErr);
+    }
+    writeLocalDb(local);
+
+    if (remoteError) {
+      throw remoteError;
     }
 
     res.json({ success: true });
@@ -4520,12 +4734,12 @@ app.get('/api/system/health-check', async (req, res) => {
     let supaErrDetail = '';
     if (url && key && url.startsWith('http') && !key.startsWith('MY_')) {
       try {
-        const sRes = await fetchWithTimeout(`${url}/rest/v1/`, {
+        const sRes = await fetchWithTimeout(`${url}/rest/v1/ap_products?select=id&limit=1`, {
           headers: { apikey: key, Authorization: `Bearer ${key}` }
         }, 7000);
         healthy = sRes.ok;
         if (!sRes.ok) {
-          supaErrDetail = `HTTP ${sRes.status} ao acessar ${url}/rest/v1/`;
+          supaErrDetail = `HTTP ${sRes.status} ao acessar ${url}/rest/v1/ap_products`;
         }
       } catch (sEx: any) {
         healthy = false;
@@ -7138,19 +7352,17 @@ async function startServer() {
     console.log('Production static files mounted from dist with cache-control headers.');
   }
 
+  // Check Supabase health before serving requests so offline fallback engages immediately without transient fetch errors
+  const { url, key } = resolveSupabaseCredentials();
+  if (url && key) {
+    isSupabaseVerifiedHealthy = await checkSupabaseHealth(url, key);
+  } else {
+    isSupabaseVerifiedHealthy = false;
+  }
+
   app.listen(PORT, '0.0.0.0', async () => {
     console.log(`Express custom server running at http://0.0.0.0:${PORT}`);
-    
-    // Check Supabase health on startup
-    const { url, key } = resolveSupabaseCredentials();
-    if (url && key) {
-      console.log('[Supabase Server Boot] Iniciando verificação de conexão com Supabase...');
-      isSupabaseVerifiedHealthy = await checkSupabaseHealth(url, key);
-      console.log(`[Supabase Server Boot] Status de saúde inicial do Supabase: ${isSupabaseVerifiedHealthy ? 'SAUDÁVEL' : 'MENSAGENS REDIRECIONADAS PARA BANCO LOCAL'}`);
-    } else {
-      isSupabaseVerifiedHealthy = false;
-      console.log('[Supabase Server Boot] Sem credenciais do Supabase configuradas. Utilizando banco local.');
-    }
+    console.log(`[Supabase Server Boot] Status de saúde inicial: ${isSupabaseVerifiedHealthy ? 'SAUDÁVEL' : 'BANCO LOCAL PERSISTENTE ATIVO'}`);
 
     // Pre-warm image CDN cache asynchronously
     preWarmImageCache().catch(e => console.warn('[CDN Pre-Warm]', e));

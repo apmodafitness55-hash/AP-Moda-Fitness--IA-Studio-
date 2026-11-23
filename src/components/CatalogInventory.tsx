@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { Product } from '../types';
 import ImageUploader from './ImageUploader';
-import { getOptimizedImageUrl, handleImageFallback, getProductMainImage, extractImageUrlsFromText, isFallbackOrPlaceholderUrl } from '../utils/imageUtils';
+import { getOptimizedImageUrl, getProxiedFallbackUrl, handleImageFallback, getProductMainImage, extractImageUrlsFromText, isFallbackOrPlaceholderUrl, isDirectImageUrl, resolveClientDirectImageUrl } from '../utils/imageUtils';
 import { showToast, showConfirm } from '../lib/uiDialog';
 import { safeLocalStorageSet, createUniqueId } from '../utils/dateUtils';
 
@@ -150,6 +150,7 @@ export default function CatalogInventory({
   const [addModalTab, setAddModalTab] = useState<'basico' | 'frete' | 'cores' | 'medidas' | 'fotos'>('basico');
   const [isSaving, setIsSaving] = useState(false);
   const [brokenGalleryUrls, setBrokenGalleryUrls] = useState<Set<string>>(new Set());
+  const [retriedGalleryUrls, setRetriedGalleryUrls] = useState<Set<string>>(new Set());
 
   // Dynamic custom color map state
   const [customColorMap, setCustomColorMap] = useState<Record<string, string>>(() => {
@@ -375,30 +376,7 @@ export default function CatalogInventory({
     } catch (e) {
       console.error(e);
     }
-    return [
-      {
-        id: 'combo-1',
-        name: 'Combo Legging Glow + Top Cross',
-        price: 199.90,
-        items: [
-          { name: 'Legging Glow Cós Anatômico', quantity: 1, productId: 'prod-1' },
-          { name: 'Top Cross Alta Sustentação', quantity: 1, productId: 'prod-2' }
-        ],
-        salesCount: 18,
-        active: true
-      },
-      {
-        id: 'combo-2',
-        name: 'Conjunto Tri-Blend Sem Costura (3 peças)',
-        price: 289.90,
-        items: [
-          { name: 'Shorts Seamless Sculpt', quantity: 1, productId: 'prod-3' },
-          { name: 'Top Seamless Confort', quantity: 1, productId: 'prod-4' }
-        ],
-        salesCount: 12,
-        active: true
-      }
-    ];
+    return [];
   });
 
   const mixMatchTelemetry = useMemo(() => {
@@ -551,6 +529,76 @@ export default function CatalogInventory({
   const [isResolvingEdit, setIsResolvingEdit] = useState(false);
   const [imageFeedback, setImageFeedback] = useState<{ type: 'new' | 'edit'; message: string; isError?: boolean } | null>(null);
 
+  const clearGalleryErrorForUrls = (urls: string[]) => {
+    if (!urls.length) return;
+    setBrokenGalleryUrls(prev => {
+      const next = new Set(prev);
+      urls.forEach(u => next.delete(u));
+      return next;
+    });
+    setRetriedGalleryUrls(prev => {
+      const next = new Set(prev);
+      urls.forEach(u => next.delete(u));
+      return next;
+    });
+  };
+
+  const extractAndResolveImageUrls = async (rawInput: string): Promise<{ resolvedUrls: string[]; unresolvedInputs: string[] }> => {
+    const trimmedInput = rawInput.trim();
+    if (!trimmedInput) return { resolvedUrls: [], unresolvedInputs: [] };
+
+    const extractedUrls = extractImageUrlsFromText(trimmedInput);
+    const candidates: string[] = [];
+
+    if (extractedUrls.length > 0) {
+      candidates.push(...extractedUrls);
+    } else {
+      let candidate = trimmedInput;
+      if (!candidate.startsWith('http://') && !candidate.startsWith('https://') && !candidate.startsWith('data:')) {
+        candidate = 'https://' + candidate;
+      }
+      if (candidate.startsWith('http://') || candidate.startsWith('https://') || candidate.startsWith('data:image/')) {
+        candidates.push(candidate);
+      }
+    }
+
+    const resolvedUrls: string[] = [];
+    const unresolvedInputs: string[] = [];
+
+    for (const u of candidates) {
+      if (isFallbackOrPlaceholderUrl(u)) continue;
+      if (isDirectImageUrl(u)) {
+        resolvedUrls.push(u);
+        continue;
+      }
+      // Viewer / indirect link (e.g. ibb.co/XYZ) -> resolve via server
+      try {
+        const response = await fetch('/api/proxy/resolve-image-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: u })
+        });
+        if (response.ok) {
+          const result = await response.json();
+          const candidateResolved = typeof result?.resolved === 'string' ? result.resolved.trim() : '';
+          const isValidDirect = Boolean(result?.isDirectImage || isDirectImageUrl(candidateResolved));
+          if (candidateResolved && isValidDirect && !isFallbackOrPlaceholderUrl(candidateResolved)) {
+            resolvedUrls.push(candidateResolved);
+            continue;
+          }
+        }
+      } catch (fetchErr) {
+        console.warn('[Proxy Resolve Warning]:', fetchErr);
+      }
+      unresolvedInputs.push(u);
+    }
+
+    return {
+      resolvedUrls: Array.from(new Set(resolvedUrls)),
+      unresolvedInputs: Array.from(new Set(unresolvedInputs))
+    };
+  };
+
   const resolveImageAndAdd = async (rawInput: string, type: 'new' | 'edit') => {
     const trimmedInput = rawInput.trim();
     if (!trimmedInput) return;
@@ -563,103 +611,33 @@ export default function CatalogInventory({
     setImageFeedback(null);
 
     try {
-      // 1. Try instant client-side extraction (works immediately for i.ibb.co, i.ibb.co.com, Google Drive, HTML embeds, BBCode, direct image files)
-      const extractedUrls = extractImageUrlsFromText(trimmedInput);
-      
-      const directUrlsToAdd: string[] = [];
-      const viewerUrlsToResolve: string[] = [];
+      const { resolvedUrls, unresolvedInputs } = await extractAndResolveImageUrls(trimmedInput);
 
-      const isDirectUrl = (url: string) => {
-        const lower = url.toLowerCase();
-        if (lower.includes('i.ibb.co') || lower.includes('i.ibb.co.com')) return true;
-        if (lower.includes('lh3.googleusercontent.com') || lower.includes('drive.google.com')) return true;
-        if (lower.includes('dropbox.com') && (lower.includes('raw=1') || lower.includes('dl=1'))) return true;
-        if (lower.includes('i.imgur.com') || lower.includes('postimg.cc')) return true;
-        if (/\.(jpg|jpeg|png|webp|avif|gif)(\?.*)?$/i.test(lower)) return true;
-        return false;
-      };
-
-      if (extractedUrls.length > 0) {
-        for (const u of extractedUrls) {
-          if (isDirectUrl(u)) {
-            directUrlsToAdd.push(u);
-          } else {
-            viewerUrlsToResolve.push(u);
-          }
-        }
-      } else {
-        // Fallback: check candidate with protocol if needed
-        let candidate = trimmedInput;
-        if (!candidate.startsWith('http://') && !candidate.startsWith('https://') && !candidate.startsWith('data:')) {
-          candidate = 'https://' + candidate;
-        }
-        if (isDirectUrl(candidate)) {
-          directUrlsToAdd.push(candidate);
-        } else {
-          viewerUrlsToResolve.push(candidate);
-        }
-      }
-
-      let addedCount = 0;
-
-      // Add all direct URLs immediately to state without needing any network roundtrip
-      const validDirectUrls = directUrlsToAdd.filter(u => !isFallbackOrPlaceholderUrl(u));
-      if (validDirectUrls.length > 0) {
+      if (resolvedUrls.length > 0) {
+        clearGalleryErrorForUrls(resolvedUrls);
         if (type === 'new') {
-          setNewImages(prev => Array.from(new Set([...prev, ...validDirectUrls])));
+          setNewImages(prev => Array.from(new Set([...prev, ...resolvedUrls])));
         } else {
-          setEditImages(prev => Array.from(new Set([...prev, ...validDirectUrls])));
-        }
-        addedCount += validDirectUrls.length;
-      }
-
-      // If there are viewer URLs that need resolving via the server proxy
-      if (viewerUrlsToResolve.length > 0) {
-        for (const vUrl of viewerUrlsToResolve) {
-          try {
-            const response = await fetch('/api/proxy/resolve-image-url', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ url: vUrl })
-            });
-            if (response.ok) {
-              const result = await response.json();
-              if (result && result.resolved && !isFallbackOrPlaceholderUrl(result.resolved)) {
-                const finalUrl = result.resolved;
-                if (type === 'new') {
-                  setNewImages(prev => prev.includes(finalUrl) ? prev : [...prev, finalUrl]);
-                } else {
-                  setEditImages(prev => prev.includes(finalUrl) ? prev : [...prev, finalUrl]);
-                }
-                addedCount++;
-                continue;
-              }
-            }
-          } catch (fetchErr) {
-            console.warn('[Proxy Resolve Warning]:', fetchErr);
-          }
-          // If server could not resolve, only add if it looks like a valid URL
-          if ((vUrl.startsWith('http://') || vUrl.startsWith('https://')) && !isFallbackOrPlaceholderUrl(vUrl)) {
-            if (type === 'new') {
-              setNewImages(prev => prev.includes(vUrl) ? prev : [...prev, vUrl]);
-            } else {
-              setEditImages(prev => prev.includes(vUrl) ? prev : [...prev, vUrl]);
-            }
-            addedCount++;
-          }
+          setEditImages(prev => Array.from(new Set([...prev, ...resolvedUrls])));
         }
       }
 
-      if (addedCount > 0) {
+      if (resolvedUrls.length > 0 && unresolvedInputs.length === 0) {
         setImageFeedback({
           type,
-          message: `✓ ${addedCount === 1 ? 'Foto adicionada' : `${addedCount} fotos adicionadas`} com sucesso!`,
+          message: `✓ ${resolvedUrls.length === 1 ? 'Foto adicionada' : `${resolvedUrls.length} fotos adicionadas`} com sucesso!`,
           isError: false
+        });
+      } else if (resolvedUrls.length > 0 && unresolvedInputs.length > 0) {
+        setImageFeedback({
+          type,
+          message: `✓ ${resolvedUrls.length} foto(s) adicionada(s), mas ${unresolvedInputs.length} link(s) não apontavam para uma imagem direta.`,
+          isError: true
         });
       } else {
         setImageFeedback({
           type,
-          message: '⚠ Não foi possível identificar uma foto válida no link informado.',
+          message: '⚠ Esse link não aponta diretamente para um arquivo de foto válido (no ImgBB, copie o "Link direto" i.ibb.co/... ou envie a foto pela galeria acima).',
           isError: true
         });
       }
@@ -678,7 +656,7 @@ export default function CatalogInventory({
       }
       setTimeout(() => {
         setImageFeedback(prev => (prev?.type === type ? null : prev));
-      }, 4000);
+      }, 5000);
     }
   };
 
@@ -758,9 +736,11 @@ export default function CatalogInventory({
   const handleRestock = (productId: string, quantity: number) => {
     const p = products.find(prod => prod.id === productId);
     if (p) {
-      onUpdateProduct({
+      Promise.resolve(onUpdateProduct({
         ...p,
         stock: Math.max(0, p.stock + quantity)
+      })).catch((err: any) => {
+        showToast('Erro ao atualizar estoque: ' + (err?.message || err), 'error');
       });
     }
   };
@@ -828,24 +808,36 @@ export default function CatalogInventory({
         finalMeasurementSpecs[sz] = newMeasurementSpecs[normSz] || newMeasurementSpecs[sz] || getFallbackSpecsForSize(sz);
       });
 
-      // Auto-extract any link remaining in the input field if user didn't click "Adicionar"
+      // Auto-extract & resolve any link remaining in the input field if user didn't click "Adicionar"
       const newImgInput = document.getElementById('new-product-image-add-input') as HTMLInputElement | null;
       let allNewImages = [...newImages];
       if (newImgInput && newImgInput.value.trim()) {
-        const pendingUrls = extractImageUrlsFromText(newImgInput.value.trim());
-        if (pendingUrls.length > 0) {
-          allNewImages = Array.from(new Set([...allNewImages, ...pendingUrls]));
-        } else if (newImgInput.value.trim().startsWith('http')) {
-          allNewImages = Array.from(new Set([...allNewImages, newImgInput.value.trim()]));
+        const { resolvedUrls, unresolvedInputs } = await extractAndResolveImageUrls(newImgInput.value.trim());
+        if (unresolvedInputs.length > 0 && resolvedUrls.length === 0) {
+          showToast('Não foi possível validar o link da imagem no campo de foto. Use "Enviar da Galeria" ou informe um link direto válido.', 'warning');
+          setImageFeedback({ type: 'new', message: 'Link pendente inválido ou inacessível. Corrija ou limpe o campo de link antes de salvar.', isError: true });
+          return;
         }
+        if (resolvedUrls.length > 0) {
+          allNewImages = Array.from(new Set([...allNewImages, ...resolvedUrls]));
+          clearGalleryErrorForUrls(resolvedUrls);
+        }
+        newImgInput.value = '';
       }
 
+      const normalizeSafeImageUrl = (raw: any): string => {
+        if (typeof raw !== 'string') return '';
+        const resolved = resolveClientDirectImageUrl(raw.trim());
+        if (!resolved || isFallbackOrPlaceholderUrl(resolved)) return '';
+        return (resolved.startsWith('http://') || resolved.startsWith('https://') || resolved.startsWith('data:image/') || resolved.startsWith('/'))
+          ? resolved
+          : '';
+      };
+
       const cleanNewImages = Array.from(new Set(
-        allNewImages
-          .map(img => (typeof img === 'string' ? img.trim() : ''))
-          .filter(img => img && !isFallbackOrPlaceholderUrl(img) && (img.startsWith('http') || img.startsWith('data:image/') || img.startsWith('/')))
+        allNewImages.map(normalizeSafeImageUrl).filter(Boolean)
       ));
-      const primaryImage = cleanNewImages[0] || (typeof newImage === 'string' && !isFallbackOrPlaceholderUrl(newImage) && (newImage.startsWith('http') || newImage.startsWith('data:image/') || newImage.startsWith('/')) ? newImage.trim() : '');
+      const primaryImage = cleanNewImages[0] || normalizeSafeImageUrl(newImage);
 
       const newProd: Product = {
         id: createUniqueId('prod'),
@@ -876,6 +868,7 @@ export default function CatalogInventory({
 
       await onAddProduct(newProd);
       setIsAddModalOpen(false);
+      showToast(`Peça "${newProd.name}" cadastrada e salva com sucesso!`, 'success');
 
       // Reset forms
       setNewName('');
@@ -922,25 +915,35 @@ export default function CatalogInventory({
     setEditCost(p.cost);
     setEditStock(p.stock);
     setEditMinStock(p.minStock);
-    setEditImage(isFallbackOrPlaceholderUrl(p.image) ? '' : (p.image || ''));
+    setEditImage(isFallbackOrPlaceholderUrl(p.image) ? '' : resolveClientDirectImageUrl(p.image || ''));
     setBrokenGalleryUrls(new Set());
+    setRetriedGalleryUrls(new Set());
     let initialImgs: string[] = [];
-    const isValidUrl = (url: any) => typeof url === 'string' && !isFallbackOrPlaceholderUrl(url) && url.trim().length > 0 && (url.trim().startsWith('http') || url.trim().startsWith('data:image/') || url.trim().startsWith('/'));
+    const normalizeModalImg = (url: any): string => {
+      if (typeof url !== 'string') return '';
+      const resolved = resolveClientDirectImageUrl(url.trim());
+      if (!resolved || isFallbackOrPlaceholderUrl(resolved)) return '';
+      return (resolved.startsWith('http://') || resolved.startsWith('https://') || resolved.startsWith('data:image/') || resolved.startsWith('/'))
+        ? resolved
+        : '';
+    };
     const rawImages: any = (p as any).images;
     if (Array.isArray(rawImages) && rawImages.length > 0) {
-      initialImgs = rawImages.filter(isValidUrl).map((img: string) => img.trim());
+      initialImgs = rawImages.map(normalizeModalImg).filter(Boolean);
     } else if (typeof rawImages === 'string' && rawImages.trim()) {
       try {
         const parsed = JSON.parse(rawImages);
         if (Array.isArray(parsed)) {
-          initialImgs = parsed.filter(isValidUrl).map((img: string) => img.trim());
+          initialImgs = parsed.map(normalizeModalImg).filter(Boolean);
         }
       } catch (e) {
-        if (isValidUrl(rawImages)) initialImgs = [rawImages.trim()];
+        const single = normalizeModalImg(rawImages);
+        if (single) initialImgs = [single];
       }
     }
-    if (initialImgs.length === 0 && p.image && isValidUrl(p.image)) {
-      initialImgs = [p.image.trim()];
+    if (initialImgs.length === 0 && p.image) {
+      const mainNorm = normalizeModalImg(p.image);
+      if (mainNorm) initialImgs = [mainNorm];
     }
     setEditImages(Array.from(new Set(initialImgs)));
     setEditDescription(p.description || '');
@@ -1032,24 +1035,36 @@ export default function CatalogInventory({
         finalMeasurementSpecs[sz] = editMeasurementSpecs[normSz] || editMeasurementSpecs[sz] || getFallbackSpecsForSize(sz);
       });
 
-      // Auto-extract any link remaining in the input field if user didn't click "Adicionar"
+      // Auto-extract & resolve any link remaining in the input field if user didn't click "Adicionar"
       const editImgInput = document.getElementById('edit-product-image-add-input') as HTMLInputElement | null;
       let allEditImages = [...editImages];
       if (editImgInput && editImgInput.value.trim()) {
-        const pendingUrls = extractImageUrlsFromText(editImgInput.value.trim());
-        if (pendingUrls.length > 0) {
-          allEditImages = Array.from(new Set([...allEditImages, ...pendingUrls]));
-        } else if (editImgInput.value.trim().startsWith('http')) {
-          allEditImages = Array.from(new Set([...allEditImages, editImgInput.value.trim()]));
+        const { resolvedUrls, unresolvedInputs } = await extractAndResolveImageUrls(editImgInput.value.trim());
+        if (unresolvedInputs.length > 0 && resolvedUrls.length === 0) {
+          showToast('Não foi possível validar o link da imagem no campo de foto. Use "Enviar da Galeria" ou informe um link direto válido.', 'warning');
+          setImageFeedback({ type: 'edit', message: 'Link pendente inválido ou inacessível. Corrija ou limpe o campo de link antes de salvar.', isError: true });
+          return;
         }
+        if (resolvedUrls.length > 0) {
+          allEditImages = Array.from(new Set([...allEditImages, ...resolvedUrls]));
+          clearGalleryErrorForUrls(resolvedUrls);
+        }
+        editImgInput.value = '';
       }
 
+      const normalizeSafeImageUrl = (raw: any): string => {
+        if (typeof raw !== 'string') return '';
+        const resolved = resolveClientDirectImageUrl(raw.trim());
+        if (!resolved || isFallbackOrPlaceholderUrl(resolved)) return '';
+        return (resolved.startsWith('http://') || resolved.startsWith('https://') || resolved.startsWith('data:image/') || resolved.startsWith('/'))
+          ? resolved
+          : '';
+      };
+
       const cleanEditImages = Array.from(new Set(
-        allEditImages
-          .map(img => (typeof img === 'string' ? img.trim() : ''))
-          .filter(img => img && !isFallbackOrPlaceholderUrl(img) && (img.startsWith('http') || img.startsWith('data:image/') || img.startsWith('/')))
+        allEditImages.map(normalizeSafeImageUrl).filter(Boolean)
       ));
-      const primaryImage = cleanEditImages[0] || (typeof editImage === 'string' && !isFallbackOrPlaceholderUrl(editImage) && (editImage.startsWith('http') || editImage.startsWith('data:image/') || editImage.startsWith('/')) ? editImage.trim() : '');
+      const primaryImage = cleanEditImages[0] || normalizeSafeImageUrl(editImage);
 
       await onUpdateProduct({
         ...editingProduct,
@@ -1080,6 +1095,7 @@ export default function CatalogInventory({
 
       setIsEditModalOpen(false);
       setEditingProduct(null);
+      showToast(`Peça "${editName.trim()}" atualizada e salva com sucesso!`, 'success');
     } catch (error: any) {
       console.error('Erro ao salvar produto:', error);
       showToast('Erro ao salvar produto: ' + (error.message || error), 'error');
@@ -1172,15 +1188,23 @@ export default function CatalogInventory({
     if (!editingProduct) return;
     setIsSaving(true);
     try {
-      await onUpdateProduct({
+      const cleanEditImages = Array.from(new Set(
+        editImages
+          .map(img => (typeof img === 'string' ? img.trim() : ''))
+          .filter(img => img && !isFallbackOrPlaceholderUrl(img) && (img.startsWith('http') || img.startsWith('data:image/') || img.startsWith('/')))
+      ));
+      const updatedProd: Product = {
         ...editingProduct,
         price: editPrice,
         compare_at_price: editCompareAtPrice,
-        cost: editCost
-      });
-      setIsEditModalOpen(false);
-      setEditingProduct(null);
+        cost: editCost,
+        image: cleanEditImages[0] || editingProduct.image,
+        images: cleanEditImages.length > 0 ? cleanEditImages : editingProduct.images
+      };
+      await onUpdateProduct(updatedProd);
+      setEditingProduct(updatedProd);
       setPriceSuccessNotification(`Preço de "${editingProduct.name}" atualizado para ${formatCurrency(editPrice)}!`);
+      showToast(`Preço atualizado para ${formatCurrency(editPrice)}!`, 'success');
       setTimeout(() => setPriceSuccessNotification(null), 3500);
     } catch (e: any) {
       showToast('Erro ao salvar preço: ' + (e?.message || e), 'error');
@@ -1225,14 +1249,24 @@ export default function CatalogInventory({
     if (!editingProduct) return;
     setIsSaving(true);
     try {
-      await onUpdateProduct({
+      const cleanEditImages = Array.from(new Set(
+        editImages
+          .map(img => (typeof img === 'string' ? img.trim() : ''))
+          .filter(img => img && !isFallbackOrPlaceholderUrl(img) && (img.startsWith('http') || img.startsWith('data:image/') || img.startsWith('/')))
+      ));
+      const updatedProd: Product = {
         ...editingProduct,
         weight: Number(editWeight) || 0.35,
         width: Number(editWidth) || 20,
         height: Number(editHeight) || 5,
-        length: Number(editLength) || 25
-      });
+        length: Number(editLength) || 25,
+        image: cleanEditImages[0] || editingProduct.image,
+        images: cleanEditImages.length > 0 ? cleanEditImages : editingProduct.images
+      };
+      await onUpdateProduct(updatedProd);
+      setEditingProduct(updatedProd);
       setPriceSuccessNotification(`Dimensões de frete de "${editingProduct.name}" gravadas com sucesso!`);
+      showToast('Dimensões de frete gravadas com sucesso!', 'success');
       setTimeout(() => setPriceSuccessNotification(null), 3500);
     } catch (e: any) {
       showToast('Erro ao salvar frete: ' + (e?.message || e), 'error');
@@ -2011,10 +2045,12 @@ export default function CatalogInventory({
                             combo.items.forEach((item: any) => {
                               const p = products.find(prod => prod.id === item.productId || prod.name === item.name);
                               if (p) {
-                                onUpdateProduct({
+                                Promise.resolve(onUpdateProduct({
                                   ...p,
                                   stock: Math.max(0, p.stock - item.quantity),
                                   salesCount: p.salesCount + item.quantity
+                                })).catch((err: any) => {
+                                  console.warn('[Combo stock update warn]:', err);
                                 });
                               }
                             });
@@ -3123,42 +3159,72 @@ export default function CatalogInventory({
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <label className="text-slate-600 font-extrabold uppercase text-[10px] tracking-wide block">Galeria de Fotos do Produto (Múltiplas Fotos)</label>
                       {newImages.some(u => brokenGalleryUrls.has(u) || isFallbackOrPlaceholderUrl(u)) && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setNewImages(prev => prev.filter(u => !brokenGalleryUrls.has(u) && !isFallbackOrPlaceholderUrl(u)));
-                          }}
-                          className="text-[10px] font-bold bg-rose-100 hover:bg-rose-200 text-rose-700 px-2.5 py-1 rounded-lg transition cursor-pointer border border-rose-200"
-                        >
-                          🧹 Remover Links Quebrados
-                        </button>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBrokenGalleryUrls(new Set());
+                              setRetriedGalleryUrls(new Set());
+                            }}
+                            className="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg transition cursor-pointer border border-slate-200"
+                          >
+                            🔄 Recarregar Previews
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewImages(prev => prev.filter(u => !brokenGalleryUrls.has(u) && !isFallbackOrPlaceholderUrl(u)));
+                            }}
+                            className="text-[10px] font-bold bg-rose-100 hover:bg-rose-200 text-rose-700 px-2.5 py-1 rounded-lg transition cursor-pointer border border-rose-200"
+                          >
+                            🧹 Remover Links Quebrados
+                          </button>
+                        </div>
                       )}
                     </div>
                     <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                       {newImages.map((img, idx) => {
-                        const isBroken = brokenGalleryUrls.has(img) || isFallbackOrPlaceholderUrl(img);
+                        const resolvedImg = resolveClientDirectImageUrl(img);
+                        const isBroken = brokenGalleryUrls.has(img) || isFallbackOrPlaceholderUrl(resolvedImg);
+                        const isRetried = retriedGalleryUrls.has(img);
+                        const previewSrc = isRetried ? getProxiedFallbackUrl(resolvedImg, 200) : getOptimizedImageUrl(resolvedImg, 200);
                         return (
                           <div key={`${img}-${idx}`} className={`relative aspect-square rounded-lg border overflow-hidden group shadow-xs ${isBroken ? 'border-rose-300 bg-rose-50' : 'border-slate-200 bg-slate-100'}`}>
                             {isBroken ? (
                               <div className="w-full h-full flex flex-col items-center justify-center p-1.5 text-center text-rose-700">
-                                <AlertTriangle size={16} className="mb-1 shrink-0" />
+                                <AlertTriangle size={14} className="mb-0.5 shrink-0" />
                                 <span className="text-[9px] font-extrabold leading-tight">Link Quebrado</span>
                                 <span className="text-[8px] text-rose-500 truncate w-full mt-0.5 font-mono" title={img}>
-                                  {img.replace(/^https?:\/\//, '').slice(0, 18)}
+                                  {img.replace(/^https?:\/\//, '').slice(0, 16)}
                                 </span>
+                                <button
+                                  type="button"
+                                  onClick={() => clearGalleryErrorForUrls([img])}
+                                  className="mt-1 px-1.5 py-0.5 bg-white border border-rose-200 hover:bg-rose-100 text-[8px] font-bold rounded cursor-pointer text-rose-700"
+                                >
+                                  🔄 Tentar
+                                </button>
                               </div>
                             ) : (
-                              <img 
-                                src={getOptimizedImageUrl(img, 200)} 
-                                alt={`Preview ${idx + 1}`} 
-                                className="w-full h-full object-cover" 
-                                referrerPolicy="no-referrer" 
+                              <img
+                                src={previewSrc}
+                                alt={`Preview ${idx + 1}`}
+                                className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
                                 onError={() => {
-                                  setBrokenGalleryUrls(prev => {
-                                    const next = new Set(prev);
-                                    next.add(img);
-                                    return next;
-                                  });
+                                  if (!isRetried && resolvedImg.startsWith('http')) {
+                                    setRetriedGalleryUrls(prev => {
+                                      const next = new Set(prev);
+                                      next.add(img);
+                                      return next;
+                                    });
+                                  } else {
+                                    setBrokenGalleryUrls(prev => {
+                                      const next = new Set(prev);
+                                      next.add(img);
+                                      return next;
+                                    });
+                                  }
                                 }}
                               />
                             )}
@@ -3189,11 +3255,15 @@ export default function CatalogInventory({
                     </div>
 
                     <div className="space-y-1">
-                      <span className="text-[10px] text-slate-500 font-bold block">1. Enviar nova foto direto do aparelho:</span>
-                      <ImageUploader 
+                      <span className="text-[10px] text-slate-500 font-bold block">1. Enviar nova foto direto do aparelho ou galeria:</span>
+                      <ImageUploader
+                        multiple
                         onUploadSuccess={(url) => {
-                          if (url) setNewImages(prev => [...prev, url]);
-                        }} 
+                          if (url) {
+                            clearGalleryErrorForUrls([url]);
+                            setNewImages(prev => (prev.includes(url) ? prev : [...prev, url]));
+                          }
+                        }}
                         currentImageUrl=""
                       />
                     </div>
@@ -3265,7 +3335,7 @@ export default function CatalogInventory({
               <button 
                 type="submit"
                 form="add-product-form"
-                disabled={isSaving}
+                disabled={isSaving || isResolvingNew}
                 className="py-2.5 px-6 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-pink-600/20 disabled:opacity-50 flex items-center gap-1.5"
               >
                 {isSaving ? (
@@ -3951,7 +4021,10 @@ export default function CatalogInventory({
                         <div className="flex flex-wrap items-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() => setBrokenGalleryUrls(new Set())}
+                            onClick={() => {
+                              setBrokenGalleryUrls(new Set());
+                              setRetriedGalleryUrls(new Set());
+                            }}
                             className="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg transition cursor-pointer border border-slate-200"
                           >
                             🔄 Recarregar Previews
@@ -3972,29 +4045,47 @@ export default function CatalogInventory({
                     {/* Previews grid */}
                     <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                       {editImages.map((img, idx) => {
-                        const isBroken = brokenGalleryUrls.has(img) || isFallbackOrPlaceholderUrl(img);
+                        const resolvedImg = resolveClientDirectImageUrl(img);
+                        const isBroken = brokenGalleryUrls.has(img) || isFallbackOrPlaceholderUrl(resolvedImg);
+                        const isRetried = retriedGalleryUrls.has(img);
+                        const previewSrc = isRetried ? getProxiedFallbackUrl(resolvedImg, 200) : getOptimizedImageUrl(resolvedImg, 200);
                         return (
                           <div key={`${img}-${idx}`} className={`relative aspect-square rounded-lg border overflow-hidden group shadow-xs ${isBroken ? 'border-rose-300 bg-rose-50' : 'border-slate-200 bg-slate-100'}`}>
                             {isBroken ? (
                               <div className="w-full h-full flex flex-col items-center justify-center p-1.5 text-center text-rose-700">
-                                <AlertTriangle size={16} className="mb-1 shrink-0" />
+                                <AlertTriangle size={14} className="mb-0.5 shrink-0" />
                                 <span className="text-[9px] font-extrabold leading-tight">Link Quebrado</span>
                                 <span className="text-[8px] text-rose-500 truncate w-full mt-0.5 font-mono" title={img}>
-                                  {img.replace(/^https?:\/\//, '').slice(0, 18)}
+                                  {img.replace(/^https?:\/\//, '').slice(0, 16)}
                                 </span>
+                                <button
+                                  type="button"
+                                  onClick={() => clearGalleryErrorForUrls([img])}
+                                  className="mt-1 px-1.5 py-0.5 bg-white border border-rose-200 hover:bg-rose-100 text-[8px] font-bold rounded cursor-pointer text-rose-700"
+                                >
+                                  🔄 Tentar
+                                </button>
                               </div>
                             ) : (
-                              <img 
-                                src={getOptimizedImageUrl(img, 200)} 
-                                alt={`Preview ${idx + 1}`} 
-                                className="w-full h-full object-cover" 
-                                referrerPolicy="no-referrer" 
+                              <img
+                                src={previewSrc}
+                                alt={`Preview ${idx + 1}`}
+                                className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
                                 onError={() => {
-                                  setBrokenGalleryUrls(prev => {
-                                    const next = new Set(prev);
-                                    next.add(img);
-                                    return next;
-                                  });
+                                  if (!isRetried && resolvedImg.startsWith('http')) {
+                                    setRetriedGalleryUrls(prev => {
+                                      const next = new Set(prev);
+                                      next.add(img);
+                                      return next;
+                                    });
+                                  } else {
+                                    setBrokenGalleryUrls(prev => {
+                                      const next = new Set(prev);
+                                      next.add(img);
+                                      return next;
+                                    });
+                                  }
                                 }}
                               />
                             )}
@@ -4029,13 +4120,15 @@ export default function CatalogInventory({
                     </div>
 
                     <div className="space-y-1">
-                      <span className="text-[10px] text-slate-500 font-bold block">1. Enviar nova foto direto do aparelho:</span>
-                      <ImageUploader 
+                      <span className="text-[10px] text-slate-500 font-bold block">1. Enviar nova foto direto do aparelho ou galeria:</span>
+                      <ImageUploader
+                        multiple
                         onUploadSuccess={(url) => {
                           if (url) {
-                            setEditImages(prev => [...prev, url]);
+                            clearGalleryErrorForUrls([url]);
+                            setEditImages(prev => (prev.includes(url) ? prev : [...prev, url]));
                           }
-                        }} 
+                        }}
                         currentImageUrl=""
                       />
                     </div>
@@ -4162,7 +4255,7 @@ export default function CatalogInventory({
                 <button 
                   type="submit"
                   form="edit-product-form"
-                  disabled={isSaving}
+                  disabled={isSaving || isResolvingEdit}
                   className="py-2.5 px-5 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-pink-600/20 disabled:opacity-50 flex items-center gap-1.5"
                 >
                   {isSaving ? (
@@ -4333,7 +4426,7 @@ export default function CatalogInventory({
               <div className="flex items-center gap-3 p-2.5 bg-slate-50 border border-slate-100 rounded-xl">
                 <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-200 shrink-0">
                   <img 
-                    src={getOptimizedImageUrl(quickPriceModalProduct.image, 100)} 
+                    src={getOptimizedImageUrl(getProductMainImage(quickPriceModalProduct), 100)} 
                     alt={quickPriceModalProduct.name}
                     className="w-full h-full object-cover"
                     onError={handleImageFallback}
@@ -4487,7 +4580,7 @@ export default function CatalogInventory({
               <div className="flex items-center gap-3 p-2.5 bg-slate-50 border border-slate-100 rounded-xl">
                 <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-200 shrink-0">
                   <img 
-                    src={getOptimizedImageUrl(quickFreightModalProduct.image, 100)} 
+                    src={getOptimizedImageUrl(getProductMainImage(quickFreightModalProduct), 100)} 
                     alt={quickFreightModalProduct.name}
                     className="w-full h-full object-cover"
                     onError={handleImageFallback}
@@ -4634,7 +4727,13 @@ interface ProductGradeCardProps {
 }
 
 function ProductGradeCard({ product, onUpdateProduct }: ProductGradeCardProps) {
-  const sizesList = ['P', 'M', 'G', 'GG'];
+  const sizesList = React.useMemo(() => {
+    const derived = Array.from(new Set([
+      ...(Array.isArray(product.sizes) ? product.sizes : []),
+      ...Object.keys(product.sizeColorStocks || {})
+    ].map(s => String(s || '').trim()).filter(Boolean)));
+    return derived.length > 0 ? derived : ['P', 'M', 'G', 'GG'];
+  }, [product]);
   const [matrix, setMatrix] = useState<Record<string, Record<string, number>>>(() => {
     const initialMatrix: Record<string, Record<string, number>> = {};
     const existing = product.sizeColorStocks || {};
@@ -4669,7 +4768,7 @@ function ProductGradeCard({ product, onUpdateProduct }: ProductGradeCardProps) {
     });
     setMatrix(initialMatrix);
     setColorsList(product.colors && product.colors.length > 0 ? product.colors : ['Preto']);
-  }, [product]);
+  }, [product, sizesList]);
 
   const handleCellChange = (size: string, color: string, value: number) => {
     const val = isNaN(value) ? 0 : Math.max(0, value);

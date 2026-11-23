@@ -298,7 +298,7 @@ export default function PublicCatalog({
               ...slide,
               category: slide.category || (idx === 0 ? 'Todos' : idx === 1 ? 'Conjuntos' : 'Slim Fit')
             };
-            const hasWholesale = idx === 0 || 
+            const hasWholesale =
               (updated.title && (updated.title.toLowerCase().includes("atacado") || updated.title.toLowerCase().includes("lote"))) ||
               (updated.desc && (updated.desc.toLowerCase().includes("atacado") || updated.desc.toLowerCase().includes("lote"))) ||
               (updated.tag && (updated.tag.toLowerCase().includes("atacado") || updated.tag.toLowerCase().includes("lote")));
@@ -2014,29 +2014,75 @@ export default function PublicCatalog({
     showToast("Obrigada! Sua avaliação foi enviada com sucesso e cadastrada na vitrine. 🌸", 'success');
   };
 
-  // CEP Freight simulate calculation
-  const handleCalculateCep = (e: React.FormEvent) => {
+  // CEP Freight calculation via Melhor Envio API
+  const handleCalculateCep = async (e: React.FormEvent) => {
     e.preventDefault();
     setCepResultError(null);
     setCepResult(null);
 
     const cleanCep = cepNumber.replace(/\D/g, '');
-    if (cleanCep.length < 8) {
+    if (cleanCep.length !== 8) {
       setCepResultError("Por favor, informe um CEP válido com 8 dígitos.");
       return;
     }
-    
+
     setIsCalculatingCep(true);
-    setTimeout(() => {
-      const values = [
-        "Sedex Expresso: R$ 15,00 (2 dias úteis) - Ideal para urgência! ⚡",
-        "PAC Econômico: R$ 9,00 (5 dias úteis) 📦",
-        "Motoboy Local: R$ 12,00 (Entrega HOJE!) 🏍️",
-        "Retirada Grátis em nossa Loja: R$ 0,00 🏠"
-      ];
-      setCepResult(values[Math.floor(Math.random() * values.length)]);
+    try {
+      const itemsToQuote = cart.length > 0
+        ? cart.map(item => ({
+            product: {
+              id: item.product.id,
+              price: item.product.price,
+              weight: item.product.weight,
+              width: item.product.width,
+              height: item.product.height,
+              length: item.product.length
+            },
+            priceAtTime: item.priceAtTime,
+            quantity: item.quantity
+          }))
+        : selectedProduct
+          ? [{
+              product: {
+                id: selectedProduct.id,
+                price: selectedProduct.price,
+                weight: selectedProduct.weight,
+                width: selectedProduct.width,
+                height: selectedProduct.height,
+                length: selectedProduct.length
+              },
+              priceAtTime: selectedProduct.price,
+              quantity: 1
+            }]
+          : [{ product: { price: 100, weight: 0.35, width: 20, height: 5, length: 25 }, priceAtTime: 100, quantity: 1 }];
+
+      const response = await fetch('/api/melhor-envio/calculate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_cep: cleanCep, items: itemsToQuote })
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success || !Array.isArray(data.options) || data.options.length === 0) {
+        throw new Error(data?.error || 'Não foi possível cotar o frete para este CEP.');
+      }
+
+      const summary = data.options
+        .slice(0, 3)
+        .map((opt: any) => {
+          const priceNum = Number(opt.price || 0);
+          const company = opt.company ? `${opt.company} ` : '';
+          const days = opt.delivery_time ?? opt.deliveryTime;
+          const prazo = days ? ` (${days} ${Number(days) === 1 ? 'dia útil' : 'dias úteis'})` : '';
+          return `${company}${opt.name}: R$ ${priceNum.toFixed(2).replace('.', ',')}${prazo}`;
+        })
+        .join(' • ');
+      setCepResult(summary);
+    } catch (err: any) {
+      setCepResultError(err?.message || 'Não foi possível calcular o frete no momento. Tente novamente na sacola.');
+    } finally {
       setIsCalculatingCep(false);
-    }, 600);
+    }
   };
 
   // Deterministic calculation for review volume maintaining 5 stars
@@ -3243,7 +3289,7 @@ export default function PublicCatalog({
     const pixDiscountInfo = paymentMethod === 'pix' ? `\n⚡ Desconto Pix (${pixDiscountPercent}% OFF Extra): -R$ ${pixDiscount.toFixed(2)}` : '';
     const cashbackDiscountInfo = useCashback && cashbackDiscount > 0 ? `\n✨ Desconto Cashback Clube VIP: -R$ ${cashbackDiscount.toFixed(2)}` : '';
     const pickupSchedInfo = deliveryMethod === 'retirada' 
-      ? `\n📅 *Agendamento de Retirada na Loja:*\n  Dia: *${new Date(pickupDate).toLocaleDateString('pt-BR')}* às *${pickupTime}*\n` 
+      ? `\n📅 *Agendamento de Retirada na Loja:*\n  Dia: *${/^\d{4}-\d{2}-\d{2}/.test(String(pickupDate)) ? String(pickupDate).slice(0, 10).split('-').reverse().join('/') : pickupDate}* às *${pickupTime}*\n` 
       : '';
 
     const deliveryTypeLabel = 
@@ -3279,7 +3325,7 @@ export default function PublicCatalog({
       `${pickupSchedInfo}` +
       (deliveryMethod !== 'retirada' && deliveryMethod !== 'combinar' ? `🏠 *Endereço Completo:*\n  Rua: ${addressStreet.trim()}, Nº ${addressNum.trim()}\n  Bairro: ${addressBairro.trim()}\n  Cidade: ${addressCidade.trim()}/${addressEstado.trim()} - CEP: ${addressCep.trim()}${addressComp.trim() ? `\n  Compl.: ${addressComp.trim()}` : ''}\n` : '') +
       (clientNotes.trim() ? `📝 *Observações:* ${clientNotes.trim()}\n` : '') +
-      `\nOlá! Acabei de finalizar meu pedido e efetuar o pagamento via ${paymentMethod === 'pix' ? 'PIX (comprovante anexo)' : `Cartão de Crédito`}. Aguardo a entrega das minhas lidas peças! Gratidão! 🌸✨`;
+      `\nOlá! Acabei de finalizar meu pedido e efetuar o pagamento via ${paymentMethod === 'pix' ? 'PIX (comprovante anexo)' : `Cartão de Crédito`}. Aguardo a entrega das minhas lindas peças! Gratidão! 🌸✨`;
 
     const isCorreios = deliveryMethod === 'correios';
     const generatedTracking = isCorreios ? (() => {
@@ -3328,7 +3374,7 @@ export default function PublicCatalog({
         notes: `Cor: ${cart.map(c=>c.color).join(', ')} | CPF: ${clientCpf.trim()} | Pg: ${paymentMethod === 'pix' ? 'PIX' : `Cartão (${cardInstallments}x)`}${appliedCoupon?.code ? ` | Cupom: ${appliedCoupon.code}` : ''}${appliedCoupon?.partnerName ? ` | Parceiro: ${appliedCoupon.partnerName}` : ''} | Obs: ${clientNotes.trim()}`
       };
       
-      onAddOnlineOrder(orderData);
+      await Promise.resolve(onAddOnlineOrder(orderData));
     }
 
     // Mark checkout as concluded and clear current checkout ID
@@ -3352,7 +3398,7 @@ export default function PublicCatalog({
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      onAddCheckout(checkoutData);
+      await Promise.resolve(onAddCheckout(checkoutData));
       localStorage.removeItem('ap_current_checkout_id');
     }
 
@@ -3395,14 +3441,14 @@ export default function PublicCatalog({
         cashbackBalance: nextBalance
       };
       if (onUpdateClients) {
-        onUpdateClients(updatedList);
+        await Promise.resolve(onUpdateClients(updatedList));
       }
       setVipMessage(`Fidelidade Ativa! Cashback atualizado: você acumulou R$ ${cashbackEarned.toFixed(2)} nesta compra e possui R$ ${nextBalance.toFixed(2)} disponíveis para novos pedidos! 🌸`);
     } else {
       const newClient: Client = {
         id: `cli-${Date.now()}`,
         name: cleanedName,
-        email: clientEmail.trim() || `${cleanedName.toLowerCase().replace(/\s+/g, '')}@exemplo.com`,
+        email: clientEmail.trim() || '',
         phone: clientPhone.trim(),
         cpf: clientCpf.trim() || undefined,
         birthDate: clientBirthDate.trim() || undefined,
@@ -3421,12 +3467,12 @@ export default function PublicCatalog({
         cashbackBalance: cashbackEarned,
         createdAt: new Date().toISOString()
       };
-      onAddClient(newClient);
+      await Promise.resolve(onAddClient(newClient));
+      setLoggedClient(newClient);
       setVipMessage(`Seja bem-vinda, ${cleanedName}! Seu cadastro de cliente VIP foi salvo automaticamente no sistema. ✨ Você acumulou R$ ${cashbackEarned.toFixed(2)} de cashback nesta compra!`);
     }
 
-    // Reset login states
-    setLoggedClient(null);
+    // Reset cashback toggle after order
     setUseCashback(false);
     setIsVipRegisteredJustNow(true);
 
@@ -5454,11 +5500,12 @@ export default function PublicCatalog({
                         >
                           <div className="aspect-[3/4] rounded-lg overflow-hidden relative">
                             <img 
-                              src={rel.image} 
+                              src={getOptimizedImageUrl(getProductMainImage(rel), 400)} 
                               alt={rel.name}
                               loading="lazy"
                               decoding="async"
                               className="w-full h-full object-cover" 
+                              onError={handleImageFallback}
                               referrerPolicy="no-referrer" 
                             />
                           </div>
@@ -6245,7 +6292,7 @@ export default function PublicCatalog({
                                   <div className="space-y-1 text-slate-600 leading-relaxed">
                                     <p className="font-extrabold text-pink-700 flex items-center gap-1">🏠 Retirada Combinada na Loja</p>
                                     {order.pickupDate ? (
-                                      <p className="font-bold text-slate-700">📅 Agendado para: <span className="font-mono">{new Date(order.pickupDate).toLocaleDateString('pt-BR')}</span> às <span className="font-mono">{order.pickupTime || ''}</span></p>
+                                      <p className="font-bold text-slate-700">📅 Agendado para: <span className="font-mono">{/^\d{4}-\d{2}-\d{2}/.test(String(order.pickupDate)) ? String(order.pickupDate).slice(0, 10).split('-').reverse().join('/') : order.pickupDate}</span> às <span className="font-mono">{order.pickupTime || ''}</span></p>
                                     ) : (
                                       <p className="text-slate-500 font-medium">Aguardando vendedora confirmar o agendamento de retirada.</p>
                                     )}

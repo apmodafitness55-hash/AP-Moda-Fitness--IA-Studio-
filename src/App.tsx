@@ -241,23 +241,6 @@ export default function App() {
       const updatedPartnersList = [...currentPartnersList];
       const isSystemCleared = localStorage.getItem('ap_system_cleared') === 'true';
 
-      // Guarantee authentic partner Patricia Cardoso exists on fresh install only
-      if (!isSystemCleared && !savedPartners && !updatedPartnersList.some(p => p.name?.toLowerCase().includes('patricia') || p.couponCode?.toUpperCase() === 'PATRICIA10')) {
-        updatedPartnersList.push({
-          id: 'part-patricia',
-          name: 'Patricia Cardoso',
-          login: 'patriciacardoso',
-          password: '123',
-          instagram: '@patriciacardoso',
-          couponCode: 'PATRICIA10',
-          commissionRate: 10,
-          salesCount: 18,
-          totalGenerated: 2890.00,
-          availableBalance: 289.00
-        });
-        changed = true;
-      }
-
       // Merge teamMembers with role === 'Parceiro'
       const teamPartners = teamMembers.filter(m => m.role === 'Parceiro' && !fakeNames.includes(m.name?.toLowerCase()));
       teamPartners.forEach(tp => {
@@ -288,9 +271,11 @@ export default function App() {
         }
       });
 
-      if (changed || !savedPartners) {
+      if (changed) {
         safeLocalStorageSet('ap_moda_partners', JSON.stringify(updatedPartnersList));
-        pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(updatedPartnersList));
+        if (hasBootstrappedCloudRef.current) {
+          pushSystemConfigToSupabase('ap_moda_partners', JSON.stringify(updatedPartnersList));
+        }
         window.dispatchEvent(new Event('ap-storage-synced'));
       }
     } catch (e) {
@@ -532,6 +517,7 @@ export default function App() {
   const [isSyncingNow, setIsSyncingNow] = useState(false);
   const isSyncingRef = useRef(false);
   const isUpdatingFromSyncRef = useRef(false);
+  const hasBootstrappedCloudRef = useRef(false);
   const syncEpochRef = useRef(0);
 
   const [isCloudSyncingOnLogin, setIsCloudSyncingOnLogin] = useState(false);
@@ -578,20 +564,19 @@ export default function App() {
         }
       }
     } catch (e) {}
-    return INITIAL_PRODUCTS.filter((p: Product) => p && !deletedList.includes(p.id) && !mockIds.includes(p.id));
+    return [];
   });
 
   // State for online orders synced across delivery components
   const [onlineOrders, setOnlineOrders] = useState(() => {
     const saved = localStorage.getItem('ap_moda_online_orders');
-    const isCleared = localStorage.getItem('ap_system_cleared') === 'true';
     try {
       if (saved !== null) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
-    return isCleared ? [] : INITIAL_ONLINE_ORDERS;
+    return [];
   });
 
   // State for checkouts (abandoned carts) synced
@@ -609,31 +594,29 @@ export default function App() {
         if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
-    return isCleared ? [] : INITIAL_CLIENTS;
+    return [];
   });
 
   const [sales, setSales] = useState<Sale[]>(() => {
     const saved = localStorage.getItem('ap_moda_sales');
-    const isCleared = localStorage.getItem('ap_system_cleared') === 'true';
     try {
       if (saved !== null) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
-    return isCleared ? [] : INITIAL_SALES;
+    return [];
   });
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('ap_moda_transactions');
-    const isCleared = localStorage.getItem('ap_system_cleared') === 'true';
     try {
       if (saved !== null) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
-    return isCleared ? [] : INITIAL_TRANSACTIONS;
+    return [];
   });
 
   // State for notification dropdown and real-time sale alert toast
@@ -1037,7 +1020,8 @@ export default function App() {
     return (s as Sale['status']) || 'Concluída';
   }, []);
 
-  // Previous state refs for delta comparisons
+  // Previous state refs for delta comparisons & short-term mutation protection lock
+  const recentlyMutatedProductIdsRef = useRef<Map<string, number>>(new Map());
   const prevProductsRef = useRef<Product[]>(products);
   const prevClientsRef = useRef<Client[]>(clients);
   const prevSalesRef = useRef<Sale[]>(sales);
@@ -1049,7 +1033,7 @@ export default function App() {
   // Sync to localStorage & automatically track local mutations as dirty
   useEffect(() => {
     safeLocalStorageSet('ap_moda_products', JSON.stringify(products));
-    if (!isUpdatingFromSyncRef.current) {
+    if (!isUpdatingFromSyncRef.current && hasBootstrappedCloudRef.current) {
       const prevList = prevProductsRef.current || [];
       const prevMap = new Map(prevList.map(p => [p.id, p]));
       const dirtyIds = getDirtyIds('ap_dirty_products');
@@ -1075,7 +1059,7 @@ export default function App() {
 
   useEffect(() => {
     safeLocalStorageSet('ap_moda_clients', JSON.stringify(clients));
-    if (!isUpdatingFromSyncRef.current) {
+    if (!isUpdatingFromSyncRef.current && hasBootstrappedCloudRef.current) {
       const prevList = prevClientsRef.current || [];
       const prevMap = new Map(prevList.map(c => [c.id, c]));
       const dirtyIds = getDirtyIds('ap_dirty_clients');
@@ -1101,7 +1085,7 @@ export default function App() {
 
   useEffect(() => {
     safeLocalStorageSet('ap_moda_sales', JSON.stringify(sales));
-    if (!isUpdatingFromSyncRef.current) {
+    if (!isUpdatingFromSyncRef.current && hasBootstrappedCloudRef.current) {
       const prevList = prevSalesRef.current || [];
       const prevMap = new Map(prevList.map(s => [s.id, s]));
       const dirtyIds = getDirtyIds('ap_dirty_sales');
@@ -1127,7 +1111,7 @@ export default function App() {
 
   useEffect(() => {
     safeLocalStorageSet('ap_moda_transactions', JSON.stringify(transactions));
-    if (!isUpdatingFromSyncRef.current) {
+    if (!isUpdatingFromSyncRef.current && hasBootstrappedCloudRef.current) {
       const prevList = prevTransactionsRef.current || [];
       const prevMap = new Map(prevList.map(t => [t.id, t]));
       const dirtyIds = getDirtyIds('ap_dirty_transactions');
@@ -1154,7 +1138,7 @@ export default function App() {
   useEffect(() => {
     safeLocalStorageSet('ap_moda_online_orders', JSON.stringify(onlineOrders));
     safeLocalStorageSet('ap_online_orders', JSON.stringify(onlineOrders));
-    if (!isUpdatingFromSyncRef.current) {
+    if (!isUpdatingFromSyncRef.current && hasBootstrappedCloudRef.current) {
       const prevList = prevOnlineOrdersRef.current || [];
       const prevMap = new Map(prevList.map(o => [o.id, o]));
       const dirtyIds = getDirtyIds('ap_dirty_online_orders');
@@ -1300,7 +1284,7 @@ export default function App() {
 
   useEffect(() => {
     safeLocalStorageSet('ap_moda_checkouts', JSON.stringify(checkouts));
-    if (!isUpdatingFromSyncRef.current) {
+    if (!isUpdatingFromSyncRef.current && hasBootstrappedCloudRef.current) {
       const prevList = prevCheckoutsRef.current || [];
       const prevMap = new Map(prevList.map(c => [c.id, c]));
       const dirtyIds = getDirtyIds('ap_dirty_checkouts');
@@ -1324,7 +1308,7 @@ export default function App() {
   }, [checkouts, getDirtyIds, saveDirtyIds]);
 
   useEffect(() => {
-    if (!isUpdatingFromSyncRef.current) {
+    if (!isUpdatingFromSyncRef.current && hasBootstrappedCloudRef.current) {
       const prevList = prevTeamMembersRef.current || [];
       const prevMap = new Map(prevList.map(m => [m.id, m]));
       const dirtyIds = getDirtyIds('ap_dirty_team_members');
@@ -1570,11 +1554,11 @@ export default function App() {
           if (m.role === 'Admin' && (m.login?.toLowerCase() === 'admin' || m.id === 'usr-1')) {
             return {
               ...m,
-              name: 'AP Moda Fitness',
+              name: m.name || 'AP Moda Fitness',
               login: 'admin',
-              password: 'Ap01695*',
+              password: (m.password && String(m.password).trim()) ? m.password : 'Ap01695*',
               role: 'Admin',
-              details: 'Administradora Geral'
+              details: m.details || 'Administradora Geral'
             };
           }
           return m;
@@ -1613,25 +1597,12 @@ export default function App() {
             const localP = localProdMap.get(dbP.id);
             if (!localP) return dbP;
             if (remainingDirtyProducts.includes(dbP.id)) return localP;
-
-            const validLocalImgs = extractValidProductImages(localP);
-            const validRemoteImgs = extractValidProductImages(dbP);
-            if (validLocalImgs.length > validRemoteImgs.length) {
-              const mergedImgs = Array.from(new Set([...validRemoteImgs, ...validLocalImgs]));
-              const repaired = {
-                ...dbP,
-                image: (isValidMediaUrl(dbP.image) ? dbP.image : validLocalImgs[0]) || mergedImgs[0] || '',
-                images: mergedImgs
-              };
-              productsToReupload.push(repaired);
-              return repaired;
-            }
             return dbP;
           });
 
-        // Preserva produtos locais ainda não gravados no servidor (dirty ou novos)
+        // Preserva apenas produtos locais explicitamente marcados como dirty (edição offline pendente)
         for (const localP of currentLocalProducts) {
-          if (localP && !deletedProductsList.includes(localP.id) && !mockIds.includes(localP.id) && !cleanDbProducts.some((dp: Product) => dp.id === localP.id)) {
+          if (localP && remainingDirtyProducts.includes(localP.id) && !deletedProductsList.includes(localP.id) && !mockIds.includes(localP.id) && !cleanDbProducts.some((dp: Product) => dp.id === localP.id)) {
             cleanDbProducts.push(localP);
             productsToReupload.push(localP);
           }
@@ -1646,14 +1617,19 @@ export default function App() {
         safeLocalStorageSet('ap_moda_products', JSON.stringify(cleanDbProducts));
       } else if (dbProducts !== null) {
         const localProducts = currentLocalProducts
-          .filter((p: Product) => p && !deletedProductsList.includes(p.id) && !mockIds.includes(p.id));
+          .filter((p: Product) => p && remainingDirtyProducts.includes(p.id) && !deletedProductsList.includes(p.id) && !mockIds.includes(p.id));
         if (localProducts && localProducts.length > 0) {
-          console.log('[Supabase Sync] Enviando seus produtos locais para o Supabase:', localProducts.length);
+          console.log('[Supabase Sync] Enviando produtos pendentes (dirty) para o Supabase:', localProducts.length);
           await syncBulkProductsToSupabase(localProducts);
           lastProductsRef.current = localProducts;
           prevProductsRef.current = localProducts;
           setProducts(localProducts);
           safeLocalStorageSet('ap_moda_products', JSON.stringify(localProducts));
+        } else {
+          lastProductsRef.current = [];
+          prevProductsRef.current = [];
+          setProducts([]);
+          safeLocalStorageSet('ap_moda_products', JSON.stringify([]));
         }
       }
 
@@ -1673,10 +1649,9 @@ export default function App() {
         setClients(dbClients);
         safeLocalStorageSet('ap_moda_clients', JSON.stringify(dbClients));
       } else if (dbClients !== null) {
-        const hasSavedClients = localStorage.getItem('ap_moda_clients') !== null;
         const localClients = lastClientsRef.current && lastClientsRef.current.length > 0
           ? lastClientsRef.current
-          : (clients.length > 0 ? clients : (isSystemCleared || hasSavedClients || isSeeded ? [] : INITIAL_CLIENTS));
+          : (clients.length > 0 ? clients : []);
         if (localClients && localClients.length > 0) {
           console.log('[Supabase Sync] Enviando clientes autênticos para o Supabase:', localClients.length);
           await syncBulkClientsToSupabase(localClients);
@@ -1753,10 +1728,9 @@ export default function App() {
         setSales(mergedDbSales);
         safeLocalStorageSet('ap_moda_sales', JSON.stringify(mergedDbSales));
       } else if (dbSales !== null) {
-        const hasSavedSales = localStorage.getItem('ap_moda_sales') !== null;
         const localSales = (lastSalesRef.current && lastSalesRef.current.length > 0
           ? lastSalesRef.current
-          : (sales && sales.length > 0 ? sales : (isSystemCleared || hasSavedSales || isSeeded ? [] : INITIAL_SALES)))
+          : (sales && sales.length > 0 ? sales : []))
           .filter(s => s && !deletedSalesList.includes(s.id));
         if (localSales && localSales.length > 0) {
           console.log('[Supabase Sync] Restaurando histórico de vendas autênticas para o Supabase:', localSales.length);
@@ -1790,10 +1764,9 @@ export default function App() {
         setTransactions(cleanDbTxs);
         safeLocalStorageSet('ap_moda_transactions', JSON.stringify(cleanDbTxs));
       } else if (dbTransactions !== null) {
-        const hasSavedTxs = localStorage.getItem('ap_moda_transactions') !== null;
         const localTxs = (lastTransactionsRef.current && lastTransactionsRef.current.length > 0
           ? lastTransactionsRef.current
-          : (transactions && transactions.length > 0 ? transactions : (isSystemCleared || hasSavedTxs || isSeeded ? [] : INITIAL_TRANSACTIONS)))
+          : (transactions && transactions.length > 0 ? transactions : []))
           .filter(t => t && !deletedTransactionsList.includes(t.id));
         if (localTxs && localTxs.length > 0) {
           console.log('[Supabase Sync] Preservando fluxo de caixa local e enviando para o banco:', localTxs.length);
@@ -1832,10 +1805,9 @@ export default function App() {
         setOnlineOrders(cleanDbOrders);
         safeLocalStorageSet('ap_moda_online_orders', JSON.stringify(cleanDbOrders));
       } else if (dbOrders !== null) {
-        const hasSavedOrders = localStorage.getItem('ap_moda_online_orders') !== null;
         const localOrders = (lastOnlineOrdersRef.current && lastOnlineOrdersRef.current.length > 0
           ? lastOnlineOrdersRef.current
-          : (onlineOrders && onlineOrders.length > 0 ? onlineOrders : (isSystemCleared || hasSavedOrders || isSeeded ? [] : INITIAL_ONLINE_ORDERS)))
+          : (onlineOrders && onlineOrders.length > 0 ? onlineOrders : []))
           .filter(o => o && !deletedOrdersList.includes(o.id));
         if (localOrders && localOrders.length > 0) {
           console.log('[Supabase Sync] Enviando sacolas online locais para o Supabase:', localOrders.length);
@@ -1911,8 +1883,11 @@ export default function App() {
         details: 'Ocorreu um erro ao carregar as informações na nuvem. Verifique sua conexão e tente novamente.'
       }));
     } finally {
-      isSyncingRef.current = false;
-      isUpdatingFromSyncRef.current = false;
+      setTimeout(() => {
+        isSyncingRef.current = false;
+        isUpdatingFromSyncRef.current = false;
+        hasBootstrappedCloudRef.current = true;
+      }, 300);
     }
   }, []);
 
@@ -1947,8 +1922,29 @@ export default function App() {
   // Carregar usuários e credenciais do Supabase na inicialização, se houver
   useEffect(() => {
     async function initSupabaseSync() {
+      isUpdatingFromSyncRef.current = true;
       // Primeiro sincroniza as credenciais do banco com o servidor central, garantindo que TODOS usem o mesmo banco de dados
-      await initializeSupabaseConfig();
+      const initRes = await initializeSupabaseConfig();
+      if (initRes?.changed) {
+        lastProductsRef.current = [];
+        prevProductsRef.current = [];
+        lastClientsRef.current = [];
+        prevClientsRef.current = [];
+        lastSalesRef.current = [];
+        prevSalesRef.current = [];
+        lastTransactionsRef.current = [];
+        prevTransactionsRef.current = [];
+        lastOnlineOrdersRef.current = [];
+        prevOnlineOrdersRef.current = [];
+        lastCheckoutsRef.current = [];
+        prevCheckoutsRef.current = [];
+        setProducts([]);
+        setClients([]);
+        setSales([]);
+        setTransactions([]);
+        setOnlineOrders([]);
+        setCheckouts([]);
+      }
 
       const config = getSupabaseConfig();
       if (config) {
@@ -1965,6 +1961,8 @@ export default function App() {
               !fakeNames.includes(m.name?.toLowerCase())
             );
             console.log(`Sucesso! ${cleanMembers.length} logins autênticos baixados do Supabase.`);
+            prevTeamMembersRef.current = cleanMembers;
+            lastTeamMembersRef.current = cleanMembers;
             setTeamMembers(cleanMembers);
             safeLocalStorageSet('ap_moda_team_users', JSON.stringify(cleanMembers));
           } else if (dbMembers === null) {
@@ -1980,43 +1978,54 @@ export default function App() {
           try {
             const parsed = JSON.parse(savedUser);
             if (parsed) {
-              runFullSynchronousSetup(parsed);
+              await runFullSynchronousSetup(parsed);
+              return;
             }
           } catch (e) {}
-        } else {
-          // Visão pública do catálogo / visitante: Puxa o catálogo do Supabase para manter o catálogo real atualizado
-          try {
-            const dbProducts = await fetchProductsFromSupabase();
-            if (dbProducts && dbProducts.length > 0) {
-              setProducts(dbProducts);
-              safeLocalStorageSet('ap_moda_products', JSON.stringify(dbProducts));
-              console.log('[Public Catalog Init] Produtos carregados com sucesso do Supabase para visitantes:', dbProducts.length);
-            } else {
-              // Se a consulta remota vier vazia, preserva o cache local existente antes de qualquer fallback
-              const existingLocal = localStorage.getItem('ap_moda_products');
-              if (existingLocal) {
-                try {
-                  const parsed = JSON.parse(existingLocal);
-                  if (Array.isArray(parsed) && parsed.length > 0) {
-                    setProducts(parsed);
-                  }
-                } catch (e) {}
-              }
-            }
-          } catch (err) {
-            console.warn('[Public Catalog Init] Falha ao carregar produtos na inicialização do visitante:', err);
+        }
+
+        // Visão pública do catálogo / visitante: Puxa catálogo e configurações da vitrine do Supabase
+        syncSystemConfigsWithSupabase().catch(() => {});
+        try {
+          const dbProducts = await fetchProductsFromSupabase();
+          if (dbProducts && dbProducts.length > 0) {
+            lastProductsRef.current = dbProducts;
+            prevProductsRef.current = dbProducts;
+            setProducts(dbProducts);
+            safeLocalStorageSet('ap_moda_products', JSON.stringify(dbProducts));
+            console.log('[Public Catalog Init] Produtos carregados com sucesso do Supabase para visitantes:', dbProducts.length);
+          } else {
             const existingLocal = localStorage.getItem('ap_moda_products');
             if (existingLocal) {
               try {
                 const parsed = JSON.parse(existingLocal);
                 if (Array.isArray(parsed) && parsed.length > 0) {
+                  lastProductsRef.current = parsed;
+                  prevProductsRef.current = parsed;
                   setProducts(parsed);
                 }
               } catch (e) {}
             }
           }
+        } catch (err) {
+          console.warn('[Public Catalog Init] Falha ao carregar produtos na inicialização do visitante:', err);
+          const existingLocal = localStorage.getItem('ap_moda_products');
+          if (existingLocal) {
+            try {
+              const parsed = JSON.parse(existingLocal);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                lastProductsRef.current = parsed;
+                prevProductsRef.current = parsed;
+                setProducts(parsed);
+              }
+            } catch (e) {}
+          }
         }
       }
+      setTimeout(() => {
+        isUpdatingFromSyncRef.current = false;
+        hasBootstrappedCloudRef.current = true;
+      }, 300);
     }
     initSupabaseSync();
   }, [runFullSynchronousSetup]);
@@ -2086,7 +2095,11 @@ export default function App() {
         try {
           const updated = JSON.parse(e.newValue);
           if (Array.isArray(updated) && updated.length > 0) {
+            isUpdatingFromSyncRef.current = true;
+            lastProductsRef.current = updated;
+            prevProductsRef.current = updated;
             setProducts(updated);
+            setTimeout(() => { isUpdatingFromSyncRef.current = false; }, 150);
           }
         } catch (err) {}
       }
@@ -2094,16 +2107,26 @@ export default function App() {
 
     const handleStorageSync = () => {
       try {
+        isUpdatingFromSyncRef.current = true;
         const savedSales = localStorage.getItem('ap_moda_sales');
         if (savedSales) {
           const parsed = JSON.parse(savedSales);
-          if (Array.isArray(parsed)) setSales(parsed);
+          if (Array.isArray(parsed)) {
+            lastSalesRef.current = parsed;
+            prevSalesRef.current = parsed;
+            setSales(parsed);
+          }
         }
         const savedOrders = localStorage.getItem('ap_moda_online_orders') || localStorage.getItem('ap_online_orders');
         if (savedOrders) {
           const parsed = JSON.parse(savedOrders);
-          if (Array.isArray(parsed)) setOnlineOrders(parsed);
+          if (Array.isArray(parsed)) {
+            lastOnlineOrdersRef.current = parsed;
+            prevOnlineOrdersRef.current = parsed;
+            setOnlineOrders(parsed);
+          }
         }
+        setTimeout(() => { isUpdatingFromSyncRef.current = false; }, 150);
       } catch (err) {}
     };
 
@@ -2271,6 +2294,28 @@ export default function App() {
     });
   }, [systemOffline, getDirtyIds, saveDirtyIds]);
 
+  const handleUpdateCheckoutsList = useCallback(async (updatedList: any[] | ((prev: any[]) => any[])) => {
+    syncEpochRef.current += 1;
+    setCheckouts(prev => {
+      const newList = typeof updatedList === 'function' ? updatedList(prev) : updatedList;
+      lastCheckoutsRef.current = newList;
+      safeLocalStorageSet('ap_moda_checkouts', JSON.stringify(newList));
+      const prevMap = new Map(prev.map(c => [c.id, c]));
+      const changedCheckouts = newList.filter(c => {
+        const prevC = prevMap.get(c.id);
+        return !prevC || JSON.stringify(prevC) !== JSON.stringify(c);
+      });
+
+      if (changedCheckouts.length > 0) {
+        const config = getSupabaseConfig();
+        if (config && !systemOffline) {
+          syncBulkCheckoutsToSupabase(changedCheckouts).catch(e => console.warn('Immediate checkouts update sync failed:', e));
+        }
+      }
+      return newList;
+    });
+  }, [systemOffline]);
+
   const handleUpdateTeamMembers = useCallback(async (updatedList: any[] | ((prev: any[]) => any[])) => {
     setTeamMembers(prev => {
       const newList = typeof updatedList === 'function' ? updatedList(prev) : updatedList;
@@ -2308,6 +2353,9 @@ export default function App() {
 
   // Sincronização automática bilateral de TODO o ecossistema AP Moda Fitness com o Supabase
   const performSync = useCallback(async (isManual = false) => {
+    if (!hasBootstrappedCloudRef.current && !isManual) {
+      return;
+    }
     if (isSyncingRef.current && !isManual) {
       console.log('[Supabase Sync] Sincronização concorrente ignorada para evitar colisões.');
       return;
@@ -2343,14 +2391,28 @@ export default function App() {
       saveDirtyIds('ap_dirty_transactions', []);
       saveDirtyIds('ap_dirty_online_orders', []);
       saveDirtyIds('ap_dirty_team_members', []);
+      lastProductsRef.current = [];
+      prevProductsRef.current = [];
+      lastClientsRef.current = [];
+      prevClientsRef.current = [];
+      lastSalesRef.current = [];
+      prevSalesRef.current = [];
+      lastTransactionsRef.current = [];
+      prevTransactionsRef.current = [];
+      lastOnlineOrdersRef.current = [];
+      prevOnlineOrdersRef.current = [];
+      lastCheckoutsRef.current = [];
+      prevCheckoutsRef.current = [];
 
       if (currentUserRef.current) {
         await runFullSynchronousSetupRef.current(currentUserRef.current);
         return;
       } else if (isCustomerViewRef.current) {
+        syncSystemConfigsWithSupabase().catch(() => {});
         const dbProducts = await fetchProductsFromSupabase();
         if (dbProducts) {
           lastProductsRef.current = dbProducts;
+          prevProductsRef.current = dbProducts;
           setProducts(dbProducts);
           safeLocalStorageSet('ap_moda_products', JSON.stringify(dbProducts));
         }
@@ -2438,17 +2500,15 @@ export default function App() {
         saveDirtyIds('ap_deleted_team_members', stillInDb);
       }
 
-      // 2. Sincronização do Catálogo de Produtos da Boutique
+      // 2. Sincronização do Catálogo de Produtos da Boutique (espelho fiel da nuvem)
       const dbProducts = await fetchProductsFromSupabase();
       if (dbProducts) {
         const dirtyProducts = getDirtyIds('ap_dirty_products');
         const deletedProductsList = getDirtyIds('ap_deleted_products');
-        const currentProducts = lastProductsRef.current;
+        const currentProducts = lastProductsRef.current || [];
         const localMap = new Map(currentProducts.map(p => [p.id, p]));
         const dbMap = new Map(dbProducts.map(p => [p.id, p]));
-        let localModified = false;
         let remoteModified = false;
-        const merged = currentProducts.filter(p => p && !deletedProductsList.includes(p.id));
 
         // Retry deleting remote products if they are in the deleted queue
         for (const id of deletedProductsList) {
@@ -2458,58 +2518,28 @@ export default function App() {
           }
         }
 
+        // Start from authoritative cloud list (drops stale/deleted non-dirty ghost products)
+        const merged: Product[] = [];
         for (const dbP of dbProducts) {
-          // If deleted locally, skip and do not resurrect
-          if (deletedProductsList.includes(dbP.id)) {
-            continue;
-          }
-
+          if (!dbP || deletedProductsList.includes(dbP.id)) continue;
           const localP = localMap.get(dbP.id);
-          if (!localP) {
-            merged.push(dbP);
-            localModified = true;
-          } else if (!dirtyProducts.includes(dbP.id)) {
-            // SAFE INTELLIGENT MERGE:
-            // 1. Image Protection: Preserve local valid gallery/cover if remote lost images or returned fewer valid images
-            const validLocalImgs = extractValidProductImages(localP);
+          const recentMutAt = recentlyMutatedProductIdsRef.current.get(dbP.id);
+          if (localP && ((recentMutAt && Date.now() - recentMutAt < 15000) || dirtyProducts.includes(dbP.id))) {
+            merged.push(localP);
+          } else {
             const validRemoteImgs = extractValidProductImages(dbP);
-
             const safeDbP = { ...dbP };
-            let queueToUpload = false;
-
-            if (validLocalImgs.length > 0 && validRemoteImgs.length === 0) {
-              safeDbP.image = isValidMediaUrl(localP.image) ? localP.image : validLocalImgs[0];
-              safeDbP.images = validLocalImgs;
-              queueToUpload = true;
-            } else if (validLocalImgs.length > validRemoteImgs.length) {
-              const mergedImgs = Array.from(new Set([...validRemoteImgs, ...validLocalImgs]));
-              safeDbP.images = mergedImgs;
-              if (!isValidMediaUrl(safeDbP.image)) {
-                safeDbP.image = isValidMediaUrl(localP.image) ? localP.image : mergedImgs[0] || '';
-              }
-              queueToUpload = true;
-            } else if (validRemoteImgs.length > 0 && !isValidMediaUrl(safeDbP.image)) {
+            if (validRemoteImgs.length > 0 && !isValidMediaUrl(safeDbP.image)) {
               safeDbP.image = validRemoteImgs[0];
             }
+            merged.push(safeDbP);
+          }
+        }
 
-            // 2. Zero-Stock Protection: If user zeroed stock locally (out of stock), never revive phantom stock from db
-            if (localP.stock === 0 && dbP.stock > 0) {
-              safeDbP.stock = 0;
-              queueToUpload = true;
-            }
-
-            if (queueToUpload) {
-              const currentDirty = getDirtyIds('ap_dirty_products');
-              if (!currentDirty.includes(localP.id)) {
-                saveDirtyIds('ap_dirty_products', [...currentDirty, localP.id]);
-              }
-            }
-
-            if (JSON.stringify(localP) !== JSON.stringify(safeDbP)) {
-              const idx = merged.findIndex(x => x.id === dbP.id);
-              if (idx >= 0) merged[idx] = safeDbP;
-              localModified = true;
-            }
+        // Preserve genuinely dirty local products not yet in Supabase
+        for (const localP of currentProducts) {
+          if (localP && dirtyProducts.includes(localP.id) && !deletedProductsList.includes(localP.id) && !dbMap.has(localP.id)) {
+            merged.push(localP);
           }
         }
 
@@ -2524,6 +2554,7 @@ export default function App() {
           }
         }
 
+        const localModified = JSON.stringify(currentProducts) !== JSON.stringify(merged);
         if (localModified && syncEpochRef.current === startEpoch) {
           lastProductsRef.current = merged;
           prevProductsRef.current = merged;
@@ -2536,32 +2567,33 @@ export default function App() {
         }
       }
 
-      // 3. Sincronização do CRM de Clientes
+      // 3. Sincronização do CRM de Clientes (espelho fiel da nuvem)
       const dbClients = await fetchClientsFromSupabase();
       if (dbClients) {
         const dirtyClients = getDirtyIds('ap_dirty_clients');
-        const currentClients = lastClientsRef.current;
+        const currentClients = lastClientsRef.current || [];
         const localMap = new Map(currentClients.map(c => [c.id, c]));
         const dbMap = new Map(dbClients.map(c => [c.id, c]));
-        let localModified = false;
         let remoteModified = false;
-        const merged = [...currentClients];
+        const merged: Client[] = [];
 
         for (const dbC of dbClients) {
+          if (!dbC) continue;
           const localC = localMap.get(dbC.id);
-          if (!localC) {
+          if (localC && dirtyClients.includes(dbC.id)) {
+            merged.push(localC);
+          } else {
             merged.push(dbC);
-            localModified = true;
-          } else if (!dirtyClients.includes(dbC.id)) {
-            if (JSON.stringify(localC) !== JSON.stringify(dbC)) {
-              const idx = merged.findIndex(x => x.id === dbC.id);
-              if (idx >= 0) merged[idx] = dbC;
-              localModified = true;
-            }
           }
         }
 
-        const toUpload = currentClients.filter(lc => dirtyClients.includes(lc.id));
+        for (const localC of currentClients) {
+          if (localC && dirtyClients.includes(localC.id) && !dbMap.has(localC.id)) {
+            merged.push(localC);
+          }
+        }
+
+        const toUpload = merged.filter(lc => lc && dirtyClients.includes(lc.id));
         if (toUpload.length > 0) {
           const success = await syncBulkClientsToSupabase(toUpload);
           if (success) {
@@ -2571,9 +2603,12 @@ export default function App() {
           }
         }
 
-        if (localModified) {
+        const localModified = JSON.stringify(currentClients) !== JSON.stringify(merged);
+        if (localModified && syncEpochRef.current === startEpoch) {
+          lastClientsRef.current = merged;
           prevClientsRef.current = merged;
           setClients(merged);
+          safeLocalStorageSet('ap_moda_clients', JSON.stringify(merged));
           localStateModified = true;
         }
         if (remoteModified || localModified) {
@@ -2607,8 +2642,7 @@ export default function App() {
 
         const remainingDirty = getDirtyIds('ap_dirty_sales');
         const localMap = new Map(currentSales.map(s => [s.id, s]));
-        let localModified = currentSales.length !== (lastSalesRef.current || []).length;
-        const merged = [...currentSales];
+        const merged: Sale[] = [];
 
         let manualSalesMap = new Map();
         try {
@@ -2630,6 +2664,22 @@ export default function App() {
           if (!dbS || deletedSalesList.includes(dbS.id)) continue;
           const sIdLower = (dbS.id || '').toLowerCase();
           const localS = localMap.get(dbS.id) || localMap.get(sIdLower);
+
+          if (!localS && hasInitializedAlertedIdsRef.current && !alertedSaleIdsRef.current.has(dbS.id)) {
+            triggerSaleAlert({
+              id: dbS.id,
+              clientName: dbS.clientName || 'Cliente',
+              total: Number(dbS.total || 0),
+              source: dbS.channel || 'Loja Virtual / PDV',
+              itemsCount: Array.isArray(dbS.items) ? dbS.items.length : 1
+            });
+          }
+
+          if (localS && remainingDirty.includes(dbS.id)) {
+            merged.push(localS);
+            continue;
+          }
+
           const manualM = manualSalesMap.get(sIdLower) || manualSalesMap.get(sIdLower.replace('ped-', '#ped-')) || manualSalesMap.get(sIdLower.replace('#', ''));
 
           const localHasPartner = !!(localS && (localS.partner || localS.partnerId || (localS as any).partnerName || localS.couponCode));
@@ -2664,27 +2714,16 @@ export default function App() {
                 coupon: couponCode || (dbS as any).coupon
               };
 
-          if (!localS) {
-            merged.push(effectiveDbS);
-            localModified = true;
-            if (hasInitializedAlertedIdsRef.current && !alertedSaleIdsRef.current.has(dbS.id)) {
-              triggerSaleAlert({
-                id: dbS.id,
-                clientName: dbS.clientName || 'Cliente',
-                total: Number(dbS.total || 0),
-                source: dbS.channel || 'Loja Virtual / PDV',
-                itemsCount: Array.isArray(dbS.items) ? dbS.items.length : 1
-              });
-            }
-          } else if (!remainingDirty.includes(dbS.id)) {
-            if (JSON.stringify(localS) !== JSON.stringify(effectiveDbS)) {
-              const idx = merged.findIndex(x => x.id === dbS.id);
-              if (idx >= 0) merged[idx] = effectiveDbS;
-              localModified = true;
-            }
+          merged.push(effectiveDbS);
+        }
+
+        for (const localS of currentSales) {
+          if (localS && remainingDirty.includes(localS.id) && !deletedSalesList.includes(localS.id) && !dbSalesMap.has(localS.id)) {
+            merged.push(localS);
           }
         }
 
+        const localModified = JSON.stringify(lastSalesRef.current || []) !== JSON.stringify(merged);
         if (localModified && syncEpochRef.current === startEpoch) {
           lastSalesRef.current = merged;
           prevSalesRef.current = merged;
@@ -2694,17 +2733,16 @@ export default function App() {
         }
       }
 
-      // 5. Sincronização Financeira (Lançamentos de Caixa)
+      // 5. Sincronização Financeira (Lançamentos de Caixa - espelho fiel da nuvem)
       const dbTransactions = await fetchTransactionsFromSupabase();
       if (dbTransactions) {
         const dirtyTransactions = getDirtyIds('ap_dirty_transactions');
         const deletedTransactions = getDirtyIds('ap_deleted_transactions');
-        const currentTransactions = lastTransactionsRef.current;
+        const currentTransactions = lastTransactionsRef.current || [];
         const localMap = new Map(currentTransactions.map(t => [t.id, t]));
         const dbMap = new Map(dbTransactions.map(t => [t.id, t]));
-        let localModified = false;
         let remoteModified = false;
-        const merged = currentTransactions.filter(t => !deletedTransactions.includes(t.id));
+        const merged: Transaction[] = [];
 
         for (const delId of deletedTransactions) {
           if (dbMap.has(delId)) {
@@ -2713,21 +2751,22 @@ export default function App() {
         }
 
         for (const dbT of dbTransactions) {
-          if (deletedTransactions.includes(dbT.id)) continue;
+          if (!dbT || deletedTransactions.includes(dbT.id)) continue;
           const localT = localMap.get(dbT.id);
-          if (!localT) {
+          if (localT && dirtyTransactions.includes(dbT.id)) {
+            merged.push(localT);
+          } else {
             merged.push(dbT);
-            localModified = true;
-          } else if (!dirtyTransactions.includes(dbT.id)) {
-            if (JSON.stringify(localT) !== JSON.stringify(dbT)) {
-              const idx = merged.findIndex(x => x.id === dbT.id);
-              if (idx >= 0) merged[idx] = dbT;
-              localModified = true;
-            }
           }
         }
 
-        const toUpload = currentTransactions.filter(lt => dirtyTransactions.includes(lt.id) && !deletedTransactions.includes(lt.id));
+        for (const localT of currentTransactions) {
+          if (localT && dirtyTransactions.includes(localT.id) && !deletedTransactions.includes(localT.id) && !dbMap.has(localT.id)) {
+            merged.push(localT);
+          }
+        }
+
+        const toUpload = merged.filter(lt => lt && dirtyTransactions.includes(lt.id) && !deletedTransactions.includes(lt.id));
         if (toUpload.length > 0) {
           const success = await syncBulkTransactionsToSupabase(toUpload);
           if (success) {
@@ -2737,6 +2776,7 @@ export default function App() {
           }
         }
 
+        const localModified = JSON.stringify(currentTransactions) !== JSON.stringify(merged);
         if (localModified && syncEpochRef.current === startEpoch) {
           lastTransactionsRef.current = merged;
           prevTransactionsRef.current = merged;
@@ -2749,17 +2789,16 @@ export default function App() {
         }
       }
 
-      // 6. Sincronização de Pedidos da Loja Online / Vitrine
+      // 6. Sincronização de Pedidos da Loja Online / Vitrine (espelho fiel da nuvem)
       const dbOrders = await fetchOnlineOrdersFromSupabase();
       if (dbOrders) {
         const dirtyOrders = getDirtyIds('ap_dirty_online_orders');
         const deletedOrders = getDirtyIds('ap_deleted_online_orders');
-        const currentOrders = lastOnlineOrdersRef.current;
+        const currentOrders = lastOnlineOrdersRef.current || [];
         const localMap = new Map(currentOrders.map(o => [o.id, o]));
         const dbMap = new Map(dbOrders.map(o => [o.id, o]));
-        let localModified = false;
         let remoteModified = false;
-        const merged = currentOrders.filter(o => !deletedOrders.includes(o.id));
+        const merged: any[] = [];
 
         for (const delId of deletedOrders) {
           if (dbMap.has(delId)) {
@@ -2768,11 +2807,9 @@ export default function App() {
         }
 
         for (const dbO of dbOrders) {
-          if (deletedOrders.includes(dbO.id)) continue;
+          if (!dbO || deletedOrders.includes(dbO.id)) continue;
           const localO = localMap.get(dbO.id);
           if (!localO) {
-            merged.push(dbO);
-            localModified = true;
             if (hasInitializedAlertedIdsRef.current && !alertedSaleIdsRef.current.has(dbO.id)) {
               triggerSaleAlert({
                 id: dbO.id,
@@ -2835,16 +2872,22 @@ export default function App() {
                 return [autoTx, ...prevTx];
               });
             }
-          } else if (!dirtyOrders.includes(dbO.id)) {
-            if (JSON.stringify(localO) !== JSON.stringify(dbO)) {
-              const idx = merged.findIndex(x => x.id === dbO.id);
-              if (idx >= 0) merged[idx] = dbO;
-              localModified = true;
-            }
+          }
+
+          if (localO && dirtyOrders.includes(dbO.id)) {
+            merged.push(localO);
+          } else {
+            merged.push(dbO);
           }
         }
 
-        const toUpload = currentOrders.filter(lo => dirtyOrders.includes(lo.id) && !deletedOrders.includes(lo.id));
+        for (const localO of currentOrders) {
+          if (localO && dirtyOrders.includes(localO.id) && !deletedOrders.includes(localO.id) && !dbMap.has(localO.id)) {
+            merged.push(localO);
+          }
+        }
+
+        const toUpload = merged.filter(lo => lo && dirtyOrders.includes(lo.id) && !deletedOrders.includes(lo.id));
         if (toUpload.length > 0) {
           const success = await syncBulkOnlineOrdersToSupabase(toUpload);
           if (success) {
@@ -2854,9 +2897,13 @@ export default function App() {
           }
         }
 
-        if (localModified) {
+        const localModified = JSON.stringify(currentOrders) !== JSON.stringify(merged);
+        if (localModified && syncEpochRef.current === startEpoch) {
+          lastOnlineOrdersRef.current = merged;
           prevOnlineOrdersRef.current = merged;
           setOnlineOrders(merged);
+          safeLocalStorageSet('ap_moda_online_orders', JSON.stringify(merged));
+          safeLocalStorageSet('ap_online_orders', JSON.stringify(merged));
           localStateModified = true;
         }
         if (remoteModified || localModified) {
@@ -2864,31 +2911,33 @@ export default function App() {
         }
       }
 
-      // 6.5. Sincronização de Checkouts (Carrinhos Abandonados)
+      // 6.5. Sincronização de Checkouts (Carrinhos Abandonados - espelho fiel da nuvem)
       const dbCheckouts = await fetchCheckoutsFromSupabase();
       if (dbCheckouts) {
         const dirtyCheckouts = getDirtyIds('ap_dirty_checkouts');
-        const currentCheckouts = lastCheckoutsRef.current;
+        const currentCheckouts = lastCheckoutsRef.current || [];
         const localMap = new Map(currentCheckouts.map(c => [c.id, c]));
-        let localModified = false;
+        const dbMap = new Map(dbCheckouts.map(c => [c.id, c]));
         let remoteModified = false;
-        const merged = [...currentCheckouts];
+        const merged: any[] = [];
 
         for (const dbC of dbCheckouts) {
+          if (!dbC) continue;
           const localC = localMap.get(dbC.id);
-          if (!localC) {
+          if (localC && dirtyCheckouts.includes(dbC.id)) {
+            merged.push(localC);
+          } else {
             merged.push(dbC);
-            localModified = true;
-          } else if (!dirtyCheckouts.includes(dbC.id)) {
-            if (JSON.stringify(localC) !== JSON.stringify(dbC)) {
-              const idx = merged.findIndex(x => x.id === dbC.id);
-              if (idx >= 0) merged[idx] = dbC;
-              localModified = true;
-            }
           }
         }
 
-        const toUpload = currentCheckouts.filter(lc => dirtyCheckouts.includes(lc.id));
+        for (const localC of currentCheckouts) {
+          if (localC && dirtyCheckouts.includes(localC.id) && !dbMap.has(localC.id)) {
+            merged.push(localC);
+          }
+        }
+
+        const toUpload = merged.filter(lc => lc && dirtyCheckouts.includes(lc.id));
         if (toUpload.length > 0) {
           const success = await syncBulkCheckoutsToSupabase(toUpload);
           if (success) {
@@ -2898,9 +2947,12 @@ export default function App() {
           }
         }
 
-        if (localModified) {
+        const localModified = JSON.stringify(currentCheckouts) !== JSON.stringify(merged);
+        if (localModified && syncEpochRef.current === startEpoch) {
+          lastCheckoutsRef.current = merged;
           prevCheckoutsRef.current = merged;
           setCheckouts(merged);
+          safeLocalStorageSet('ap_moda_checkouts', JSON.stringify(merged));
           localStateModified = true;
         }
         if (remoteModified || localModified) {
@@ -2958,10 +3010,6 @@ export default function App() {
   useEffect(() => {
     const config = getSupabaseConfig();
     if (!config) return;
-
-    if (!systemOffline) {
-      performSync();
-    }
 
     const interval = setInterval(() => {
       if (!systemOffline) {
@@ -3194,7 +3242,8 @@ export default function App() {
           let updated = [...prev];
           if ((eventType === 'INSERT' || eventType === 'UPDATE') && newRec) {
             const recId = getTolerantValue(newRec, 'id');
-            if (!recId || deletedProducts.includes(recId) || dirtyProducts.includes(recId)) return prev;
+            const recentMutAt = recId ? recentlyMutatedProductIdsRef.current.get(recId) : undefined;
+            if (!recId || deletedProducts.includes(recId) || dirtyProducts.includes(recId) || (recentMutAt && Date.now() - recentMutAt < 15000)) return prev;
             const parsedImagesRaw = parseJsonField<any[]>(getTolerantValue(newRec, 'images'), []);
             const validRemoteImgs = Array.isArray(parsedImagesRaw) ? parsedImagesRaw.filter(isValidMediaUrl) : [];
             const rawMainImg = getTolerantValue(newRec, 'image', '');
@@ -3524,12 +3573,8 @@ export default function App() {
     };
   }, [systemOffline]);
 
-  // Função para sincronizar da nuvem e atualizar o sino de notificações
-  const syncAndRefreshPartnerWithdraws = useCallback(async () => {
-    try {
-      await syncPartnerWithdrawRequestsWithServer();
-    } catch (e) {}
-
+  // Atualiza estado local de saques a partir do localStorage (sem disparar nova requisição em loop)
+  const refreshPartnerWithdrawsFromStorage = useCallback(() => {
     const stored = getStoredPartnerWithdrawRequests();
     setPartnerWithdrawRequests(stored);
 
@@ -3566,6 +3611,14 @@ export default function App() {
     }
   }, [triggerPartnerWithdrawAlert]);
 
+  // Função para sincronizar da nuvem e atualizar o sino de notificações
+  const syncAndRefreshPartnerWithdraws = useCallback(async () => {
+    try {
+      await syncPartnerWithdrawRequestsWithServer();
+    } catch (e) {}
+    refreshPartnerWithdrawsFromStorage();
+  }, [refreshPartnerWithdrawsFromStorage]);
+
   // Efeito para escuta ativa e sincronização contínua de solicitações de saque de parceiros
   useEffect(() => {
     const handlePartnerWithdraw = (e: any) => {
@@ -3575,36 +3628,36 @@ export default function App() {
       } else if (detail && detail.id) {
         triggerPartnerWithdrawAlert(detail);
       }
-      syncAndRefreshPartnerWithdraws();
+      refreshPartnerWithdrawsFromStorage();
     };
 
-    const handleSyncEvent = () => {
-      syncAndRefreshPartnerWithdraws();
+    const handleLocalRefreshEvent = () => {
+      refreshPartnerWithdrawsFromStorage();
     };
 
     window.addEventListener('ap-partner-withdraw-alert', handlePartnerWithdraw);
     window.addEventListener('ap-partner-withdraw-requested', handlePartnerWithdraw);
-    window.addEventListener('ap-partner-withdraws-updated', handleSyncEvent);
-    window.addEventListener('ap-system-configs-refreshed', handleSyncEvent);
-    window.addEventListener('ap-storage-synced', handleSyncEvent);
+    window.addEventListener('ap-partner-withdraws-updated', handleLocalRefreshEvent);
+    window.addEventListener('ap-system-configs-refreshed', handleLocalRefreshEvent);
+    window.addEventListener('ap-storage-synced', handleLocalRefreshEvent);
 
     // Executa imediatamente na inicialização
     syncAndRefreshPartnerWithdraws();
 
-    // Verificação periódica automática a cada 6 segundos para capturar solicitações feitas remotamente
+    // Verificação periódica automática a cada 10 segundos para capturar solicitações feitas remotamente
     const interval = setInterval(() => {
       syncAndRefreshPartnerWithdraws();
-    }, 6000);
+    }, 10000);
 
     return () => {
       window.removeEventListener('ap-partner-withdraw-alert', handlePartnerWithdraw);
       window.removeEventListener('ap-partner-withdraw-requested', handlePartnerWithdraw);
-      window.removeEventListener('ap-partner-withdraws-updated', handleSyncEvent);
-      window.removeEventListener('ap-system-configs-refreshed', handleSyncEvent);
-      window.removeEventListener('ap-storage-synced', handleSyncEvent);
+      window.removeEventListener('ap-partner-withdraws-updated', handleLocalRefreshEvent);
+      window.removeEventListener('ap-system-configs-refreshed', handleLocalRefreshEvent);
+      window.removeEventListener('ap-storage-synced', handleLocalRefreshEvent);
       clearInterval(interval);
     };
-  }, [triggerPartnerWithdrawAlert, syncAndRefreshPartnerWithdraws]);
+  }, [triggerPartnerWithdrawAlert, refreshPartnerWithdrawsFromStorage, syncAndRefreshPartnerWithdraws]);
 
   // WhatsApp Business API triggers (com suporte a fila offline)
   const triggerWhatsAppAlert = async (type: 'sale_completed' | 'stock_alert', data: any, forceSync = false) => {
@@ -4193,7 +4246,10 @@ export default function App() {
 
   const handleAddProduct = async (newProd: Product) => {
     syncEpochRef.current += 1;
-    lastProductsRef.current = [newProd, ...(lastProductsRef.current || [])];
+    recentlyMutatedProductIdsRef.current.set(newProd.id, Date.now());
+    const nextList = [newProd, ...(lastProductsRef.current || [])];
+    lastProductsRef.current = nextList;
+    prevProductsRef.current = nextList;
     setProducts(prev => {
       const updated = [newProd, ...prev];
       safeLocalStorageSet('ap_moda_products', JSON.stringify(updated));
@@ -4205,17 +4261,13 @@ export default function App() {
       saveDirtyIds('ap_dirty_products', [...currentDirty, newProd.id]);
     }
 
-    const config = getSupabaseConfig();
-    if (config && !systemOffline) {
-      try {
-        const ok = await syncBulkProductsToSupabase([newProd]);
-        if (ok) {
-          const remaining = getDirtyIds('ap_dirty_products').filter(id => id !== newProd.id);
-          saveDirtyIds('ap_dirty_products', remaining);
-        }
-      } catch (e) {
-        console.warn('Immediate product upload failed, saved in local offline queue:', e);
+    if (!systemOffline) {
+      const ok = await syncBulkProductsToSupabase([newProd]);
+      if (!ok) {
+        throw new Error('Falha ao gravar o novo produto no servidor. Verifique sua conexão e tente novamente.');
       }
+      const remaining = getDirtyIds('ap_dirty_products').filter(id => id !== newProd.id);
+      saveDirtyIds('ap_dirty_products', remaining);
     }
   };
 
@@ -4223,7 +4275,10 @@ export default function App() {
     syncEpochRef.current += 1;
     const cleanProdForState: any = { ...updatedProd };
     delete cleanProdForState._allowClearImages;
-    lastProductsRef.current = (lastProductsRef.current || []).map(p => p.id === cleanProdForState.id ? cleanProdForState : p);
+    recentlyMutatedProductIdsRef.current.set(cleanProdForState.id, Date.now());
+    const nextList = (lastProductsRef.current || []).map(p => p.id === cleanProdForState.id ? cleanProdForState : p);
+    lastProductsRef.current = nextList;
+    prevProductsRef.current = nextList;
     setProducts(prev => {
       const updated = prev.map(p => p.id === cleanProdForState.id ? cleanProdForState : p);
       safeLocalStorageSet('ap_moda_products', JSON.stringify(updated));
@@ -4235,17 +4290,13 @@ export default function App() {
       saveDirtyIds('ap_dirty_products', [...currentDirty, cleanProdForState.id]);
     }
 
-    const config = getSupabaseConfig();
-    if (config && !systemOffline) {
-      try {
-        const ok = await syncBulkProductsToSupabase([updatedProd]);
-        if (ok) {
-          const remaining = getDirtyIds('ap_dirty_products').filter(id => id !== cleanProdForState.id);
-          saveDirtyIds('ap_dirty_products', remaining);
-        }
-      } catch (e) {
-        console.warn('Immediate product update failed, saved in local offline queue:', e);
+    if (!systemOffline) {
+      const ok = await syncBulkProductsToSupabase([updatedProd]);
+      if (!ok) {
+        throw new Error('Falha ao gravar as alterações do produto no servidor. Tente novamente.');
       }
+      const remaining = getDirtyIds('ap_dirty_products').filter(id => id !== cleanProdForState.id);
+      saveDirtyIds('ap_dirty_products', remaining);
     }
   };
 
@@ -4781,7 +4832,7 @@ export default function App() {
             clients={clients}
             onAddSale={handleAddSale}
             onlineOrders={onlineOrders}
-            setOnlineOrders={setOnlineOrders}
+            setOnlineOrders={handleUpdateOnlineOrdersList}
             onUpdateOnlineOrderStatus={handleUpdateOnlineOrderStatus}
             activeSubTab={ordersLogisticsSubTab}
             setActiveSubTab={setOrdersLogisticsSubTab}
@@ -4831,7 +4882,7 @@ export default function App() {
             activeSubTab={lojaOnlineSubTab}
             setActiveSubTab={setLojaOnlineSubTab}
             checkouts={checkouts}
-            setCheckouts={setCheckouts}
+            setCheckouts={handleUpdateCheckoutsList}
             onSyncCheckouts={() => performSync(true)}
             onAddProduct={handleAddProduct}
             onUpdateProduct={handleUpdateProduct}
@@ -4940,9 +4991,7 @@ export default function App() {
   };
 
   if (isCustomerView) {
-    const publicProducts = products && products.length > 0
-      ? products
-      : (localStorage.getItem('ap_system_cleared') === 'true' ? [] : INITIAL_PRODUCTS);
+    const publicProducts = products || [];
     return (
       <ErrorBoundary>
         <PublicCatalog 

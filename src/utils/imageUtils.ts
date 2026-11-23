@@ -80,18 +80,42 @@ export const PRE_OPTIMIZED_IMAGES: Record<string, string> = {
 };
 
 /**
- * Extracts all valid direct image URLs from raw text, HTML snippets, or BBCode
+ * Checks whether a URL points directly to an image resource or embedded data URI.
+ */
+export function isDirectImageUrl(url?: string | null): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  if (
+    trimmed.startsWith('data:image/') ||
+    trimmed.startsWith('/api/images/') ||
+    trimmed.startsWith('/optimized-images/') ||
+    trimmed.startsWith('/api/proxy/cdn-image')
+  ) {
+    return true;
+  }
+  const lower = trimmed.toLowerCase();
+  if (lower.includes('i.ibb.co') || lower.includes('i.ibb.co.com')) return true;
+  if (lower.includes('lh3.googleusercontent.com')) return true;
+  if (lower.includes('i.imgur.com') || lower.includes('i.postimg.cc')) return true;
+  if (lower.includes('dropbox.com') && (lower.includes('raw=1') || lower.includes('dl=1'))) return true;
+  if (/\.(jpg|jpeg|png|webp|avif|gif|bmp)(\?.*)?$/i.test(lower)) return true;
+  return false;
+}
+
+/**
+ * Extracts all valid direct image URLs or resolvable viewer links from raw text, HTML snippets, or BBCode.
  */
 export function extractImageUrlsFromText(input: string): string[] {
   if (!input || typeof input !== 'string') return [];
   const text = input.trim();
   const urls: string[] = [];
 
-  // 1. Direct i.ibb.co or i.ibb.co.com URLs (with or without https:// protocol, including inside <a> or <img> tags or BBCode)
+  // 1. Direct i.ibb.co or i.ibb.co.com URLs (with or without https:// protocol)
   const ibbDirectMatches = text.match(/(?:https?:\/\/)?i\.ibb\.co(?:\.com)?\/[a-zA-Z0-9_\-\.\/]+/gi);
   if (ibbDirectMatches) {
     ibbDirectMatches.forEach(u => {
-      let clean = u.replace(/[),;.\s]+$/, '');
+      let clean = u.replace(/[),;.\s"'>\]]+$/, '');
       if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
         clean = 'https://' + clean;
       }
@@ -131,23 +155,26 @@ export function extractImageUrlsFromText(input: string): string[] {
   }
 
   // 5. Standard image URLs with extensions (.jpg, .png, .webp, .jpeg, etc.)
-  const directImgMatches = text.match(/(?:https?:\/\/)[^\s"'<>\[\]]+?\.(?:jpg|jpeg|png|webp|avif|gif)(?:\?[^\s"'<>\[\]]*)?/gi);
+  const directImgMatches = text.match(/(?:https?:\/\/)[^\s"'<>\[\]]+?\.(?:jpg|jpeg|png|webp|avif|gif|bmp)(?:\?[^\s"'<>\[\]]*)?/gi);
   if (directImgMatches) {
     directImgMatches.forEach(u => urls.push(u.replace(/[),;.\s]+$/, '')));
   }
 
-  // 6. ImgBB viewer links (e.g. ibb.co/XYZ) only if no direct image was already extracted from the snippet
-  if (urls.length === 0) {
-    const ibbViewerMatches = text.match(/(?:https?:\/\/)?(?:www\.)?(?:ibb\.co(?:\.com)?|imgbb\.com)\/[a-zA-Z0-9_-]+/gi);
-    if (ibbViewerMatches) {
-      ibbViewerMatches.forEach(u => {
-        let clean = u.replace(/[),;.\s]+$/, '');
-        if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
-          clean = 'https://' + clean;
-        }
-        urls.push(clean);
-      });
-    }
+  // 6. ImgBB viewer links (e.g. ibb.co/XYZ), skipping <a href="..."> / [url=...] wrappers when an embed already gave i.ibb.co
+  const textWithoutWrapperAnchors = text
+    .replace(/<a[^>]+href=["'](?:https?:\/\/)?(?:www\.)?(?:ibb\.co(?:\.com)?|imgbb\.com)\/[^"']*["'][^>]*>/gi, ' ')
+    .replace(/\[url=(?:https?:\/\/)?(?:www\.)?(?:ibb\.co(?:\.com)?|imgbb\.com)\/[^\]]*\]/gi, ' ')
+    .replace(/(?:https?:\/\/)?i\.ibb\.co(?:\.com)?\/[^\s"'<>\[\]]+/gi, ' ');
+
+  const ibbViewerMatches = textWithoutWrapperAnchors.match(/(?:https?:\/\/)?(?:www\.)?(?:ibb\.co(?:\.com)?|imgbb\.com)\/[a-zA-Z0-9_-]+/gi);
+  if (ibbViewerMatches) {
+    ibbViewerMatches.forEach(u => {
+      let clean = u.replace(/[),;.\s"'>\]]+$/, '');
+      if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+        clean = 'https://' + clean;
+      }
+      urls.push(clean);
+    });
   }
 
   // Deduplicate and filter out empty strings
@@ -284,6 +311,27 @@ export function getOptimizedImageUrl(
     return `/api/proxy/cdn-image?url=${encodeURIComponent(trimmed)}&w=${w}&q=${quality}`;
   }
 
+  return trimmed;
+}
+
+/**
+ * Builds a server-side force-proxied image URL (bypassing client-side CDN blocks or 302 redirects).
+ */
+export function getProxiedFallbackUrl(
+  url?: string | null,
+  targetWidth: number = 800,
+  quality: number = 80
+): string {
+  if (!url || typeof url !== 'string') return AP_FALLBACK_IMAGE;
+  const trimmed = resolveClientDirectImageUrl(url);
+  if (!trimmed) return AP_FALLBACK_IMAGE;
+  if (trimmed.startsWith('data:image/') || trimmed.startsWith('/api/images/')) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    const w = targetWidth <= 200 ? 200 : targetWidth <= 600 ? 600 : targetWidth <= 900 ? 900 : 1200;
+    return `/api/proxy/cdn-image?url=${encodeURIComponent(trimmed)}&w=${w}&q=${quality}&forceProxy=1`;
+  }
   return trimmed;
 }
 

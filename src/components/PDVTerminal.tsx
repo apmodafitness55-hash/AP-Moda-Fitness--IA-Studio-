@@ -45,6 +45,7 @@ import { playSaleSuccessSound, playBarcodeBeepSound } from '../lib/audioFeedback
 import { Html5Qrcode } from 'html5-qrcode';
 import { getLocalDateKey, safeLocalStorageSet, createUniqueId } from '../utils/dateUtils';
 import { showToast } from '../lib/uiDialog';
+import { getOptimizedImageUrl, handleImageFallback, getProductMainImage } from '../utils/imageUtils';
 
 export function validateCPF(cpf: string): boolean {
   const cleanCPF = cpf.replace(/\D/g, '');
@@ -1109,8 +1110,8 @@ export default function PDVTerminal({
     const newClient: Client = {
       id: createUniqueId('cli'),
       name: selectedClientName.trim(),
-      email: quickEmail.trim() || `${selectedClientName.toLowerCase().replace(/\s+/g, '')}@exemplo.com`,
-      phone: quickPhone.trim() || '(11) 99999-0000',
+      email: quickEmail.trim() || '',
+      phone: quickPhone.trim() || '',
       cpf: quickCpf.trim() || undefined,
       channel: selectedChannel,
       npsScore: npsScore,
@@ -1323,8 +1324,8 @@ export default function PDVTerminal({
       const newClient: Client = {
         id: `cli-${Date.now()}`,
         name: isCpfText ? `Cliente CPF ${finalClientName}` : finalClientName,
-        email: `${(isCpfText ? `cpf-${finalClientName}` : finalClientName).toLowerCase().replace(/[^a-z0-9]/g, '')}@exemplo.com`,
-        phone: '(11) 99999-0000',
+        email: '',
+        phone: '',
         cpf: isCpfText ? finalClientName : undefined,
         channel: selectedChannel,
         npsScore: npsScore,
@@ -2532,9 +2533,10 @@ export default function PDVTerminal({
               <div className="flex gap-4">
                 <div className="w-16 h-16 rounded-lg overflow-hidden bg-slate-50 border border-slate-100 flex-shrink-0">
                   <img 
-                    src={selectedProductForModal.image} 
+                    src={getOptimizedImageUrl(getProductMainImage(selectedProductForModal), 300)} 
                     alt={selectedProductForModal.name} 
                     className="w-full h-full object-cover"
+                    onError={handleImageFallback}
                     referrerPolicy="no-referrer"
                   />
                 </div>

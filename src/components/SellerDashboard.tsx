@@ -29,7 +29,7 @@ import {
   Check
 } from 'lucide-react';
 import { Sale } from '../types';
-import { safeLocalStorageSet } from '../utils/dateUtils';
+import { safeLocalStorageSet, getLocalYearMonth, getLocalDateKey } from '../utils/dateUtils';
 
 interface SellerDashboardProps {
   currentUser: any;
@@ -69,27 +69,28 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
     }
   };
 
-  // Dynamic current year & month
-  const nowDate = new Date();
-  const currentYear = nowDate.getFullYear();
-  const currentMonth = nowDate.getMonth();
-  const rawMonthName = nowDate.toLocaleDateString('pt-BR', { month: 'long' });
-  const currentMonthName = rawMonthName.charAt(0).toUpperCase() + rawMonthName.slice(1);
+  // Dynamic current year & month (BRT)
+  const currentYm = getLocalYearMonth();
+  const currentYear = currentYm.year;
+  const currentMonth = currentYm.month;
+  const monthNamesPtBr = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+  const currentMonthName = monthNamesPtBr[currentMonth] || 'Mês';
   const currentMonthYearLabel = `${currentMonthName}/${currentYear}`;
 
   // 1. Filter completed sales made by this salesperson in the current month
   const sellerMonthlySales = useMemo(() => {
+    const currentYmKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
     return sales.filter(s => {
-      // Name match check (case-insensitive, safety trim)
       const sellerMatch = s.salesperson && currentUser?.name && 
         s.salesperson.toLowerCase().trim() === currentUser.name.toLowerCase().trim();
       
       if (!sellerMatch) return false;
 
-      const dateObj = new Date(s.createdAt);
-      const isCurrentMonth = dateObj.getFullYear() === currentYear && dateObj.getMonth() === currentMonth;
-      
-      return isCurrentMonth;
+      const saleKey = getLocalDateKey(s.createdAt);
+      return saleKey.startsWith(currentYmKey);
     });
   }, [sales, currentUser, currentYear, currentMonth]);
 
@@ -422,7 +423,7 @@ export default function SellerDashboard({ currentUser, onLogout, sales = [] }: S
                           {s.id}
                         </td>
                         <td className="py-3 text-slate-400 font-mono text-[10px]">
-                          {new Date(s.createdAt).toLocaleDateString('pt-BR')}
+                          {getLocalDateKey(s.createdAt).split('-').reverse().join('/')}
                         </td>
                         <td className="py-3 font-bold text-slate-200">
                           {s.clientName}

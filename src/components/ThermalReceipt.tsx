@@ -159,18 +159,14 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
   const [zoomScale, setZoomScale] = useState<number>(1.0);
   const [previewBg, setPreviewBg] = useState<'slate' | 'gray' | 'wood' | 'dark'>('gray');
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-  const [isLocalLoading, setIsLocalLoading] = useState<boolean>(true);
+  const hasMountedCompanyRef = React.useRef(false);
 
+  // Sync settings only after explicit user edits
   useEffect(() => {
-    // Confirm and delay slightly to ensure Supabase database data is fully loaded and synced
-    const timer = setTimeout(() => {
-      setIsLocalLoading(false);
-    }, 850);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Sync settings
-  useEffect(() => {
+    if (!hasMountedCompanyRef.current) {
+      hasMountedCompanyRef.current = true;
+      return;
+    }
     safeLocalStorageSet('ap_moda_company_info', JSON.stringify(companyInfo));
     pushSystemConfigToSupabase('ap_moda_company_info', JSON.stringify(companyInfo));
 
@@ -251,7 +247,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
 
   // Live dynamic Pix payload for scan copy-paste
   const pixPayload = useMemo(() => {
-    const rawKey = companyInfo.pixKey || 'pagamentos@exemplo.com';
+    const rawKey = companyInfo.pixKey || getStoreConfig().pixKey;
     const amountStr = finalTotal.toFixed(2);
     
     // Clean and sanitize the Pix key according to BACEN standards
@@ -500,16 +496,7 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
 
   return (
     <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto modal-overlay-thermal transition-all">
-      {isLocalLoading ? (
-        <div className="bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col items-center justify-center text-center space-y-4 animate-pulse">
-          <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" />
-          <div>
-            <h3 className="text-sm font-extrabold text-slate-800">Sincronizando com Supabase</h3>
-            <p className="text-[10.5px] text-slate-400 mt-1">Carregando dados da venda em tempo real para evitar páginas de PDF em branco...</p>
-          </div>
-        </div>
-      ) : (
-        <div className={`bg-slate-50 rounded-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col md:flex-row h-full md:max-h-[85vh] transition-all duration-300 ${isFullscreen ? 'max-w-5xl' : 'max-w-4xl'}`}>
+      <div className={`bg-slate-50 rounded-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col md:flex-row h-full md:max-h-[85vh] transition-all duration-300 ${isFullscreen ? 'max-w-5xl' : 'max-w-4xl'}`}>
         
         {/* Controls Configuration Panel - left on desktop */}
         {!isFullscreen && (
@@ -1310,7 +1297,6 @@ export default function ThermalReceipt({ sale, onClose }: ThermalReceiptProps) {
           </div>
         </div>
       </div>
-      )}
     </div>
   );
 }

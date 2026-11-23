@@ -30,6 +30,7 @@ import { playSaleSuccessSound } from '../lib/audioFeedback';
 import { getWhatsAppUrl } from '../utils/storeConfig';
 import { showToast } from '../lib/uiDialog';
 import { getLocalDateKey, safeLocalStorageSet } from '../utils/dateUtils';
+import { getOptimizedImageUrl, handleImageFallback, getProductMainImage } from '../utils/imageUtils';
 
 const openExternalSafely = (url: string) => {
   try {
@@ -898,7 +899,7 @@ export function CheckoutWizard({
                     <div className="flex justify-between">
                       <span className="text-slate-400 font-semibold">Data de Retirada</span>
                       <span className="text-slate-800 font-extrabold">
-                        {new Date(completedOrder.pickupDate).toLocaleDateString('pt-BR')} às {completedOrder.pickupTime}
+                        {/^\d{4}-\d{2}-\d{2}/.test(String(completedOrder.pickupDate)) ? String(completedOrder.pickupDate).slice(0, 10).split('-').reverse().join('/') : completedOrder.pickupDate} às {completedOrder.pickupTime}
                       </span>
                     </div>
                   )}
@@ -1072,7 +1073,7 @@ export function CheckoutWizard({
                       <div key={idx} className="flex justify-between items-center p-2.5 bg-slate-50 border border-slate-100 rounded-xl relative">
                         <div className="flex items-center gap-2.5 text-left">
                           <div className="w-11 h-11 rounded-lg overflow-hidden bg-slate-200 flex-shrink-0 border border-slate-100">
-                            <img src={item.product.image} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            <img src={getOptimizedImageUrl(getProductMainImage(item.product), 200)} alt={item.product.name} className="w-full h-full object-cover" onError={handleImageFallback} referrerPolicy="no-referrer" />
                           </div>
                           <div className="leading-snug">
                             <p className="font-extrabold text-slate-800 text-[11px] truncate max-w-[140px]">{item.product.name}</p>
@@ -1141,7 +1142,7 @@ export function CheckoutWizard({
                     <div className="flex items-center justify-between gap-3 bg-white p-2 rounded-xl border border-slate-100 shadow-xs">
                       <div className="flex items-center gap-2.5">
                         <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 border border-slate-100 shrink-0">
-                          <img src={suggestedProduct.image} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          <img src={getOptimizedImageUrl(getProductMainImage(suggestedProduct), 200)} alt={suggestedProduct.name} className="w-full h-full object-cover" onError={handleImageFallback} referrerPolicy="no-referrer" />
                         </div>
                         <div className="leading-snug">
                           <p className="font-extrabold text-slate-800 text-[10px] line-clamp-1 max-w-[150px]">
@@ -2190,7 +2191,7 @@ export function CheckoutWizard({
                               className="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5"
                             />
                             <span className="text-[10px] font-bold text-slate-700">
-                              Sim, usar R$ {Math.min(loggedClient.cashbackBalance || 0, cartSubtotal - cartDiscount - pixDiscount).toFixed(2)} de desconto! 🎁
+                              Sim, usar R$ {Math.min(loggedClient.cashbackBalance || 0, Math.max(0, cartSubtotal - cartDiscount - (vipDiscount || 0) - pixDiscount)).toFixed(2)} de desconto! 🎁
                             </span>
                           </label>
                         ) : (

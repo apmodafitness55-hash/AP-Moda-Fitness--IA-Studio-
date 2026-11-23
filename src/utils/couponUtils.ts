@@ -18,14 +18,38 @@ export interface Coupon {
 }
 
 export const DEFAULT_COUPONS: Coupon[] = [
-  { code: 'PRIMEIRACOMPRA', type: 'percent', value: 10, minPurchase: 0, limitUses: 1000, usedCount: 12, validUntil: '2027-12-31', maxPerCpf: 1, isFirstPurchase: true, category: 'Todas' },
-  { code: 'FITNESS10', type: 'percent', value: 10, minPurchase: 150, limitUses: 100, usedCount: 32, validUntil: '2027-12-31', maxPerCpf: 1, category: 'Todas' },
-  { code: 'BEMVINDA50', type: 'fixed', value: 50, minPurchase: 300, limitUses: 50, usedCount: 15, validUntil: '2027-12-31', maxPerCpf: 1, category: 'Todas' },
-  { code: 'FRETEGRATIS', type: 'percent', value: 0, minPurchase: 399, limitUses: 500, usedCount: 88, validUntil: '2027-12-31', maxPerCpf: 0, category: 'Todas' },
-  { code: 'MACACAO20', type: 'percent', value: 20, minPurchase: 0, limitUses: 100, usedCount: 5, validUntil: '2027-12-31', maxPerCpf: 1, category: 'Macacões' },
-  { code: 'LEGGING15', type: 'percent', value: 15, minPurchase: 0, limitUses: 100, usedCount: 8, validUntil: '2027-12-31', maxPerCpf: 1, category: 'Leggings' },
-  { code: 'PATRICIA10', type: 'percent', value: 10, minPurchase: 0, limitUses: 500, usedCount: 18, validUntil: '2027-12-31', maxPerCpf: 0, category: 'Todas', partnerName: 'Patricia Cardoso', partnerId: 'part-patricia', commissionRate: 10 }
+  { code: 'PRIMEIRACOMPRA', type: 'percent', value: 10, minPurchase: 0, limitUses: 1000, usedCount: 0, validUntil: '2027-12-31', maxPerCpf: 1, isFirstPurchase: true, category: 'Todas' },
+  { code: 'FITNESS10', type: 'percent', value: 10, minPurchase: 150, limitUses: 100, usedCount: 0, validUntil: '2027-12-31', maxPerCpf: 1, category: 'Todas' },
+  { code: 'BEMVINDA50', type: 'fixed', value: 50, minPurchase: 300, limitUses: 50, usedCount: 0, validUntil: '2027-12-31', maxPerCpf: 1, category: 'Todas' },
+  { code: 'FRETEGRATIS', type: 'percent', value: 0, minPurchase: 399, limitUses: 500, usedCount: 0, validUntil: '2027-12-31', maxPerCpf: 0, category: 'Todas' },
+  { code: 'MACACAO20', type: 'percent', value: 20, minPurchase: 0, limitUses: 100, usedCount: 0, validUntil: '2027-12-31', maxPerCpf: 1, category: 'Macacões' },
+  { code: 'LEGGING15', type: 'percent', value: 15, minPurchase: 0, limitUses: 100, usedCount: 0, validUntil: '2027-12-31', maxPerCpf: 1, category: 'Leggings' }
 ];
+
+function normalizeCategoryToken(value: string): string {
+  const norm = value
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+  if (!norm) return '';
+  return norm
+    .replace(/oes\b/g, 'ao')
+    .replace(/aes\b/g, 'ao')
+    .replace(/s\b/g, '');
+}
+
+function matchesCouponCategory(targetCategory: string, itemCategory: string, itemName: string): boolean {
+  const normTarget = normalizeCategoryToken(targetCategory);
+  const normCat = normalizeCategoryToken(itemCategory);
+  const normName = normalizeCategoryToken(itemName);
+  if (!normTarget) return true;
+  return (
+    (normCat.length > 0 && (normCat.includes(normTarget) || normTarget.includes(normCat))) ||
+    (normName.length > 0 && normName.includes(normTarget))
+  );
+}
 
 export function getStoredCoupons(): Coupon[] {
   try {
@@ -240,11 +264,10 @@ export function validateCouponForCpf(
   const reqCategory = matchedCoupon.category?.trim();
   if (reqCategory && !['todas', 'todas as categorias', 'livre', 'geral', ''].includes(reqCategory.toLowerCase())) {
     if (cartItems && cartItems.length > 0) {
-      const targetCat = reqCategory.toLowerCase();
       const hasMatchingItem = cartItems.some((item: any) => {
-        const itemCat = (item.product?.category || item.category || '').toString().trim().toLowerCase();
-        const itemName = (item.product?.name || item.name || '').toString().trim().toLowerCase();
-        return itemCat.includes(targetCat) || targetCat.includes(itemCat) || itemName.includes(targetCat);
+        const itemCat = (item.product?.category || item.category || '').toString();
+        const itemName = (item.product?.name || item.name || '').toString();
+        return matchesCouponCategory(reqCategory, itemCat, itemName);
       });
 
       if (!hasMatchingItem) {
@@ -349,11 +372,10 @@ export function calculateEligibleCouponDiscount(
     totalCartSubtotal += itemTotal;
 
     if (categoryConstraint) {
-      const targetCat = categoryConstraint.toLowerCase();
-      const itemCat = (item.product?.category || item.category || '').toString().trim().toLowerCase();
-      const itemName = (item.product?.name || item.name || '').toString().trim().toLowerCase();
+      const itemCat = (item.product?.category || item.category || '').toString();
+      const itemName = (item.product?.name || item.name || '').toString();
 
-      if (itemCat.includes(targetCat) || targetCat.includes(itemCat) || itemName.includes(targetCat)) {
+      if (matchesCouponCategory(categoryConstraint, itemCat, itemName)) {
         eligibleSubtotal += itemTotal;
       }
     } else {

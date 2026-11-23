@@ -309,25 +309,89 @@ export function getSupabaseConfig() {
   };
 }
 
-export async function initializeSupabaseConfig() {
-  try {
-    const res = await fetch('/api/get-db-config');
-    if (res.ok) {
-      const data = await res.json();
-      const localUrl = localStorage.getItem('ap_supabase_url');
-      const localKey = localStorage.getItem('ap_supabase_key');
+let pendingInitConfigPromise: Promise<{ changed: boolean; url?: string }> | null = null;
 
-      // If the server has a valid config, use it to sync localStorage
-      if (data.url && data.url.startsWith('http') && data.key) {
-        safeLocalStorageSet('ap_supabase_url', data.url);
-        safeLocalStorageSet('ap_supabase_key', data.key);
-      } else if (localUrl && localUrl.startsWith('http') && localKey) {
-        // If the server does not have a config, but client has one, push it to server!
-        await saveSupabaseConfigToServer(localUrl, localKey);
+export async function initializeSupabaseConfig(): Promise<{ changed: boolean; url?: string }> {
+  if (pendingInitConfigPromise) {
+    return pendingInitConfigPromise;
+  }
+  pendingInitConfigPromise = (async () => {
+    try {
+      const res = await fetch('/api/get-db-config');
+      if (res.ok) {
+        const data = await res.json();
+        const localUrl = localStorage.getItem('ap_supabase_url');
+        const localKey = localStorage.getItem('ap_supabase_key');
+        const prevRef = localStorage.getItem('ap_supabase_instance_ref');
+
+        // If the server has a valid config, use it to sync localStorage
+        if (data.url && data.url.startsWith('http') && data.key) {
+          const refMatch = String(data.url).match(/https?:\/\/([^.]+)\.supabase/i);
+          const nextRef = refMatch ? refMatch[1].toLowerCase() : data.url;
+          const dbSwitched = Boolean((localUrl && localUrl !== data.url) || (prevRef && prevRef !== nextRef));
+
+          if (dbSwitched) {
+            const staleKeys = [
+              'ap_moda_products',
+              'ap_moda_clients',
+              'ap_moda_sales',
+              'ap_moda_transactions',
+              'ap_moda_online_orders',
+              'ap_online_orders',
+              'ap_moda_checkouts',
+              'ap_moda_team_users',
+              'ap_moda_team_users_backup',
+              'ap_moda_partners',
+              'ap_manual_partner_sales',
+              'ap_partner_withdraw_requests',
+              'ap_coupons',
+              'ap_vitrine_slides',
+              'ap_vitrine_announcement',
+              'ap_vitrine_category_banners',
+              'ap_vitrine_floating_banner',
+              'ap_vitrine_benefit_cards',
+              'ap_vitrine_category_thumbnails',
+              'ap_vitrine_store_name',
+              'ap_vitrine_store_sub',
+              'ap_vitrine_theme_color',
+              'ap_vitrine_active_animation',
+              'ap_dirty_products',
+              'ap_dirty_clients',
+              'ap_dirty_sales',
+              'ap_dirty_transactions',
+              'ap_dirty_online_orders',
+              'ap_dirty_checkouts',
+              'ap_dirty_team_members',
+              'ap_deleted_products',
+              'ap_deleted_sales',
+              'ap_deleted_transactions',
+              'ap_deleted_online_orders',
+              'ap_deleted_team_members'
+            ];
+            for (const k of staleKeys) {
+              try { localStorage.removeItem(k); } catch {}
+            }
+          }
+
+          safeLocalStorageSet('ap_supabase_url', data.url);
+          safeLocalStorageSet('ap_supabase_key', data.key);
+          safeLocalStorageSet('ap_supabase_instance_ref', nextRef);
+          return { changed: dbSwitched, url: data.url };
+        } else if (localUrl && localUrl.startsWith('http') && localKey) {
+          // If the server does not have a config, but client has one, push it to server!
+          await saveSupabaseConfigToServer(localUrl, localKey);
+        }
       }
+    } catch (e) {
+      console.warn('[DB Config] Failed to sync config on init:', e);
     }
-  } catch (e) {
-    console.warn('[DB Config] Failed to sync config on init:', e);
+    return { changed: false };
+  })();
+
+  try {
+    return await pendingInitConfigPromise;
+  } finally {
+    pendingInitConfigPromise = null;
   }
 }
 
@@ -821,7 +885,17 @@ export async function syncSystemConfigsWithSupabase(...args: any[]) {
         'ap_store_instagram',
         'ap_pix_key',
         'ap_store_footer',
-        'ap_store_logo'
+        'ap_store_logo',
+        'ap_vitrine_store_name',
+        'ap_vitrine_store_sub',
+        'ap_vitrine_theme_color',
+        'ap_vitrine_active_animation',
+        'ap_vitrine_slides',
+        'ap_vitrine_announcement',
+        'ap_vitrine_category_banners',
+        'ap_vitrine_floating_banner',
+        'ap_vitrine_benefit_cards',
+        'ap_vitrine_category_thumbnails'
       ];
 
       let storeConfigChanged = false;
@@ -889,6 +963,25 @@ export async function syncSystemConfigsWithSupabase(...args: any[]) {
             safeLocalStorageSet('ap_partner_withdraw_requests', remoteVal);
           }
           localModified = true;
+        }
+      }
+
+      // Sync ap_moda_suppliers & ap_moda_supplier_purchases
+      for (const supKey of ['ap_moda_suppliers', 'ap_moda_supplier_purchases']) {
+        const cfg = configs.find((c: any) => c.key === supKey);
+        if (cfg && cfg.value !== undefined && cfg.value !== null) {
+          const remoteVal = typeof cfg.value === 'string' ? cfg.value : JSON.stringify(cfg.value);
+          const localVal = localStorage.getItem(supKey);
+          const lastSavedAt = Number(localStorage.getItem('ap_config_saved_at_' + supKey) || 0);
+          const isRecentlyEditedLocally = Date.now() - lastSavedAt < 60000;
+          if (isRecentlyEditedLocally) {
+            if (localVal && remoteVal !== localVal) {
+              pushSystemConfigToSupabase(supKey, localVal).catch(() => {});
+            }
+          } else if (remoteVal !== localVal && remoteVal.trim().length > 0) {
+            safeLocalStorageSet(supKey, remoteVal);
+            localModified = true;
+          }
         }
       }
 

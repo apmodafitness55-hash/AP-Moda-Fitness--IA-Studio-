@@ -126,7 +126,7 @@ export function getStoredPartnerWithdrawRequests(): PartnerWithdrawRequest[] {
             );
 
             if (!alreadyExists) {
-              const reconstructedId = t.id && String(t.id).startsWith('REQ-') ? t.id : `REQ-${t.id || Date.now()}`;
+              const reconstructedId = t.id && String(t.id).startsWith('REQ-') ? t.id : createUniqueId('REQ');
               map.set(reconstructedId, {
                 id: reconstructedId,
                 partnerId: `part-${partnerCoupon || 'comissao'}`,
@@ -223,9 +223,13 @@ export async function syncPartnerWithdrawRequestsWithServer(): Promise<PartnerWi
           }).catch(() => {});
         }
 
-        safeLocalStorageSet('ap_partner_withdraw_requests', JSON.stringify(merged));
-        window.dispatchEvent(new CustomEvent('ap-partner-withdraws-updated', { detail: merged }));
-        window.dispatchEvent(new Event('ap-storage-synced'));
+        const prevRaw = localStorage.getItem('ap_partner_withdraw_requests') || '[]';
+        const nextRaw = JSON.stringify(merged);
+        if (nextRaw !== prevRaw) {
+          safeLocalStorageSet('ap_partner_withdraw_requests', nextRaw);
+          window.dispatchEvent(new CustomEvent('ap-partner-withdraws-updated', { detail: merged }));
+          window.dispatchEvent(new Event('ap-storage-synced'));
+        }
         return merged;
       }
     }

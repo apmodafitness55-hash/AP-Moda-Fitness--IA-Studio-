@@ -121,7 +121,7 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
   const storeCfg = getStoreConfig();
   const storeName = storeCfg.name;
   const storeAddress = storeCfg.fullAddress;
-  const storeCep = localStorage.getItem('ap_store_cep') || '59150-000';
+  const storeCep = localStorage.getItem('ap_store_cep') || '59280-000';
   const storeCnpj = storeCfg.cnpj;
 
   // Identify recipient data
@@ -133,16 +133,6 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
   const shippingType = order?.tipo_envio || sale?.tipo_envio || 'correios';
   const isPostal = shippingType !== 'motoboy' && shippingType !== 'retirada';
   const isLandscapePrint = false; // Em acordo com a exigência de etiqueta adesiva de tamanho 10x15 vertical
-
-  const [isLocalLoading, setIsLocalLoading] = useState<boolean>(true);
-
-  useEffect(() => {
-    // Confirm and delay slightly to ensure Supabase database data is fully loaded and synced
-    const timer = setTimeout(() => {
-      setIsLocalLoading(false);
-    }, 850);
-    return () => clearTimeout(timer);
-  }, []);
 
   // Generate tracking code in official Correios format: e.g. QC123456789BR
   const [trackingCode, setTrackingCode] = useState<string>(() => {
@@ -332,16 +322,7 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
-      {isLocalLoading ? (
-        <div className="bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col items-center justify-center text-center space-y-4 animate-pulse">
-          <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" />
-          <div>
-            <h3 className="text-sm font-extrabold text-slate-800">Sincronizando com Supabase</h3>
-            <p className="text-[10.5px] text-slate-400 mt-1">Carregando dados logísticos em tempo real para evitar etiquetas de PDF em branco...</p>
-          </div>
-        </div>
-      ) : (
-        <div className={`bg-white rounded-2xl ${isLandscapePrint ? 'max-w-4xl' : 'max-w-lg'} w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh] transition-all duration-300`}>
+      <div className={`bg-white rounded-2xl ${isLandscapePrint ? 'max-w-4xl' : 'max-w-lg'} w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh] transition-all duration-300`}>
         
         {/* Header Options */}
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
@@ -796,7 +777,6 @@ export default function CorreiosLabel({ order, sale, onClose, onUpdateTrackingCo
         </div>
 
         </div>
-      )}
     </div>
   );
 }

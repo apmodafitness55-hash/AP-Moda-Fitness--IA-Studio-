@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Building2, 
   Plus, 
@@ -30,6 +30,7 @@ import { Product, Transaction } from '../types';
 import { getWhatsAppUrl } from '../utils/storeConfig';
 import { getLocalDateKey, safeLocalStorageSet, createUniqueId } from '../utils/dateUtils';
 import { showToast, showConfirm } from '../lib/uiDialog';
+import { pushSystemConfigToSupabase } from '../supabase';
 
 export interface Supplier {
   id: string;
@@ -94,14 +95,57 @@ export default function SuppliersManagement({
     return [];
   });
 
-  // Keep state synced in localStorage
+  const hasMountedSuppliersRef = useRef(false);
+  const hasMountedPurchasesRef = useRef(false);
+  const isSyncUpdateRef = useRef(false);
+
+  // Keep state synced in localStorage & Supabase
   useEffect(() => {
-    safeLocalStorageSet('ap_moda_suppliers', JSON.stringify(suppliers));
+    const serialized = JSON.stringify(suppliers);
+    safeLocalStorageSet('ap_moda_suppliers', serialized);
+    if (!hasMountedSuppliersRef.current) {
+      hasMountedSuppliersRef.current = true;
+      return;
+    }
+    if (isSyncUpdateRef.current) return;
+    safeLocalStorageSet('ap_config_saved_at_ap_moda_suppliers', String(Date.now()));
+    pushSystemConfigToSupabase('ap_moda_suppliers', serialized).catch(() => {});
   }, [suppliers]);
 
   useEffect(() => {
-    safeLocalStorageSet('ap_moda_supplier_purchases', JSON.stringify(purchases));
+    const serialized = JSON.stringify(purchases);
+    safeLocalStorageSet('ap_moda_supplier_purchases', serialized);
+    if (!hasMountedPurchasesRef.current) {
+      hasMountedPurchasesRef.current = true;
+      return;
+    }
+    if (isSyncUpdateRef.current) return;
+    safeLocalStorageSet('ap_config_saved_at_ap_moda_supplier_purchases', String(Date.now()));
+    pushSystemConfigToSupabase('ap_moda_supplier_purchases', serialized).catch(() => {});
   }, [purchases]);
+
+  useEffect(() => {
+    const handleStorageSync = () => {
+      try {
+        isSyncUpdateRef.current = true;
+        const savedSuppliers = localStorage.getItem('ap_moda_suppliers');
+        if (savedSuppliers !== null) {
+          const parsed = JSON.parse(savedSuppliers);
+          if (Array.isArray(parsed)) setSuppliers(parsed);
+        }
+        const savedPurchases = localStorage.getItem('ap_moda_supplier_purchases');
+        if (savedPurchases !== null) {
+          const parsed = JSON.parse(savedPurchases);
+          if (Array.isArray(parsed)) setPurchases(parsed);
+        }
+      } catch (e) {
+      } finally {
+        setTimeout(() => { isSyncUpdateRef.current = false; }, 0);
+      }
+    };
+    window.addEventListener('ap-storage-synced', handleStorageSync);
+    return () => window.removeEventListener('ap-storage-synced', handleStorageSync);
+  }, []);
 
   const [editingPurchase, setEditingPurchase] = useState<SupplierPurchase | null>(null);
   const [editPurSupplierId, setEditPurSupplierId] = useState('');
@@ -272,7 +316,7 @@ export default function SuppliersManagement({
         stock: selectedProduct.stock + purQty,
         cost: purUnitCost
       };
-      onUpdateProduct(updatedProduct);
+      Promise.resolve(onUpdateProduct(updatedProduct)).catch(() => {});
     }
 
     if (linkToFinance) {

@@ -21,6 +21,7 @@ import {
 import { getWhatsAppUrl } from '../utils/storeConfig';
 import { safeLocalStorageSet } from '../utils/dateUtils';
 import { showToast, showConfirm } from '../lib/uiDialog';
+import { syncBulkCheckoutsToSupabase } from '../supabase';
 
 interface CheckoutItem {
   productName: string;
@@ -186,14 +187,13 @@ export default function AbandonedCarts({ checkouts = [], setCheckouts, onSyncChe
 
   // Submit and open WhatsApp Web/App
   const handleOpenWhatsApp = async (checkout: Checkout, textMessage: string) => {
-    // Update checkout status to 'recuperado'
+    const updatedItem = { ...checkout, status: 'recuperado' as const, updatedAt: new Date().toISOString() };
     const updatedCheckouts = checkouts.map(c => 
-      c.id === checkout.id 
-        ? { ...c, status: 'recuperado' as const, updatedAt: new Date().toISOString() } 
-        : c
+      c.id === checkout.id ? updatedItem : c
     );
     setCheckouts(updatedCheckouts);
     safeLocalStorageSet('ap_moda_checkouts', JSON.stringify(updatedCheckouts));
+    syncBulkCheckoutsToSupabase([updatedItem]).catch(err => console.warn('Erro ao sincronizar checkout recuperado:', err));
 
     // Try background API notification first, then fallback to direct link
     const sentApi = await sendWhatsAppRecoveryMessage(checkout, textMessage);
@@ -216,14 +216,13 @@ export default function AbandonedCarts({ checkouts = [], setCheckouts, onSyncChe
     const linkDoCarrinho = `${window.location.origin}/?recuperar=${checkout.id}`;
     const message = `Olá ${checkout.clientName}, notamos que você deixou um look lindo da AP Moda Fitness salvo no seu carrinho! Quer que eu te ajude a finalizar o pedido com o seu desconto? Segue o link para concluir: ${linkDoCarrinho}`;
 
-    // Mark as recovered
+    const updatedItem = { ...checkout, status: 'recuperado' as const, updatedAt: new Date().toISOString() };
     const updatedCheckouts = checkouts.map(c => 
-      c.id === checkout.id 
-        ? { ...c, status: 'recuperado' as const, updatedAt: new Date().toISOString() } 
-        : c
+      c.id === checkout.id ? updatedItem : c
     );
     setCheckouts(updatedCheckouts);
     safeLocalStorageSet('ap_moda_checkouts', JSON.stringify(updatedCheckouts));
+    syncBulkCheckoutsToSupabase([updatedItem]).catch(err => console.warn('Erro ao sincronizar checkout recuperado:', err));
 
     // Try background API notification first, then fallback to direct link
     const sentApi = await sendWhatsAppRecoveryMessage(checkout, message);

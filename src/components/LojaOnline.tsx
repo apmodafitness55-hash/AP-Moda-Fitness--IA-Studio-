@@ -232,7 +232,7 @@ export default function LojaOnline({
               ...slide,
               category: slide.category || (idx === 0 ? 'Todos' : idx === 1 ? 'Conjuntos' : 'Slim Fit')
             };
-            const hasWholesale = idx === 0 || 
+            const hasWholesale =
               (updated.title && (updated.title.toLowerCase().includes("atacado") || updated.title.toLowerCase().includes("lote"))) ||
               (updated.desc && (updated.desc.toLowerCase().includes("atacado") || updated.desc.toLowerCase().includes("lote"))) ||
               (updated.tag && (updated.tag.toLowerCase().includes("atacado") || updated.tag.toLowerCase().includes("lote")));
@@ -466,11 +466,13 @@ export default function LojaOnline({
   const [selectedColor, setSelectedColor] = useState<string>('');
   const [detailQty, setDetailQty] = useState<number>(1);
 
-  // Simulated CEP / Freight Calculator
+  // CEP / Freight Calculator (Melhor Envio)
   const [cepInput, setCepInput] = useState<string>('');
   const [isCalculatingFreight, setIsCalculatingFreight] = useState<boolean>(false);
   const [freightCalculated, setFreightCalculated] = useState<boolean>(false);
-  const [selectedFreightOption, setSelectedFreightOption] = useState<'pac' | 'sedex' | null>(null);
+  const [selectedFreightOption, setSelectedFreightOption] = useState<string | null>(null);
+  const [freightOptions, setFreightOptions] = useState<any[]>([]);
+  const [freightError, setFreightError] = useState<string | null>(null);
   const [freightCost, setFreightCost] = useState<number>(0);
   const [freightDuration, setFreightDuration] = useState<string>('');
 
@@ -1019,9 +1021,10 @@ export default function LojaOnline({
                           <div className="flex items-center gap-3.5 mb-2.5">
                             <div className="w-12 h-12 rounded-full ring-2 ring-pink-500 p-0.5 bg-white flex-shrink-0 overflow-hidden">
                               <img 
-                                src={cfg.logoUrl || '/logo.png'} 
+                                src={cfg.logoUrl ? getOptimizedImageUrl(cfg.logoUrl, 200) : '/logo.png'} 
                                 alt="Logo" 
                                 className="w-full h-full object-cover rounded-full"
+                                onError={handleImageFallback}
                                 referrerPolicy="no-referrer"
                               />
                             </div>
@@ -1061,9 +1064,10 @@ export default function LojaOnline({
                           <div className="flex items-center gap-3 mb-2.5">
                             <div className="w-9 h-9 rounded-full ring-1 ring-emerald-500 bg-white overflow-hidden flex items-center justify-center p-0.5 flex-shrink-0">
                               <img 
-                                src={cfg.logoUrl || '/logo.png'} 
+                                src={cfg.logoUrl ? getOptimizedImageUrl(cfg.logoUrl, 200) : '/logo.png'} 
                                 alt="Logo" 
                                 className="w-full h-full object-cover rounded-full"
+                                onError={handleImageFallback}
                                 referrerPolicy="no-referrer"
                               />
                             </div>
@@ -1953,21 +1957,52 @@ export default function LojaOnline({
                     />
                     <button
                       type="button"
-                      onClick={() => {
-                        if (!cepInput.trim()) {
-                          showToast('Por favor, informe um CEP válido.', 'warning');
+                      onClick={async () => {
+                        const cleanCep = cepInput.replace(/\D/g, '');
+                        if (cleanCep.length !== 8) {
+                          showToast('Por favor, informe um CEP válido com 8 dígitos.', 'warning');
                           return;
                         }
                         setIsCalculatingFreight(true);
-                        setTimeout(() => {
-                          setIsCalculatingFreight(false);
+                        setFreightError(null);
+                        try {
+                          const response = await fetch('/api/melhor-envio/calculate', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              to_cep: cleanCep,
+                              items: vitrineCart.map(item => ({
+                                product: {
+                                  id: item.product.id,
+                                  price: item.product.price,
+                                  weight: item.product.weight,
+                                  width: item.product.width,
+                                  height: item.product.height,
+                                  length: item.product.length
+                                },
+                                priceAtTime: item.product.price,
+                                quantity: item.qty
+                              }))
+                            })
+                          });
+                          const data = await response.json();
+                          if (!response.ok || !data.success || !Array.isArray(data.options) || data.options.length === 0) {
+                            throw new Error(data?.error || 'Nenhuma opção de entrega retornada para este CEP.');
+                          }
+                          setFreightOptions(data.options);
                           setFreightCalculated(true);
-                          // Default to PAC on calculation
-                          setSelectedFreightOption('pac');
-                          const price = cartSubtotal >= 250 ? 0 : 14.90;
-                          setFreightCost(price);
-                          setFreightDuration('5 a 8 dias úteis');
-                        }, 700);
+                          const first = data.options[0];
+                          const firstDays = first.delivery_time ?? first.deliveryTime;
+                          setSelectedFreightOption(String(first.id || first.name));
+                          setFreightCost(Number(first.price || 0));
+                          setFreightDuration(firstDays ? `${firstDays} ${Number(firstDays) === 1 ? 'dia útil' : 'dias úteis'}` : 'Consultar');
+                        } catch (err: any) {
+                          setFreightOptions([]);
+                          setFreightCalculated(false);
+                          setFreightError(err?.message || 'Não foi possível cotar o frete no momento.');
+                        } finally {
+                          setIsCalculatingFreight(false);
+                        }
                       }}
                       disabled={isCalculatingFreight}
                       className="bg-slate-800 hover:bg-slate-950 text-white font-bold text-[10px] px-3 py-1.5 rounded-lg border-none cursor-pointer flex items-center gap-1 shrink-0"
@@ -1976,65 +2011,49 @@ export default function LojaOnline({
                     </button>
                   </div>
 
+                  {freightError && (
+                    <p className="text-[10px] text-rose-600 font-semibold mt-1.5 text-left">{freightError}</p>
+                  )}
+
                   {/* Freight Options Selection */}
-                  {freightCalculated && (
+                  {freightCalculated && freightOptions.length > 0 && (
                     <div className="mt-2.5 space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-[11px] text-left">
                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Opções de Entrega para {cepInput}:</p>
-                      
-                      {/* Option 1: PAC */}
-                      <label 
-                        className={`flex items-center justify-between p-1.5 rounded-lg border cursor-pointer transition
-                          ${selectedFreightOption === 'pac' ? 'bg-pink-50/50 border-pink-400' : 'bg-white border-slate-100'}`}
-                        onClick={() => {
-                          setSelectedFreightOption('pac');
-                          const price = cartSubtotal >= 250 ? 0 : 14.90;
-                          setFreightCost(price);
-                          setFreightDuration('5 a 8 dias úteis');
-                        }}
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <input 
-                            type="radio" 
-                            name="freight" 
-                            checked={selectedFreightOption === 'pac'} 
-                            onChange={() => {}} 
-                            className="text-pink-600 focus:ring-pink-500"
-                          />
-                          <div className="text-slate-700 font-medium leading-tight">
-                            <span>PAC Correios</span>
-                            <span className="block text-[9px] text-slate-400 mt-0.5">Prazo: 5 a 8 dias úteis</span>
-                          </div>
-                        </div>
-                        <span className="font-bold text-slate-800 font-mono text-[10px]">
-                          {cartSubtotal >= 250 ? 'Grátis' : 'R$ 14,90'}
-                        </span>
-                      </label>
-
-                      {/* Option 2: SEDEX */}
-                      <label 
-                        className={`flex items-center justify-between p-1.5 rounded-lg border cursor-pointer transition
-                          ${selectedFreightOption === 'sedex' ? 'bg-pink-50/50 border-pink-400' : 'bg-white border-slate-100'}`}
-                        onClick={() => {
-                          setSelectedFreightOption('sedex');
-                          setFreightCost(28.90);
-                          setFreightDuration('1 a 3 dias úteis');
-                        }}
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <input 
-                            type="radio" 
-                            name="freight" 
-                            checked={selectedFreightOption === 'sedex'} 
-                            onChange={() => {}} 
-                            className="text-pink-600 focus:ring-pink-500"
-                          />
-                          <div className="text-slate-700 font-medium leading-tight">
-                            <span>SEDEX Express</span>
-                            <span className="block text-[9px] text-slate-400 mt-0.5">Prazo: 1 a 3 dias úteis</span>
-                          </div>
-                        </div>
-                        <span className="font-bold text-slate-800 font-mono text-[10px]">R$ 28,90</span>
-                      </label>
+                      {freightOptions.map((opt: any) => {
+                        const optId = String(opt.id || opt.name);
+                        const optPrice = Number(opt.price || 0);
+                        const optDays = opt.delivery_time ?? opt.deliveryTime;
+                        const optDuration = optDays ? `${optDays} ${Number(optDays) === 1 ? 'dia útil' : 'dias úteis'}` : 'Consultar';
+                        return (
+                          <label
+                            key={optId}
+                            className={`flex items-center justify-between p-1.5 rounded-lg border cursor-pointer transition
+                              ${selectedFreightOption === optId ? 'bg-pink-50/50 border-pink-400' : 'bg-white border-slate-100'}`}
+                            onClick={() => {
+                              setSelectedFreightOption(optId);
+                              setFreightCost(optPrice);
+                              setFreightDuration(optDuration);
+                            }}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="radio"
+                                name="freight"
+                                checked={selectedFreightOption === optId}
+                                onChange={() => {}}
+                                className="text-pink-600 focus:ring-pink-500"
+                              />
+                              <div className="text-slate-700 font-medium leading-tight">
+                                <span>{opt.company ? `${opt.company} • ` : ''}{opt.name}</span>
+                                <span className="block text-[9px] text-slate-400 mt-0.5">Prazo: {optDuration}</span>
+                              </div>
+                            </div>
+                            <span className="font-bold text-slate-800 font-mono text-[10px]">
+                              {optPrice === 0 ? 'Grátis' : `R$ ${optPrice.toFixed(2)}`}
+                            </span>
+                          </label>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -2207,17 +2226,19 @@ export default function LojaOnline({
                     <div className="flex items-center justify-center gap-3">
                       <div className="w-16 h-16 rounded-xl bg-slate-50 border border-slate-200 p-1 flex items-center justify-center overflow-hidden shadow-2xs" title="Fundo Claro">
                         <img 
-                          src={storeLogoUrl || '/logo.png'} 
+                          src={storeLogoUrl ? getOptimizedImageUrl(storeLogoUrl, 200) : '/logo.png'} 
                           alt="Logo Preview Claro" 
                           className="w-full h-full object-cover rounded-lg" 
+                          onError={handleImageFallback}
                           referrerPolicy="no-referrer" 
                         />
                       </div>
                       <div className="w-16 h-16 rounded-xl bg-slate-900 border border-slate-800 p-1 flex items-center justify-center overflow-hidden shadow-2xs" title="Fundo Escuro">
                         <img 
-                          src={storeLogoUrl || '/logo.png'} 
+                          src={storeLogoUrl ? getOptimizedImageUrl(storeLogoUrl, 200) : '/logo.png'} 
                           alt="Logo Preview Escuro" 
                           className="w-full h-full object-cover rounded-lg" 
+                          onError={handleImageFallback}
                           referrerPolicy="no-referrer" 
                         />
                       </div>
@@ -2702,7 +2723,7 @@ export default function LojaOnline({
                   <div className="bg-white border border-slate-100 rounded-2xl p-4 space-y-3 shadow-2xs">
                     <span className="bg-pink-100 text-pink-700 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider block w-max">SEÇÃO 1: SLIM FIT</span>
                     <div className="aspect-video w-full rounded-lg bg-slate-100 overflow-hidden border border-slate-100">
-                      <img src={categoryBanners.slimFit} alt="Slim Fit Banner" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <img src={getOptimizedImageUrl(categoryBanners.slimFit, 600)} alt="Slim Fit Banner" className="w-full h-full object-cover" onError={handleImageFallback} referrerPolicy="no-referrer" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-slate-500 uppercase">Banner Slim Fit</label>
@@ -2717,7 +2738,7 @@ export default function LojaOnline({
                   <div className="bg-white border border-slate-100 rounded-2xl p-4 space-y-3 shadow-2xs">
                     <span className="bg-pink-100 text-pink-700 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider block w-max">SEÇÃO 2: PLUS SIZE / CURVAS</span>
                     <div className="aspect-video w-full rounded-lg bg-slate-100 overflow-hidden border border-slate-100">
-                      <img src={categoryBanners.plusSize} alt="Plus Size Banner" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <img src={getOptimizedImageUrl(categoryBanners.plusSize, 600)} alt="Plus Size Banner" className="w-full h-full object-cover" onError={handleImageFallback} referrerPolicy="no-referrer" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-slate-500 uppercase">Banner Plus Size</label>
@@ -3319,7 +3340,7 @@ export default function LojaOnline({
                                     type="button"
                                     onClick={() => {
                                       if (onUpdateProduct) {
-                                        onUpdateProduct({ ...prod, stock: Math.max(0, prod.stock - 1) });
+                                        Promise.resolve(onUpdateProduct({ ...prod, stock: Math.max(0, prod.stock - 1) })).catch(() => {});
                                       }
                                     }}
                                     className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg cursor-pointer transition border-none text-[10px] font-bold"
@@ -3331,7 +3352,7 @@ export default function LojaOnline({
                                     type="button"
                                     onClick={() => {
                                       if (onUpdateProduct) {
-                                        onUpdateProduct({ ...prod, stock: prod.stock + 1 });
+                                        Promise.resolve(onUpdateProduct({ ...prod, stock: prod.stock + 1 })).catch(() => {});
                                       }
                                     }}
                                     className="p-1.5 bg-pink-50 hover:bg-pink-100 text-pink-600 font-bold rounded-lg cursor-pointer transition border-none text-[10px]"
@@ -3345,7 +3366,7 @@ export default function LojaOnline({
                                       const newVal = await showPrompt(`Definir novo estoque para "${prod.name}":`, 'Ajustar Estoque', prod.stock.toString());
                                       if (newVal !== null && !isNaN(parseInt(newVal))) {
                                         if (onUpdateProduct) {
-                                          onUpdateProduct({ ...prod, stock: Math.max(0, parseInt(newVal)) });
+                                          Promise.resolve(onUpdateProduct({ ...prod, stock: Math.max(0, parseInt(newVal)) })).catch(() => {});
                                         }
                                       }
                                     }}
