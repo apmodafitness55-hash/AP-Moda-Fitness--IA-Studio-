@@ -362,10 +362,10 @@ export function calculateEligibleCouponDiscount(
   let eligibleSubtotal = 0;
 
   cartItems.forEach((item: any) => {
-    const isUpsellItem = item.isUpsell || (suggestedProduct && item.product?.id === suggestedProduct?.id);
-    const itemPrice = isUpsellItem && item.product?.price
-      ? item.product.price * 0.9
-      : (item.priceAtTime ?? item.price ?? item.product?.price ?? 0);
+    const isUpsellItem = Boolean(item.isUpsell);
+    const itemPrice = isUpsellItem
+      ? Number(item.priceAtTime ?? (item.product?.price ? item.product.price * 0.9 : 0))
+      : Number(item.priceAtTime ?? item.price ?? item.product?.price ?? 0);
     const itemQty = item.quantity ?? item.qty ?? 1;
     const itemTotal = itemPrice * itemQty;
 

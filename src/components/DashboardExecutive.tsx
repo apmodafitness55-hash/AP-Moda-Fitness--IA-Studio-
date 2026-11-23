@@ -19,7 +19,8 @@ import {
   DollarSign,
   HelpCircle,
   Users,
-  Award
+  Award,
+  Wallet
 } from 'lucide-react';
 import { Product, Sale, Client, Transaction } from '../types';
 import { getLocalYearMonth } from '../utils/dateUtils';
@@ -90,6 +91,31 @@ export default function DashboardExecutive({
       ? activeSales.reduce((sum, s) => sum + s.total, 0) / activeSales.length
       : 0;
   }, [sales]);
+
+  // 2.5 Saldo em Caixa (Realizado) sincronizado com transações pagas
+  const cashSummary = useMemo(() => {
+    let inflowPaid = 0;
+    let outflowPaid = 0;
+    let inflowPending = 0;
+
+    transactions.forEach(t => {
+      const status = t.status || 'pago';
+      const amount = Number(t.amount) || 0;
+      if (t.type === 'Inflow') {
+        if (status === 'pago') inflowPaid += amount;
+        else inflowPending += amount;
+      } else if (status === 'pago') {
+        outflowPaid += amount;
+      }
+    });
+
+    return {
+      inflowPaid,
+      outflowPaid,
+      inflowPending,
+      saldoCaixaRealizado: inflowPaid - outflowPaid
+    };
+  }, [transactions]);
 
   // 3. Average Margem Média (Faturamento - Custo) / Faturamento
   const margemMedia = useMemo(() => {
@@ -307,7 +333,7 @@ export default function DashboardExecutive({
       </div>
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {/* RECEITA TOTAL */}
         <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition-all">
           <div className="flex items-center justify-between">
@@ -325,6 +351,29 @@ export default function DashboardExecutive({
               <span className="text-[9px] font-bold text-pink-500 uppercase">Líquida Receber:</span>
               <h3 className="text-base md:text-lg font-extrabold text-slate-800 tracking-tight">{formatCurrency(statsReceitaLiquida)}</h3>
             </div>
+          </div>
+        </div>
+
+        {/* CAIXA REALIZADO */}
+        <div className="bg-white border border-emerald-100 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-emerald-700 tracking-wider font-sans uppercase">Caixa (Realizado)</span>
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+              <Wallet size={16} />
+            </div>
+          </div>
+          <div className="mt-2 space-y-1">
+            <h3 className={`text-lg md:text-xl font-extrabold tracking-tight ${cashSummary.saldoCaixaRealizado >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+              {formatCurrency(cashSummary.saldoCaixaRealizado)}
+            </h3>
+            <span className="text-[10px] font-medium text-emerald-600 block">
+              +{formatCurrency(cashSummary.inflowPaid)} liquidado
+            </span>
+            {cashSummary.inflowPending > 0 && (
+              <span className="text-[9px] font-semibold text-amber-600 block">
+                A receber: {formatCurrency(cashSummary.inflowPending)}
+              </span>
+            )}
           </div>
         </div>
 

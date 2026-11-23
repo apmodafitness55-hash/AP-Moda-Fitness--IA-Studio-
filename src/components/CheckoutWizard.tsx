@@ -295,6 +295,7 @@ export function CheckoutWizard({
               console.log(`[CheckoutWizard] Pix confirmado em tempo real para o pedido: ${completedOrder.id}`);
               setOrderPaymentStatus('pago');
               playSaleSuccessSound();
+              window.dispatchEvent(new Event('ap-storage-synced'));
               clearInterval(interval);
             }
           }
@@ -1067,8 +1068,10 @@ export function CheckoutWizard({
                   {/* List of items */}
                   <div className="space-y-2.5">
                   {cart.map((item, idx) => {
-                    const isUpsellItem = item.isUpsell || (suggestedProduct && item.product.id === suggestedProduct.id);
-                    const displayPrice = isUpsellItem ? item.product.price * 0.9 : item.priceAtTime;
+                    const isUpsellItem = Boolean(item.isUpsell);
+                    const displayPrice = isUpsellItem
+                      ? Number(item.priceAtTime ?? item.product.price * 0.9)
+                      : Number(item.priceAtTime ?? item.product.price);
                     return (
                       <div key={idx} className="flex justify-between items-center p-2.5 bg-slate-50 border border-slate-100 rounded-xl relative">
                         <div className="flex items-center gap-2.5 text-left">

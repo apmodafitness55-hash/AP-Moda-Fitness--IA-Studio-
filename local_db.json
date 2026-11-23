@@ -1,124 +1,76 @@
 {
   "ap_products": [
     {
-      "id": "prod-1784756176256",
-      "name": "Calça Legging",
-      "sku": "CALÇA-LEGG-SCUL",
-      "category": "Leggings",
-      "price": 39.99,
-      "cost": 19,
-      "stock": 0,
-      "minStock": 5,
-      "image": "https://i.ibb.co/HDJgD4rc/1000568172-jpg.jpg",
-      "images": "[\"https://i.ibb.co/HDJgD4rc/1000568172-jpg.jpg\",\"https://i.ibb.co/wNWHZHvr/1000568173-jpg.jpg\",\"https://i.ibb.co/s9xKPwRj/1000568174-jpg.jpg\",\"https://i.ibb.co/My0W0wmG/1000568175-jpg.jpg\"]",
-      "salesCount": 0,
-      "colors": "[\"Vermelho\",\"Azul Marinho\",\"Verde\",\"Fucsia\",\"Preto\"]",
-      "sizes": "[\"P\",\"M\"]",
-      "sizeColors": "{}",
-      "colorStocks": "{\"Vermelho\":0,\"Azul Marinho\":0,\"Verde\":0,\"Fucsia\":0,\"Preto\":0}",
-      "sizeColorStocks": "{\"P\":{\"Vermelho\":0,\"Azul Marinho\":0,\"Verde\":0,\"Fucsia\":0,\"Preto\":0},\"M\":{\"Vermelho\":0,\"Azul Marinho\":0,\"Verde\":0,\"Fucsia\":0,\"Preto\":0}}",
-      "measurementSpecs": "{\"P\":{\"bustoMin\":80,\"bustoMax\":88,\"cinturaMin\":60,\"cinturaMax\":68,\"quadrilMin\":88,\"quadrilMax\":96},\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104}}",
-      "composition": "",
-      "routes": "",
-      "compare_at_price": 0,
-      "min_stock": 5,
-      "sales_count": 0,
-      "video_url": "",
-      "size_colors": "{}",
-      "color_stocks": "{\"Vermelho\":0,\"Azul Marinho\":0,\"Verde\":0,\"Fucsia\":0,\"Preto\":0}",
-      "size_color_stocks": "{\"P\":{\"Vermelho\":0,\"Azul Marinho\":0,\"Verde\":0,\"Fucsia\":0,\"Preto\":0},\"M\":{\"Vermelho\":0,\"Azul Marinho\":0,\"Verde\":0,\"Fucsia\":0,\"Preto\":0}}",
-      "measurement_specs": "{\"P\":{\"bustoMin\":80,\"bustoMax\":88,\"cinturaMin\":60,\"cinturaMax\":68,\"quadrilMin\":88,\"quadrilMax\":96},\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104}}",
-      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP  -->\tVeste do\t34\tao\t36\nM -->\tVeste do\t38\tao\t40\nG\t-->  Veste do\t42\tao\t44\nPs -->\tVeste do\t46\tao\t50\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela"
-    },
-    {
-      "id": "prod-1784757312740",
-      "name": "Top Alça Sem Bojo - Slim Fit",
-      "sku": "TOP-SLIM-SCUL",
-      "category": "Tops",
-      "price": 15.9,
-      "cost": 8.5,
-      "stock": 13,
-      "minStock": 5,
-      "image": "https://i.ibb.co/m58BgDwx/1000568220-jpg.jpg",
-      "images": "[\"https://i.ibb.co/m58BgDwx/1000568220-jpg.jpg\",\"https://i.ibb.co/prdxL6M2/1000568219-jpg.jpg\",\"https://i.ibb.co/201vr0Sr/1000568222-jpg.jpg\",\"https://i.ibb.co/mrg5q3CH/1000568221-jpg.jpg\",\"https://i.ibb.co/99Np0v6Y/1000568202-jpg.jpg\"]",
-      "salesCount": 3,
-      "colors": "[\"Vermelho\",\"Azul Marinho\",\"Verde\",\"Marrom\",\"Preto\"]",
-      "sizes": "[\"P\",\"M\",\"G\",\"GG\"]",
-      "sizeColors": "{}",
-      "colorStocks": "{\"Vermelho\":1,\"Azul Marinho\":3,\"Verde\":2,\"Marrom\":5,\"Preto\":2}",
-      "sizeColorStocks": "{\"P\":{\"Vermelho\":0,\"Azul Marinho\":1,\"Verde\":1,\"Marrom\":2,\"Preto\":0},\"M\":{\"Vermelho\":1,\"Azul Marinho\":2,\"Verde\":1,\"Marrom\":3,\"Preto\":2},\"G\":{\"Vermelho\":0,\"Azul Marinho\":0,\"Verde\":0,\"Marrom\":0,\"Preto\":0},\"GG\":{\"Vermelho\":0,\"Azul Marinho\":0,\"Verde\":0,\"Marrom\":0,\"Preto\":0}}",
-      "measurementSpecs": "{\"P\":{\"bustoMin\":80,\"bustoMax\":88,\"cinturaMin\":60,\"cinturaMax\":68,\"quadrilMin\":88,\"quadrilMax\":96},\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104},\"G\":{\"bustoMin\":97,\"bustoMax\":104,\"cinturaMin\":77,\"cinturaMax\":84,\"quadrilMin\":105,\"quadrilMax\":112},\"GG\":{\"bustoMin\":105,\"bustoMax\":112,\"cinturaMin\":85,\"cinturaMax\":92,\"quadrilMin\":113,\"quadrilMax\":120}}",
-      "composition": "",
-      "routes": "",
-      "compare_at_price": 35.9,
-      "min_stock": 5,
-      "sales_count": 3,
-      "video_url": "",
-      "size_colors": "{}",
-      "color_stocks": "{\"Vermelho\":1,\"Azul Marinho\":3,\"Verde\":2,\"Marrom\":5,\"Preto\":2}",
-      "size_color_stocks": "{\"P\":{\"Vermelho\":0,\"Azul Marinho\":1,\"Verde\":1,\"Marrom\":2,\"Preto\":0},\"M\":{\"Vermelho\":1,\"Azul Marinho\":2,\"Verde\":1,\"Marrom\":3,\"Preto\":2},\"G\":{\"Vermelho\":0,\"Azul Marinho\":0,\"Verde\":0,\"Marrom\":0,\"Preto\":0},\"GG\":{\"Vermelho\":0,\"Azul Marinho\":0,\"Verde\":0,\"Marrom\":0,\"Preto\":0}}",
-      "measurement_specs": "{\"P\":{\"bustoMin\":80,\"bustoMax\":88,\"cinturaMin\":60,\"cinturaMax\":68,\"quadrilMin\":88,\"quadrilMax\":96},\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104},\"G\":{\"bustoMin\":97,\"bustoMax\":104,\"cinturaMin\":77,\"cinturaMax\":84,\"quadrilMin\":105,\"quadrilMax\":112},\"GG\":{\"bustoMin\":105,\"bustoMax\":112,\"cinturaMin\":85,\"cinturaMax\":92,\"quadrilMin\":113,\"quadrilMax\":120}}",
-      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP  -->\tVeste do\t34\tao\t36\nM -->\tVeste do\t38\tao\t40\nG\t-->  Veste do\t42\tao\t44\nPs -->\tVeste do\t46\tao\t50\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela"
-    },
-    {
-      "id": "prod-1784754952600",
-      "name": "Conj. Run - Top & Calça",
-      "sku": "CONJ-RUN-TOP+CALÇA-SCUL",
-      "category": "Conjuntos",
-      "price": 69.89,
-      "cost": 39,
-      "stock": 4,
-      "minStock": 5,
-      "image": "https://i.ibb.co/LhHzK5LR/1000568169-jpg.jpg",
-      "images": "[\"https://i.ibb.co/LhHzK5LR/1000568169-jpg.jpg\",\"https://i.ibb.co/Xr00T2Xg/1000568168-jpg.jpg\",\"https://i.ibb.co/tp526HqS/1000568165-jpg.jpg\",\"https://i.ibb.co/ZRjQzpSd/1000568170-jpg.jpg\",\"https://i.ibb.co/TMNN4GR0/1000568171-jpg.jpg\"]",
-      "salesCount": 0,
-      "colors": "[\"Vermelho\",\"Verde\",\"Marrom\",\"Preto\",\"Cinza\"]",
-      "sizes": "[\"P\",\"M\"]",
-      "sizeColors": "{}",
-      "colorStocks": "{\"Vermelho\":1,\"Verde\":1,\"Marrom\":1,\"Preto\":0,\"Cinza\":1}",
-      "sizeColorStocks": "{\"P\":{\"Vermelho\":1,\"Verde\":1,\"Marrom\":1,\"Preto\":0,\"Cinza\":1},\"M\":{\"Vermelho\":0,\"Verde\":0,\"Marrom\":0,\"Preto\":0,\"Cinza\":0}}",
-      "measurementSpecs": "{\"P\":{\"bustoMin\":80,\"bustoMax\":88,\"cinturaMin\":60,\"cinturaMax\":68,\"quadrilMin\":88,\"quadrilMax\":96},\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104}}",
-      "composition": "",
-      "routes": "",
-      "compare_at_price": 129.9,
-      "min_stock": 5,
-      "sales_count": 0,
-      "video_url": "",
-      "size_colors": "{}",
-      "color_stocks": "{\"Vermelho\":1,\"Verde\":1,\"Marrom\":1,\"Preto\":0,\"Cinza\":1}",
-      "size_color_stocks": "{\"P\":{\"Vermelho\":1,\"Verde\":1,\"Marrom\":1,\"Preto\":0,\"Cinza\":1},\"M\":{\"Vermelho\":0,\"Verde\":0,\"Marrom\":0,\"Preto\":0,\"Cinza\":0}}",
-      "measurement_specs": "{\"P\":{\"bustoMin\":80,\"bustoMax\":88,\"cinturaMin\":60,\"cinturaMax\":68,\"quadrilMin\":88,\"quadrilMax\":96},\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104}}",
-      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP  -->\tVeste do\t34\tao\t36\nM -->\tVeste do\t38\tao\t40\nG\t-->  Veste do\t42\tao\t44\nPs -->\tVeste do\t46\tao\t50\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela"
-    },
-    {
-      "id": "prod-1784756626622",
-      "name": "Conj. Top & Short EBB",
-      "sku": "CONJ-TOP+SHORT-EBB-SCUL",
+      "id": "prod-1784671946580",
+      "name": "Conj. Top & Short - Slim Fit",
+      "sku": "CONJ-TOP-SHORT-SCUL",
       "category": "Conjuntos",
       "price": 49.9,
       "cost": 28,
-      "stock": 9,
+      "stock": 4,
       "minStock": 5,
-      "image": "https://i.ibb.co/Zp32MkxN/1000568201-jpg.jpg",
-      "images": "[\"https://i.ibb.co/Zp32MkxN/1000568201-jpg.jpg\",\"https://i.ibb.co/99Np0v6Y/1000568202-jpg.jpg\",\"https://i.ibb.co/bgJhqmTM/1000568209-jpg.jpg\",\"https://i.ibb.co/21gdGL63/1000568210-jpg.jpg\",\"https://i.ibb.co/gZLfmq3k/1000568211-jpg.jpg\",\"https://i.ibb.co/WpjtXg4k/1000568212-jpg.jpg\"]",
+      "image": "https://i.ibb.co/TD0d9fhc/1000568002-jpg.jpg",
+      "images": [
+        "https://i.ibb.co/TD0d9fhc/1000568002-jpg.jpg",
+        "https://i.ibb.co/r2NfRMpY/1000568001-jpg.jpg",
+        "https://i.ibb.co/Fbgc6852/1000567988-jpg.jpg",
+        "https://i.ibb.co/5Xn1PYDC/1000567989-jpg.jpg"
+      ],
       "salesCount": 0,
-      "colors": "[\"Vermelho\",\"Azul Marinho\",\"Verde\",\"Fucsia\",\"Roxo\",\"Marrom\",\"Preto\",\"Lilás\",\"Bege\",\"Rosa\",\"Cinza\"]",
-      "sizes": "[\"P\",\"M\"]",
-      "sizeColors": "{}",
-      "colorStocks": "{\"Vermelho\":1,\"Azul Marinho\":1,\"Verde\":2,\"Fucsia\":0,\"Roxo\":2,\"Marrom\":0,\"Preto\":3,\"Lilás\":0,\"Bege\":0,\"Rosa\":0,\"Cinza\":0}",
-      "sizeColorStocks": "{\"P\":{\"Vermelho\":1,\"Azul Marinho\":0,\"Verde\":1,\"Fucsia\":0,\"Roxo\":1,\"Marrom\":0,\"Preto\":1,\"Lilás\":0,\"Bege\":0,\"Rosa\":0,\"Cinza\":0},\"M\":{\"Vermelho\":0,\"Azul Marinho\":1,\"Verde\":1,\"Fucsia\":0,\"Roxo\":1,\"Marrom\":0,\"Preto\":2,\"Lilás\":0,\"Bege\":0,\"Rosa\":0,\"Cinza\":0}}",
-      "measurementSpecs": "{\"P\":{\"bustoMin\":80,\"bustoMax\":88,\"cinturaMin\":60,\"cinturaMax\":68,\"quadrilMin\":88,\"quadrilMax\":96},\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104}}",
+      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP  -->\tVeste do\t34\tao\t36\nM -->\tVeste do\t38\tao\t40\nG\t-->  Veste do\t42\tao\t44\nPs -->\tVeste do\t46\tao\t50\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela",
+      "videoUrl": "",
+      "colors": [
+        "Verde",
+        "Fucsia",
+        "Preto"
+      ],
+      "sizes": [
+        "P",
+        "M"
+      ],
+      "sizeColors": {},
+      "colorStocks": {
+        "Verde": 1,
+        "Fucsia": 1,
+        "Preto": 2
+      },
+      "sizeColorStocks": {
+        "P": {
+          "Verde": 0,
+          "Fucsia": 1,
+          "Preto": 1
+        },
+        "M": {
+          "Verde": 1,
+          "Fucsia": 0,
+          "Preto": 1
+        }
+      },
       "composition": "",
       "routes": "",
+      "measurementSpecs": {
+        "P": {
+          "bustoMin": 80,
+          "bustoMax": 88,
+          "cinturaMin": 60,
+          "cinturaMax": 68,
+          "quadrilMin": 88,
+          "quadrilMax": 96
+        },
+        "M": {
+          "bustoMin": 89,
+          "bustoMax": 96,
+          "cinturaMin": 69,
+          "cinturaMax": 76,
+          "quadrilMin": 97,
+          "quadrilMax": 104
+        }
+      },
       "compare_at_price": 0,
-      "min_stock": 5,
-      "sales_count": 0,
-      "video_url": "",
-      "size_colors": "{}",
-      "color_stocks": "{\"Vermelho\":1,\"Azul Marinho\":1,\"Verde\":2,\"Fucsia\":0,\"Roxo\":2,\"Marrom\":0,\"Preto\":3,\"Lilás\":0,\"Bege\":0,\"Rosa\":0,\"Cinza\":0}",
-      "size_color_stocks": "{\"P\":{\"Vermelho\":1,\"Azul Marinho\":0,\"Verde\":1,\"Fucsia\":0,\"Roxo\":1,\"Marrom\":0,\"Preto\":1,\"Lilás\":0,\"Bege\":0,\"Rosa\":0,\"Cinza\":0},\"M\":{\"Vermelho\":0,\"Azul Marinho\":1,\"Verde\":1,\"Fucsia\":0,\"Roxo\":1,\"Marrom\":0,\"Preto\":2,\"Lilás\":0,\"Bege\":0,\"Rosa\":0,\"Cinza\":0}}",
-      "measurement_specs": "{\"P\":{\"bustoMin\":80,\"bustoMax\":88,\"cinturaMin\":60,\"cinturaMax\":68,\"quadrilMin\":88,\"quadrilMax\":96},\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104}}",
-      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP  -->\tVeste do\t34\tao\t36\nM -->\tVeste do\t38\tao\t40\nG\t-->  Veste do\t42\tao\t44\nPs -->\tVeste do\t46\tao\t50\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela"
+      "weight": 0.35,
+      "length": 25,
+      "width": 20,
+      "height": 5
     },
     {
       "id": "prod-1784752465176",
@@ -130,25 +82,113 @@
       "stock": 27,
       "minStock": 5,
       "image": "https://i.ibb.co/wFq85JLW/1000536691.jpg",
-      "images": "[\"https://i.ibb.co/wFq85JLW/1000536691.jpg\",\"https://i.ibb.co/8L3JKttr/1000536692.jpg\",\"https://i.ibb.co/xSc4B76Y/1000536688.jpg\",\"https://i.ibb.co/hxPZdbHw/1000536690.jpg\"]",
+      "images": [
+        "https://i.ibb.co/wFq85JLW/1000536691.jpg",
+        "https://i.ibb.co/8L3JKttr/1000536692.jpg",
+        "https://i.ibb.co/xSc4B76Y/1000536688.jpg",
+        "https://i.ibb.co/hxPZdbHw/1000536690.jpg"
+      ],
       "salesCount": 2,
-      "colors": "[\"Vermelho\",\"Verde\",\"Fucsia\",\"Marrom\",\"Preto\",\"Lilás\"]",
-      "sizes": "[\"P\",\"M\",\"G\",\"GG\"]",
-      "sizeColors": "{}",
-      "colorStocks": "{\"Vermelho\":3,\"Verde\":7,\"Fucsia\":5,\"Marrom\":3,\"Preto\":4,\"Lilás\":5}",
-      "sizeColorStocks": "{\"P\":{\"Vermelho\":0,\"Verde\":4,\"Fucsia\":1,\"Marrom\":3,\"Preto\":2,\"Lilás\":2},\"M\":{\"Vermelho\":3,\"Verde\":3,\"Fucsia\":4,\"Marrom\":0,\"Preto\":2,\"Lilás\":3},\"G\":{\"Vermelho\":0,\"Verde\":0,\"Fucsia\":0,\"Marrom\":0,\"Preto\":0,\"Lilás\":0},\"GG\":{\"Vermelho\":0,\"Verde\":0,\"Fucsia\":0,\"Marrom\":0,\"Preto\":0,\"Lilás\":0}}",
-      "measurementSpecs": "{\"P\":{\"bustoMin\":80,\"bustoMax\":88,\"cinturaMin\":60,\"cinturaMax\":68,\"quadrilMin\":88,\"quadrilMax\":96},\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104}}",
+      "description": "Feitas com tecido 100% poliamida, nossas regatas e blusas são super macias, leves e respiráveis. Perfeitas para atividades físicas, elas secam rapidamente e proporcionam conforto ao longo do dia.\n\n\nDetalhes:\n\n✔️ Tecido: Poliamida 100%\n✔️ Gramatura: 280g\n✔️ Toque macio e Respirável\n\n\n\nTamanhos Disponíveis:\n\nP –> Veste do 34 ao 36\nM –> Veste do 38 ao 40\nG –> Veste do 42 ao 44\nPlus Size –> Veste do 46 ao 50\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela",
+      "videoUrl": "",
+      "colors": [
+        "Vermelho",
+        "Verde",
+        "Fucsia",
+        "Marrom",
+        "Preto",
+        "Lilás"
+      ],
+      "sizes": [
+        "P",
+        "M",
+        "G",
+        "GG"
+      ],
+      "sizeColors": {},
+      "colorStocks": {
+        "Vermelho": 3,
+        "Verde": 7,
+        "Fucsia": 5,
+        "Marrom": 3,
+        "Preto": 4,
+        "Lilás": 5
+      },
+      "sizeColorStocks": {
+        "P": {
+          "Vermelho": 0,
+          "Verde": 4,
+          "Fucsia": 1,
+          "Marrom": 3,
+          "Preto": 2,
+          "Lilás": 2
+        },
+        "M": {
+          "Vermelho": 3,
+          "Verde": 3,
+          "Fucsia": 4,
+          "Marrom": 0,
+          "Preto": 2,
+          "Lilás": 3
+        },
+        "G": {
+          "Vermelho": 0,
+          "Verde": 0,
+          "Fucsia": 0,
+          "Marrom": 0,
+          "Preto": 0,
+          "Lilás": 0
+        },
+        "GG": {
+          "Vermelho": 0,
+          "Verde": 0,
+          "Fucsia": 0,
+          "Marrom": 0,
+          "Preto": 0,
+          "Lilás": 0
+        }
+      },
       "composition": "",
       "routes": "",
+      "measurementSpecs": {
+        "P": {
+          "bustoMin": 80,
+          "bustoMax": 88,
+          "cinturaMin": 60,
+          "cinturaMax": 68,
+          "quadrilMin": 88,
+          "quadrilMax": 96
+        },
+        "M": {
+          "bustoMin": 89,
+          "bustoMax": 96,
+          "cinturaMin": 69,
+          "cinturaMax": 76,
+          "quadrilMin": 97,
+          "quadrilMax": 104
+        },
+        "G": {
+          "bustoMin": 97,
+          "bustoMax": 104,
+          "cinturaMin": 77,
+          "cinturaMax": 84,
+          "quadrilMin": 105,
+          "quadrilMax": 112
+        },
+        "GG": {
+          "bustoMin": 105,
+          "bustoMax": 112,
+          "cinturaMin": 85,
+          "cinturaMax": 92,
+          "quadrilMin": 113,
+          "quadrilMax": 120
+        }
+      },
       "compare_at_price": 0,
-      "min_stock": 5,
-      "sales_count": 2,
-      "video_url": "",
-      "size_colors": "{}",
-      "color_stocks": "{\"Vermelho\":3,\"Verde\":7,\"Fucsia\":5,\"Marrom\":3,\"Preto\":4,\"Lilás\":5}",
-      "size_color_stocks": "{\"P\":{\"Vermelho\":0,\"Verde\":4,\"Fucsia\":1,\"Marrom\":3,\"Preto\":2,\"Lilás\":2},\"M\":{\"Vermelho\":3,\"Verde\":3,\"Fucsia\":4,\"Marrom\":0,\"Preto\":2,\"Lilás\":3},\"G\":{\"Vermelho\":0,\"Verde\":0,\"Fucsia\":0,\"Marrom\":0,\"Preto\":0,\"Lilás\":0},\"GG\":{\"Vermelho\":0,\"Verde\":0,\"Fucsia\":0,\"Marrom\":0,\"Preto\":0,\"Lilás\":0}}",
-      "measurement_specs": "{\"P\":{\"bustoMin\":80,\"bustoMax\":88,\"cinturaMin\":60,\"cinturaMax\":68,\"quadrilMin\":88,\"quadrilMax\":96},\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104}}",
-      "description": "Feitas com tecido 100% poliamida, nossas regatas e blusas são super macias, leves e respiráveis. Perfeitas para atividades físicas, elas secam rapidamente e proporcionam conforto ao longo do dia.\n\n\nDetalhes:\n\n✔️ Tecido: Poliamida 100%\n✔️ Gramatura: 280g\n✔️ Toque macio e Respirável\n\n\n\nTamanhos Disponíveis:\n\nP –> Veste do 34 ao 36\nM –> Veste do 38 ao 40\nG –> Veste do 42 ao 44\nPlus Size –> Veste do 46 ao 50\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela"
+      "weight": 0.35,
+      "length": 25,
+      "width": 20,
+      "height": 5
     },
     {
       "id": "prod-1784753963879",
@@ -157,118 +197,452 @@
       "category": "Cropped",
       "price": 25.9,
       "cost": 13,
-      "stock": 16,
+      "stock": 20,
       "minStock": 5,
       "image": "https://i.ibb.co/cSyg0QVC/C-pia-de-Facetune-20-12-2022-09-52-59.jpg",
-      "images": "[\"https://i.ibb.co/cSyg0QVC/C-pia-de-Facetune-20-12-2022-09-52-59.jpg\",\"https://i.ibb.co/Ps69Y8dH/C-pia-de-Facetune-20-12-2022-09-53-50.jpg\"]",
+      "images": [
+        "https://i.ibb.co/cSyg0QVC/C-pia-de-Facetune-20-12-2022-09-52-59.jpg",
+        "https://i.ibb.co/Ps69Y8dH/C-pia-de-Facetune-20-12-2022-09-53-50.jpg"
+      ],
       "salesCount": 0,
-      "colors": "[\"Vermelho\",\"Azul Marinho\",\"Verde\",\"Fucsia\",\"Marrom\",\"Preto\",\"Lilás\",\"Bege\",\"Rosa\"]",
-      "sizes": "[\"M\"]",
-      "sizeColors": "{}",
-      "colorStocks": "{\"Vermelho\":3,\"Azul Marinho\":2,\"Verde\":0,\"Fucsia\":2,\"Marrom\":1,\"Preto\":2,\"Lilás\":2,\"Bege\":2,\"Rosa\":2}",
-      "sizeColorStocks": "{\"M\":{\"Vermelho\":3,\"Azul Marinho\":2,\"Verde\":0,\"Fucsia\":2,\"Marrom\":1,\"Preto\":2,\"Lilás\":2,\"Bege\":2,\"Rosa\":2}}",
-      "measurementSpecs": "{\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104}}",
+      "description": "Feitas com tecido 100% poliamida, nossas regatas e blusas são super macias, leves e respiráveis. Perfeitas para atividades físicas, elas secam rapidamente e proporcionam conforto ao longo do dia.\n\n\nDetalhes:\n\n✔️ Tecido: Poliamida 100%\n✔️ Gramatura: 280g\n✔️ Toque macio e Respirável\n\n\n\nTamanhos Disponíveis:\n\nP –> Veste do 34 ao 36\nM –> Veste do 38 ao 40\nG –> Veste do 42 ao 44\nPlus Size –> Veste do 46 ao 50\n\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela",
+      "videoUrl": "",
+      "colors": [
+        "Vermelho",
+        "Azul Marinho",
+        "Verde",
+        "Fucsia",
+        "Marrom",
+        "Preto",
+        "Lilás",
+        "Bege",
+        "Rosa"
+      ],
+      "sizes": [
+        "M"
+      ],
+      "sizeColors": {},
+      "colorStocks": {
+        "Vermelho": 3,
+        "Azul Marinho": 2,
+        "Verde": 3,
+        "Fucsia": 2,
+        "Marrom": 1,
+        "Preto": 3,
+        "Lilás": 2,
+        "Bege": 2,
+        "Rosa": 2
+      },
+      "sizeColorStocks": {
+        "M": {
+          "Vermelho": 3,
+          "Azul Marinho": 2,
+          "Verde": 3,
+          "Fucsia": 2,
+          "Marrom": 1,
+          "Preto": 3,
+          "Lilás": 2,
+          "Bege": 2,
+          "Rosa": 2
+        }
+      },
       "composition": "",
       "routes": "",
+      "measurementSpecs": {
+        "M": {
+          "bustoMin": 89,
+          "bustoMax": 96,
+          "cinturaMin": 69,
+          "cinturaMax": 76,
+          "quadrilMin": 97,
+          "quadrilMax": 104
+        }
+      },
       "compare_at_price": 0,
-      "min_stock": 5,
-      "sales_count": 0,
-      "video_url": "",
-      "size_colors": "{}",
-      "color_stocks": "{\"Vermelho\":3,\"Azul Marinho\":2,\"Verde\":0,\"Fucsia\":2,\"Marrom\":1,\"Preto\":2,\"Lilás\":2,\"Bege\":2,\"Rosa\":2}",
-      "size_color_stocks": "{\"M\":{\"Vermelho\":3,\"Azul Marinho\":2,\"Verde\":0,\"Fucsia\":2,\"Marrom\":1,\"Preto\":2,\"Lilás\":2,\"Bege\":2,\"Rosa\":2}}",
-      "measurement_specs": "{\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104}}",
-      "description": "Feitas com tecido 100% poliamida, nossas regatas e blusas são super macias, leves e respiráveis. Perfeitas para atividades físicas, elas secam rapidamente e proporcionam conforto ao longo do dia.\n\n\nDetalhes:\n\n✔️ Tecido: Poliamida 100%\n✔️ Gramatura: 280g\n✔️ Toque macio e Respirável\n\n\n\nTamanhos Disponíveis:\n\nP –> Veste do 34 ao 36\nM –> Veste do 38 ao 40\nG –> Veste do 42 ao 44\nPlus Size –> Veste do 46 ao 50\n\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela"
+      "weight": 0.35,
+      "length": 25,
+      "width": 20,
+      "height": 5
     },
     {
-      "id": "prod-1784671946580",
-      "name": "Conj. Top & Short - Slim Fit",
-      "sku": "CONJ-TOP-SHORT-SCUL",
+      "id": "prod-1784754952600",
+      "name": "Conj. Run - Top & Calça",
+      "sku": "CONJ-RUN-TOP+CALÇA-SCUL",
+      "category": "Conjuntos",
+      "price": 69.89,
+      "cost": 39,
+      "stock": 7,
+      "minStock": 5,
+      "image": "https://i.ibb.co/LhHzK5LR/1000568169-jpg.jpg",
+      "images": [
+        "https://i.ibb.co/LhHzK5LR/1000568169-jpg.jpg",
+        "https://i.ibb.co/Xr00T2Xg/1000568168-jpg.jpg",
+        "https://i.ibb.co/tp526HqS/1000568165-jpg.jpg",
+        "https://i.ibb.co/ZRjQzpSd/1000568170-jpg.jpg",
+        "https://i.ibb.co/TMNN4GR0/1000568171-jpg.jpg"
+      ],
+      "salesCount": 0,
+      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP  -->\tVeste do\t34\tao\t36\nM -->\tVeste do\t38\tao\t40\nG\t-->  Veste do\t42\tao\t44\nPs -->\tVeste do\t46\tao\t50\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela",
+      "videoUrl": "",
+      "colors": [
+        "Vermelho",
+        "Verde",
+        "Marrom",
+        "Preto",
+        "Cinza"
+      ],
+      "sizes": [
+        "P",
+        "M"
+      ],
+      "sizeColors": {},
+      "colorStocks": {
+        "Vermelho": 2,
+        "Verde": 2,
+        "Marrom": 1,
+        "Preto": 1,
+        "Cinza": 1
+      },
+      "sizeColorStocks": {
+        "P": {
+          "Vermelho": 1,
+          "Verde": 1,
+          "Marrom": 1,
+          "Preto": 0,
+          "Cinza": 1
+        },
+        "M": {
+          "Vermelho": 1,
+          "Verde": 1,
+          "Marrom": 0,
+          "Preto": 1,
+          "Cinza": 0
+        }
+      },
+      "composition": "",
+      "routes": "",
+      "measurementSpecs": {
+        "P": {
+          "bustoMin": 80,
+          "bustoMax": 88,
+          "cinturaMin": 60,
+          "cinturaMax": 68,
+          "quadrilMin": 88,
+          "quadrilMax": 96
+        },
+        "M": {
+          "bustoMin": 89,
+          "bustoMax": 96,
+          "cinturaMin": 69,
+          "cinturaMax": 76,
+          "quadrilMin": 97,
+          "quadrilMax": 104
+        }
+      },
+      "compare_at_price": 129.9,
+      "weight": 0.35,
+      "length": 25,
+      "width": 20,
+      "height": 5
+    },
+    {
+      "id": "prod-1784756176256",
+      "name": "Calça Legging",
+      "sku": "CALÇA-LEGG-SCUL",
+      "category": "Leggings",
+      "price": 39.99,
+      "cost": 19,
+      "stock": 19,
+      "minStock": 5,
+      "image": "https://i.ibb.co/HDJgD4rc/1000568172-jpg.jpg",
+      "images": [
+        "https://i.ibb.co/HDJgD4rc/1000568172-jpg.jpg",
+        "https://i.ibb.co/wNWHZHvr/1000568173-jpg.jpg",
+        "https://i.ibb.co/s9xKPwRj/1000568174-jpg.jpg",
+        "https://i.ibb.co/My0W0wmG/1000568175-jpg.jpg"
+      ],
+      "salesCount": 0,
+      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP  -->\tVeste do\t34\tao\t36\nM -->\tVeste do\t38\tao\t40\nG\t-->  Veste do\t42\tao\t44\nPs -->\tVeste do\t46\tao\t50\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela",
+      "videoUrl": "",
+      "colors": [
+        "Vermelho",
+        "Azul Marinho",
+        "Verde",
+        "Fucsia",
+        "Preto"
+      ],
+      "sizes": [
+        "P",
+        "M"
+      ],
+      "sizeColors": {},
+      "colorStocks": {
+        "Vermelho": 4,
+        "Azul Marinho": 3,
+        "Verde": 4,
+        "Fucsia": 4,
+        "Preto": 4
+      },
+      "sizeColorStocks": {
+        "P": {
+          "Vermelho": 2,
+          "Azul Marinho": 2,
+          "Verde": 2,
+          "Fucsia": 2,
+          "Preto": 2
+        },
+        "M": {
+          "Vermelho": 2,
+          "Azul Marinho": 1,
+          "Verde": 2,
+          "Fucsia": 2,
+          "Preto": 2
+        }
+      },
+      "composition": "",
+      "routes": "",
+      "measurementSpecs": {
+        "P": {
+          "bustoMin": 80,
+          "bustoMax": 88,
+          "cinturaMin": 60,
+          "cinturaMax": 68,
+          "quadrilMin": 88,
+          "quadrilMax": 96
+        },
+        "M": {
+          "bustoMin": 89,
+          "bustoMax": 96,
+          "cinturaMin": 69,
+          "cinturaMax": 76,
+          "quadrilMin": 97,
+          "quadrilMax": 104
+        }
+      },
+      "compare_at_price": 0,
+      "weight": 0.35,
+      "length": 25,
+      "width": 20,
+      "height": 5
+    },
+    {
+      "id": "prod-1784756626622",
+      "name": "Conj. Top & Short EBB",
+      "sku": "CONJ-TOP+SHORT-EBB-SCUL",
       "category": "Conjuntos",
       "price": 49.9,
       "cost": 28,
-      "stock": 4,
+      "stock": 9,
       "minStock": 5,
-      "image": "https://i.ibb.co/TD0d9fhc/1000568002-jpg.jpg",
-      "images": "[\"https://i.ibb.co/TD0d9fhc/1000568002-jpg.jpg\",\"https://i.ibb.co/r2NfRMpY/1000568001-jpg.jpg\",\"https://i.ibb.co/Fbgc6852/1000567988-jpg.jpg\",\"https://i.ibb.co/5Xn1PYDC/1000567989-jpg.jpg\"]",
+      "image": "https://i.ibb.co/Zp32MkxN/1000568201-jpg.jpg",
+      "images": [
+        "https://i.ibb.co/Zp32MkxN/1000568201-jpg.jpg",
+        "https://i.ibb.co/99Np0v6Y/1000568202-jpg.jpg",
+        "https://i.ibb.co/bgJhqmTM/1000568209-jpg.jpg",
+        "https://i.ibb.co/21gdGL63/1000568210-jpg.jpg",
+        "https://i.ibb.co/gZLfmq3k/1000568211-jpg.jpg",
+        "https://i.ibb.co/WpjtXg4k/1000568212-jpg.jpg"
+      ],
       "salesCount": 0,
-      "colors": "[\"Verde\",\"Fucsia\",\"Preto\"]",
-      "sizes": "[\"P\",\"M\"]",
-      "sizeColors": "{}",
-      "colorStocks": "{\"Verde\":1,\"Fucsia\":1,\"Preto\":2}",
-      "sizeColorStocks": "{\"P\":{\"Verde\":0,\"Fucsia\":1,\"Preto\":1},\"M\":{\"Verde\":1,\"Fucsia\":0,\"Preto\":1}}",
-      "measurementSpecs": "{\"P\":{\"bustoMin\":80,\"bustoMax\":88,\"cinturaMin\":60,\"cinturaMax\":68,\"quadrilMin\":88,\"quadrilMax\":96},\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104}}",
+      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP  -->\tVeste do\t34\tao\t36\nM -->\tVeste do\t38\tao\t40\nG\t-->  Veste do\t42\tao\t44\nPs -->\tVeste do\t46\tao\t50\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela",
+      "videoUrl": "",
+      "colors": [
+        "Vermelho",
+        "Azul Marinho",
+        "Verde",
+        "Fucsia",
+        "Roxo",
+        "Marrom",
+        "Preto",
+        "Lilás",
+        "Bege",
+        "Rosa",
+        "Cinza"
+      ],
+      "sizes": [
+        "P",
+        "M"
+      ],
+      "sizeColors": {},
+      "colorStocks": {
+        "Vermelho": 1,
+        "Azul Marinho": 1,
+        "Verde": 2,
+        "Fucsia": 0,
+        "Roxo": 2,
+        "Marrom": 0,
+        "Preto": 3,
+        "Lilás": 0,
+        "Bege": 0,
+        "Rosa": 0,
+        "Cinza": 0
+      },
+      "sizeColorStocks": {
+        "P": {
+          "Vermelho": 1,
+          "Azul Marinho": 0,
+          "Verde": 1,
+          "Fucsia": 0,
+          "Roxo": 1,
+          "Marrom": 0,
+          "Preto": 1,
+          "Lilás": 0,
+          "Bege": 0,
+          "Rosa": 0,
+          "Cinza": 0
+        },
+        "M": {
+          "Vermelho": 0,
+          "Azul Marinho": 1,
+          "Verde": 1,
+          "Fucsia": 0,
+          "Roxo": 1,
+          "Marrom": 0,
+          "Preto": 2,
+          "Lilás": 0,
+          "Bege": 0,
+          "Rosa": 0,
+          "Cinza": 0
+        }
+      },
       "composition": "",
       "routes": "",
+      "measurementSpecs": {
+        "P": {
+          "bustoMin": 80,
+          "bustoMax": 88,
+          "cinturaMin": 60,
+          "cinturaMax": 68,
+          "quadrilMin": 88,
+          "quadrilMax": 96
+        },
+        "M": {
+          "bustoMin": 89,
+          "bustoMax": 96,
+          "cinturaMin": 69,
+          "cinturaMax": 76,
+          "quadrilMin": 97,
+          "quadrilMax": 104
+        }
+      },
       "compare_at_price": 0,
-      "min_stock": 5,
-      "sales_count": 0,
-      "video_url": "",
-      "size_colors": "{}",
-      "color_stocks": "{\"Verde\":1,\"Fucsia\":1,\"Preto\":2}",
-      "size_color_stocks": "{\"P\":{\"Verde\":0,\"Fucsia\":1,\"Preto\":1},\"M\":{\"Verde\":1,\"Fucsia\":0,\"Preto\":1}}",
-      "measurement_specs": "{\"P\":{\"bustoMin\":80,\"bustoMax\":88,\"cinturaMin\":60,\"cinturaMax\":68,\"quadrilMin\":88,\"quadrilMax\":96},\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104}}",
-      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP  -->\tVeste do\t34\tao\t36\nM -->\tVeste do\t38\tao\t40\nG\t-->  Veste do\t42\tao\t44\nPs -->\tVeste do\t46\tao\t50\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela"
+      "weight": 0.35,
+      "length": 25,
+      "width": 20,
+      "height": 5
     },
     {
-      "id": "prod-1785323261342",
-      "name": "Macacão Curto - Run",
-      "sku": "MAC-CURT-RUN-SCUL",
-      "category": "Macacões",
-      "price": 72.9,
-      "cost": 32,
-      "stock": 0,
+      "id": "prod-1784757312740",
+      "name": "Top Alça Sem Bojo - Slim Fit",
+      "sku": "TOP-SLIM-SCUL",
+      "category": "Tops",
+      "price": 15.9,
+      "cost": 8.5,
+      "stock": 13,
       "minStock": 5,
-      "image": "https://i.ibb.co/Ps5B3rmZ/C-pia-de-DSC-0000-92.jpg",
-      "images": "[\"https://i.ibb.co/Ps5B3rmZ/C-pia-de-DSC-0000-92.jpg\",\"https://i.ibb.co/4C2v1hq/C-pia-de-DSC-0000-94.jpg\",\"https://i.ibb.co/rK0JZSJd/C-pia-de-DSC-0000-86.jpg\",\"https://i.ibb.co/SwDRNj3S/C-pia-de-Foto-06-07-2025-23-33-46-57.jpg\",\"https://i.ibb.co/PZpm6gSq/C-pia-de-Foto-06-07-2025-23-33-46-59.jpg\",\"https://i.ibb.co/Nnngss6y/C-pia-de-Foto-06-07-2025-23-33-46-64.jpg\"]",
-      "salesCount": 0,
-      "colors": "[\"Preto\",\"Pink Glow\",\"Branco\",\"Azul Celeste\"]",
-      "sizes": "[\"P\",\"M\",\"G\"]",
-      "sizeColors": "{}",
-      "colorStocks": "{\"Preto\":0,\"Pink Glow\":0,\"Branco\":0,\"Azul Celeste\":0}",
-      "sizeColorStocks": "{\"P\":{\"Preto\":0,\"Pink Glow\":0,\"Branco\":0,\"Azul Celeste\":0},\"M\":{\"Preto\":0,\"Pink Glow\":0,\"Branco\":0,\"Azul Celeste\":0},\"G\":{\"Preto\":0,\"Pink Glow\":0,\"Branco\":0,\"Azul Celeste\":0}}",
-      "measurementSpecs": "{\"P\":{\"bustoMin\":80,\"bustoMax\":88,\"cinturaMin\":60,\"cinturaMax\":68,\"quadrilMin\":88,\"quadrilMax\":96},\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104},\"G\":{\"bustoMin\":97,\"bustoMax\":104,\"cinturaMin\":77,\"cinturaMax\":84,\"quadrilMin\":105,\"quadrilMax\":112}}",
+      "image": "https://i.ibb.co/m58BgDwx/1000568220-jpg.jpg",
+      "images": [
+        "https://i.ibb.co/m58BgDwx/1000568220-jpg.jpg",
+        "https://i.ibb.co/prdxL6M2/1000568219-jpg.jpg",
+        "https://i.ibb.co/201vr0Sr/1000568222-jpg.jpg",
+        "https://i.ibb.co/mrg5q3CH/1000568221-jpg.jpg",
+        "https://i.ibb.co/99Np0v6Y/1000568202-jpg.jpg"
+      ],
+      "salesCount": 3,
+      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP  -->\tVeste do\t34\tao\t36\nM -->\tVeste do\t38\tao\t40\nG\t-->  Veste do\t42\tao\t44\nPs -->\tVeste do\t46\tao\t50\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela",
+      "videoUrl": "",
+      "colors": [
+        "Vermelho",
+        "Azul Marinho",
+        "Verde",
+        "Marrom",
+        "Preto"
+      ],
+      "sizes": [
+        "P",
+        "M",
+        "G",
+        "GG"
+      ],
+      "sizeColors": {},
+      "colorStocks": {
+        "Vermelho": 1,
+        "Azul Marinho": 3,
+        "Verde": 2,
+        "Marrom": 5,
+        "Preto": 2
+      },
+      "sizeColorStocks": {
+        "P": {
+          "Vermelho": 0,
+          "Azul Marinho": 1,
+          "Verde": 1,
+          "Marrom": 2,
+          "Preto": 0
+        },
+        "M": {
+          "Vermelho": 1,
+          "Azul Marinho": 2,
+          "Verde": 1,
+          "Marrom": 3,
+          "Preto": 2
+        },
+        "G": {
+          "Vermelho": 0,
+          "Azul Marinho": 0,
+          "Verde": 0,
+          "Marrom": 0,
+          "Preto": 0
+        },
+        "GG": {
+          "Vermelho": 0,
+          "Azul Marinho": 0,
+          "Verde": 0,
+          "Marrom": 0,
+          "Preto": 0
+        }
+      },
       "composition": "",
       "routes": "",
-      "compare_at_price": 89.9,
-      "min_stock": 5,
-      "sales_count": 0,
-      "video_url": "",
-      "size_colors": "{}",
-      "color_stocks": "{\"Preto\":0,\"Pink Glow\":0,\"Branco\":0,\"Azul Celeste\":0}",
-      "size_color_stocks": "{\"P\":{\"Preto\":0,\"Pink Glow\":0,\"Branco\":0,\"Azul Celeste\":0},\"M\":{\"Preto\":0,\"Pink Glow\":0,\"Branco\":0,\"Azul Celeste\":0},\"G\":{\"Preto\":0,\"Pink Glow\":0,\"Branco\":0,\"Azul Celeste\":0}}",
-      "measurement_specs": "{\"P\":{\"bustoMin\":80,\"bustoMax\":88,\"cinturaMin\":60,\"cinturaMax\":68,\"quadrilMin\":88,\"quadrilMax\":96},\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104},\"G\":{\"bustoMin\":97,\"bustoMax\":104,\"cinturaMin\":77,\"cinturaMax\":84,\"quadrilMin\":105,\"quadrilMax\":112}}",
-      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP  -->\tVeste do\t34\tao\t36\nM -->\tVeste do\t38\tao\t40\nG\t-->  Veste do\t42\tao\t44\nPs -->\tVeste do\t46\tao\t50\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela"
-    },
-    {
-      "id": "prod-1792625888911",
-      "name": "conj top + calça slim",
-      "sku": "LEG",
-      "category": "Conjuntos",
-      "price": 59.9,
-      "cost": 31,
-      "stock": 14,
-      "minStock": 5,
-      "image": "https://i.ibb.co/DZcskJB/1000735307-png.webp",
-      "images": "[\"https://i.ibb.co/DZcskJB/1000735307-png.webp\",\"https://i.ibb.co/Gf7zqkF3/1000735304-png.webp\",\"https://i.ibb.co/YTYS8Zmc/1000735298-png.webp\",\"https://i.ibb.co/XrTk3D46/1000735301-png.webp\"]",
-      "salesCount": 0,
-      "colors": "[\"Preto\",\"Rosa\",\"Vermelho\",\"Verde\",\"Azul\"]",
-      "sizes": "[\"P\",\"M\",\"G\",\"GG\"]",
-      "sizeColors": "{}",
-      "colorStocks": "{\"Preto\":4,\"Rosa\":0,\"Vermelho\":4,\"Verde\":4,\"Azul\":2}",
-      "sizeColorStocks": "{\"P\":{\"Preto\":2,\"Rosa\":0,\"Vermelho\":2,\"Verde\":2,\"Azul\":2},\"M\":{\"Preto\":2,\"Rosa\":0,\"Vermelho\":2,\"Verde\":2,\"Azul\":0},\"G\":{\"Preto\":0,\"Rosa\":0,\"Vermelho\":0,\"Verde\":0,\"Azul\":0},\"GG\":{\"Preto\":0,\"Rosa\":0,\"Vermelho\":0,\"Verde\":0,\"Azul\":0}}",
-      "measurementSpecs": "{\"P\":{\"bustoMin\":80,\"bustoMax\":88,\"cinturaMin\":60,\"cinturaMax\":68,\"quadrilMin\":88,\"quadrilMax\":96},\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104},\"G\":{\"bustoMin\":97,\"bustoMax\":104,\"cinturaMin\":77,\"cinturaMax\":84,\"quadrilMin\":105,\"quadrilMax\":112},\"GG\":{\"bustoMin\":105,\"bustoMax\":112,\"cinturaMin\":85,\"cinturaMax\":92,\"quadrilMin\":113,\"quadrilMax\":120}}",
-      "composition": "",
-      "routes": "",
-      "compare_at_price": 0,
-      "min_stock": 5,
-      "sales_count": 0,
-      "video_url": "",
-      "size_colors": "{}",
-      "color_stocks": "{\"Preto\":4,\"Rosa\":0,\"Vermelho\":4,\"Verde\":4,\"Azul\":2}",
-      "size_color_stocks": "{\"P\":{\"Preto\":2,\"Rosa\":0,\"Vermelho\":2,\"Verde\":2,\"Azul\":2},\"M\":{\"Preto\":2,\"Rosa\":0,\"Vermelho\":2,\"Verde\":2,\"Azul\":0},\"G\":{\"Preto\":0,\"Rosa\":0,\"Vermelho\":0,\"Verde\":0,\"Azul\":0},\"GG\":{\"Preto\":0,\"Rosa\":0,\"Vermelho\":0,\"Verde\":0,\"Azul\":0}}",
-      "measurement_specs": "{\"P\":{\"bustoMin\":80,\"bustoMax\":88,\"cinturaMin\":60,\"cinturaMax\":68,\"quadrilMin\":88,\"quadrilMax\":96},\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104},\"G\":{\"bustoMin\":97,\"bustoMax\":104,\"cinturaMin\":77,\"cinturaMax\":84,\"quadrilMin\":105,\"quadrilMax\":112},\"GG\":{\"bustoMin\":105,\"bustoMax\":112,\"cinturaMin\":85,\"cinturaMax\":92,\"quadrilMin\":113,\"quadrilMax\":120}}",
-      "description": ""
+      "measurementSpecs": {
+        "P": {
+          "bustoMin": 80,
+          "bustoMax": 88,
+          "cinturaMin": 60,
+          "cinturaMax": 68,
+          "quadrilMin": 88,
+          "quadrilMax": 96
+        },
+        "M": {
+          "bustoMin": 89,
+          "bustoMax": 96,
+          "cinturaMin": 69,
+          "cinturaMax": 76,
+          "quadrilMin": 97,
+          "quadrilMax": 104
+        },
+        "G": {
+          "bustoMin": 97,
+          "bustoMax": 104,
+          "cinturaMin": 77,
+          "cinturaMax": 84,
+          "quadrilMin": 105,
+          "quadrilMax": 112
+        },
+        "GG": {
+          "bustoMin": 105,
+          "bustoMax": 112,
+          "cinturaMin": 85,
+          "cinturaMax": 92,
+          "quadrilMin": 113,
+          "quadrilMax": 120
+        }
+      },
+      "compare_at_price": 35.9,
+      "weight": 0.35,
+      "length": 25,
+      "width": 20,
+      "height": 5
     },
     {
       "id": "prod-1785290760192",
@@ -280,25 +654,293 @@
       "stock": 0,
       "minStock": 5,
       "image": "https://i.ibb.co/4R8KvT16/IMG-4766.jpg",
-      "images": "[\"https://i.ibb.co/4R8KvT16/IMG-4766.jpg\",\"https://i.ibb.co/kVKVBnHk/IMG-4767.jpg\",\"https://i.ibb.co/wZR18zzH/IMG-4774.jpg\",\"https://i.ibb.co/NdPPD0DW/IMG-4776.jpg\",\"https://i.ibb.co/Fbky6QQ8/IMG-4757.jpg\",\"https://i.ibb.co/TMd1mdsK/IMG-4758.jpg\"]",
+      "images": [
+        "https://i.ibb.co/4R8KvT16/IMG-4766.jpg",
+        "https://i.ibb.co/kVKVBnHk/IMG-4767.jpg",
+        "https://i.ibb.co/wZR18zzH/IMG-4774.jpg",
+        "https://i.ibb.co/NdPPD0DW/IMG-4776.jpg",
+        "https://i.ibb.co/Fbky6QQ8/IMG-4757.jpg",
+        "https://i.ibb.co/TMd1mdsK/IMG-4758.jpg"
+      ],
       "salesCount": 0,
-      "colors": "[\"Preto\",\"Pink Glow\",\"Branco\",\"Azul Celeste\"]",
-      "sizes": "[\"P\",\"M\",\"G\"]",
-      "sizeColors": "{}",
-      "colorStocks": "{\"Preto\":0,\"Pink Glow\":0,\"Branco\":0,\"Azul Celeste\":0}",
-      "sizeColorStocks": "{\"P\":{\"Preto\":0,\"Pink Glow\":0,\"Branco\":0,\"Azul Celeste\":0},\"M\":{\"Preto\":0,\"Pink Glow\":0,\"Branco\":0,\"Azul Celeste\":0},\"G\":{\"Preto\":0,\"Pink Glow\":0,\"Branco\":0,\"Azul Celeste\":0}}",
-      "measurementSpecs": "{\"P\":{\"bustoMin\":80,\"bustoMax\":88,\"cinturaMin\":60,\"cinturaMax\":68,\"quadrilMin\":88,\"quadrilMax\":96},\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104},\"G\":{\"bustoMin\":97,\"bustoMax\":104,\"cinturaMin\":77,\"cinturaMax\":84,\"quadrilMin\":105,\"quadrilMax\":112}}",
+      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP  -->\tVeste do\t34\tao\t36\nM -->\tVeste do\t38\tao\t40\nG\t-->  Veste do\t42\tao\t44\nPs -->\tVeste do\t46\tao\t50\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela",
+      "videoUrl": "",
+      "colors": [
+        "Preto",
+        "Pink Glow",
+        "Branco",
+        "Azul Celeste"
+      ],
+      "sizes": [
+        "P",
+        "M",
+        "G"
+      ],
+      "sizeColors": {},
+      "colorStocks": {
+        "Preto": 0,
+        "Pink Glow": 0,
+        "Branco": 0,
+        "Azul Celeste": 0
+      },
+      "sizeColorStocks": {
+        "P": {
+          "Preto": 0,
+          "Pink Glow": 0,
+          "Branco": 0,
+          "Azul Celeste": 0
+        },
+        "M": {
+          "Preto": 0,
+          "Pink Glow": 0,
+          "Branco": 0,
+          "Azul Celeste": 0
+        },
+        "G": {
+          "Preto": 0,
+          "Pink Glow": 0,
+          "Branco": 0,
+          "Azul Celeste": 0
+        }
+      },
       "composition": "",
       "routes": "",
+      "measurementSpecs": {
+        "P": {
+          "bustoMin": 80,
+          "bustoMax": 88,
+          "cinturaMin": 60,
+          "cinturaMax": 68,
+          "quadrilMin": 88,
+          "quadrilMax": 96
+        },
+        "M": {
+          "bustoMin": 89,
+          "bustoMax": 96,
+          "cinturaMin": 69,
+          "cinturaMax": 76,
+          "quadrilMin": 97,
+          "quadrilMax": 104
+        },
+        "G": {
+          "bustoMin": 97,
+          "bustoMax": 104,
+          "cinturaMin": 77,
+          "cinturaMax": 84,
+          "quadrilMin": 105,
+          "quadrilMax": 112
+        }
+      },
       "compare_at_price": 94.9,
-      "min_stock": 5,
-      "sales_count": 0,
-      "video_url": "",
-      "size_colors": "{}",
-      "color_stocks": "{\"Preto\":0,\"Pink Glow\":0,\"Branco\":0,\"Azul Celeste\":0}",
-      "size_color_stocks": "{\"P\":{\"Preto\":0,\"Pink Glow\":0,\"Branco\":0,\"Azul Celeste\":0},\"M\":{\"Preto\":0,\"Pink Glow\":0,\"Branco\":0,\"Azul Celeste\":0},\"G\":{\"Preto\":0,\"Pink Glow\":0,\"Branco\":0,\"Azul Celeste\":0}}",
-      "measurement_specs": "{\"P\":{\"bustoMin\":80,\"bustoMax\":88,\"cinturaMin\":60,\"cinturaMax\":68,\"quadrilMin\":88,\"quadrilMax\":96},\"M\":{\"bustoMin\":89,\"bustoMax\":96,\"cinturaMin\":69,\"cinturaMax\":76,\"quadrilMin\":97,\"quadrilMax\":104},\"G\":{\"bustoMin\":97,\"bustoMax\":104,\"cinturaMin\":77,\"cinturaMax\":84,\"quadrilMin\":105,\"quadrilMax\":112}}",
-      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP  -->\tVeste do\t34\tao\t36\nM -->\tVeste do\t38\tao\t40\nG\t-->  Veste do\t42\tao\t44\nPs -->\tVeste do\t46\tao\t50\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela"
+      "weight": 0.35,
+      "length": 25,
+      "width": 20,
+      "height": 5
+    },
+    {
+      "id": "prod-1785323261342",
+      "name": "Macacão Curto - Run",
+      "sku": "MAC-CURT-RUN-SCUL",
+      "category": "Macacões",
+      "price": 72.9,
+      "cost": 32,
+      "stock": 0,
+      "minStock": 5,
+      "image": "https://i.ibb.co/Ps5B3rmZ/C-pia-de-DSC-0000-92.jpg",
+      "images": [
+        "https://i.ibb.co/Ps5B3rmZ/C-pia-de-DSC-0000-92.jpg",
+        "https://i.ibb.co/4C2v1hq/C-pia-de-DSC-0000-94.jpg",
+        "https://i.ibb.co/rK0JZSJd/C-pia-de-DSC-0000-86.jpg",
+        "https://i.ibb.co/SwDRNj3S/C-pia-de-Foto-06-07-2025-23-33-46-57.jpg",
+        "https://i.ibb.co/PZpm6gSq/C-pia-de-Foto-06-07-2025-23-33-46-59.jpg",
+        "https://i.ibb.co/Nnngss6y/C-pia-de-Foto-06-07-2025-23-33-46-64.jpg"
+      ],
+      "salesCount": 0,
+      "description": "Confeccionadas em tecido suplex power de 310g, nossas peças garantem alta elasticidade, ajuste perfeito ao corpo e zero transparência. O tecido é resistente, confortável e ideal para quem busca performance e estilo.\n\n\nDetalhes:\n✔️ Tecido: Suplex Power 310g\n✔️ Composição: 90% Poliéster, 10% Elastano\n✔️ Bojo: Removível\n✔️ Elasticidade incrível e modelagem ajustada\n✔️ Zero transparência e alta durabilidade\n\n\nTamanhos:\n\nP  -->\tVeste do\t34\tao\t36\nM -->\tVeste do\t38\tao\t40\nG\t-->  Veste do\t42\tao\t44\nPs -->\tVeste do\t46\tao\t50\n\nCuidados:\n🧼 Lavar à mão com sabão neutro\n🚫 Não deixar de molho\n⚠️ As cores podem variar conforme o brilho da tela",
+      "videoUrl": "",
+      "colors": [
+        "Preto",
+        "Pink Glow",
+        "Branco",
+        "Azul Celeste"
+      ],
+      "sizes": [
+        "P",
+        "M",
+        "G"
+      ],
+      "sizeColors": {},
+      "colorStocks": {
+        "Preto": 0,
+        "Pink Glow": 0,
+        "Branco": 0,
+        "Azul Celeste": 0
+      },
+      "sizeColorStocks": {
+        "P": {
+          "Preto": 0,
+          "Pink Glow": 0,
+          "Branco": 0,
+          "Azul Celeste": 0
+        },
+        "M": {
+          "Preto": 0,
+          "Pink Glow": 0,
+          "Branco": 0,
+          "Azul Celeste": 0
+        },
+        "G": {
+          "Preto": 0,
+          "Pink Glow": 0,
+          "Branco": 0,
+          "Azul Celeste": 0
+        }
+      },
+      "composition": "",
+      "routes": "",
+      "measurementSpecs": {
+        "P": {
+          "bustoMin": 80,
+          "bustoMax": 88,
+          "cinturaMin": 60,
+          "cinturaMax": 68,
+          "quadrilMin": 88,
+          "quadrilMax": 96
+        },
+        "M": {
+          "bustoMin": 89,
+          "bustoMax": 96,
+          "cinturaMin": 69,
+          "cinturaMax": 76,
+          "quadrilMin": 97,
+          "quadrilMax": 104
+        },
+        "G": {
+          "bustoMin": 97,
+          "bustoMax": 104,
+          "cinturaMin": 77,
+          "cinturaMax": 84,
+          "quadrilMin": 105,
+          "quadrilMax": 112
+        }
+      },
+      "compare_at_price": 89.9,
+      "weight": 0.35,
+      "length": 25,
+      "width": 20,
+      "height": 5
+    },
+    {
+      "id": "prod-1792625888911",
+      "name": "conj top + calça slim",
+      "sku": "LEG",
+      "category": "Conjuntos",
+      "price": 59.9,
+      "cost": 31,
+      "stock": 14,
+      "minStock": 5,
+      "image": "https://i.ibb.co/DZcskJB/1000735307-png.webp",
+      "images": [
+        "https://i.ibb.co/DZcskJB/1000735307-png.webp",
+        "https://i.ibb.co/Gf7zqkF3/1000735304-png.webp",
+        "https://i.ibb.co/YTYS8Zmc/1000735298-png.webp",
+        "https://i.ibb.co/XrTk3D46/1000735301-png.webp"
+      ],
+      "salesCount": 0,
+      "description": "",
+      "videoUrl": "",
+      "colors": [
+        "Preto",
+        "Rosa",
+        "Vermelho",
+        "Verde",
+        "Azul"
+      ],
+      "sizes": [
+        "P",
+        "M",
+        "G",
+        "GG"
+      ],
+      "sizeColors": {},
+      "colorStocks": {
+        "Preto": 4,
+        "Rosa": 0,
+        "Vermelho": 4,
+        "Verde": 4,
+        "Azul": 2
+      },
+      "sizeColorStocks": {
+        "P": {
+          "Preto": 2,
+          "Rosa": 0,
+          "Vermelho": 2,
+          "Verde": 2,
+          "Azul": 2
+        },
+        "M": {
+          "Preto": 2,
+          "Rosa": 0,
+          "Vermelho": 2,
+          "Verde": 2,
+          "Azul": 0
+        },
+        "G": {
+          "Preto": 0,
+          "Rosa": 0,
+          "Vermelho": 0,
+          "Verde": 0,
+          "Azul": 0
+        },
+        "GG": {
+          "Preto": 0,
+          "Rosa": 0,
+          "Vermelho": 0,
+          "Verde": 0,
+          "Azul": 0
+        }
+      },
+      "composition": "",
+      "routes": "",
+      "measurementSpecs": {
+        "P": {
+          "bustoMin": 80,
+          "bustoMax": 88,
+          "cinturaMin": 60,
+          "cinturaMax": 68,
+          "quadrilMin": 88,
+          "quadrilMax": 96
+        },
+        "M": {
+          "bustoMin": 89,
+          "bustoMax": 96,
+          "cinturaMin": 69,
+          "cinturaMax": 76,
+          "quadrilMin": 97,
+          "quadrilMax": 104
+        },
+        "G": {
+          "bustoMin": 97,
+          "bustoMax": 104,
+          "cinturaMin": 77,
+          "cinturaMax": 84,
+          "quadrilMin": 105,
+          "quadrilMax": 112
+        },
+        "GG": {
+          "bustoMin": 105,
+          "bustoMax": 112,
+          "cinturaMin": 85,
+          "cinturaMax": 92,
+          "quadrilMin": 113,
+          "quadrilMax": 120
+        }
+      },
+      "compare_at_price": 0,
+      "weight": 0.35,
+      "length": 25,
+      "width": 20,
+      "height": 5
     }
   ],
   "ap_clients": [

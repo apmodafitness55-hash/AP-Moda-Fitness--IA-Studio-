@@ -1889,23 +1889,25 @@ const handleInfinitePayWebhook = async (req: any, res: any) => {
         }
       }
 
-      // Log idempotent financial transaction with net amount
+      // Log or upgrade idempotent financial transaction with net amount
       const txId = `tx-${order_nsu}`;
-      const { data: existingTxs } = await db.from('ap_transactions').select('id, description');
-      const alreadyHasTx = Array.isArray(existingTxs) && existingTxs.some((t: any) =>
-        String(t.id) === txId || String(t.description || '').toUpperCase().includes(String(order_nsu).toUpperCase())
-      );
-      if (!alreadyHasTx) {
-        await db.from('ap_transactions').upsert([{
-          id: txId,
-          type: 'Inflow',
-          category: 'Venda',
-          description: `InfinitePay Checkout Integrado (Ped: ${order_nsu.toUpperCase()}) - Cliente: ${order.clientName} [Taxa: R$ ${taxaFinanceira.toFixed(2)}]`,
-          amount: valorLiquido,
-          date: order.createdAt || new Date().toISOString(),
-          status: 'pago'
-        }], { onConflict: 'id' });
-      }
+      const { data: existingTxs } = await db.from('ap_transactions').select('id, description, status');
+      const matchedExistingTx = Array.isArray(existingTxs)
+        ? existingTxs.find((t: any) =>
+            String(t.id) === txId || String(t.description || '').toUpperCase().includes(String(order_nsu).toUpperCase())
+          )
+        : null;
+      const targetTxId = matchedExistingTx?.id ? String(matchedExistingTx.id) : txId;
+      const txPayload = {
+        id: targetTxId,
+        type: 'Inflow',
+        category: 'Venda',
+        description: `InfinitePay Checkout Integrado (Ped: ${order_nsu.toUpperCase()}) - Cliente: ${order.clientName} [Taxa: R$ ${taxaFinanceira.toFixed(2)}]`,
+        amount: valorLiquido,
+        date: order.createdAt || new Date().toISOString(),
+        status: 'pago'
+      };
+      await db.from('ap_transactions').upsert([txPayload], { onConflict: 'id' });
 
       // GRAVAÇÃO IMEDIATA NA TABELA ap_sales PARA ATUALIZAR O DASHBOARD GERAL
       let webhookProducts: any[] = [];
@@ -1943,7 +1945,7 @@ const handleInfinitePayWebhook = async (req: any, res: any) => {
         costTotal: costTotal,
         status: 'Concluída',
         createdAt: order.createdAt || new Date().toISOString(),
-        payments: [{ method: order.paymentMethod || 'Cartão/Pix', amount: Number(order.total || 0) }],
+        payments: [{ method: order.paymentMethod || paymentMethod || 'Cartão/Pix', amount: Number(order.total || 0) }],
         salesperson: 'E-commerce',
         trackingCode: order.trackingCode || '',
         deliveryMethod: order.deliveryMethod || '',
@@ -1953,7 +1955,16 @@ const handleInfinitePayWebhook = async (req: any, res: any) => {
         terminal_id: null,
         valor_bruto: valorBruto,
         taxa_financeira: taxaFinanceira,
-        valor_liquido: valorLiquido
+        valor_liquido: valorLiquido,
+        partner: order.partner || order.partnerName || undefined,
+        partnerName: order.partnerName || order.partner || undefined,
+        partnerId: order.partnerId || undefined,
+        couponCode: order.couponCode || order.coupon || order.partnerCoupon || undefined,
+        partnerCoupon: order.partnerCoupon || order.couponCode || order.coupon || undefined,
+        coupon: order.coupon || order.couponCode || undefined,
+        commissionRate: order.commissionRate !== undefined ? Number(order.commissionRate) : undefined,
+        commissionAmount: order.commissionAmount !== undefined ? Number(order.commissionAmount) : undefined,
+        notes: order.notes || undefined
       };
 
       let filteredSalePayload: any = { ...salePayload };
@@ -1978,6 +1989,41 @@ const handleInfinitePayWebhook = async (req: any, res: any) => {
       if (saleInsertErr) {
         console.error(`[InfinitePay Webhook Error] Erro ao gravar ap_sales no webhook:`, saleInsertErr);
       }
+
+      // Mirror order, sale and transaction updates to local_db.json for instant consistency
+      try {
+        const local = readLocalDb();
+        if (!Array.isArray(local.ap_online_orders)) local.ap_online_orders = [];
+        const oIdx = local.ap_online_orders.findIndex((o: any) => o && String(o.id) === String(order_nsu));
+        const updatedOrderLocal = { ...order, ...orderUpdatePayload, status: 'Pago', status_pagamento: 'pago', valor_bruto: valorBruto, taxa_financeira: taxaFinanceira, valor_liquido: valorLiquido };
+        if (oIdx >= 0) local.ap_online_orders[oIdx] = updatedOrderLocal;
+        else local.ap_online_orders.unshift(updatedOrderLocal);
+
+        if (!Array.isArray(local.ap_sales)) local.ap_sales = [];
+        const sIdx = local.ap_sales.findIndex((s: any) => s && String(s.id) === String(order_nsu));
+        if (sIdx >= 0) local.ap_sales[sIdx] = { ...local.ap_sales[sIdx], ...salePayload };
+        else local.ap_sales.unshift(salePayload);
+
+        if (!Array.isArray(local.ap_transactions)) local.ap_transactions = [];
+        const tIdx = local.ap_transactions.findIndex((t: any) => t && String(t.id) === targetTxId);
+        if (tIdx >= 0) local.ap_transactions[tIdx] = { ...local.ap_transactions[tIdx], ...txPayload };
+        else local.ap_transactions.unshift(txPayload);
+
+        writeLocalDb(local);
+      } catch (e) {}
+
+      broadcastRealtimeNotification('PAYMENT_CONFIRMED', {
+        id: order_nsu,
+        orderId: order_nsu,
+        clientName: order.clientName || 'Cliente Online',
+        total: Number(order.total || valorBruto || 0),
+        valorLiquido,
+        paymentMethod: paymentMethod || order.paymentMethod || 'InfinitePay',
+        source: 'InfinitePay (Pagamento Confirmado)',
+        order: { ...order, ...orderUpdatePayload, status: 'Pago', status_pagamento: 'pago', valor_bruto: valorBruto, taxa_financeira: taxaFinanceira, valor_liquido: valorLiquido },
+        sale: salePayload,
+        transaction: txPayload
+      });
 
       console.log(`[InfinitePay Webhook] Pedido Online processado, ap_sales gravado e estoque atualizado para:`, stockUpdates);
       return res.json({ success: true, message: 'Pedido online pago via InfinitePay com sucesso.', valor_bruto: valorBruto, valor_liquido: valorLiquido });
@@ -2019,23 +2065,53 @@ const handleInfinitePayWebhook = async (req: any, res: any) => {
         return res.status(500).json({ error: 'Erro ao atualizar status da venda.' });
       }
 
-      // Add idempotent financial inflow transaction with net amount
+      // Upgrade or add idempotent financial inflow transaction with net amount
       const txId = `tx-${order_nsu}`;
-      const { data: existingTxs } = await db.from('ap_transactions').select('id, description');
-      const alreadyHasTx = Array.isArray(existingTxs) && existingTxs.some((t: any) =>
-        String(t.id) === txId || String(t.description || '').toUpperCase().includes(String(order_nsu).toUpperCase())
-      );
-      if (!alreadyHasTx) {
-        await db.from('ap_transactions').upsert([{
-          id: txId,
-          type: 'Inflow',
-          category: 'Venda',
-          description: `InfinitePay Checkout Integrado (PDV: ${order_nsu.toUpperCase()}) - Cliente: ${sale.clientName || 'Cliente PDV'} [Taxa: R$ ${taxaFinanceira.toFixed(2)}]`,
-          amount: valorLiquido,
-          date: sale.createdAt || sale.created_at || new Date().toISOString(),
-          status: 'pago'
-        }], { onConflict: 'id' });
-      }
+      const { data: existingTxs } = await db.from('ap_transactions').select('id, description, status');
+      const matchedExistingTx = Array.isArray(existingTxs)
+        ? existingTxs.find((t: any) =>
+            String(t.id) === txId || String(t.description || '').toUpperCase().includes(String(order_nsu).toUpperCase())
+          )
+        : null;
+      const targetTxId = matchedExistingTx?.id ? String(matchedExistingTx.id) : txId;
+      const txPayload = {
+        id: targetTxId,
+        type: 'Inflow',
+        category: 'Venda',
+        description: `InfinitePay Checkout Integrado (PDV: ${order_nsu.toUpperCase()}) - Cliente: ${sale.clientName || 'Cliente PDV'} [Taxa: R$ ${taxaFinanceira.toFixed(2)}]`,
+        amount: valorLiquido,
+        date: sale.createdAt || sale.created_at || new Date().toISOString(),
+        status: 'pago'
+      };
+      await db.from('ap_transactions').upsert([txPayload], { onConflict: 'id' });
+
+      try {
+        const local = readLocalDb();
+        if (!Array.isArray(local.ap_sales)) local.ap_sales = [];
+        const sIdx = local.ap_sales.findIndex((s: any) => s && String(s.id) === String(order_nsu));
+        const updatedSaleLocal = { ...sale, ...saleUpdatePayload, status: 'Concluída', valor_bruto: valorBruto, taxa_financeira: taxaFinanceira, valor_liquido: valorLiquido };
+        if (sIdx >= 0) local.ap_sales[sIdx] = updatedSaleLocal;
+        else local.ap_sales.unshift(updatedSaleLocal);
+
+        if (!Array.isArray(local.ap_transactions)) local.ap_transactions = [];
+        const tIdx = local.ap_transactions.findIndex((t: any) => t && String(t.id) === targetTxId);
+        if (tIdx >= 0) local.ap_transactions[tIdx] = { ...local.ap_transactions[tIdx], ...txPayload };
+        else local.ap_transactions.unshift(txPayload);
+
+        writeLocalDb(local);
+      } catch (e) {}
+
+      broadcastRealtimeNotification('PAYMENT_CONFIRMED', {
+        id: order_nsu,
+        orderId: order_nsu,
+        clientName: sale.clientName || 'Cliente PDV',
+        total: Number(sale.total || valorBruto || 0),
+        valorLiquido,
+        paymentMethod: paymentMethod || 'InfinitePay PDV',
+        source: 'PDV InfinitePay (Pagamento Confirmado)',
+        sale: { ...sale, ...saleUpdatePayload, status: 'Concluída', valor_bruto: valorBruto, taxa_financeira: taxaFinanceira, valor_liquido: valorLiquido },
+        transaction: txPayload
+      });
 
       console.log(`[InfinitePay Webhook] Venda PDV ${order_nsu} marcada como Paga via InfinitePay.`);
       return res.json({ success: true, message: 'Venda PDV paga via InfinitePay com sucesso.', valor_bruto: valorBruto, valor_liquido: valorLiquido });
@@ -2072,9 +2148,65 @@ app.post('/api/webhook/payment', async (req, res) => {
       .from('ap_online_orders')
       .select('*')
       .eq('id', orderId)
-      .single();
+      .maybeSingle();
 
     if (fetchError || !order) {
+      // Fallback: verifica se é uma venda direta do PDV aguardando pagamento
+      const { data: pdvSale } = await firebase
+        .from('ap_sales')
+        .select('*')
+        .eq('id', orderId)
+        .maybeSingle();
+
+      if (pdvSale) {
+        const sLower = String(pdvSale.status || '').toLowerCase();
+        if (sLower === 'pago' || sLower === 'concluída') {
+          return res.json({ success: true, message: `Venda ${orderId} já constava como paga.` });
+        }
+        await firebase.from('ap_sales').update({ status: 'Concluída' }).eq('id', orderId);
+        const txId = `tx-${orderId}`;
+        const { data: existingTxs } = await db.from('ap_transactions').select('id, description, status');
+        const matchedTx = Array.isArray(existingTxs)
+          ? existingTxs.find((t: any) => String(t.id) === txId || String(t.description || '').toUpperCase().includes(String(orderId).toUpperCase()))
+          : null;
+        const targetTxId = matchedTx?.id ? String(matchedTx.id) : txId;
+        const txPayload = {
+          id: targetTxId,
+          type: 'Inflow',
+          category: 'Venda',
+          description: `Pix Automático Webhook: Venda ${orderId.toUpperCase()} de ${pdvSale.clientName || 'Cliente PDV'}`,
+          amount: Number(pdvSale.valor_liquido || pdvSale.total || 0),
+          date: pdvSale.createdAt || pdvSale.created_at || new Date().toISOString(),
+          status: 'pago'
+        };
+        await db.from('ap_transactions').upsert([txPayload], { onConflict: 'id' });
+        try {
+          const local = readLocalDb();
+          if (!Array.isArray(local.ap_sales)) local.ap_sales = [];
+          const sIdx = local.ap_sales.findIndex((s: any) => s && String(s.id) === String(orderId));
+          const updatedSaleLocal = { ...pdvSale, status: 'Concluída' };
+          if (sIdx >= 0) local.ap_sales[sIdx] = updatedSaleLocal;
+          else local.ap_sales.unshift(updatedSaleLocal);
+          if (!Array.isArray(local.ap_transactions)) local.ap_transactions = [];
+          const tIdx = local.ap_transactions.findIndex((t: any) => t && String(t.id) === targetTxId);
+          if (tIdx >= 0) local.ap_transactions[tIdx] = { ...local.ap_transactions[tIdx], ...txPayload };
+          else local.ap_transactions.unshift(txPayload);
+          writeLocalDb(local);
+        } catch {}
+        broadcastRealtimeNotification('PAYMENT_CONFIRMED', {
+          id: orderId,
+          orderId,
+          clientName: pdvSale.clientName || 'Cliente PDV',
+          total: Number(pdvSale.total || 0),
+          valorLiquido: Number(pdvSale.valor_liquido || pdvSale.total || 0),
+          paymentMethod: 'PIX',
+          source: 'Pix Automático (Pagamento Confirmado)',
+          sale: { ...pdvSale, status: 'Concluída' },
+          transaction: txPayload
+        });
+        return res.json({ success: true, message: 'Venda PDV paga via webhook com sucesso.', orderId, transactionId: targetTxId });
+      }
+
       console.log(`[Webhook Info] Pedido ${orderId} não encontrado no Firebase. Pode ser uma notificação teste ou ping do gateway.`);
       return res.json({ success: false, message: `Pedido ${orderId} não localizado na tabela ap_online_orders.` });
     }
@@ -2087,10 +2219,24 @@ app.post('/api/webhook/payment', async (req, res) => {
       return res.json({ success: true, message: `O pedido ${orderId} já constava como pago.` });
     }
 
-    // 3. Atualiza o status do pedido para 'Pago'
+    // 3. Atualiza o status do pedido para 'Pago' (filtrado pelas colunas existentes no schema)
+    let orderUpdatePayload: any = { status: 'Pago', status_pagamento: 'pago' };
+    if (db.constructor.name !== 'LocalDBAdapter') {
+      try {
+        const { data: oneRow } = await db.from('ap_online_orders').select('*').limit(1);
+        const cols = oneRow && oneRow.length > 0 ? Object.keys(oneRow[0]) : ['status'];
+        const filtered: any = {};
+        cols.forEach(c => {
+          if (orderUpdatePayload[c] !== undefined) filtered[c] = orderUpdatePayload[c];
+        });
+        if (Object.keys(filtered).length === 0) filtered.status = 'Pago';
+        orderUpdatePayload = filtered;
+      } catch {}
+    }
+
     const { error: updateError } = await firebase
       .from('ap_online_orders')
-      .update({ status: 'Pago', status_pagamento: 'pago' })
+      .update(orderUpdatePayload)
       .eq('id', orderId);
 
     if (updateError) {
@@ -2109,7 +2255,7 @@ app.post('/api/webhook/payment', async (req, res) => {
 
       let product = null;
       if (productId) {
-        const { data } = await db.from('ap_products').select('*').eq('id', productId).single();
+        const { data } = await db.from('ap_products').select('*').eq('id', productId).maybeSingle();
         product = data;
       } else if (productName) {
         // Fallback por correspondência de nome (se o pedido veio sem ID de produto de versões antigas do catálogo)
@@ -2161,23 +2307,25 @@ app.post('/api/webhook/payment', async (req, res) => {
       }
     }
 
-    // 5. Registra transação de entrada financeira (idempotente)
+    // 5. Registra ou atualiza transação de entrada financeira para 'pago' (idempotente)
     const txId = `tx-${orderId}`;
-    const { data: existingTxs } = await db.from('ap_transactions').select('id, description');
-    const alreadyHasTx = Array.isArray(existingTxs) && existingTxs.some((t: any) =>
-      String(t.id) === txId || String(t.description || '').toUpperCase().includes(String(orderId).toUpperCase())
-    );
-    if (!alreadyHasTx) {
-      await db.from('ap_transactions').upsert([{
-        id: txId,
-        type: 'Inflow',
-        category: 'Venda',
-        description: `Pix Automático Webhook: Pedido ${orderId.toUpperCase()} de ${order.clientName}`,
-        amount: Number(order.total || 0),
-        date: order.createdAt || new Date().toISOString(),
-        status: 'pago'
-      }], { onConflict: 'id' });
-    }
+    const { data: existingTxs } = await db.from('ap_transactions').select('id, description, status');
+    const matchedExistingTx = Array.isArray(existingTxs)
+      ? existingTxs.find((t: any) =>
+          String(t.id) === txId || String(t.description || '').toUpperCase().includes(String(orderId).toUpperCase())
+        )
+      : null;
+    const targetTxId = matchedExistingTx?.id ? String(matchedExistingTx.id) : txId;
+    const txPayload = {
+      id: targetTxId,
+      type: 'Inflow',
+      category: 'Venda',
+      description: `Pix Automático Webhook: Pedido ${orderId.toUpperCase()} de ${order.clientName}`,
+      amount: Number(order.valor_liquido || order.total || 0),
+      date: order.createdAt || new Date().toISOString(),
+      status: 'pago'
+    };
+    await db.from('ap_transactions').upsert([txPayload], { onConflict: 'id' });
 
     // GRAVAÇÃO IMEDIATA NA TABELA ap_sales PARA ATUALIZAR O DASHBOARD GERAL
     let genericWebhookProducts: any[] = [];
@@ -2225,23 +2373,75 @@ app.post('/api/webhook/payment', async (req, res) => {
       terminal_id: null,
       valor_bruto: Number(order.total || 0),
       taxa_financeira: 0,
-      valor_liquido: Number(order.total || 0),
-      partner: order.partner || order.partnerName || null,
-      partnerName: order.partnerName || order.partner || null,
-      partnerId: order.partnerId || null,
-      couponCode: order.couponCode || order.coupon || order.partnerCoupon || null,
-      partnerCoupon: order.partnerCoupon || order.couponCode || order.coupon || null,
-      coupon: order.coupon || order.couponCode || null,
-      notes: order.notes || null
+      valor_liquido: Number(order.valor_liquido || order.total || 0),
+      partner: order.partner || order.partnerName || undefined,
+      partnerName: order.partnerName || order.partner || undefined,
+      partnerId: order.partnerId || undefined,
+      couponCode: order.couponCode || order.coupon || order.partnerCoupon || undefined,
+      partnerCoupon: order.partnerCoupon || order.couponCode || order.coupon || undefined,
+      coupon: order.coupon || order.couponCode || undefined,
+      commissionRate: order.commissionRate !== undefined ? Number(order.commissionRate) : undefined,
+      commissionAmount: order.commissionAmount !== undefined ? Number(order.commissionAmount) : undefined,
+      notes: order.notes || undefined
     };
+
+    let filteredSalePayload: any = { ...salePayload };
+    if (db.constructor.name !== 'LocalDBAdapter') {
+      try {
+        const { data: oneSale } = await db.from('ap_sales').select('*').limit(1);
+        const cols = oneSale && oneSale.length > 0 ? Object.keys(oneSale[0]) : null;
+        if (cols && cols.length > 0) {
+          const filtered: any = { id: salePayload.id };
+          cols.forEach(c => {
+            if ((salePayload as any)[c] !== undefined) filtered[c] = (salePayload as any)[c];
+          });
+          filteredSalePayload = filtered;
+        }
+      } catch {}
+    }
 
     const { error: saleInsertErr } = await firebase
       .from('ap_sales')
-      .upsert([salePayload], { onConflict: 'id' });
+      .upsert([filteredSalePayload], { onConflict: 'id' });
 
     if (saleInsertErr) {
       console.error(`[Webhook Error] Erro ao gravar ap_sales no generic webhook:`, saleInsertErr);
     }
+
+    // Mirror order, sale and transaction updates to local_db.json
+    try {
+      const local = readLocalDb();
+      if (!Array.isArray(local.ap_online_orders)) local.ap_online_orders = [];
+      const oIdx = local.ap_online_orders.findIndex((o: any) => o && String(o.id) === String(orderId));
+      const updatedOrderLocal = { ...order, ...orderUpdatePayload, status: 'Pago', status_pagamento: 'pago' };
+      if (oIdx >= 0) local.ap_online_orders[oIdx] = updatedOrderLocal;
+      else local.ap_online_orders.unshift(updatedOrderLocal);
+
+      if (!Array.isArray(local.ap_sales)) local.ap_sales = [];
+      const sIdx = local.ap_sales.findIndex((s: any) => s && String(s.id) === String(orderId));
+      if (sIdx >= 0) local.ap_sales[sIdx] = { ...local.ap_sales[sIdx], ...salePayload };
+      else local.ap_sales.unshift(salePayload);
+
+      if (!Array.isArray(local.ap_transactions)) local.ap_transactions = [];
+      const tIdx = local.ap_transactions.findIndex((t: any) => t && String(t.id) === targetTxId);
+      if (tIdx >= 0) local.ap_transactions[tIdx] = { ...local.ap_transactions[tIdx], ...txPayload };
+      else local.ap_transactions.unshift(txPayload);
+
+      writeLocalDb(local);
+    } catch (e) {}
+
+    broadcastRealtimeNotification('PAYMENT_CONFIRMED', {
+      id: orderId,
+      orderId,
+      clientName: order.clientName || 'Cliente Online',
+      total: Number(order.total || 0),
+      valorLiquido: Number(order.valor_liquido || order.total || 0),
+      paymentMethod: order.paymentMethod || 'PIX',
+      source: 'Pix Automático (Pagamento Confirmado)',
+      order: { ...order, ...orderUpdatePayload, status: 'Pago', status_pagamento: 'pago' },
+      sale: salePayload,
+      transaction: txPayload
+    });
 
     console.log(`[Webhook Success] Pedido ${orderId} processado, ap_sales gravado e estoque deduzido para:`, stockUpdates);
 
@@ -2250,7 +2450,7 @@ app.post('/api/webhook/payment', async (req, res) => {
       message: 'Webhook processado com sucesso! Status do pedido atualizado para Pago e estoque deduzido.',
       orderId,
       updatedProducts: stockUpdates,
-      transactionId: txId
+      transactionId: targetTxId
     });
 
   } catch (err: any) {
@@ -3296,7 +3496,7 @@ setInterval(() => {
   }
 }, 20000);
 
-export function broadcastRealtimeNotification(eventType: 'NEW_ORDER' | 'NEW_SALE', data: any) {
+export function broadcastRealtimeNotification(eventType: 'NEW_ORDER' | 'NEW_SALE' | 'PAYMENT_CONFIRMED', data: any) {
   const payload = JSON.stringify({ type: eventType, data, timestamp: Date.now() });
   console.log(`[SSE Broadcast] Transmitindo alerta "${eventType}" para ${orderSseClients.size} dispositivo(s)...`);
   for (const client of orderSseClients) {
@@ -3782,6 +3982,22 @@ app.get('/api/proxy/products', async (req, res) => {
         height: r.height !== undefined && r.height !== null ? Number(r.height) : 5
       };
     });
+
+    if (
+      offset === 0 &&
+      db.constructor.name !== 'LocalDBAdapter' &&
+      supabaseOfflineUntil <= Date.now() &&
+      Array.isArray(sanitizedData) &&
+      (rawLimit === null || sanitizedData.length < rawLimit)
+    ) {
+      try {
+        const local = readLocalDb();
+        if (sanitizedData.length > 0 || (Array.isArray(local.ap_products) && local.ap_products.length === 0)) {
+          local.ap_products = sanitizedData;
+          writeLocalDb(local);
+        }
+      } catch (e) {}
+    }
 
     res.json(sanitizedData);
   } catch (err: any) {

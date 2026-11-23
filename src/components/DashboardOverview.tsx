@@ -31,7 +31,8 @@ import {
   Plus,
   Printer,
   AlertTriangle,
-  Sparkles
+  Sparkles,
+  Wallet
 } from 'lucide-react';
 import { Product, Sale, Client, Transaction, ActiveTab, SalesChannel } from '../types';
 import { getStoredPartnerWithdrawRequests } from '../utils/partnerUtils';
@@ -122,6 +123,30 @@ export default function DashboardOverview({
   const ticketMedio = useMemo(() => {
     return totalVendasConcluidas > 0 ? faturamentoTotal / totalVendasConcluidas : 0;
   }, [faturamentoTotal, totalVendasConcluidas]);
+
+  const cashSummary = useMemo(() => {
+    let inflowPaid = 0;
+    let outflowPaid = 0;
+    let inflowPending = 0;
+
+    transactions.forEach(t => {
+      const status = t.status || 'pago';
+      const amount = Number(t.amount) || 0;
+      if (t.type === 'Inflow') {
+        if (status === 'pago') inflowPaid += amount;
+        else inflowPending += amount;
+      } else if (status === 'pago') {
+        outflowPaid += amount;
+      }
+    });
+
+    return {
+      inflowPaid,
+      outflowPaid,
+      inflowPending,
+      saldoCaixaRealizado: inflowPaid - outflowPaid
+    };
+  }, [transactions]);
 
   const totalClients = useMemo(() => clients.length, [clients]);
 
@@ -385,7 +410,7 @@ export default function DashboardOverview({
       )}
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
         {/* FATURAMENTO */}
         <div 
           onClick={() => setActiveTab(ActiveTab.FINANCEIRO)}
@@ -407,6 +432,33 @@ export default function DashboardOverview({
               <span className="text-[9px] font-bold text-pink-500 uppercase">Líquido Receber:</span>
               <h3 className="text-base md:text-lg font-extrabold text-slate-800 tracking-tight">{formatCurrency(faturamentoLiquido)}</h3>
             </div>
+          </div>
+        </div>
+
+        {/* CAIXA REALIZADO (SINCRONIZADO COM TRANSAÇÕES PAGAS) */}
+        <div 
+          onClick={() => setActiveTab(ActiveTab.FINANCEIRO)}
+          className="bg-white border border-emerald-100 rounded-2xl p-4 shadow-xs flex flex-col justify-between hover:shadow-md hover:border-emerald-300 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer select-none"
+          title="Saldo real em caixa (Entradas Pagas - Saídas Pagas). Clique para abrir o Fluxo de Caixa."
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-emerald-700 tracking-wider font-sans uppercase">Caixa Atual</span>
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+              <Wallet size={16} />
+            </div>
+          </div>
+          <div className="mt-2 space-y-1">
+            <h3 className={`text-base md:text-lg font-extrabold tracking-tight ${cashSummary.saldoCaixaRealizado >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+              {formatCurrency(cashSummary.saldoCaixaRealizado)}
+            </h3>
+            <p className="text-[10px] font-medium text-emerald-600 leading-tight">
+              +{formatCurrency(cashSummary.inflowPaid)} recebido
+            </p>
+            {cashSummary.inflowPending > 0 && (
+              <p className="text-[9px] font-semibold text-amber-600 leading-tight">
+                A receber: {formatCurrency(cashSummary.inflowPending)}
+              </p>
+            )}
           </div>
         </div>
 

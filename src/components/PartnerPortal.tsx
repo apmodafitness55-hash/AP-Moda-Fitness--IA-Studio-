@@ -80,40 +80,93 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
   const [copiedLink, setCopiedLink] = useState(false);
   const [showQrCode, setShowQrCode] = useState(false);
 
-  // Load partners from core system
+  // Load partners from core system (ap_moda_partners + ap_moda_team_users role 'Parceiro')
   const [partners, setPartners] = useState<Partner[]>(() => {
     try {
+      const list: Partner[] = [];
       const saved = localStorage.getItem('ap_moda_partners');
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) list.push(...parsed);
       }
+      const savedTeam = localStorage.getItem('ap_moda_team_users');
+      if (savedTeam) {
+        const parsedTeam = JSON.parse(savedTeam);
+        if (Array.isArray(parsedTeam)) {
+          parsedTeam
+            .filter((m: any) => m && m.role === 'Parceiro')
+            .forEach((tp: any) => {
+              if (!list.some(p => p.id === tp.id || (p.name && tp.name && p.name.toLowerCase() === tp.name.toLowerCase()))) {
+                list.push({
+                  id: tp.id,
+                  name: tp.name,
+                  instagram: tp.details || '@' + (tp.login || 'parceira'),
+                  couponCode: (tp.couponCode || '').toUpperCase(),
+                  commissionRate: 10,
+                  salesCount: 0,
+                  totalGenerated: 0,
+                  availableBalance: 0
+                });
+              }
+            });
+        }
+      }
+      return list;
     } catch(e) {}
     return [];
   });
 
-  // Find the exact partner match for this logged user
+  const [selectedPartnerId, setSelectedPartnerId] = useState<string>(() => {
+    try {
+      return localStorage.getItem('ap_selected_partner_id') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const handleSelectPartnerProfile = (partnerId: string) => {
+    setSelectedPartnerId(partnerId);
+    try {
+      safeLocalStorageSet('ap_selected_partner_id', partnerId);
+    } catch {}
+  };
+
+  // Auto-select if there is only one registered partner and portal was opened directly
+  useEffect(() => {
+    if (currentUser?.id === 'part-convidado' && !selectedPartnerId && partners.length === 1) {
+      handleSelectPartnerProfile(partners[0].id);
+    }
+  }, [currentUser, selectedPartnerId, partners]);
+
+  // Find the exact partner match for this logged user or selected partner profile
   const currentPartner = useMemo(() => {
-    const uName = (currentUser.name || '').toLowerCase().trim();
-    const uCoupon = (currentUser.couponCode || '').toUpperCase().trim();
-    const match = partners.find(p =>
-      (currentUser.id && p.id === currentUser.id) ||
-      (uName && p.name.toLowerCase().trim() === uName) ||
-      (uCoupon && p.couponCode && p.couponCode.toUpperCase().trim() === uCoupon)
-    );
-    if (match) return match;
-    
+    const uName = (currentUser?.name || '').toLowerCase().trim();
+    const uCoupon = (currentUser?.couponCode || '').toUpperCase().trim();
+    const directMatch = currentUser?.id !== 'part-convidado'
+      ? partners.find(p =>
+          (currentUser?.id && p.id === currentUser.id) ||
+          (uName && p.name.toLowerCase().trim() === uName) ||
+          (uCoupon && p.couponCode && p.couponCode.toUpperCase().trim() === uCoupon)
+        )
+      : undefined;
+    if (directMatch) return directMatch;
+
+    if (selectedPartnerId) {
+      const selectedMatch = partners.find(p => p.id === selectedPartnerId);
+      if (selectedMatch) return selectedMatch;
+    }
+
     return {
-      id: currentUser.id || 'part-temp',
-      name: currentUser.name || 'Parceiro Master',
-      instagram: '@' + (currentUser.login || 'apmodafit_parceira'),
-      couponCode: currentUser.couponCode || currentUser.details?.couponCode || '',
+      id: currentUser?.id || 'part-temp',
+      name: currentUser?.name || 'Parceiro Master',
+      instagram: '@' + (currentUser?.login || 'apmodafit_parceira'),
+      couponCode: currentUser?.couponCode || currentUser?.details?.couponCode || '',
       commissionRate: 10,
       salesCount: 0,
       totalGenerated: 0,
       availableBalance: 0
     };
-  }, [partners, currentUser]);
+  }, [partners, currentUser, selectedPartnerId]);
 
   // Check if current user is Admin / Manager
   const isAdmin = useMemo(() => {
@@ -857,6 +910,21 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
           </div>
 
           <div className="flex items-center gap-3 w-full md:w-auto justify-end border-t border-slate-800 md:border-t-0 pt-4 md:pt-0">
+            {currentUser?.id === 'part-convidado' && partners.length > 0 && (
+              <select
+                value={currentPartner.id === 'part-convidado' ? '' : currentPartner.id}
+                onChange={(e) => handleSelectPartnerProfile(e.target.value)}
+                aria-label="Selecionar Parceira"
+                className="px-3 py-2 bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl outline-none cursor-pointer"
+              >
+                <option value="">Selecionar Parceira...</option>
+                {partners.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.couponCode || 'Sem cupom'})
+                  </option>
+                ))}
+              </select>
+            )}
             <button
               onClick={onLogout}
               className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 text-xs font-bold rounded-xl transition duration-300 flex items-center gap-2 cursor-pointer border border-slate-700"
@@ -866,6 +934,26 @@ export default function PartnerPortal({ currentUser, onLogout, onlineOrders = []
             </button>
           </div>
         </div>
+
+        {currentUser?.id === 'part-convidado' && currentPartner.id === 'part-convidado' && partners.length > 0 && (
+          <div className="bg-slate-900 border border-pink-500/30 rounded-3xl p-5 mb-6 space-y-3">
+            <h3 className="text-sm font-extrabold text-white">Selecione seu Perfil de Influenciadora / Parceira</h3>
+            <p className="text-xs text-slate-400">Escolha abaixo seu cadastro oficial para acompanhar seu cupom, vendas sincronizadas e saldo Pix.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {partners.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => handleSelectPartnerProfile(p.id)}
+                  className="text-left p-4 rounded-2xl bg-slate-800/80 hover:bg-pink-600/20 border border-slate-700 hover:border-pink-500 transition-all cursor-pointer"
+                >
+                  <p className="font-extrabold text-sm text-white">{p.name}</p>
+                  <p className="text-xs text-pink-400 font-mono mt-0.5">{p.couponCode || p.instagram}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 3. Sub Tabs design */}
         <div className="flex bg-slate-900 p-1 border border-slate-800 rounded-2xl mb-6 max-w-md">

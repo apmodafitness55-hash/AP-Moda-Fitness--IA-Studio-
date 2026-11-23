@@ -72,6 +72,7 @@ export function validateCPF(cpf: string): boolean {
 interface PDVTerminalProps {
   products: Product[];
   clients: Client[];
+  sales?: Sale[];
   onAddSale: (sale: Sale) => void;
   onUpdateClients?: (clients: Client[]) => void;
   onAddClient: (client: Client) => void;
@@ -83,6 +84,7 @@ interface PDVTerminalProps {
 export default function PDVTerminal({ 
   products: rawProducts, 
   clients: rawClients, 
+  sales: rawSales = [],
   onAddSale, 
   onUpdateClients, 
   onAddClient, 
@@ -92,6 +94,7 @@ export default function PDVTerminal({
 }: PDVTerminalProps) {
   const products = Array.isArray(rawProducts) ? rawProducts : [];
   const clients = Array.isArray(rawClients) ? rawClients : [];
+  const sales = Array.isArray(rawSales) ? rawSales : [];
   const sellers = Array.isArray(rawSellers) ? rawSellers : [];
 
   const [selectedClientName, setSelectedClientName] = useState<string>('');
@@ -184,7 +187,7 @@ export default function PDVTerminal({
     try {
       const todayStr = getLocalDateKey();
       const savedSales = localStorage.getItem('ap_moda_sales');
-      const allSales: Sale[] = savedSales ? JSON.parse(savedSales) : [];
+      const allSales: Sale[] = sales.length > 0 ? sales : (savedSales ? JSON.parse(savedSales) : []);
       const todaySales = allSales.filter(s => (s.createdAt || '').startsWith(todayStr));
 
       let totalGross = 0;
@@ -856,13 +859,14 @@ export default function PDVTerminal({
     return payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
   }, [payments]);
 
-  const totalDiscounts = useMemo(() => {
-    let sumDiscounts = 0;
+  const pdvDiscountBreakdown = useMemo(() => {
+    // 1. Commercial discounts: % + fixed value + coupon
+    let commercialDiscounts = 0;
     if (discountPercent > 0) {
-      sumDiscounts += cartTotal * (discountPercent / 100);
+      commercialDiscounts += Number((cartTotal * (discountPercent / 100)).toFixed(2));
     }
     if (discountValue > 0) {
-      sumDiscounts += discountValue;
+      commercialDiscounts += Number(discountValue);
     }
     if (appliedCoupon) {
       const couponCalc = calculateEligibleCouponDiscount(
@@ -874,34 +878,66 @@ export default function PDVTerminal({
         },
         cart
       );
-      sumDiscounts += couponCalc.discountAmount;
+      commercialDiscounts += couponCalc.discountAmount;
     }
-    if (hasPixDiscount) {
-      sumDiscounts += cartTotal * (pixDiscountPercent / 100);
-    }
-    if (useCashback && clientCashbackAvailable > 0) {
-      sumDiscounts += clientCashbackAvailable;
+    commercialDiscounts = Math.min(cartTotal, Number(commercialDiscounts.toFixed(2)));
+    const afterCommercial = Math.max(0, Number((cartTotal - commercialDiscounts).toFixed(2)));
+
+    // 2. Payment-method discounts (PIX and Card, proportional in split payments)
+    let pixDiscountVal = 0;
+    if (hasPixDiscount && pixDiscountPercent > 0 && afterCommercial > 0) {
+      let pixShare = 1;
+      if (payments.length > 1) {
+        const pixAmountSum = payments
+          .filter(p => p.method === 'PIX')
+          .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+        pixShare = paymentsTotalSum > 0 ? Math.min(1, pixAmountSum / paymentsTotalSum) : 0;
+      }
+      pixDiscountVal = Number(((afterCommercial * pixShare) * (pixDiscountPercent / 100)).toFixed(2));
     }
 
-    const baseForCard = Math.max(0, cartTotal - sumDiscounts);
-    let cardDiscounts = 0;
+    let cardDiscountsVal = 0;
     payments.forEach(p => {
       if ((p.method === 'Cartão de Crédito' || p.method === 'Cartão de Débito') && p.cardDiscountPercent && p.cardDiscountPercent > 0) {
-        if (payments.length === 1) {
-          cardDiscounts += baseForCard * (p.cardDiscountPercent / 100);
-        } else {
-          const ratio = paymentsTotalSum > 0 ? (p.amount / paymentsTotalSum) : 0;
-          cardDiscounts += (baseForCard * ratio) * (p.cardDiscountPercent / 100);
-        }
+        const cardShare = payments.length === 1
+          ? 1
+          : (paymentsTotalSum > 0 ? Math.min(1, Number(p.amount || 0) / paymentsTotalSum) : 0);
+        cardDiscountsVal += Number(((afterCommercial * cardShare) * (p.cardDiscountPercent / 100)).toFixed(2));
       }
     });
+    cardDiscountsVal = Number(cardDiscountsVal.toFixed(2));
 
-    sumDiscounts += cardDiscounts;
-    return Math.min(sumDiscounts, cartTotal);
+    const maxMethodDiscount = afterCommercial;
+    if (pixDiscountVal + cardDiscountsVal > maxMethodDiscount) {
+      const scale = maxMethodDiscount / (pixDiscountVal + cardDiscountsVal || 1);
+      pixDiscountVal = Number((pixDiscountVal * scale).toFixed(2));
+      cardDiscountsVal = Number((maxMethodDiscount - pixDiscountVal).toFixed(2));
+    }
+
+    // 3. Cashback applied over remaining balance
+    const afterMethodDiscounts = Math.max(0, Number((afterCommercial - pixDiscountVal - cardDiscountsVal).toFixed(2)));
+    const cashbackUsed = (useCashback && clientCashbackAvailable > 0)
+      ? Number(Math.min(clientCashbackAvailable, afterMethodDiscounts).toFixed(2))
+      : 0;
+
+    const totalDiscountsVal = Math.min(
+      cartTotal,
+      Number((commercialDiscounts + pixDiscountVal + cardDiscountsVal + cashbackUsed).toFixed(2))
+    );
+
+    return {
+      commercialDiscounts,
+      pixDiscountVal,
+      cardDiscountsVal,
+      cashbackUsed,
+      totalDiscountsVal
+    };
   }, [cart, cartTotal, discountPercent, discountValue, appliedCoupon, hasPixDiscount, pixDiscountPercent, useCashback, clientCashbackAvailable, payments, paymentsTotalSum]);
 
+  const totalDiscounts = pdvDiscountBreakdown.totalDiscountsVal;
+
   const finalCartTotal = useMemo(() => {
-    return Math.max(0, cartTotal - totalDiscounts);
+    return Math.max(0, Number((cartTotal - totalDiscounts).toFixed(2)));
   }, [cartTotal, totalDiscounts]);
 
   React.useEffect(() => {
@@ -1066,12 +1102,21 @@ export default function PDVTerminal({
   const autoBalancePayments = () => {
     if (payments.length === 0) return;
     const sumExceptLast = payments.slice(0, -1).reduce((sum, p) => sum + Number(p.amount || 0), 0);
-    const target = Math.max(0, finalCartTotal - sumExceptLast);
+    const target = Number(Math.max(0, finalCartTotal - sumExceptLast).toFixed(2));
     setPayments(prev => {
-      const updated = [...prev];
-      if (updated.length > 0) {
-        updated[updated.length - 1].amount = Number(target.toFixed(2));
-      }
+      const updated = prev.map((row, idx) => {
+        if (idx !== prev.length - 1) return row;
+        const nextRow = { ...row, amount: target };
+        if ((nextRow.method === 'Cartão de Crédito' || nextRow.method === 'Cartão de Débito') && nextRow.cardFeePercent !== undefined) {
+          const billed = nextRow.amount - (nextRow.amount * (nextRow.cardDiscountPercent || 0) / 100);
+          nextRow.netAmount = Number((billed - (billed * nextRow.cardFeePercent / 100)).toFixed(2));
+        } else if (nextRow.method === 'Dinheiro') {
+          const recv = nextRow.receivedCash !== undefined && nextRow.receivedCash > target ? nextRow.receivedCash : target;
+          nextRow.receivedCash = recv;
+          nextRow.changeAmount = Math.max(0, Number((recv - target).toFixed(2)));
+        }
+        return nextRow;
+      });
       return updated;
     });
   };
@@ -1080,12 +1125,12 @@ export default function PDVTerminal({
     if (!selectedClientName.trim()) return [];
     try {
       const saved = localStorage.getItem('ap_moda_sales');
-      const allSales: Sale[] = saved ? JSON.parse(saved) : [];
+      const allSales: Sale[] = sales.length > 0 ? sales : (saved ? JSON.parse(saved) : []);
       return allSales.filter(s => s.clientName.toLowerCase() === selectedClientName.trim().toLowerCase());
     } catch (e) {
       return [];
     }
-  }, [selectedClientName, cart, createdReceipt]);
+  }, [selectedClientName, sales, cart, createdReceipt]);
 
   const handleQuickAddClient = () => {
     if (!selectedClientName.trim()) {
@@ -1304,7 +1349,7 @@ export default function PDVTerminal({
       // deduct used cashback and add earned cashback WITHOUT mutating totalSpent/ordersCount (handled in App.handleAddSale)
       let currentCashback = clientExists.cashbackBalance || 0;
       if (useCashback && currentCashback > 0) {
-        const cashbackDeducted = Math.min(currentCashback, Math.max(0, cartTotal - (totalDiscounts - currentCashback)));
+        const cashbackDeducted = Math.min(currentCashback, pdvDiscountBreakdown.cashbackUsed);
         currentCashback = Math.max(0, currentCashback - cashbackDeducted);
       }
       const cashbackEarned = finalCartTotal * (cashbackRate / 100);
@@ -2376,7 +2421,7 @@ export default function PDVTerminal({
                   <div className="flex items-center justify-between">
                     <span className="flex items-center gap-1">✨ Desconto Automático PIX Ativo</span>
                     <span className="font-mono text-[10.5px] font-extrabold text-pink-800">
-                      -{formatCurrency(cartTotal * (pixDiscountPercent / 100))}
+                      -{formatCurrency(pdvDiscountBreakdown.pixDiscountVal)}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 justify-end">

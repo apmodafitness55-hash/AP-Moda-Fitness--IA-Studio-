@@ -2847,11 +2847,13 @@ export default function PublicCatalog({
 
   const cartSubtotal = useMemo(() => {
     return cart.reduce((sum, item) => {
-      const isUpsellItem = item.isUpsell || (suggestedProduct && item.product.id === suggestedProduct.id);
-      const price = isUpsellItem ? item.product.price * 0.9 : item.priceAtTime;
+      const isUpsellItem = Boolean(item.isUpsell);
+      const price = isUpsellItem
+        ? Number(item.priceAtTime ?? item.product.price * 0.9)
+        : Number(item.priceAtTime ?? item.product.price);
       return sum + (price * item.quantity);
     }, 0);
-  }, [cart, suggestedProduct]);
+  }, [cart]);
 
   const deliveryFee = useMemo(() => {
     if (deliveryMethod === 'retirada' || deliveryMethod === 'combinar') return 0;
@@ -2973,18 +2975,19 @@ export default function PublicCatalog({
     return paymentConfig.pixDiscountPercent ?? 5;
   }, [paymentConfig]);
 
-  const pixDiscount = useMemo(() => {
-    if (paymentMethod !== 'pix') return 0;
-    // Dynamic discount on the product subtotal (after coupon discount)
-    return Number(((cartSubtotal - cartDiscount) * (pixDiscountPercent / 100)).toFixed(2));
-  }, [paymentMethod, cartSubtotal, cartDiscount, pixDiscountPercent]);
-
   const vipDiscount = useMemo(() => {
     if (loggedClient && (loggedClient as any).vip) {
-      return Number((cartSubtotal * 0.10).toFixed(2));
+      const afterCoupon = Math.max(0, cartSubtotal - cartDiscount);
+      return Number((afterCoupon * 0.10).toFixed(2));
     }
     return 0;
-  }, [loggedClient, cartSubtotal]);
+  }, [loggedClient, cartSubtotal, cartDiscount]);
+
+  const pixDiscount = useMemo(() => {
+    if (paymentMethod !== 'pix') return 0;
+    const afterCouponAndVip = Math.max(0, cartSubtotal - cartDiscount - vipDiscount);
+    return Number((afterCouponAndVip * (pixDiscountPercent / 100)).toFixed(2));
+  }, [paymentMethod, cartSubtotal, cartDiscount, vipDiscount, pixDiscountPercent]);
 
   const loggedClientSales = useMemo(() => {
     if (!loggedClient) return [];
@@ -3278,8 +3281,10 @@ export default function PublicCatalog({
 
     // Compose order detail message
     const itemsListText = cart.map(item => {
-      const isUpsellItem = item.isUpsell || (suggestedProduct && item.product.id === suggestedProduct.id);
-      const price = isUpsellItem ? item.product.price * 0.9 : item.product.price;
+      const isUpsellItem = Boolean(item.isUpsell);
+      const price = isUpsellItem
+        ? Number(item.priceAtTime ?? item.product.price * 0.9)
+        : Number(item.priceAtTime ?? item.product.price);
       const tag = isUpsellItem ? ' (Desconto Progressivo -10%!)' : '';
       return `• *${item.quantity}x* ${item.product.name}\n  [Cor: ${item.color} | Tam: ${item.size}] (R$ ${price.toFixed(2)} un.)${tag}`;
     }).join('\n\n');
@@ -3479,30 +3484,54 @@ export default function PublicCatalog({
     // Unified payment link generation via real InfinitePay API (Rule 2)
     setIsGeneratingPaymentLink(true);
     try {
-      const ratio = cartTotal / (cartSubtotal || 1);
-      let accumulated = 0;
-      const itensPayload = cart.map((it, idx) => {
-        const isLast = idx === cart.length - 1;
-        let adjustedPrice = Number((it.priceAtTime * ratio).toFixed(2));
-        if (isLast) {
-          const currentSum = accumulated + (adjustedPrice * it.quantity);
-          const diff = cartTotal - currentSum;
-          adjustedPrice = Number((adjustedPrice + (diff / it.quantity)).toFixed(2));
-        } else {
-          accumulated += adjustedPrice * it.quantity;
-        }
-        return {
-          quantity: it.quantity,
-          price: Math.round(adjustedPrice * 100), // convert unit price to cents (inteiro)
-          description: `${it.product.name} (${it.color} - ${it.size})`
-        };
-      });
+      const productsFinalTotal = Math.max(0, Number((cartTotal - deliveryFee).toFixed(2)));
+      const targetProductsCents = Math.round(productsFinalTotal * 100);
+      const rawItemsSubtotal = cart.reduce((sum, it) => {
+        const unitPrice = Boolean(it.isUpsell)
+          ? Number(it.priceAtTime ?? it.product.price * 0.9)
+          : Number(it.priceAtTime ?? it.product.price);
+        return sum + (unitPrice * it.quantity);
+      }, 0);
+      const ratio = rawItemsSubtotal > 0 ? (productsFinalTotal / rawItemsSubtotal) : 1;
+
+      const itensPayload: Array<{ quantity: number; price: number; description: string }> = [];
+      if (targetProductsCents > 0) {
+        let accumulatedCents = 0;
+        cart.forEach((it, idx) => {
+          const isLast = idx === cart.length - 1;
+          const unitPrice = Boolean(it.isUpsell)
+            ? Number(it.priceAtTime ?? it.product.price * 0.9)
+            : Number(it.priceAtTime ?? it.product.price);
+          let unitCents = Math.max(0, Math.round(unitPrice * ratio * 100));
+          if (isLast) {
+            const remainingCents = Math.max(0, targetProductsCents - accumulatedCents);
+            unitCents = Math.max(0, Math.round(remainingCents / Math.max(1, it.quantity)));
+          } else {
+            accumulatedCents += unitCents * it.quantity;
+          }
+          if (unitCents > 0) {
+            itensPayload.push({
+              quantity: it.quantity,
+              price: unitCents,
+              description: `${it.product.name} (${it.color} - ${it.size})`
+            });
+          }
+        });
+      }
 
       if (deliveryFee > 0) {
         itensPayload.push({
           quantity: 1,
           price: Math.round(deliveryFee * 100), // convert unit price to cents (inteiro)
           description: 'Taxa de Entrega'
+        });
+      }
+
+      if (itensPayload.length === 0) {
+        itensPayload.push({
+          quantity: cart.reduce((s, it) => s + it.quantity, 0) || 1,
+          price: 100,
+          description: 'Pedido AP Moda Fitness'
         });
       }
 

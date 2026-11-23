@@ -641,6 +641,7 @@ export default function App() {
     total: number;
     source?: string;
     itemsCount?: number;
+    isPaymentConfirmation?: boolean;
   } | null>(null);
 
   const alertedSaleIdsRef = useRef<Set<string>>(new Set());
@@ -658,6 +659,7 @@ export default function App() {
     source?: string;
     paymentMethod?: string;
     createdAt?: string;
+    isPaymentConfirmation?: boolean;
   } | null>(null);
 
   // Repeating audio chime while urgentOrderAlert is active (ensures staff hears from across the room)
@@ -754,14 +756,19 @@ export default function App() {
     source?: string; 
     itemsCount?: number;
     orderData?: any;
+    isPaymentConfirmation?: boolean;
+    alertKey?: string;
   }) => {
     if (!saleData || !saleData.id) return;
 
-    // Deduplicate alerts for the same sale ID
-    if (alertedSaleIdsRef.current.has(saleData.id)) {
+    const isPaid = Boolean(saleData.isPaymentConfirmation);
+    const dedupKey = saleData.alertKey || (isPaid ? `paid-${saleData.id}` : saleData.id);
+
+    // Deduplicate alerts for the same sale/event key
+    if (alertedSaleIdsRef.current.has(dedupKey)) {
       return;
     }
-    alertedSaleIdsRef.current.add(saleData.id);
+    alertedSaleIdsRef.current.add(dedupKey);
 
     // 1. Play loud, cheerful order alert sound
     try {
@@ -774,10 +781,16 @@ export default function App() {
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
       try {
         const formattedValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(saleData.total || 0);
-        const notification = new Notification('🚨 NOVO PEDIDO RECEBIDO! - AP Moda Fitness', {
-          body: `📦 Cliente: ${saleData.clientName || 'Cliente'}\n💰 Valor: ${formattedValue} (${saleData.source || 'Site'})\nToque aqui para abrir a logística e preparar o envio!`,
+        const notificationTitle = isPaid
+          ? '💸 PAGAMENTO CONFIRMADO! - AP Moda Fitness'
+          : '🚨 NOVO PEDIDO RECEBIDO! - AP Moda Fitness';
+        const notificationBody = isPaid
+          ? `✅ Cliente: ${saleData.clientName || 'Cliente'}\n💰 Valor Confirmado: ${formattedValue} (${saleData.source || 'Site'})\nValor já lançado no Caixa e na aba Logística!`
+          : `📦 Cliente: ${saleData.clientName || 'Cliente'}\n💰 Valor: ${formattedValue} (${saleData.source || 'Site'})\nToque aqui para abrir a logística e preparar o envio!`;
+        const notification = new Notification(notificationTitle, {
+          body: notificationBody,
           icon: '/icon.png',
-          tag: `sale-${saleData.id}`,
+          tag: `sale-${dedupKey}`,
           requireInteraction: true
         });
         notification.onclick = () => {
@@ -797,8 +810,8 @@ export default function App() {
       const interval = setInterval(() => {
         count++;
         document.title = (count % 2 === 0) 
-          ? `🚨 (NOVO PEDIDO NO SITE!) AP Moda Fitness` 
-          : `📦 R$ ${(saleData.total || 0).toFixed(2)} - PREPARAR ENVIO!`;
+          ? (isPaid ? `💸 (PAGAMENTO CONFIRMADO!) AP Moda Fitness` : `🚨 (NOVO PEDIDO NO SITE!) AP Moda Fitness`)
+          : (isPaid ? `✅ R$ ${(saleData.total || 0).toFixed(2)} - LIBERAR PEDIDO!` : `📦 R$ ${(saleData.total || 0).toFixed(2)} - PREPARAR ENVIO!`);
         if (count >= 20) {
           clearInterval(interval);
           document.title = originalTitle;
@@ -829,22 +842,27 @@ export default function App() {
       address: orderInfo?.address || '',
       deliveryMethod: orderInfo?.deliveryMethod || orderInfo?.selectedFreightName || 'Envio / Entrega',
       items: itemsList,
-      source: saleData.source || 'Loja Virtual',
+      source: saleData.source || (isPaid ? 'Pagamento Confirmado' : 'Loja Virtual'),
       paymentMethod: orderInfo?.paymentMethod || 'Online',
-      createdAt: orderInfo?.createdAt || new Date().toISOString()
+      createdAt: orderInfo?.createdAt || new Date().toISOString(),
+      isPaymentConfirmation: isPaid
     });
 
     // 5. Floating On-Screen Toast Alert
-    setNewSaleToast(saleData);
+    setNewSaleToast({ ...saleData, isPaymentConfirmation: isPaid });
     setTimeout(() => {
-      setNewSaleToast(prev => (prev?.id === saleData.id ? null : prev));
+      setNewSaleToast(prev => (prev?.id === saleData.id && prev?.isPaymentConfirmation === isPaid ? null : prev));
     }, 15000);
 
     // 6. System Notification List Item
     const newNotify = {
       id: Date.now(),
-      title: `🚨 NOVO PEDIDO NO SITE: ${saleData.clientName || 'Cliente'}!`,
-      detail: `${saleData.clientName || 'Cliente'} comprou R$ ${(saleData.total || 0).toFixed(2)}. Pedido gravado na aba Logística para envio.`,
+      title: isPaid
+        ? `💸 PAGAMENTO CONFIRMADO: ${saleData.clientName || 'Cliente'}!`
+        : `🚨 NOVO PEDIDO NO SITE: ${saleData.clientName || 'Cliente'}!`,
+      detail: isPaid
+        ? `${saleData.clientName || 'Cliente'} pagou R$ ${(saleData.total || 0).toFixed(2)}. Valor creditado no Caixa e liberado na Logística.`
+        : `${saleData.clientName || 'Cliente'} comprou R$ ${(saleData.total || 0).toFixed(2)}. Pedido gravado na aba Logística para envio.`,
       read: false,
       type: 'sale' as const
     };
@@ -1250,33 +1268,62 @@ export default function App() {
     });
 
     setTransactions(prevTx => {
-      const existingTxIds = new Set(prevTx.map(t => t.id));
+      const txToSync: Transaction[] = [];
       const txToAdd: Transaction[] = [];
+      let hasUpgrades = false;
 
+      const nextTx = prevTx.map(t => {
+        const matchedOrder = onlineOrders.find(o => {
+          if (!isOrderPaid(o) || isOrderCanceled(o)) return false;
+          const txId = `tx-${o.id}`;
+          return t.id === txId || (t.description && t.description.toUpperCase().includes(o.id.toUpperCase()));
+        });
+        if (matchedOrder) {
+          const targetAmount = Number(matchedOrder.valor_liquido || matchedOrder.total || t.amount || 0);
+          if (t.status !== 'pago' || (Number(matchedOrder.valor_liquido || 0) > 0 && Math.abs(Number(t.amount || 0) - targetAmount) > 0.01)) {
+            hasUpgrades = true;
+            const upgraded: Transaction = {
+              ...t,
+              status: 'pago',
+              amount: targetAmount > 0 ? targetAmount : Number(t.amount || 0),
+              description: t.description || `Pedido Loja Virtual #${matchedOrder.id.toUpperCase()} - ${matchedOrder.clientName} (${matchedOrder.paymentMethod || 'Pix/Cartão'})`
+            };
+            txToSync.push(upgraded);
+            return upgraded;
+          }
+        }
+        return t;
+      });
+
+      const existingTxIds = new Set(nextTx.map(t => t.id));
       for (const o of onlineOrders) {
         if (!isOrderPaid(o) || isOrderCanceled(o)) continue;
         const txId = `tx-${o.id}`;
-        const alreadyHasTx = existingTxIds.has(txId) || prevTx.some(t => t.description && t.description.includes(o.id.toUpperCase()));
+        const alreadyHasTx = existingTxIds.has(txId) || nextTx.some(t => t.description && t.description.toUpperCase().includes(o.id.toUpperCase()));
         if (!alreadyHasTx) {
           const newTx: Transaction = {
             id: txId,
             type: 'Inflow',
             category: 'Venda Online',
             description: `Pedido Loja Virtual #${o.id.toUpperCase()} - ${o.clientName} (${o.paymentMethod || 'Pix/Cartão'})`,
-            amount: Number(o.total || 0),
+            amount: Number(o.valor_liquido || o.total || 0),
             date: o.createdAt || new Date().toISOString(),
             status: 'pago'
           };
           txToAdd.push(newTx);
+          txToSync.push(newTx);
         }
       }
 
-      if (txToAdd.length > 0) {
+      if (txToAdd.length > 0 || hasUpgrades) {
+        const merged = [...txToAdd, ...nextTx];
+        lastTransactionsRef.current = merged;
+        safeLocalStorageSet('ap_moda_transactions', JSON.stringify(merged));
         const config = getSupabaseConfig();
-        if (config && !systemOffline) {
-          syncBulkTransactionsToSupabase(txToAdd).catch(e => console.warn('Error syncing reconciled tx:', e));
+        if (config && !systemOffline && txToSync.length > 0) {
+          syncBulkTransactionsToSupabase(txToSync).catch(e => console.warn('Error syncing reconciled tx:', e));
         }
-        return [...txToAdd, ...prevTx];
+        return merged;
       }
       return prevTx;
     });
@@ -1984,17 +2031,81 @@ export default function App() {
           } catch (e) {}
         }
 
-        // Visão pública do catálogo / visitante: Puxa catálogo e configurações da vitrine do Supabase
-        syncSystemConfigsWithSupabase().catch(() => {});
-        try {
-          const dbProducts = await fetchProductsFromSupabase();
-          if (dbProducts && dbProducts.length > 0) {
-            lastProductsRef.current = dbProducts;
-            prevProductsRef.current = dbProducts;
-            setProducts(dbProducts);
-            safeLocalStorageSet('ap_moda_products', JSON.stringify(dbProducts));
-            console.log('[Public Catalog Init] Produtos carregados com sucesso do Supabase para visitantes:', dbProducts.length);
-          } else {
+        const pathNow = typeof window !== 'undefined' ? window.location.pathname : '';
+        const searchNow = typeof window !== 'undefined' ? window.location.search : '';
+        const isPortalRoute =
+          pathNow === '/parceiro' ||
+          pathNow === '/influenciador' ||
+          pathNow === '/influencer' ||
+          pathNow === '/entregador' ||
+          pathNow === '/motoboy' ||
+          pathNow === '/driver' ||
+          searchNow.includes('portal=partner') ||
+          searchNow.includes('portal=driver');
+
+        if (isPortalRoute) {
+          await syncSystemConfigsWithSupabase().catch(() => {});
+          try {
+            const [dbProducts, dbOrders, dbSales, dbClients] = await Promise.all([
+              fetchProductsFromSupabase(),
+              fetchOnlineOrdersFromSupabase(),
+              fetchSalesFromSupabase(),
+              fetchClientsFromSupabase()
+            ]);
+            if (dbProducts && dbProducts.length > 0) {
+              lastProductsRef.current = dbProducts;
+              prevProductsRef.current = dbProducts;
+              setProducts(dbProducts);
+              safeLocalStorageSet('ap_moda_products', JSON.stringify(dbProducts));
+            }
+            if (dbOrders) {
+              lastOnlineOrdersRef.current = dbOrders;
+              prevOnlineOrdersRef.current = dbOrders;
+              setOnlineOrders(dbOrders);
+              safeLocalStorageSet('ap_moda_online_orders', JSON.stringify(dbOrders));
+              safeLocalStorageSet('ap_online_orders', JSON.stringify(dbOrders));
+            }
+            if (dbSales) {
+              lastSalesRef.current = dbSales;
+              prevSalesRef.current = dbSales;
+              setSales(dbSales);
+              safeLocalStorageSet('ap_moda_sales', JSON.stringify(dbSales));
+            }
+            if (dbClients) {
+              lastClientsRef.current = dbClients;
+              prevClientsRef.current = dbClients;
+              setClients(dbClients);
+              safeLocalStorageSet('ap_moda_clients', JSON.stringify(dbClients));
+            }
+          } catch (err) {
+            console.warn('[Portal Init] Falha parcial ao carregar dados para portal externo:', err);
+          }
+        } else {
+          // Visão pública do catálogo / visitante: Puxa catálogo e configurações da vitrine do Supabase
+          syncSystemConfigsWithSupabase().catch(() => {});
+          try {
+            const dbProducts = await fetchProductsFromSupabase();
+            if (dbProducts && dbProducts.length > 0) {
+              lastProductsRef.current = dbProducts;
+              prevProductsRef.current = dbProducts;
+              setProducts(dbProducts);
+              safeLocalStorageSet('ap_moda_products', JSON.stringify(dbProducts));
+              console.log('[Public Catalog Init] Produtos carregados com sucesso do Supabase para visitantes:', dbProducts.length);
+            } else {
+              const existingLocal = localStorage.getItem('ap_moda_products');
+              if (existingLocal) {
+                try {
+                  const parsed = JSON.parse(existingLocal);
+                  if (Array.isArray(parsed) && parsed.length > 0) {
+                    lastProductsRef.current = parsed;
+                    prevProductsRef.current = parsed;
+                    setProducts(parsed);
+                  }
+                } catch (e) {}
+              }
+            }
+          } catch (err) {
+            console.warn('[Public Catalog Init] Falha ao carregar produtos na inicialização do visitante:', err);
             const existingLocal = localStorage.getItem('ap_moda_products');
             if (existingLocal) {
               try {
@@ -2006,19 +2117,6 @@ export default function App() {
                 }
               } catch (e) {}
             }
-          }
-        } catch (err) {
-          console.warn('[Public Catalog Init] Falha ao carregar produtos na inicialização do visitante:', err);
-          const existingLocal = localStorage.getItem('ap_moda_products');
-          if (existingLocal) {
-            try {
-              const parsed = JSON.parse(existingLocal);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                lastProductsRef.current = parsed;
-                prevProductsRef.current = parsed;
-                setProducts(parsed);
-              }
-            } catch (e) {}
           }
         }
       }
@@ -2809,6 +2907,12 @@ export default function App() {
         for (const dbO of dbOrders) {
           if (!dbO || deletedOrders.includes(dbO.id)) continue;
           const localO = localMap.get(dbO.id);
+          const dbOrderPaid = dbO.status_pagamento === 'pago' || dbO.status === 'Pago' || dbO.status === 'Concluído' || dbO.status === 'Entregue';
+          const dbOrderCanceled = dbO.status === 'Cancelado' || dbO.status === 'Recusado';
+          const localOrderPaid = localO
+            ? (localO.status_pagamento === 'pago' || localO.status === 'Pago' || localO.status === 'Concluído' || localO.status === 'Entregue')
+            : false;
+
           if (!localO) {
             if (hasInitializedAlertedIdsRef.current && !alertedSaleIdsRef.current.has(dbO.id)) {
               triggerSaleAlert({
@@ -2820,13 +2924,30 @@ export default function App() {
                 orderData: dbO
               });
             }
+          } else if (!dirtyOrders.includes(dbO.id) && !localOrderPaid && dbOrderPaid && !dbOrderCanceled) {
+            if (hasInitializedAlertedIdsRef.current) {
+              triggerSaleAlert({
+                id: dbO.id,
+                clientName: dbO.clientName || 'Cliente Online',
+                total: Number(dbO.total || 0),
+                source: 'Pagamento Confirmado (Loja Virtual)',
+                itemsCount: Array.isArray(dbO.items) ? dbO.items.length : 1,
+                orderData: dbO,
+                isPaymentConfirmation: true
+              });
+            }
+          }
 
-            const dbOrderPaid = dbO.status_pagamento === 'pago' || dbO.status === 'Pago' || dbO.status === 'Concluído' || dbO.status === 'Entregue';
-            const dbOrderCanceled = dbO.status === 'Cancelado' || dbO.status === 'Recusado';
-
-            if (dbOrderPaid && !dbOrderCanceled) {
-              setSales(prevSales => {
-                if (prevSales.some(s => s.id === dbO.id)) return prevSales;
+          if ((!localO || (!dirtyOrders.includes(dbO.id) && !localOrderPaid)) && dbOrderPaid && !dbOrderCanceled) {
+            setSales(prevSales => {
+              const existingIdx = prevSales.findIndex(s => s.id === dbO.id);
+              let nextSales = prevSales;
+              if (existingIdx >= 0) {
+                const existingS = prevSales[existingIdx];
+                if (existingS.status !== 'Concluída') {
+                  nextSales = prevSales.map(s => s.id === dbO.id ? { ...s, status: 'Concluída' as const } : s);
+                }
+              } else {
                 const autoSale: Sale = {
                   id: dbO.id,
                   clientName: dbO.clientName || 'Cliente Online',
@@ -2855,23 +2976,47 @@ export default function App() {
                   commissionAmount: dbO.commissionAmount,
                   couponCode: dbO.couponCode || dbO.coupon
                 };
-                return [autoSale, ...prevSales];
-              });
+                nextSales = [autoSale, ...prevSales];
+              }
+              if (nextSales !== prevSales) {
+                lastSalesRef.current = nextSales;
+                safeLocalStorageSet('ap_moda_sales', JSON.stringify(nextSales));
+              }
+              return nextSales;
+            });
 
-              setTransactions(prevTx => {
-                if (prevTx.some(t => t.id === `tx-${dbO.id}` || t.description?.includes(dbO.id.toUpperCase()))) return prevTx;
+            setTransactions(prevTx => {
+              const targetTxId = `tx-${dbO.id}`;
+              const existingIdx = prevTx.findIndex(t => t.id === targetTxId || (t.description && t.description.toUpperCase().includes(dbO.id.toUpperCase())));
+              const targetAmount = Number(dbO.valor_liquido || dbO.total || 0);
+              let nextTx = prevTx;
+              if (existingIdx >= 0) {
+                const existingT = prevTx[existingIdx];
+                if (existingT.status !== 'pago' || (Number(dbO.valor_liquido || 0) > 0 && Math.abs(Number(existingT.amount || 0) - targetAmount) > 0.01)) {
+                  nextTx = prevTx.map((t, idx) => idx === existingIdx ? {
+                    ...t,
+                    status: 'pago',
+                    amount: targetAmount > 0 ? targetAmount : Number(t.amount || 0)
+                  } : t);
+                }
+              } else {
                 const autoTx: Transaction = {
-                  id: `tx-${dbO.id}`,
+                  id: targetTxId,
                   type: 'Inflow',
                   category: 'Venda Online',
                   description: `Pedido Loja Virtual #${dbO.id.toUpperCase()} - ${dbO.clientName} (${dbO.paymentMethod || 'Pix/Cartão'})`,
-                  amount: Number(dbO.total || 0),
+                  amount: targetAmount,
                   date: dbO.createdAt || new Date().toISOString(),
                   status: 'pago'
                 };
-                return [autoTx, ...prevTx];
-              });
-            }
+                nextTx = [autoTx, ...prevTx];
+              }
+              if (nextTx !== prevTx) {
+                lastTransactionsRef.current = nextTx;
+                safeLocalStorageSet('ap_moda_transactions', JSON.stringify(nextTx));
+              }
+              return nextTx;
+            });
           }
 
           if (localO && dirtyOrders.includes(dbO.id)) {
@@ -3077,7 +3222,10 @@ export default function App() {
 
               setSales(prev => {
                 if (prev.some(s => s.id === sale.id)) return prev;
-                return [sale, ...prev];
+                const next = [sale, ...prev];
+                lastSalesRef.current = next;
+                safeLocalStorageSet('ap_moda_sales', JSON.stringify(next));
+                return next;
               });
 
               triggerSaleAlert({
@@ -3087,6 +3235,62 @@ export default function App() {
                 source: sale.channel || 'PDV / Loja Virtual',
                 itemsCount: Array.isArray(sale.items) ? sale.items.length : 1
               });
+            } else if (payload.type === 'PAYMENT_CONFIRMED' && payload.data) {
+              const paidData = payload.data;
+              const paidId = String(paidData.orderId || paidData.id || '');
+              console.log('[SSE Stream] Alerta instantâneo de PAGAMENTO CONFIRMADO recebido:', paidData);
+
+              if (paidData.order && paidData.order.id) {
+                const paidOrder = { ...paidData.order, status: paidData.order.status || 'Pago', status_pagamento: 'pago' };
+                setOnlineOrders(prev => {
+                  const exists = prev.some(o => o.id === paidOrder.id);
+                  const next = exists
+                    ? prev.map(o => o.id === paidOrder.id ? { ...o, ...paidOrder } : o)
+                    : [paidOrder, ...prev];
+                  lastOnlineOrdersRef.current = next;
+                  safeLocalStorageSet('ap_moda_online_orders', JSON.stringify(next));
+                  safeLocalStorageSet('ap_online_orders', JSON.stringify(next));
+                  return next;
+                });
+              }
+
+              if (paidData.sale && paidData.sale.id) {
+                const paidSale: Sale = { ...paidData.sale, status: 'Concluída' };
+                setSales(prev => {
+                  const exists = prev.some(s => s.id === paidSale.id);
+                  const next = exists
+                    ? prev.map(s => s.id === paidSale.id ? { ...s, ...paidSale, status: 'Concluída' as const } : s)
+                    : [paidSale, ...prev];
+                  lastSalesRef.current = next;
+                  safeLocalStorageSet('ap_moda_sales', JSON.stringify(next));
+                  return next;
+                });
+              }
+
+              if (paidData.transaction && paidData.transaction.id) {
+                const paidTx: Transaction = { ...paidData.transaction, status: 'pago' };
+                setTransactions(prev => {
+                  const exists = prev.some(t => t.id === paidTx.id);
+                  const next = exists
+                    ? prev.map(t => t.id === paidTx.id ? { ...t, ...paidTx, status: 'pago' as const } : t)
+                    : [paidTx, ...prev];
+                  lastTransactionsRef.current = next;
+                  safeLocalStorageSet('ap_moda_transactions', JSON.stringify(next));
+                  return next;
+                });
+              }
+
+              if (paidId) {
+                triggerSaleAlert({
+                  id: paidId,
+                  clientName: paidData.clientName || paidData.order?.clientName || 'Cliente',
+                  total: Number(paidData.total || paidData.order?.total || 0),
+                  source: paidData.source || 'Pagamento Confirmado (Online)',
+                  itemsCount: Array.isArray(paidData.order?.items) ? paidData.order.items.length : 1,
+                  orderData: paidData.order,
+                  isPaymentConfirmation: true
+                });
+              }
             }
           } catch (err) {
             console.warn('[SSE Stream] Erro ao processar mensagem do servidor:', err);
@@ -3192,9 +3396,15 @@ export default function App() {
               return;
             }
           } else if (userRole === 'Parceiro') {
+            const userNameLower = (user.name || '').trim().toLowerCase();
+            const userCouponLower = String((user as any).couponCode || (user as any).details?.couponCode || '').trim().toLowerCase();
             const isMyCoupon = newRec && (
-              (newRec.salesperson && newRec.salesperson.trim().toLowerCase().includes(user.name?.trim().toLowerCase())) ||
-              (newRec.items && JSON.stringify(newRec.items).toLowerCase().includes(user.name?.trim().toLowerCase()))
+              (userNameLower && newRec.salesperson && String(newRec.salesperson).trim().toLowerCase().includes(userNameLower)) ||
+              (userNameLower && newRec.partner && String(newRec.partner).trim().toLowerCase().includes(userNameLower)) ||
+              (userNameLower && newRec.partnerName && String(newRec.partnerName).trim().toLowerCase().includes(userNameLower)) ||
+              (user.id && newRec.partnerId && String(newRec.partnerId) === String(user.id)) ||
+              (userCouponLower && ((newRec.couponCode && String(newRec.couponCode).trim().toLowerCase() === userCouponLower) || (newRec.partnerCoupon && String(newRec.partnerCoupon).trim().toLowerCase() === userCouponLower))) ||
+              (userNameLower && newRec.items && JSON.stringify(newRec.items).toLowerCase().includes(userNameLower))
             );
             if (!isMyCoupon) {
               console.log('[Supabase Realtime Filter] Pedido de cupom de outra parceira ignorado.');
@@ -3208,7 +3418,7 @@ export default function App() {
 
         // 5. Pedidos de Encomendas Online (ap_online_orders) / Logística:
         // Clientes apenas acompanham o rastreio do seu próprio pedido online
-        // Entregadores apenas visualizam encomendas especificamente atribuídas a eles (nome do motoboy)
+        // Entregadores visualizam encomendas atribuídas a eles ou disponíveis para retirada
         // Parceiros ignoram o painel operacional de envios
         if (tableName === 'ap_online_orders') {
           if (userRole === 'Cliente') {
@@ -3221,9 +3431,11 @@ export default function App() {
               return;
             }
           } else if (userRole === 'Entregador') {
-            const isMyDelivery = newRec && newRec.motoboy && (
-              newRec.motoboy.trim().toLowerCase().includes(user.name?.trim().toLowerCase()) || 
-              user.name?.trim().toLowerCase().includes(newRec.motoboy.trim().toLowerCase())
+            const assignedMotoboy = String(newRec?.motoboy || '').trim().toLowerCase();
+            const userNameLower = (user.name || '').trim().toLowerCase();
+            const isMyDelivery = newRec && (
+              !assignedMotoboy ||
+              (userNameLower && (assignedMotoboy.includes(userNameLower) || userNameLower.includes(assignedMotoboy)))
             );
             if (!isMyDelivery) {
               console.log(`[Supabase Realtime Filter] Pedido omitido (atribuído para outro motoboy).`);
@@ -3419,20 +3631,40 @@ export default function App() {
       }
 
       else if (tableName === 'ap_online_orders') {
+        const mapRealtimeOrder = (rec: any) => ({
+          ...rec,
+          id: rec.id,
+          clientName: rec.clientName || rec.client_name || 'Cliente',
+          total: Number(rec.total || 0),
+          status: rec.status,
+          status_pagamento: rec.status_pagamento || rec.statusPagamento || (rec.status === 'Pago' ? 'pago' : undefined),
+          items: parseJsonField<any[]>(rec.items, []),
+          createdAt: rec.createdAt || rec.created_at || new Date().toISOString(),
+          phone: rec.phone || '',
+          address: rec.address || '',
+          paymentMethod: rec.paymentMethod || rec.payment_method || '',
+          deliveryMethod: rec.deliveryMethod || rec.delivery_method || '',
+          deliveryFee: rec.deliveryFee !== undefined ? Number(rec.deliveryFee) : undefined,
+          motoboy: rec.motoboy || '',
+          trackingCode: rec.trackingCode || rec.tracking_code || '',
+          status_logistico: rec.status_logistico || rec.statusLogistico || undefined,
+          partner: rec.partner || rec.partnerName || undefined,
+          partnerName: rec.partnerName || rec.partner || undefined,
+          partnerId: rec.partnerId || undefined,
+          couponCode: rec.couponCode || rec.coupon || rec.partnerCoupon || undefined,
+          partnerCoupon: rec.partnerCoupon || rec.couponCode || rec.coupon || undefined,
+          coupon: rec.coupon || rec.couponCode || undefined,
+          valor_liquido: rec.valor_liquido !== undefined ? Number(rec.valor_liquido) : undefined,
+          valor_bruto: rec.valor_bruto !== undefined ? Number(rec.valor_bruto) : undefined,
+          taxa_financeira: rec.taxa_financeira !== undefined ? Number(rec.taxa_financeira) : undefined,
+          notes: rec.notes || '',
+          cpf: rec.cpf || ''
+        });
+
         setOnlineOrders(prev => {
           let updated = [...prev];
           if (eventType === 'INSERT' && newRec) {
-            const mapped = {
-              id: newRec.id,
-              clientName: newRec.clientName,
-              total: Number(newRec.total),
-              status: newRec.status,
-              items: Array.isArray(newRec.items) ? newRec.items : [],
-              createdAt: newRec.createdAt,
-              phone: newRec.phone || '',
-              address: newRec.address || '',
-              paymentMethod: newRec.paymentMethod || ''
-            };
+            const mapped = mapRealtimeOrder(newRec);
             if (!prev.some(o => o.id === mapped.id)) {
               updated = [mapped, ...prev];
               triggerSaleAlert({
@@ -3440,26 +3672,40 @@ export default function App() {
                 clientName: mapped.clientName,
                 total: mapped.total,
                 source: 'E-commerce / Catálogo Online',
-                itemsCount: mapped.items?.length
+                itemsCount: mapped.items?.length,
+                orderData: mapped
               });
             }
           } else if (eventType === 'UPDATE' && newRec) {
-            const mapped = {
-              id: newRec.id,
-              clientName: newRec.clientName,
-              total: Number(newRec.total),
-              status: newRec.status,
-              items: Array.isArray(newRec.items) ? newRec.items : [],
-              createdAt: newRec.createdAt,
-              phone: newRec.phone || '',
-              address: newRec.address || '',
-              paymentMethod: newRec.paymentMethod || ''
-            };
-            updated = prev.map(o => o.id === mapped.id ? mapped : o);
+            const mapped = mapRealtimeOrder(newRec);
+            const prevOrder = prev.find(o => o.id === mapped.id);
+            const wasPaid = prevOrder
+              ? (prevOrder.status_pagamento === 'pago' || prevOrder.status === 'Pago' || prevOrder.status === 'Concluído' || prevOrder.status === 'Entregue')
+              : false;
+            const isNowPaid = mapped.status_pagamento === 'pago' || mapped.status === 'Pago' || mapped.status === 'Concluído' || mapped.status === 'Entregue';
+            const isCanceled = mapped.status === 'Cancelado' || mapped.status === 'Recusado';
+
+            if (!wasPaid && isNowPaid && !isCanceled) {
+              triggerSaleAlert({
+                id: mapped.id,
+                clientName: mapped.clientName,
+                total: mapped.total,
+                source: 'Pagamento Confirmado (Online)',
+                itemsCount: mapped.items?.length || 1,
+                orderData: mapped,
+                isPaymentConfirmation: true
+              });
+            }
+
+            updated = prevOrder
+              ? prev.map(o => o.id === mapped.id ? { ...o, ...mapped } : o)
+              : [mapped, ...prev];
           } else if (eventType === 'DELETE' && oldRec) {
             updated = prev.filter(o => o.id !== oldRec.id);
           }
+          lastOnlineOrdersRef.current = updated;
           safeLocalStorageSet('ap_moda_online_orders', JSON.stringify(updated));
+          safeLocalStorageSet('ap_online_orders', JSON.stringify(updated));
           return updated;
         });
       }
@@ -3732,7 +3978,87 @@ export default function App() {
 
   // Handlers
   const handleAddSale = (newSale: Sale, skipStockDeduction = false) => {
-    if (lastSalesRef.current.some(s => s.id === newSale.id)) {
+    const existingSale = lastSalesRef.current.find(s => s.id === newSale.id);
+    if (existingSale) {
+      const targetStatus = normalizeSaleStatus(newSale.status);
+      if (existingSale.status !== 'Concluída' && targetStatus === 'Concluída') {
+        syncEpochRef.current += 1;
+        const upgradedSale: Sale = {
+          ...existingSale,
+          ...newSale,
+          status: 'Concluída',
+          payments: (newSale.payments && newSale.payments.length > 0) ? newSale.payments : existingSale.payments
+        };
+        setSales(prev => {
+          const updated = prev.map(s => s.id === upgradedSale.id ? upgradedSale : s);
+          lastSalesRef.current = updated;
+          safeLocalStorageSet('ap_moda_sales', JSON.stringify(updated));
+          return updated;
+        });
+
+        const deterministicTxId = `tx-${upgradedSale.id}`;
+        let upgradedTxRecord: Transaction | null = null;
+        setTransactions(prev => {
+          const hasTx = prev.some(t => t.id === deterministicTxId || (t.description && t.description.toUpperCase().includes(upgradedSale.id.toUpperCase())));
+          let updated: Transaction[];
+          if (hasTx) {
+            updated = prev.map(t => {
+              if (t.id === deterministicTxId || (t.description && t.description.toUpperCase().includes(upgradedSale.id.toUpperCase()))) {
+                upgradedTxRecord = {
+                  ...t,
+                  status: 'pago',
+                  amount: Number(upgradedSale.total || t.amount || 0)
+                };
+                return upgradedTxRecord;
+              }
+              return t;
+            });
+          } else {
+            upgradedTxRecord = {
+              id: deterministicTxId,
+              type: 'Inflow',
+              category: 'Venda',
+              description: `Venda ${upgradedSale.id.toUpperCase()} para ${upgradedSale.clientName}`,
+              amount: Number(upgradedSale.total || 0),
+              date: upgradedSale.createdAt || new Date().toISOString(),
+              status: 'pago'
+            };
+            updated = [upgradedTxRecord, ...prev];
+          }
+          lastTransactionsRef.current = updated;
+          safeLocalStorageSet('ap_moda_transactions', JSON.stringify(updated));
+          return updated;
+        });
+
+        saveDirtyIds('ap_dirty_sales', Array.from(new Set([...getDirtyIds('ap_dirty_sales'), upgradedSale.id])));
+        saveDirtyIds('ap_dirty_transactions', Array.from(new Set([...getDirtyIds('ap_dirty_transactions'), deterministicTxId])));
+
+        const config = getSupabaseConfig();
+        if (config && !systemOffline) {
+          syncBulkSalesToSupabase([upgradedSale]).then(success => {
+            if (success) {
+              saveDirtyIds('ap_dirty_sales', getDirtyIds('ap_dirty_sales').filter(id => id !== upgradedSale.id));
+            }
+          }).catch(e => console.error(e));
+
+          if (upgradedTxRecord) {
+            syncBulkTransactionsToSupabase([upgradedTxRecord]).then(success => {
+              if (success) {
+                saveDirtyIds('ap_dirty_transactions', getDirtyIds('ap_dirty_transactions').filter(id => id !== deterministicTxId));
+              }
+            }).catch(e => console.error(e));
+          }
+        }
+
+        triggerSaleAlert({
+          id: upgradedSale.id,
+          clientName: upgradedSale.clientName,
+          total: upgradedSale.total,
+          source: upgradedSale.channel || 'Pagamento Confirmado',
+          itemsCount: upgradedSale.items ? upgradedSale.items.length : 1,
+          isPaymentConfirmation: true
+        });
+      }
       return;
     }
     syncEpochRef.current += 1;
@@ -4816,6 +5142,7 @@ export default function App() {
           <PDVTerminal 
             products={products}
             clients={clients}
+            sales={sales}
             onAddSale={handleAddSale}
             onUpdateClients={handleUpdateClientsList}
             onAddClient={handleAddClient}
@@ -5012,40 +5339,6 @@ export default function App() {
     );
   }
 
-  if (!currentUser) {
-    return (
-      <ErrorBoundary>
-        <LoginScreen 
-          sellers={sellers}
-          motoboys={motoboys}
-          teamMembers={teamMembers}
-          clients={clients}
-          onLogin={async (user) => {
-            setCurrentUser(user);
-            await runFullSynchronousSetup(user);
-          }}
-        />
-        <GlobalDialogHost />
-      </ErrorBoundary>
-    );
-  }
-
-  if (currentUser?.role === 'Cliente') {
-    return (
-      <ErrorBoundary>
-        <CustomerPortal 
-          currentUser={currentUser}
-          onLogout={() => setCurrentUser(null)}
-          sales={sales}
-          products={products}
-          clients={clients}
-          onUpdateClients={handleUpdateClientsList}
-        />
-        <GlobalDialogHost />
-      </ErrorBoundary>
-    );
-  }
-
   if (
     currentUser?.role === 'Parceiro' || 
     currentPath === '/parceiro' || 
@@ -5103,6 +5396,40 @@ export default function App() {
             motoboys={motoboys}
           />
         </div>
+        <GlobalDialogHost />
+      </ErrorBoundary>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <ErrorBoundary>
+        <LoginScreen 
+          sellers={sellers}
+          motoboys={motoboys}
+          teamMembers={teamMembers}
+          clients={clients}
+          onLogin={async (user) => {
+            setCurrentUser(user);
+            await runFullSynchronousSetup(user);
+          }}
+        />
+        <GlobalDialogHost />
+      </ErrorBoundary>
+    );
+  }
+
+  if (currentUser?.role === 'Cliente') {
+    return (
+      <ErrorBoundary>
+        <CustomerPortal 
+          currentUser={currentUser}
+          onLogout={() => setCurrentUser(null)}
+          sales={sales}
+          products={products}
+          clients={clients}
+          onUpdateClients={handleUpdateClientsList}
+        />
         <GlobalDialogHost />
       </ErrorBoundary>
     );
@@ -5224,14 +5551,14 @@ export default function App() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="bg-emerald-300 text-emerald-950 text-[10px] font-black uppercase px-2 py-0.5 rounded-full font-mono animate-pulse">
-                          Ao Vivo • Novo Pedido!
+                          {urgentOrderAlert.isPaymentConfirmation ? 'Ao Vivo • Pagamento Confirmado!' : 'Ao Vivo • Novo Pedido!'}
                         </span>
                         <span className="text-xs text-emerald-100 font-mono font-bold">
                           #{urgentOrderAlert.id}
                         </span>
                       </div>
                       <h3 className="text-lg font-black tracking-tight mt-0.5">
-                        NOVO PEDIDO NO SITE!
+                        {urgentOrderAlert.isPaymentConfirmation ? 'PAGAMENTO CONFIRMADO!' : 'NOVO PEDIDO NO SITE!'}
                       </h3>
                     </div>
                   </div>
@@ -5244,7 +5571,9 @@ export default function App() {
                   </button>
                 </div>
                 <p className="text-xs text-emerald-100/90 mt-2 font-medium">
-                  🚨 Uma venda acabou de ser realizada na Loja Virtual! Prepare os itens abaixo para envio rápido:
+                  {urgentOrderAlert.isPaymentConfirmation
+                    ? '💸 Pagamento confirmado automaticamente! Valor creditado no Caixa e pedido liberado para envio:'
+                    : '🚨 Uma venda acabou de ser realizada na Loja Virtual! Prepare os itens abaixo para envio rápido:'}
                 </p>
               </div>
 
@@ -5374,7 +5703,7 @@ export default function App() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-extrabold text-[11px] uppercase tracking-wider text-emerald-100 font-mono">
-                    🎉 Nova Venda Realizada!
+                    {newSaleToast.isPaymentConfirmation ? '💸 Pagamento Confirmado!' : '🎉 Nova Venda Realizada!'}
                   </span>
                   <span className="bg-emerald-400 text-emerald-950 font-black text-[9px] px-2 py-0.5 rounded-full uppercase font-mono shadow-xs shrink-0">
                     Ao Vivo
