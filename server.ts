@@ -5589,13 +5589,16 @@ app.post('/api/system/self-heal', async (req, res) => {
             const idStr = String(tx.id || '');
             const refMatch = idStr.startsWith('tx-')
               ? idStr.slice(3).toUpperCase()
-              : (desc.match(/#([A-Z0-9-]+)/i)?.[1] || desc.match(/Ped:\s*([A-Z0-9-]+)/i)?.[1] || desc.match(/PDV:\s*([A-Z0-9-]+)/i)?.[1] || '').toUpperCase();
+              : (desc.match(/#([A-Z0-9-]+)/i)?.[1] ||
+                 desc.match(/Ped:\s*([A-Z0-9-]+)/i)?.[1] ||
+                 desc.match(/PDV:\s*([A-Z0-9-]+)/i)?.[1] ||
+                 desc.match(/Venda\s+([A-Z0-9-]+)\s+para/i)?.[1] ||
+                 '').toUpperCase();
             if (refMatch) {
-              const keyRef = `${refMatch}_${Number(tx.amount || 0).toFixed(2)}`;
-              if (seenSaleRefs.has(keyRef)) {
+              if (seenSaleRefs.has(refMatch)) {
                 dupTxIds.push(idStr);
               } else {
-                seenSaleRefs.add(keyRef);
+                seenSaleRefs.add(refMatch);
               }
             }
           }

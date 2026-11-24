@@ -41,6 +41,7 @@ import { getOptimizedImageUrl, handleImageFallback, getProductMainImage } from '
 import ThermalReceipt from './ThermalReceipt';
 import SalesGoalSimulator from './SalesGoalSimulator';
 import { getLocalDateKey, getLocalDateOffset } from '../utils/dateUtils';
+import { getCardMachinesConfig } from '../lib/cardMachines';
 
 interface DashboardOverviewProps {
   products: Product[];
@@ -83,6 +84,11 @@ export default function DashboardOverview({
   }, [sales]);
 
   const faturamentoLiquido = useMemo(() => {
+    const machines = getCardMachinesConfig();
+    const infinitePayMach = machines.find(m => m.id === 'infinitepay') || machines[0];
+    const defaultDebitRate = (infinitePayMach?.debitFee ?? 1.38) / 100;
+    const defaultCredit1xRate = (infinitePayMach?.creditInstallments?.[1] ?? 3.16) / 100;
+
     return sales
       .filter(s => s.status === 'Concluída')
       .reduce((sum, s) => {
@@ -95,22 +101,32 @@ export default function DashboardOverview({
         const totalAmount = s.total;
         let totalFee = 0;
 
-        if (s.payments && Array.isArray(s.payments) && s.payments.length > 0) {
-          s.payments.forEach(p => {
+        const paymentsList = Array.isArray(s.payments)
+          ? s.payments
+          : (typeof s.payments === 'string' ? (() => { try { return JSON.parse(s.payments); } catch { return []; } })() : []);
+
+        if (Array.isArray(paymentsList) && paymentsList.length > 0) {
+          paymentsList.forEach((p: any) => {
+            if (p.netAmount !== undefined && p.netAmount !== null && p.amount) {
+              totalFee += Math.max(0, Number(p.amount) - Number(p.netAmount));
+              return;
+            }
             const method = String(p.method || '').toLowerCase();
             let rate = 0;
-            if (method.includes('pix')) {
+            if (method.includes('pix') || method.includes('dinheiro')) {
               rate = 0.00;
             } else if (method.includes('debit') || method.includes('debito') || method.includes('débito')) {
-              rate = 0.0138;
+              rate = p.cardFeePercent !== undefined ? Number(p.cardFeePercent) / 100 : defaultDebitRate;
             } else if (method.includes('credit') || method.includes('credito') || method.includes('crédito') || method.includes('infinite') || method.includes('link')) {
-              rate = 0.0316; // default crédito 1x
+              const inst = Math.min(12, Math.max(1, Number(p.installments || 1)));
+              const mach = machines.find(m => m.id === p.cardMachine) || infinitePayMach;
+              const configuredRate = (mach?.creditInstallments?.[inst] ?? (defaultCredit1xRate * 100)) / 100;
+              rate = p.cardFeePercent !== undefined ? Number(p.cardFeePercent) / 100 : configuredRate;
             }
-            totalFee += (p.amount || 0) * rate;
+            totalFee += (Number(p.amount) || 0) * rate;
           });
         } else {
-          // If no payments structured list is present, assume credit_1x as a conservative baseline
-          totalFee = totalAmount * 0.0316;
+          totalFee = totalAmount * defaultCredit1xRate;
         }
 
         return sum + (totalAmount - totalFee);
@@ -499,6 +515,11 @@ export default function DashboardOverview({
             <p className="text-[10px] font-medium text-emerald-600 leading-tight">
               +{formatCurrency(cashSummary.inflowPaid)} recebido
             </p>
+            {cashSummary.outflowPaid > 0 && (
+              <p className="text-[9px] font-semibold text-rose-500 leading-tight">
+                -{formatCurrency(cashSummary.outflowPaid)} saídas pagas
+              </p>
+            )}
             {cashSummary.inflowPending > 0 && (
               <p className="text-[9px] font-semibold text-amber-600 leading-tight">
                 A receber: {formatCurrency(cashSummary.inflowPending)}

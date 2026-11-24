@@ -1817,7 +1817,29 @@ export default function App() {
       const dbTransactions = await fetchTransactionsFromSupabase();
       const deletedTransactionsList = getDirtyIds('ap_deleted_transactions');
       if (dbTransactions && dbTransactions.length > 0) {
-        const cleanDbTxs = dbTransactions.filter((t: Transaction) => t && !deletedTransactionsList.includes(t.id));
+        const seenTxRefs = new Set<string>();
+        const sortedDbTxs = [...dbTransactions].sort((a: Transaction, b: Transaction) =>
+          (String(a?.id || '').startsWith('tx-') ? -1 : 1)
+        );
+        const cleanDbTxs = sortedDbTxs.filter((t: Transaction) => {
+          if (!t || deletedTransactionsList.includes(t.id)) return false;
+          if (t.type === 'Inflow') {
+            const desc = String(t.description || '');
+            const idStr = String(t.id || '');
+            const refMatch = idStr.startsWith('tx-')
+              ? idStr.slice(3).toUpperCase()
+              : (desc.match(/#([A-Z0-9-]+)/i)?.[1] ||
+                 desc.match(/Ped:\s*([A-Z0-9-]+)/i)?.[1] ||
+                 desc.match(/PDV:\s*([A-Z0-9-]+)/i)?.[1] ||
+                 desc.match(/Venda\s+([A-Z0-9-]+)\s+para/i)?.[1] ||
+                 '').toUpperCase();
+            if (refMatch) {
+              if (seenTxRefs.has(refMatch)) return false;
+              seenTxRefs.add(refMatch);
+            }
+          }
+          return true;
+        });
         lastTransactionsRef.current = cleanDbTxs;
         prevTransactionsRef.current = cleanDbTxs;
         setTransactions(cleanDbTxs);
@@ -5238,7 +5260,8 @@ export default function App() {
     };
 
     setTransactions(prevTx => {
-      if (prevTx.some(t => t.id === `tx-${newOrder.id}` || t.description?.includes(newOrder.id))) return prevTx;
+      const orderIdUpper = String(newOrder.id || '').toUpperCase();
+      if (prevTx.some(t => t.id === `tx-${newOrder.id}` || String(t.description || '').toUpperCase().includes(orderIdUpper))) return prevTx;
       return [newTxFromOrder, ...prevTx];
     });
 

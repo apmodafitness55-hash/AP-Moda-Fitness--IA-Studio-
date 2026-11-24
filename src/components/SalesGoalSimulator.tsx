@@ -77,7 +77,7 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
-  // 1. Calculate Real Completed Revenue for the current month in BRT
+  // 1. Calculate Real Completed Revenue for the current month in BRT + total historical completed revenue
   const realizedRevenue = useMemo(() => {
     const monthSales = sales.filter(sale => {
       if (sale.status !== 'Concluída') return false;
@@ -86,6 +86,12 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
     
     return monthSales.reduce((sum, s) => sum + s.total, 0);
   }, [sales, currentYearMonth]);
+
+  const historicalTotalRevenue = useMemo(() => {
+    return sales
+      .filter(sale => sale.status === 'Concluída')
+      .reduce((sum, s) => sum + Number(s.total || 0), 0);
+  }, [sales]);
 
   // Adjust current total in real-time if user plays with the simulated extra sale input
   const totalWithSimulated = useMemo(() => {
@@ -425,11 +431,13 @@ export default function SalesGoalSimulator({ sales }: SalesGoalSimulatorProps) {
           {/* Main Key indicators strip */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-slate-100 rounded-2xl p-4 font-sans text-left">
             <div>
-              <span className="text-[10px] text-slate-400 font-bold uppercase block tracking-wider">Faturado Real</span>
+              <span className="text-[10px] text-slate-400 font-bold uppercase block tracking-wider">Faturado ({monthNameCapitalized})</span>
               <span className="text-sm font-extrabold text-slate-800 font-mono mt-0.5 block">{formatValue(realizedRevenue)}</span>
-              {simulatedExtraSale > 0 && (
+              {simulatedExtraSale > 0 ? (
                 <span className="text-[9.5px] text-amber-600 font-bold block mt-0.5">({formatValue(totalWithSimulated)} com simulação)</span>
-              )}
+              ) : historicalTotalRevenue > realizedRevenue ? (
+                <span className="text-[9px] text-slate-400 font-semibold block mt-0.5">Total geral: {formatValue(historicalTotalRevenue)}</span>
+              ) : null}
             </div>
 
             <div>
