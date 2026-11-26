@@ -7791,8 +7791,30 @@ async function preWarmImageCache() {
   }
 }
 
+function isPainelPwaRoute(reqPath: string): boolean {
+  return /^\/(painel|admin|login)(\/|$)/.test(reqPath);
+}
+
+function injectPainelManifestIntoHtml(html: string): string {
+  return html
+    .replace(/href="\/manifest\.webmanifest"/g, 'href="/painel-manifest.webmanifest"')
+    .replace(/content="AP2 Moda"/g, 'content="AP2 Painel"')
+    .replace(/<title>[^<]*<\/title>/i, '<title>AP2 Painel Admin | Gestão e Alertas em Tempo Real</title>');
+}
+
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production' || Boolean(process.argv[1]?.endsWith('server.cjs'));
+
+  app.get('/painel-manifest.webmanifest', (_req, res) => {
+    const prodFile = path.join(process.cwd(), 'dist', 'painel-manifest.webmanifest');
+    const pubFile = path.join(process.cwd(), 'public', 'painel-manifest.webmanifest');
+    const targetFile = isProd && fs.existsSync(prodFile) ? prodFile : pubFile;
+    res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.sendFile(targetFile);
+  });
 
   if (!isProd) {
     const vitePromise = createViteServer({
@@ -7806,6 +7828,20 @@ async function startServer() {
     app.use(async (req, res, next) => {
       try {
         const vite = await vitePromise;
+        if (
+          req.method === 'GET' &&
+          isPainelPwaRoute(req.path) &&
+          (req.headers.accept || '').includes('text/html')
+        ) {
+          const rawHtml = fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf-8');
+          const transformed = await vite.transformIndexHtml(req.originalUrl, rawHtml);
+          const painelHtml = injectPainelManifestIntoHtml(transformed);
+          res.status(200).set({
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+          });
+          return res.end(painelHtml);
+        }
         return vite.middlewares(req, res, next);
       } catch (err) {
         return next(err);
@@ -7817,6 +7853,9 @@ async function startServer() {
       maxAge: '1y',
       etag: true,
       setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.webmanifest')) {
+          res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+        }
         if (
           filePath.endsWith('.html') ||
           filePath.endsWith('sw.js') ||
@@ -7834,7 +7873,17 @@ async function startServer() {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
-      res.sendFile(path.join(distPath, 'index.html'));
+      const indexFile = path.join(distPath, 'index.html');
+      if (isPainelPwaRoute(req.path)) {
+        try {
+          const rawHtml = fs.readFileSync(indexFile, 'utf-8');
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          return res.send(injectPainelManifestIntoHtml(rawHtml));
+        } catch {
+          return res.sendFile(indexFile);
+        }
+      }
+      res.sendFile(indexFile);
     });
     console.log('Production static files mounted from dist with cache-control headers.');
   }

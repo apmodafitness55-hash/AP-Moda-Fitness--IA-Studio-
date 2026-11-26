@@ -1,0 +1,60 @@
+{
+  "id": "/painel",
+  "name": "AP2 Painel Admin",
+  "short_name": "AP2 Painel",
+  "description": "Painel Administrativo, PDV, Logística e Alertas de Pedidos - AP2 Moda Fitness",
+  "start_url": "/painel",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#db2777",
+  "background_color": "#0f172a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Pedidos e Alertas",
+      "short_name": "Pedidos",
+      "description": "Abrir pedidos do site e logística de envios",
+      "url": "/painel?tab=PEDIDOS",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Frente de Caixa / PDV",
+      "short_name": "PDV",
+      "description": "Abrir terminal de vendas rápidas",
+      "url": "/painel?tab=PDV",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

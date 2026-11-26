@@ -4862,7 +4862,18 @@ export default function PublicCatalog({
               </button>
 
               <button
-                onClick={() => onExitCustomerView ? onExitCustomerView() : (window.location.href = '/painel')}
+                onClick={() => {
+                  const isStandalone =
+                    window.matchMedia('(display-mode: standalone)').matches ||
+                    (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+                  if (!isStandalone) {
+                    window.location.assign('/painel');
+                  } else if (onExitCustomerView) {
+                    onExitCustomerView();
+                  } else {
+                    window.location.href = '/painel';
+                  }
+                }}
                 className="inline-flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition font-medium text-[10px] cursor-pointer border-0"
                 title="Acesso administrativo interno do lojista"
               >

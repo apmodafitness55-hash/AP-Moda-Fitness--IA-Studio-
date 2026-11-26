@@ -14,6 +14,7 @@ export interface BeforeInstallPromptEvent extends Event {
 declare global {
   interface Window {
     __apDeferredInstallPrompt?: BeforeInstallPromptEvent | null;
+    __apDeferredInstallPromptManifest?: string | null;
     __apPWAInstalled?: boolean;
   }
 }
@@ -26,12 +27,16 @@ if (typeof window !== 'undefined') {
 
   window.addEventListener('beforeinstallprompt', (e: Event) => {
     e.preventDefault();
+    const manifestHref =
+      document.querySelector('link[rel="manifest"]')?.getAttribute('href') || null;
     window.__apDeferredInstallPrompt = e as BeforeInstallPromptEvent;
+    window.__apDeferredInstallPromptManifest = manifestHref;
     window.dispatchEvent(new CustomEvent('ap-pwa-prompt-ready'));
   });
 
   window.addEventListener('appinstalled', () => {
     window.__apDeferredInstallPrompt = null;
+    window.__apDeferredInstallPromptManifest = null;
     window.__apPWAInstalled = true;
     window.dispatchEvent(new CustomEvent('ap-pwa-installed'));
   });

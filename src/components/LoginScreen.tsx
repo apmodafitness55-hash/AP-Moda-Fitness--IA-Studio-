@@ -9,6 +9,7 @@ export const metadata = { robots: { index: false, follow: false } };
 import { Lock, User, Shield, Users, Truck, Eye, EyeOff, Award, Sparkles } from 'lucide-react';
 import { Client } from '../types';
 import { safeLocalStorageSet, createUniqueId } from '../utils/dateUtils';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface LoginScreenProps {
   sellers: string[];
@@ -346,6 +347,17 @@ export default function LoginScreen({ sellers, motoboys, clients = [], teamMembe
             {role === 'Cliente' ? 'Acessar Meu Painel VIP' : 'Entrar no Painel'}
           </button>
         </form>
+
+        {/* Dedicated Painel Admin PWA Install */}
+        <div className="flex flex-col items-center gap-2 pt-1">
+          <PWAInstallButton
+            mode="painel"
+            className="w-full py-2.5 px-4 rounded-xl border border-pink-500/40 bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+          />
+          <p className="text-[10px] text-slate-500 text-center">
+            Instale o aplicativo exclusivo do Painel para abrir direto aqui e receber alertas de compras.
+          </p>
+        </div>
 
         {/* Footer brand terms */}
         <div className="text-center font-mono text-[9px] text-slate-500 select-none border-t border-slate-800/40 pt-3">

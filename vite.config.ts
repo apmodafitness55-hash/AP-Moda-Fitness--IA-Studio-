@@ -52,14 +52,52 @@ export default defineConfig(() => {
               purpose: 'maskable',
             },
           ],
+          shortcuts: [
+            {
+              name: 'Painel Administrativo',
+              short_name: 'Painel',
+              description: 'Abrir o painel administrativo, vendas e alertas',
+              url: '/painel',
+              icons: [{ src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' }],
+            },
+            {
+              name: 'Pedidos e Logística',
+              short_name: 'Pedidos',
+              description: 'Ver pedidos recebidos e separar entregas',
+              url: '/painel?tab=PEDIDOS',
+              icons: [{ src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' }],
+            },
+          ],
         },
         workbox: {
           importScripts: ['/sw-push.js'],
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           globIgnores: ['**/assets/aistudio/**', '**/optimized-images/**'],
           maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
-          navigateFallbackDenylist: [/^\/api\//, /^\/uploads\//, /^\/sw-push\.js$/],
+          navigateFallbackDenylist: [
+            /^\/api\//,
+            /^\/uploads\//,
+            /^\/sw-push\.js$/,
+            /^\/painel(\/|$)/,
+            /^\/admin(\/|$)/,
+            /^\/login(\/|$)/,
+          ],
           runtimeCaching: [
+            {
+              urlPattern: /\/(painel|admin|login)(\/.*)?(\?.*)?$/,
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'painel-html-cache',
+                networkTimeoutSeconds: 3,
+                expiration: {
+                  maxEntries: 5,
+                  maxAgeSeconds: 60 * 60 * 24 * 7,
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
               handler: 'CacheFirst',

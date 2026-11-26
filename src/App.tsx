@@ -104,7 +104,15 @@ export default function App() {
 
   // Sidebar toggler
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<ActiveTab>(ActiveTab.DASHBOARD);
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+    if (typeof window !== 'undefined') {
+      const tabParam = new URLSearchParams(window.location.search).get('tab')?.toUpperCase();
+      if (tabParam && Object.values(ActiveTab).includes(tabParam as ActiveTab)) {
+        return tabParam as ActiveTab;
+      }
+    }
+    return ActiveTab.DASHBOARD;
+  });
   const [isDriverPortalOpen, setIsDriverPortalOpen] = useState(false);
   const [isQuickStoreModalOpen, setIsQuickStoreModalOpen] = useState(false);
 
@@ -490,6 +498,22 @@ export default function App() {
       if (canonicalLink) {
         canonicalLink.remove();
       }
+    }
+
+    // 1.5 Sync Web App Manifest link & iOS title cleanly between Storefront (/) and Admin Panel (/painel)
+    const targetManifest = isCustomerView ? '/manifest.webmanifest' : '/painel-manifest.webmanifest';
+    let manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null;
+    if (!manifestLink) {
+      manifestLink = document.createElement('link');
+      manifestLink.rel = 'manifest';
+      document.head.appendChild(manifestLink);
+    }
+    if (manifestLink.getAttribute('href') !== targetManifest) {
+      manifestLink.setAttribute('href', targetManifest);
+    }
+    const appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (appleTitleMeta) {
+      appleTitleMeta.setAttribute('content', isCustomerView ? 'AP2 Moda' : 'AP2 Painel');
     }
 
     // 2. High-resolution Favicon mapping (preserve valid PNG PWA/iOS icons unless a custom store logo is set)
@@ -5647,7 +5671,7 @@ export default function App() {
   ) {
     return (
       <ErrorBoundary>
-        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+        <div className="min-h-[100dvh] w-full bg-slate-950">
           <DriverAppPortal 
             onlineOrders={onlineOrders}
             onUpdateOrderStatus={handleUpdateOnlineOrderStatus}
@@ -6196,7 +6220,7 @@ export default function App() {
 
               {/* PWA App Install Button */}
               <div className="shrink-0">
-                <PWAInstallButton />
+                <PWAInstallButton mode="painel" />
               </div>
 
               {/* Quick Store Settings & WhatsApp Button */}
