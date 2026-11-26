@@ -655,16 +655,29 @@ export default function DriverAppPortal({
 
             {/* Deliveries Grid / List */}
             {filteredFeedOrders.length === 0 ? (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center space-y-3">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center space-y-4">
                 <div className="w-14 h-14 rounded-2xl bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
                   <Package size={28} />
                 </div>
                 <h3 className="text-lg font-bold text-white">Nenhuma entrega nesta fila</h3>
                 <p className="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
                   {feedFilter === 'mine'
-                    ? 'Quando houver pedidos atribuídos a você, eles aparecerão aqui. Você também pode conferir a aba Disponíveis.'
+                    ? 'Quando houver pedidos atribuídos a você, eles aparecerão aqui. Você também pode conferir os pedidos disponíveis.'
                     : 'Todos os pedidos pendentes já estão atribuídos a entregadores.'}
                 </p>
+                {feedFilter === 'mine' && unassignedPendingCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFeedTab('pending');
+                      setFeedFilter('all');
+                    }}
+                    className="min-h-[44px] px-5 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-sm font-bold cursor-pointer inline-flex items-center gap-2"
+                  >
+                    <span>Ver {unassignedPendingCount} pedido(s) disponíveis</span>
+                    <ChevronRight size={16} />
+                  </button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

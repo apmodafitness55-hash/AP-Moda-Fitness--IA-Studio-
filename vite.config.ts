@@ -71,6 +71,7 @@ export default defineConfig(() => {
         },
         workbox: {
           importScripts: ['/sw-push.js'],
+          cleanupOutdatedCaches: true,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           globIgnores: ['**/assets/aistudio/**', '**/optimized-images/**'],
           maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
@@ -81,16 +82,19 @@ export default defineConfig(() => {
             /^\/painel(\/|$)/,
             /^\/admin(\/|$)/,
             /^\/login(\/|$)/,
+            /^\/entregador(\/|$)/,
+            /^\/motoboy(\/|$)/,
+            /^\/driver(\/|$)/,
           ],
           runtimeCaching: [
             {
-              urlPattern: /\/(painel|admin|login)(\/.*)?(\?.*)?$/,
+              urlPattern: /\/(painel|admin|login|entregador|motoboy|driver)(\/.*)?(\?.*)?$/,
               handler: 'NetworkFirst',
               options: {
                 cacheName: 'painel-html-cache',
                 networkTimeoutSeconds: 3,
                 expiration: {
-                  maxEntries: 5,
+                  maxEntries: 8,
                   maxAgeSeconds: 60 * 60 * 24 * 7,
                 },
                 cacheableResponse: {

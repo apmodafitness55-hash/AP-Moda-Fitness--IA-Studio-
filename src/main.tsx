@@ -41,13 +41,31 @@ if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('ap-pwa-installed'));
   });
 
-  // Register VitePWA Workbox Service Worker + Push listener
+  // Register VitePWA Workbox Service Worker and auto-refresh stale tabs when a new version activates
   if ('serviceWorker' in navigator) {
-    registerSW({
+    const hadControllerAtBoot = Boolean(navigator.serviceWorker.controller);
+    let isRefreshingAfterSWUpdate = false;
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadControllerAtBoot || isRefreshingAfterSWUpdate) return;
+      try {
+        const lastReload = Number(sessionStorage.getItem('ap_sw_last_reload') || '0');
+        if (Date.now() - lastReload < 15000) return;
+        sessionStorage.setItem('ap_sw_last_reload', String(Date.now()));
+      } catch {}
+      isRefreshingAfterSWUpdate = true;
+      window.location.reload();
+    });
+
+    const updateSW = registerSW({
       immediate: true,
+      onNeedRefresh() {
+        void updateSW(true);
+      },
       onRegisteredSW(swUrl, registration) {
         if (registration) {
           console.log('[PWA Service Worker] Ativo:', swUrl, registration.scope);
+          registration.update().catch(() => {});
         }
       },
       onRegisterError(error) {
