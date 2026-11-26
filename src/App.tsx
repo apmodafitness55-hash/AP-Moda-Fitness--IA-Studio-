@@ -21,12 +21,21 @@ import {
   Moon,
   CloudLightning,
   Phone,
-  Truck
+  Truck,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 
 import { ActiveTab, Product, Sale, Client, Transaction } from './types';
 import { INITIAL_PRODUCTS, INITIAL_CLIENTS, INITIAL_SALES, INITIAL_TRANSACTIONS, INITIAL_TEAM_MEMBERS, INITIAL_ONLINE_ORDERS } from './data/mockData';
-import { playSaleSuccessSound, playOrderAlarmSound, playNotificationSound, unlockAudioContext } from './lib/audioFeedback';
+import {
+  playSaleSuccessSound,
+  playOrderAlarmSound,
+  playNotificationSound,
+  unlockAudioContext,
+  isAudioUnlocked,
+  onAudioUnlockChange
+} from './lib/audioFeedback';
 import { getStoredPartnerWithdrawRequests, syncPartnerWithdrawRequestsWithServer, PartnerWithdrawRequest } from './utils/partnerUtils';
 
 import Sidebar from './components/Sidebar';
@@ -483,35 +492,21 @@ export default function App() {
       }
     }
 
-    // 2. High-resolution Favicon mapping
+    // 2. High-resolution Favicon mapping (preserve valid PNG PWA/iOS icons unless a custom store logo is set)
     const savedLogo = localStorage.getItem('ap_store_logo');
-    const faviconUrl = savedLogo || '/logo.png';
+    if (savedLogo && savedLogo.trim() && savedLogo !== '/logo.png') {
+      const faviconUrl = savedLogo.trim();
+      const existingCustomIcons = document.querySelectorAll('link[data-dynamic-favicon="true"]');
+      existingCustomIcons.forEach(el => el.remove());
 
-    // Remove existing default favicon/shortcut/apple icons to prevent conflicts
-    const existingIcons = document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]');
-    existingIcons.forEach(el => el.remove());
-
-    // Create high-res main icon (minimum of 48x48px)
-    const linkIcon = document.createElement('link');
-    linkIcon.rel = 'icon';
-    linkIcon.type = 'image/png';
-    linkIcon.sizes = '128x128';
-    linkIcon.href = faviconUrl;
-    document.head.appendChild(linkIcon);
-
-    const linkSmallIcon = document.createElement('link');
-    linkSmallIcon.rel = 'icon';
-    linkSmallIcon.type = 'image/png';
-    linkSmallIcon.sizes = '48x48';
-    linkSmallIcon.href = faviconUrl;
-    document.head.appendChild(linkSmallIcon);
-
-    // Create higher-res apple icon
-    const linkAppleIcon = document.createElement('link');
-    linkAppleIcon.rel = 'apple-touch-icon';
-    linkAppleIcon.sizes = '180x180';
-    linkAppleIcon.href = faviconUrl;
-    document.head.appendChild(linkAppleIcon);
+      const linkIcon = document.createElement('link');
+      linkIcon.rel = 'icon';
+      linkIcon.type = 'image/png';
+      linkIcon.sizes = '192x192';
+      linkIcon.href = faviconUrl;
+      linkIcon.setAttribute('data-dynamic-favicon', 'true');
+      document.head.appendChild(linkIcon);
+    }
   }, [isCustomerView, activeTab, settingsSystemSubTab]);
 
   const [isSyncingNow, setIsSyncingNow] = useState(false);
@@ -726,26 +721,84 @@ export default function App() {
     return 'default';
   });
 
+  const [audioUnlocked, setAudioUnlocked] = useState<boolean>(() => isAudioUnlocked());
+
+  useEffect(() => {
+    return onAudioUnlockChange((unlocked) => {
+      setAudioUnlocked(unlocked);
+    });
+  }, []);
+
+  const showCrossPlatformNotification = useCallback(async (
+    title: string,
+    options: NotificationOptions & { vibrate?: number[]; renotify?: boolean },
+    onClick?: () => void
+  ) => {
+    if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') {
+      return;
+    }
+    const payload: NotificationOptions & { vibrate?: number[]; renotify?: boolean } = {
+      icon: '/pwa-192x192.png',
+      badge: '/favicon-96x96.png',
+      ...options,
+    };
+
+    try {
+      if ('serviceWorker' in navigator) {
+        const reg = await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 500)),
+        ]);
+        if (reg && 'showNotification' in reg) {
+          await reg.showNotification(title, payload as NotificationOptions);
+          return;
+        }
+      }
+    } catch (swErr) {
+      console.warn('ServiceWorker showNotification fallback:', swErr);
+    }
+
+    try {
+      const notification = new Notification(title, payload);
+      if (onClick) {
+        notification.onclick = onClick;
+      }
+    } catch (err) {
+      console.warn('Web Notification failed:', err);
+    }
+  }, []);
+
   const handleRequestNotificationPermission = async () => {
-    unlockAudioContext();
+    const unlocked = await unlockAudioContext();
+    const played = await playOrderAlarmSound();
+    if (played || unlocked) {
+      setAudioUnlocked(true);
+    }
+
     if (typeof window !== 'undefined' && 'Notification' in window) {
       try {
         const res = await Notification.requestPermission();
         setNotificationPermission(res);
         if (res === 'granted') {
-          playOrderAlarmSound();
-          new Notification('🎉 Notificações de Venda Ativas! - AP Moda Fitness', {
-            body: 'Tudo pronto! Você receberá avisos sonoros e alertas na tela sempre que uma venda for realizada na sua loja virtual.',
-            icon: '/icon.png'
+          void showCrossPlatformNotification('🎉 Alertas e Som Ativos! - AP2 Moda Fitness', {
+            body: 'Tudo pronto! Você receberá avisos sonoros e alertas na tela sempre que uma venda chegar na sua loja.',
+            icon: '/pwa-192x192.png',
+            tag: 'test-alerts-active'
           });
+          showToast('Alertas sonoros e notificações ativados com sucesso!', 'success');
         } else if (res === 'denied') {
-          showToast('As notificações foram bloqueadas no navegador. Para permitir, clique no ícone de cadeado na barra do navegador.', 'warning');
+          showToast('Som de pedidos ativado! (Popups bloqueados pelo navegador: libere no cadeado da barra se quiser avisos fora da aba).', 'info', 6000);
         }
       } catch (e) {
         console.warn('Erro ao solicitar permissão de notificação:', e);
+        if (played) {
+          showToast('Alertas sonoros ativados com sucesso!', 'success');
+        }
       }
+    } else if (played) {
+      showToast('Alertas sonoros ativados no aplicativo!', 'success');
     } else {
-      showToast('Seu navegador não possui suporte nativo para notificações de área de trabalho.', 'warning');
+      showToast('Seu navegador não possui suporte nativo para popups de notificação, mas o som interno foi ativado.', 'info');
     }
   };
 
@@ -770,37 +823,42 @@ export default function App() {
     }
     alertedSaleIdsRef.current.add(dedupKey);
 
-    // 1. Play loud, cheerful order alert sound
+    // 1. Play loud, cheerful order alert sound + vibrate on Android
     try {
-      playOrderAlarmSound();
+      void playOrderAlarmSound();
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate([300, 120, 300, 120, 400]);
+      }
     } catch (err) {
       console.warn('Could not play order alarm sound:', err);
     }
 
-    // 2. Desktop Web Push Notification
+    // 2. Desktop & Android Web Push Notification via Service Worker
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      try {
-        const formattedValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(saleData.total || 0);
-        const notificationTitle = isPaid
-          ? '💸 PAGAMENTO CONFIRMADO! - AP Moda Fitness'
-          : '🚨 NOVO PEDIDO RECEBIDO! - AP Moda Fitness';
-        const notificationBody = isPaid
-          ? `✅ Cliente: ${saleData.clientName || 'Cliente'}\n💰 Valor Confirmado: ${formattedValue} (${saleData.source || 'Site'})\nValor já lançado no Caixa e na aba Logística!`
-          : `📦 Cliente: ${saleData.clientName || 'Cliente'}\n💰 Valor: ${formattedValue} (${saleData.source || 'Site'})\nToque aqui para abrir a logística e preparar o envio!`;
-        const notification = new Notification(notificationTitle, {
+      const formattedValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(saleData.total || 0);
+      const notificationTitle = isPaid
+        ? '💸 PAGAMENTO CONFIRMADO! - AP2 Moda Fitness'
+        : '🚨 NOVO PEDIDO RECEBIDO! - AP2 Moda Fitness';
+      const notificationBody = isPaid
+        ? `✅ Cliente: ${saleData.clientName || 'Cliente'}\n💰 Valor Confirmado: ${formattedValue} (${saleData.source || 'Site'})\nValor já lançado no Caixa e na aba Logística!`
+        : `📦 Cliente: ${saleData.clientName || 'Cliente'}\n💰 Valor: ${formattedValue} (${saleData.source || 'Site'})\nToque aqui para abrir a logística e preparar o envio!`;
+      void showCrossPlatformNotification(
+        notificationTitle,
+        {
           body: notificationBody,
-          icon: '/icon.png',
+          icon: '/pwa-192x192.png',
+          badge: '/favicon-96x96.png',
+          vibrate: [300, 100, 300, 100, 300],
           tag: `sale-${dedupKey}`,
+          renotify: true,
           requireInteraction: true
-        });
-        notification.onclick = () => {
+        },
+        () => {
           window.focus();
           setActiveTab(ActiveTab.PEDIDOS);
           setUrgentOrderAlert(null);
-        };
-      } catch (e) {
-        console.warn('Failed to display web notification:', e);
-      }
+        }
+      );
     }
 
     // 3. Flashing browser tab title
@@ -907,31 +965,34 @@ export default function App() {
     }
     alertedWithdrawIdsRef.current.add(withdrawData.id);
 
-    // 1. Play notification sound
+    // 1. Play notification sound + subtle vibrate
     try {
-      playSaleSuccessSound();
+      void playSaleSuccessSound();
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate([200, 100, 200]);
+      }
     } catch (err) {
       console.warn('Could not play sound:', err);
     }
 
-    // 2. Desktop Web Push Notification
+    // 2. Desktop & Android Web Push Notification via Service Worker
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      try {
-        const formattedValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(withdrawData.amount || 0);
-        const notification = new Notification('💸 Solicitação de Saque Pix - Parceira!', {
+      const formattedValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(withdrawData.amount || 0);
+      void showCrossPlatformNotification(
+        '💸 Solicitação de Saque Pix - Parceira!',
+        {
           body: `${withdrawData.partnerName} (${withdrawData.partnerCoupon || 'Parceira'}) solicitou resgate de ${formattedValue}.\nChave Pix (${withdrawData.pixKeyType || 'Pix'}): ${withdrawData.pixKey || 'Não informada'}\nClique para ver no CRM.`,
-          icon: '/icon.png',
+          icon: '/pwa-192x192.png',
+          badge: '/favicon-96x96.png',
           tag: `withdraw-${withdrawData.id}`,
           requireInteraction: true
-        });
-        notification.onclick = () => {
+        },
+        () => {
           window.focus();
           setActiveTab(ActiveTab.CLIENTES);
           setCustomersCRMSubTab('parceiros');
-        };
-      } catch (e) {
-        console.warn('Failed to display web notification:', e);
-      }
+        }
+      );
     }
 
     // 3. Flashing browser tab title
@@ -6117,15 +6178,19 @@ export default function App() {
           <div className="flex-1 flex items-center justify-end gap-1.5 sm:gap-2 min-w-0">
             <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0 max-w-full">
               {/* Audio & Notification permission activator */}
-              {notificationPermission !== 'granted' && (
+              {(notificationPermission !== 'granted' || !audioUnlocked) && (
                 <button 
                   onClick={handleRequestNotificationPermission}
-                  className="flex items-center gap-1 font-bold text-[11px] px-2 sm:px-2.5 py-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 transition-all active:scale-95 cursor-pointer shadow-xs shrink-0 whitespace-nowrap"
-                  title="Clique para ativar avisos sonoros e notificações na tela do computador/celular sempre que um pedido do site chegar"
+                  className={`flex items-center gap-1 font-bold text-[11px] px-2 sm:px-2.5 py-1.5 rounded-xl border transition-all active:scale-95 cursor-pointer shadow-xs shrink-0 whitespace-nowrap ${
+                    !audioUnlocked
+                      ? 'border-amber-400 bg-amber-50 hover:bg-amber-100 text-amber-900 animate-pulse'
+                      : 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900'
+                  }`}
+                  title="Clique para liberar o áudio do celular/computador e ativar avisos sempre que um pedido do site chegar"
                 >
-                  <Bell size={13} className="text-amber-600" />
-                  <span className="hidden xl:inline">Alertas Sonoros 🔔</span>
-                  <span className="xl:hidden">Alertas</span>
+                  {!audioUnlocked ? <VolumeX size={13} className="text-amber-600" /> : <Bell size={13} className="text-amber-600" />}
+                  <span className="hidden xl:inline">{!audioUnlocked ? 'Ativar Som 🔊' : 'Alertas Sonoros 🔔'}</span>
+                  <span className="xl:hidden">{!audioUnlocked ? 'Som 🔇' : 'Alertas'}</span>
                 </button>
               )}
 
@@ -6236,23 +6301,52 @@ export default function App() {
                   </div>
 
                   {/* Sound & Web push controls inside notification menu */}
-                  <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex items-center justify-between gap-1.5 my-1">
-                    <button
-                      onClick={() => playSaleSuccessSound()}
-                      className="flex-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[10px] py-1 px-2 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
-                      title="Ouvir o efeito sonoro de caixa registradora emitido a cada nova venda"
-                    >
-                      <span>🔊 Testar Som</span>
-                    </button>
-                    {notificationPermission !== 'granted' && (
+                  <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 space-y-1.5 my-1">
+                    <div className="flex items-center justify-between text-[10px] px-0.5">
+                      <span className="font-bold text-slate-600 flex items-center gap-1">
+                        {audioUnlocked ? <Volume2 size={12} className="text-emerald-600" /> : <VolumeX size={12} className="text-amber-600" />}
+                        {audioUnlocked ? 'Áudio de Alertas: Ativo ✅' : 'Áudio: Toque abaixo para liberar'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-1.5">
                       <button
-                        onClick={handleRequestNotificationPermission}
-                        className="flex-1 bg-pink-600 hover:bg-pink-700 text-white font-bold text-[10px] py-1 px-2 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
-                        title="Ativar avisos de área de trabalho e som automático"
+                        onClick={async () => {
+                          await unlockAudioContext();
+                          const ok = await playOrderAlarmSound();
+                          if (ok) {
+                            showToast('🔊 Som de alerta de novo pedido reproduzido!', 'success', 2500);
+                          } else {
+                            showToast('Navegador bloqueou o áudio — verifique se o aparelho não está no silencioso.', 'warning', 4000);
+                          }
+                        }}
+                        className="flex-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[10px] py-1.5 px-2 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                        title="Ouvir o alarme de novo pedido / pagamento confirmado"
                       >
-                        <span>🔔 Ativar Popups</span>
+                        <span>🔊 Testar Alarme</span>
                       </button>
-                    )}
+                      <button
+                        onClick={async () => {
+                          await unlockAudioContext();
+                          const ok = await playSaleSuccessSound();
+                          if (ok) {
+                            showToast('💰 Som de venda concluída reproduzido!', 'success', 2500);
+                          }
+                        }}
+                        className="flex-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[10px] py-1.5 px-2 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                        title="Ouvir o efeito sonoro de caixa registradora emitido a cada venda"
+                      >
+                        <span>💰 Som Venda</span>
+                      </button>
+                      {notificationPermission !== 'granted' && (
+                        <button
+                          onClick={handleRequestNotificationPermission}
+                          className="flex-1 bg-pink-600 hover:bg-pink-700 text-white font-bold text-[10px] py-1.5 px-2 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                          title="Ativar avisos de área de trabalho e som automático"
+                        >
+                          <span>🔔 Ativar</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Pinned box for Pending Partner Withdrawals */}
