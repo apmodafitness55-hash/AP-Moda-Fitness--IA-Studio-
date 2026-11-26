@@ -73,6 +73,57 @@ const isOrderPaid = (order: any) => {
   return payStatus === 'pago' || status === 'pago' || status === 'entregue';
 };
 
+const OrderMapPreview = React.memo(function OrderMapPreview({ address }: { address: string }) {
+  const cleanAddr = useMemo(
+    () => (address || '').replace(/^Retirada no Local|^A combinar/i, '').trim(),
+    [address]
+  );
+  const embedSrc = useMemo(() => {
+    if (!cleanAddr) return '';
+    return `https://maps.google.com/maps?q=${encodeURIComponent(
+      cleanAddr
+    )}&t=m&z=16&ie=UTF8&iwloc=&output=embed`;
+  }, [cleanAddr]);
+
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    setIsLoaded(false);
+    const timer = window.setTimeout(() => setIsLoaded(true), 4000);
+    return () => window.clearTimeout(timer);
+  }, [embedSrc]);
+
+  if (!embedSrc) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-6 text-center gap-2">
+        <MapPin size={28} className="text-slate-500" />
+        <p className="text-sm font-medium">Endereço não informado para pré-visualização no mapa.</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {!isLoaded && (
+        <div className="absolute inset-0 bg-slate-900 flex flex-col items-center justify-center gap-2 text-slate-400 pointer-events-none z-10">
+          <MapPin size={24} className="text-pink-400 animate-pulse" />
+          <span className="text-xs font-medium">Carregando mapa do destino...</span>
+        </div>
+      )}
+      <iframe
+        key={embedSrc}
+        title="Mapa da Entrega"
+        src={embedSrc}
+        onLoad={() => setIsLoaded(true)}
+        className={`w-full h-full border-0 transition-opacity duration-200 ${
+          isLoaded ? 'opacity-100' : 'opacity-0'
+        }`}
+        referrerPolicy="no-referrer-when-downgrade"
+      />
+    </>
+  );
+});
+
 export default function DriverAppPortal({
   onlineOrders,
   onUpdateOrderStatus,
@@ -105,7 +156,7 @@ export default function DriverAppPortal({
         (r) => r.toLowerCase().includes(cName) || cName.includes(r.toLowerCase().split('(')[0].trim())
       );
       setSelectedRider(matched || currentUser.name);
-      setActiveStep('feed');
+      setActiveStep((prev) => (prev === 'login' ? 'feed' : prev));
     }
   }, [currentUser, riders]);
 
@@ -292,17 +343,26 @@ export default function DriverAppPortal({
     setGpsStatus((prev) => (prev === 'active' ? 'active' : 'searching'));
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        setDriverCoords({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: Math.round(pos.coords.accuracy || 0),
+        const nextLat = pos.coords.latitude;
+        const nextLng = pos.coords.longitude;
+        const nextAcc = Math.round(pos.coords.accuracy || 0);
+        setDriverCoords((prev) => {
+          if (
+            prev &&
+            Math.abs(nextLat - prev.lat) < 0.00015 &&
+            Math.abs(nextLng - prev.lng) < 0.00015 &&
+            Math.abs(nextAcc - (prev.accuracy || 0)) < 15
+          ) {
+            return prev;
+          }
+          return { lat: nextLat, lng: nextLng, accuracy: nextAcc };
         });
         setGpsStatus('active');
       },
       () => {
         setGpsStatus('denied');
       },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 5000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 10000 }
     );
 
     return () => {
@@ -846,24 +906,11 @@ export default function DriverAppPortal({
           <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 pb-6">
             {/* Map Frame */}
             <div className="lg:col-span-7 flex flex-col bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden min-h-[300px] h-[42dvh] lg:h-[calc(100dvh-7.5rem)] relative">
-              <iframe
-                title="Mapa da Entrega"
-                src={
-                  driverCoords
-                    ? `https://maps.google.com/maps?saddr=${driverCoords.lat},${driverCoords.lng}&daddr=${encodeURIComponent(
-                        activeOrder.address || ''
-                      )}&output=embed`
-                    : `https://maps.google.com/maps?q=${encodeURIComponent(
-                        activeOrder.address || ''
-                      )}&t=&z=15&ie=UTF8&iwloc=&output=embed`
-                }
-                className="w-full h-full border-0"
-                loading="lazy"
-              />
+              <OrderMapPreview address={activeOrder.address || ''} />
 
               {/* Quiet GPS readout bar */}
-              <div className="absolute top-3 left-3 right-3 pointer-events-none flex justify-between items-center">
-                <div className="bg-slate-950/90 backdrop-blur-md border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 flex items-center gap-2">
+              <div className="absolute top-3 left-3 right-3 pointer-events-none flex justify-between items-center z-20">
+                <div className="bg-slate-950/90 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 flex items-center gap-2">
                   <Navigation size={14} className="text-pink-400 shrink-0" />
                   <span>
                     {gpsStatus === 'active' && driverCoords
