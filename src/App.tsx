@@ -34,7 +34,8 @@ import {
   playNotificationSound,
   unlockAudioContext,
   isAudioUnlocked,
-  onAudioUnlockChange
+  onAudioUnlockChange,
+  setAdminAudioAlertsEnabled
 } from './lib/audioFeedback';
 import { getStoredPartnerWithdrawRequests, syncPartnerWithdrawRequestsWithServer, PartnerWithdrawRequest } from './utils/partnerUtils';
 
@@ -467,6 +468,26 @@ export default function App() {
     return true;
   }, [currentPath]);
 
+  const isAdminPanelAuthorized = useMemo(() => {
+    if (isCustomerView) return false;
+    if (!currentUser) return false;
+    if (['Cliente', 'Parceiro', 'Entregador'].includes(currentUser.role)) return false;
+    if (isDriverPortalOpen) return false;
+    if (
+      ['/parceiro', '/influenciador', '/influencer', '/entregador', '/motoboy', '/driver'].includes(currentPath) ||
+      window.location.search.includes('portal=')
+    ) {
+      return false;
+    }
+    return true;
+  }, [isCustomerView, currentUser, isDriverPortalOpen, currentPath]);
+
+  const isAdminPanelAuthorizedRef = useRef(isAdminPanelAuthorized);
+  useEffect(() => {
+    isAdminPanelAuthorizedRef.current = isAdminPanelAuthorized;
+    setAdminAudioAlertsEnabled(isAdminPanelAuthorized);
+  }, [isAdminPanelAuthorized]);
+
   // Dynamic SEO Robots index block, Title customization, Canonical URL mapping, and High-resolution Favicon mapping
   useEffect(() => {
     // 1. Robots meta tag to block administrative pages indexing & set titles/canonical links
@@ -665,6 +686,64 @@ export default function App() {
 
   const alertedSaleIdsRef = useRef<Set<string>>(new Set());
   const hasInitializedAlertedIdsRef = useRef(false);
+  const hasCompletedInitialSyncBaselineRef = useRef(false);
+  const hasInitializedWithdrawBaselineRef = useRef(false);
+
+  const persistAlertedIdKey = useCallback((storageKey: 'ap_alerted_sale_ids' | 'ap_alerted_withdraw_ids', key: string) => {
+    if (!key) return;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      const list: string[] = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(list)) return;
+      if (!list.includes(key)) {
+        const next = [key, ...list].slice(0, 600);
+        safeLocalStorageSet(storageKey, JSON.stringify(next));
+      }
+    } catch {}
+  }, []);
+
+  const seedBaselineSaleAndOrderIds = useCallback((salesList: any[] = [], ordersList: any[] = []) => {
+    const ids = alertedSaleIdsRef.current;
+    const newlySeeded: string[] = [];
+    const addKey = (k?: string) => {
+      if (k && !ids.has(k)) {
+        ids.add(k);
+        newlySeeded.push(k);
+      }
+    };
+
+    if (Array.isArray(salesList)) {
+      salesList.forEach((s: any) => {
+        if (!s?.id) return;
+        addKey(s.id);
+        const st = String(s.status || '').toLowerCase();
+        if (st === 'concluída' || st === 'concluida' || st === 'pago' || st === 'entregue') {
+          addKey(`paid-${s.id}`);
+        }
+      });
+    }
+
+    if (Array.isArray(ordersList)) {
+      ordersList.forEach((o: any) => {
+        if (!o?.id) return;
+        addKey(o.id);
+        const st = String(o.status || '').toLowerCase();
+        const pay = String(o.status_pagamento || '').toLowerCase();
+        if (pay === 'pago' || st === 'pago' || st === 'concluído' || st === 'concluido' || st === 'entregue') {
+          addKey(`paid-${o.id}`);
+        }
+      });
+    }
+
+    if (newlySeeded.length > 0) {
+      try {
+        const raw = localStorage.getItem('ap_alerted_sale_ids');
+        const prevList: string[] = raw ? JSON.parse(raw) : [];
+        const merged = Array.from(new Set([...newlySeeded, ...(Array.isArray(prevList) ? prevList : [])])).slice(0, 600);
+        safeLocalStorageSet('ap_alerted_sale_ids', JSON.stringify(merged));
+      } catch {}
+    }
+  }, []);
 
   // Urgent Order Modal state - centers on screen with sound alarm until dismissed
   const [urgentOrderAlert, setUrgentOrderAlert] = useState<{
@@ -681,9 +760,18 @@ export default function App() {
     isPaymentConfirmation?: boolean;
   } | null>(null);
 
-  // Repeating audio chime while urgentOrderAlert is active (ensures staff hears from across the room)
+  // Clear admin alert overlays immediately if user leaves Admin Panel or logs out
   useEffect(() => {
-    if (!urgentOrderAlert) return;
+    if (!isAdminPanelAuthorized) {
+      setUrgentOrderAlert(null);
+      setNewSaleToast(null);
+      hasInitializedWithdrawBaselineRef.current = false;
+    }
+  }, [isAdminPanelAuthorized]);
+
+  // Repeating audio chime while urgentOrderAlert is active (ONLY inside authorized Admin Panel)
+  useEffect(() => {
+    if (!urgentOrderAlert || !isAdminPanelAuthorized) return;
     try {
       playOrderAlarmSound();
     } catch (e) {}
@@ -695,26 +783,66 @@ export default function App() {
     }, 7500);
 
     return () => clearInterval(interval);
-  }, [urgentOrderAlert]);
+  }, [urgentOrderAlert, isAdminPanelAuthorized]);
 
-  // Seed alerted IDs on startup so existing orders don't blast alarms on boot
+  // Seed alerted IDs on startup from persisted alert history + local records so existing orders/withdraws don't blast alarms on boot
   useEffect(() => {
     if (!hasInitializedAlertedIdsRef.current) {
       const initialIds = new Set<string>();
       try {
+        const persistedSaleAlerts = localStorage.getItem('ap_alerted_sale_ids');
+        if (persistedSaleAlerts) {
+          const parsed = JSON.parse(persistedSaleAlerts);
+          if (Array.isArray(parsed)) parsed.forEach((id: any) => typeof id === 'string' && initialIds.add(id));
+        }
         const storedSales = localStorage.getItem('ap_moda_sales');
         if (storedSales) {
           const parsed = JSON.parse(storedSales);
-          if (Array.isArray(parsed)) parsed.forEach((s: any) => s && s.id && initialIds.add(s.id));
+          if (Array.isArray(parsed)) {
+            parsed.forEach((s: any) => {
+              if (s && s.id) {
+                initialIds.add(s.id);
+                const st = String(s.status || '').toLowerCase();
+                if (st === 'concluída' || st === 'concluida' || st === 'pago' || st === 'entregue') {
+                  initialIds.add(`paid-${s.id}`);
+                }
+              }
+            });
+          }
         }
         const storedOrders = localStorage.getItem('ap_moda_online_orders');
         if (storedOrders) {
           const parsed = JSON.parse(storedOrders);
-          if (Array.isArray(parsed)) parsed.forEach((o: any) => o && o.id && initialIds.add(o.id));
+          if (Array.isArray(parsed)) {
+            parsed.forEach((o: any) => {
+              if (o && o.id) {
+                initialIds.add(o.id);
+                const st = String(o.status || '').toLowerCase();
+                const pay = String(o.status_pagamento || '').toLowerCase();
+                if (pay === 'pago' || st === 'pago' || st === 'concluído' || st === 'concluido' || st === 'entregue') {
+                  initialIds.add(`paid-${o.id}`);
+                }
+              }
+            });
+          }
         }
       } catch (e) {}
       alertedSaleIdsRef.current = initialIds;
       hasInitializedAlertedIdsRef.current = true;
+
+      const initialWithdrawIds = new Set<string>();
+      try {
+        const persistedWithdrawAlerts = localStorage.getItem('ap_alerted_withdraw_ids');
+        if (persistedWithdrawAlerts) {
+          const parsed = JSON.parse(persistedWithdrawAlerts);
+          if (Array.isArray(parsed)) parsed.forEach((id: any) => typeof id === 'string' && initialWithdrawIds.add(id));
+        }
+        const storedWithdraws = getStoredPartnerWithdrawRequests();
+        if (Array.isArray(storedWithdraws)) {
+          storedWithdraws.forEach((w: any) => w?.id && initialWithdrawIds.add(w.id));
+        }
+      } catch (e) {}
+      alertedWithdrawIdsRef.current = initialWithdrawIds;
     }
   }, []);
 
@@ -837,6 +965,7 @@ export default function App() {
     alertKey?: string;
   }) => {
     if (!saleData || !saleData.id) return;
+    if (!isAdminPanelAuthorizedRef.current) return;
 
     const isPaid = Boolean(saleData.isPaymentConfirmation);
     const dedupKey = saleData.alertKey || (isPaid ? `paid-${saleData.id}` : saleData.id);
@@ -846,6 +975,7 @@ export default function App() {
       return;
     }
     alertedSaleIdsRef.current.add(dedupKey);
+    persistAlertedIdKey('ap_alerted_sale_ids', dedupKey);
 
     // 1. Play loud, cheerful order alert sound + vibrate on Android
     try {
@@ -964,6 +1094,7 @@ export default function App() {
     date?: string;
   }) => {
     if (!withdrawData || !withdrawData.id) return;
+    if (!isAdminPanelAuthorizedRef.current) return;
     
     // Sempre garante que o item de notificação esteja presente e visível no sino
     const notifId = `withdraw-${withdrawData.id}`;
@@ -988,6 +1119,7 @@ export default function App() {
       return;
     }
     alertedWithdrawIdsRef.current.add(withdrawData.id);
+    persistAlertedIdKey('ap_alerted_withdraw_ids', withdrawData.id);
 
     // 1. Play notification sound + subtle vibrate
     try {
@@ -1466,6 +1598,8 @@ export default function App() {
   // Realiza um download completo, sequencial e forçado de todas as tabelas logo no login para evitar dados "picotados" ou atrasados
   const runFullSynchronousSetup = useCallback(async (user: any) => {
     if (!user) return;
+    hasCompletedInitialSyncBaselineRef.current = false;
+    hasInitializedWithdrawBaselineRef.current = false;
     setIsCloudSyncingOnLogin(true);
     setSyncProgress({
       status: 'running',
@@ -1990,6 +2124,10 @@ export default function App() {
         }
       }
 
+      // Silently seed all existing sales & online orders downloaded at login/startup so they never blast false alarms
+      seedBaselineSaleAndOrderIds(lastSalesRef.current || [], lastOnlineOrdersRef.current || []);
+      hasCompletedInitialSyncBaselineRef.current = true;
+
       setSyncProgress(prev => ({
         ...prev,
         step: 'Sincronizando Carrinhos Abandonados...',
@@ -2239,13 +2377,15 @@ export default function App() {
           }
         }
       }
+      seedBaselineSaleAndOrderIds(lastSalesRef.current || [], lastOnlineOrdersRef.current || []);
       setTimeout(() => {
         isUpdatingFromSyncRef.current = false;
         hasBootstrappedCloudRef.current = true;
+        hasCompletedInitialSyncBaselineRef.current = true;
       }, 300);
     }
     initSupabaseSync();
-  }, [runFullSynchronousSetup]);
+  }, [runFullSynchronousSetup, seedBaselineSaleAndOrderIds]);
 
   // Listen to table missing warnings from Supabase schemas and display advice
   useEffect(() => {
@@ -2620,6 +2760,7 @@ export default function App() {
       prevOnlineOrdersRef.current = [];
       lastCheckoutsRef.current = [];
       prevCheckoutsRef.current = [];
+      hasCompletedInitialSyncBaselineRef.current = false;
 
       if (currentUserRef.current) {
         await runFullSynchronousSetupRef.current(currentUserRef.current);
@@ -2877,12 +3018,17 @@ export default function App() {
           }
         } catch(e) {}
 
+        const canTriggerLiveAlerts =
+          isAdminPanelAuthorizedRef.current &&
+          hasInitializedAlertedIdsRef.current &&
+          hasCompletedInitialSyncBaselineRef.current;
+
         for (const dbS of dbSales) {
           if (!dbS || deletedSalesList.includes(dbS.id)) continue;
           const sIdLower = (dbS.id || '').toLowerCase();
           const localS = localMap.get(dbS.id) || localMap.get(sIdLower);
 
-          if (!localS && hasInitializedAlertedIdsRef.current && !alertedSaleIdsRef.current.has(dbS.id)) {
+          if (!localS && canTriggerLiveAlerts && !alertedSaleIdsRef.current.has(dbS.id)) {
             triggerSaleAlert({
               id: dbS.id,
               clientName: dbS.clientName || 'Cliente',
@@ -3032,8 +3178,13 @@ export default function App() {
             ? (localO.status_pagamento === 'pago' || localO.status === 'Pago' || localO.status === 'Concluído' || localO.status === 'Entregue')
             : false;
 
+          const canTriggerOrderAlerts =
+            isAdminPanelAuthorizedRef.current &&
+            hasInitializedAlertedIdsRef.current &&
+            hasCompletedInitialSyncBaselineRef.current;
+
           if (!localO) {
-            if (hasInitializedAlertedIdsRef.current && !alertedSaleIdsRef.current.has(dbO.id)) {
+            if (canTriggerOrderAlerts && !alertedSaleIdsRef.current.has(dbO.id)) {
               triggerSaleAlert({
                 id: dbO.id,
                 clientName: dbO.clientName || 'Cliente Online',
@@ -3044,7 +3195,7 @@ export default function App() {
               });
             }
           } else if (!dirtyOrders.includes(dbO.id) && !localOrderPaid && dbOrderPaid && !dbOrderCanceled) {
-            if (hasInitializedAlertedIdsRef.current) {
+            if (canTriggerOrderAlerts) {
               triggerSaleAlert({
                 id: dbO.id,
                 clientName: dbO.clientName || 'Cliente Online',
@@ -3233,11 +3384,16 @@ export default function App() {
         window.dispatchEvent(new Event('ap-storage-synced'));
       }
 
-      if (localStateModified || remoteStateModified) {
+      if (!hasCompletedInitialSyncBaselineRef.current) {
+        seedBaselineSaleAndOrderIds(lastSalesRef.current || [], lastOnlineOrdersRef.current || []);
+        hasCompletedInitialSyncBaselineRef.current = true;
+      }
+
+      if (isManual && (localStateModified || remoteStateModified)) {
         setNotifications(prev => [
           {
             id: Date.now() + 800,
-            title: isManual ? 'Nuvem Sincronizada ☁️✨' : 'Sincronização Concluída ✨',
+            title: 'Nuvem Sincronizada ☁️✨',
             detail: 'Todos os produtos, vendas, clientes, Google/Microsoft Workspace, logotipo e configurações compartilhados com este aparelho!',
             read: false,
             type: 'goal' as const
@@ -3296,9 +3452,9 @@ export default function App() {
     };
   }, [systemOffline, performSync]);
 
-  // Conexão em Tempo Real (SSE) para Recepção Instantânea de Novos Pedidos e Vendas (<500ms)
+  // Conexão em Tempo Real (SSE) para Recepção Instantânea de Novos Pedidos e Vendas (<500ms) — APENAS para Painel Administrativo autorizado
   useEffect(() => {
-    if (typeof window === 'undefined' || systemOffline) return;
+    if (typeof window === 'undefined' || systemOffline || !isAdminPanelAuthorized) return;
 
     let eventSource: EventSource | null = null;
     let reconnectTimer: any = null;
@@ -3438,7 +3594,7 @@ export default function App() {
       }
       clearTimeout(reconnectTimer);
     };
-  }, [systemOffline, triggerSaleAlert]);
+  }, [systemOffline, triggerSaleAlert, isAdminPanelAuthorized]);
 
   // Assinatura em Tempo Real (Realtime) do Supabase para Sincronização Instantânea Multidispositivo
   useEffect(() => {
@@ -3459,6 +3615,10 @@ export default function App() {
       // Ignora alterações do próprio aparelho se estivermos no meio de um sync bilateral em lote para prevenir colisões ou loops redundantes
       if (isSyncingRef.current) {
         console.log(`[Supabase Realtime] Evento recebido, mas ignorado por lock de sincronização em andamento na tabela: ${tableName}`);
+        return;
+      }
+
+      if (!isAdminPanelAuthorizedRef.current && tableName !== 'ap_products' && tableName !== 'ap_system_configs') {
         return;
       }
 
@@ -3698,13 +3858,15 @@ export default function App() {
             };
             if (eventType === 'INSERT' && !prev.some(s => s.id === mapped.id)) {
               updated = [mapped, ...prev];
-              triggerSaleAlert({
-                id: mapped.id,
-                clientName: mapped.clientName,
-                total: mapped.total,
-                source: mapped.channel || 'Loja Virtual / PDV',
-                itemsCount: mapped.items?.length
-              });
+              if (isAdminPanelAuthorizedRef.current && hasBootstrappedCloudRef.current && hasCompletedInitialSyncBaselineRef.current) {
+                triggerSaleAlert({
+                  id: mapped.id,
+                  clientName: mapped.clientName,
+                  total: mapped.total,
+                  source: mapped.channel || 'Loja Virtual / PDV',
+                  itemsCount: mapped.items?.length
+                });
+              }
             } else {
               updated = prev.map(s => s.id === mapped.id ? mapped : s);
             }
@@ -3786,14 +3948,16 @@ export default function App() {
             const mapped = mapRealtimeOrder(newRec);
             if (!prev.some(o => o.id === mapped.id)) {
               updated = [mapped, ...prev];
-              triggerSaleAlert({
-                id: mapped.id,
-                clientName: mapped.clientName,
-                total: mapped.total,
-                source: 'E-commerce / Catálogo Online',
-                itemsCount: mapped.items?.length,
-                orderData: mapped
-              });
+              if (isAdminPanelAuthorizedRef.current && hasBootstrappedCloudRef.current && hasCompletedInitialSyncBaselineRef.current) {
+                triggerSaleAlert({
+                  id: mapped.id,
+                  clientName: mapped.clientName,
+                  total: mapped.total,
+                  source: 'E-commerce / Catálogo Online',
+                  itemsCount: mapped.items?.length,
+                  orderData: mapped
+                });
+              }
             }
           } else if (eventType === 'UPDATE' && newRec) {
             const mapped = mapRealtimeOrder(newRec);
@@ -3805,15 +3969,17 @@ export default function App() {
             const isCanceled = mapped.status === 'Cancelado' || mapped.status === 'Recusado';
 
             if (!wasPaid && isNowPaid && !isCanceled) {
-              triggerSaleAlert({
-                id: mapped.id,
-                clientName: mapped.clientName,
-                total: mapped.total,
-                source: 'Pagamento Confirmado (Online)',
-                itemsCount: mapped.items?.length || 1,
-                orderData: mapped,
-                isPaymentConfirmation: true
-              });
+              if (isAdminPanelAuthorizedRef.current && hasBootstrappedCloudRef.current && hasCompletedInitialSyncBaselineRef.current) {
+                triggerSaleAlert({
+                  id: mapped.id,
+                  clientName: mapped.clientName,
+                  total: mapped.total,
+                  source: 'Pagamento Confirmado (Online)',
+                  itemsCount: mapped.items?.length || 1,
+                  orderData: mapped,
+                  isPaymentConfirmation: true
+                });
+              }
             }
 
             updated = prevOrder
@@ -3939,9 +4105,11 @@ export default function App() {
   }, [systemOffline]);
 
   // Atualiza estado local de saques a partir do localStorage (sem disparar nova requisição em loop)
-  const refreshPartnerWithdrawsFromStorage = useCallback(() => {
+  const refreshPartnerWithdrawsFromStorage = useCallback((suppressSound = false) => {
     const stored = getStoredPartnerWithdrawRequests();
     setPartnerWithdrawRequests(stored);
+
+    if (!isAdminPanelAuthorizedRef.current) return;
 
     const pendings = stored.filter(r => r.status === 'Pendente');
 
@@ -3967,37 +4135,48 @@ export default function App() {
         return Array.from(notifMap.values());
       });
 
-      // Dispara efeito sonoro e alerta visual para novas solicitações não alertadas ainda
+      // Dispara efeito sonoro e alerta visual APENAS para solicitações realmente novas (pós-baseline inicial do painel)
       pendings.forEach(p => {
         if (!alertedWithdrawIdsRef.current.has(p.id)) {
-          triggerPartnerWithdrawAlert(p);
+          if (suppressSound || !hasInitializedWithdrawBaselineRef.current) {
+            alertedWithdrawIdsRef.current.add(p.id);
+            persistAlertedIdKey('ap_alerted_withdraw_ids', p.id);
+          } else {
+            triggerPartnerWithdrawAlert(p);
+          }
         }
       });
     }
-  }, [triggerPartnerWithdrawAlert]);
+  }, [triggerPartnerWithdrawAlert, persistAlertedIdKey]);
 
   // Função para sincronizar da nuvem e atualizar o sino de notificações
   const syncAndRefreshPartnerWithdraws = useCallback(async () => {
+    if (!isAdminPanelAuthorizedRef.current) return;
+    const isBaselinePass = !hasInitializedWithdrawBaselineRef.current;
     try {
       await syncPartnerWithdrawRequestsWithServer();
     } catch (e) {}
-    refreshPartnerWithdrawsFromStorage();
+    refreshPartnerWithdrawsFromStorage(isBaselinePass);
+    hasInitializedWithdrawBaselineRef.current = true;
   }, [refreshPartnerWithdrawsFromStorage]);
 
-  // Efeito para escuta ativa e sincronização contínua de solicitações de saque de parceiros
+  // Efeito para escuta ativa e sincronização contínua de solicitações de saque de parceiros — APENAS no Painel Administrativo autorizado
   useEffect(() => {
+    if (!isAdminPanelAuthorized) return;
+
     const handlePartnerWithdraw = (e: any) => {
+      if (!isAdminPanelAuthorizedRef.current) return;
       const detail = e.detail;
       if (detail && detail.newRequests && Array.isArray(detail.newRequests)) {
         detail.newRequests.forEach((req: any) => triggerPartnerWithdrawAlert(req));
       } else if (detail && detail.id) {
         triggerPartnerWithdrawAlert(detail);
       }
-      refreshPartnerWithdrawsFromStorage();
+      refreshPartnerWithdrawsFromStorage(false);
     };
 
     const handleLocalRefreshEvent = () => {
-      refreshPartnerWithdrawsFromStorage();
+      refreshPartnerWithdrawsFromStorage(!hasInitializedWithdrawBaselineRef.current);
     };
 
     window.addEventListener('ap-partner-withdraw-alert', handlePartnerWithdraw);
@@ -4006,10 +4185,10 @@ export default function App() {
     window.addEventListener('ap-system-configs-refreshed', handleLocalRefreshEvent);
     window.addEventListener('ap-storage-synced', handleLocalRefreshEvent);
 
-    // Executa imediatamente na inicialização
+    // Baseline silencioso na inicialização (carrega pendentes no sino sem tocar alarme na abertura)
     syncAndRefreshPartnerWithdraws();
 
-    // Verificação periódica automática a cada 10 segundos para capturar solicitações feitas remotamente
+    // Verificação periódica automática a cada 10 segundos para capturar solicitações novas feitas remotamente
     const interval = setInterval(() => {
       syncAndRefreshPartnerWithdraws();
     }, 10000);
@@ -4022,7 +4201,7 @@ export default function App() {
       window.removeEventListener('ap-storage-synced', handleLocalRefreshEvent);
       clearInterval(interval);
     };
-  }, [triggerPartnerWithdrawAlert, refreshPartnerWithdrawsFromStorage, syncAndRefreshPartnerWithdraws]);
+  }, [isAdminPanelAuthorized, triggerPartnerWithdrawAlert, refreshPartnerWithdrawsFromStorage, syncAndRefreshPartnerWithdraws]);
 
   // WhatsApp Business API triggers (com suporte a fila offline)
   const triggerWhatsAppAlert = async (type: 'sale_completed' | 'stock_alert', data: any, forceSync = false) => {
@@ -5701,6 +5880,8 @@ export default function App() {
           teamMembers={teamMembers}
           clients={clients}
           onLogin={async (user) => {
+            hasCompletedInitialSyncBaselineRef.current = false;
+            hasInitializedWithdrawBaselineRef.current = false;
             setCurrentUser(user);
             await runFullSynchronousSetup(user);
           }}

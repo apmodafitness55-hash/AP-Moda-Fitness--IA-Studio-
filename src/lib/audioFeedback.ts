@@ -19,8 +19,13 @@ const SAMPLE_RATE = 22050;
 let sharedAudioCtx: AudioContext | null = null;
 let audioUnlockedState = false;
 let htmlAudioBlessed = false;
+let adminAudioAlertsEnabled = false;
 let alarmAudioEl: HTMLAudioElement | null = null;
 let sfxAudioEl: HTMLAudioElement | null = null;
+
+export function setAdminAudioAlertsEnabled(enabled: boolean): void {
+  adminAudioAlertsEnabled = Boolean(enabled);
+}
 
 let silentWavUrl: string | null = null;
 let orderAlarmWavUrl: string | null = null;
@@ -223,6 +228,7 @@ async function ensureRunningAudioContext(): Promise<AudioContext | null> {
 }
 
 function blessHtmlAudioElementsSync() {
+  if (htmlAudioBlessed) return;
   ensureAudioElements();
   const silentUrl = getSilentWavUrl();
   if (!silentUrl) return;
@@ -318,9 +324,11 @@ export async function unlockAudioContext(): Promise<boolean> {
   return isAudioUnlocked();
 }
 
-// Keep gesture listeners attached whenever audio is not yet fully unlocked
+// Keep gesture listeners attached ONLY when admin alerts are enabled and audio is not yet unlocked
 if (typeof window !== 'undefined') {
   const onGesture = () => {
+    if (!adminAudioAlertsEnabled) return;
+    if (htmlAudioBlessed && sharedAudioCtx?.state === 'running') return;
     void unlockAudioContext();
   };
   window.addEventListener('pointerdown', onGesture, { passive: true, capture: true });
@@ -329,7 +337,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('keydown', onGesture, { passive: true, capture: true });
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && sharedAudioCtx?.state === 'suspended') {
+    if (adminAudioAlertsEnabled && document.visibilityState === 'visible' && sharedAudioCtx?.state === 'suspended') {
       sharedAudioCtx.resume().catch(() => {});
     }
   });

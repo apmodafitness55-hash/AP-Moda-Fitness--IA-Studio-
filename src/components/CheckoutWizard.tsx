@@ -26,7 +26,6 @@ import {
 import { validateCPF } from './PublicCatalog'; // Import CPF validation helper if exported, or define it locally
 import { validateCouponForCpf } from '../utils/couponUtils';
 import { getSupabaseClient } from '../supabase';
-import { playSaleSuccessSound } from '../lib/audioFeedback';
 import { getWhatsAppUrl } from '../utils/storeConfig';
 import { showToast } from '../lib/uiDialog';
 import { getLocalDateKey, safeLocalStorageSet } from '../utils/dateUtils';
@@ -294,7 +293,6 @@ export function CheckoutWizard({
             if (status === 'pago' || statusPag === 'pago') {
               console.log(`[CheckoutWizard] Pix confirmado em tempo real para o pedido: ${completedOrder.id}`);
               setOrderPaymentStatus('pago');
-              playSaleSuccessSound();
               window.dispatchEvent(new Event('ap-storage-synced'));
               clearInterval(interval);
             }
